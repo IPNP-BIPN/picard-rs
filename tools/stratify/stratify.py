@@ -70,9 +70,23 @@ def main(root: Path) -> int:
             if gained:
                 followed.append(f"{ref}:{'+'.join(sorted(gained))}")
             present |= gained
+        # The tool file is a thin dispatcher; the work is in the collector and bean classes it
+        # references. Measuring the tool file measures the wrong thing: CollectInsertSizeMetrics
+        # is 191 lines and its collector plus bean are another 335. Both numbers are kept, and
+        # `footprint` is the one to size work with.
+        footprint = len(text.splitlines())
+        parts = []
+        for ref in sorted(set(REFERENCED.findall(text))):
+            if ref == name or ref not in by_class:
+                continue
+            n = len(by_class[ref].splitlines())
+            footprint += n
+            parts.append(f"{ref}({n})")
         tools[name] = {
             "path": str(path),
             "lines": len(text.splitlines()),
+            "footprint": footprint,
+            "footprint_parts": parts,
             "signals": sorted(present),
             "machinery_from": followed,
         }
@@ -82,15 +96,15 @@ def main(root: Path) -> int:
         strata[tuple(info["signals"])].append(name)
 
     print(f"{len(tools)} metrics tools in {len(strata)} strata\n")
-    print(f"{'n':>3}  {'lines min-max':>13}  signals")
+    print(f"{'n':>3}  {'footprint':>13}  signals")
     print("-" * 78)
     for signals, names in sorted(strata.items(), key=lambda kv: -len(kv[1])):
-        sizes = [tools[n]["lines"] for n in names]
+        sizes = [tools[n]["footprint"] for n in names]
         spread = f"{min(sizes)}-{max(sizes)}"
         label = ", ".join(signals) or "(none)"
         print(f"{len(names):>3}  {spread:>13}  {label}")
         for n in sorted(names):
-            print(f"                       {n} ({tools[n]['lines']})")
+            print(f"                       {n} ({tools[n]['footprint']})")
         print()
 
     counts = Counter()
