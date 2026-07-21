@@ -3,3 +3,4 @@ target/
 /gatk/
 /picard/
 /htsjdk/
+/target

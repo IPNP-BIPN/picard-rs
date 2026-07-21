@@ -21,7 +21,8 @@ use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::{Options, QualityYieldMetricsCollector};
 
 fn corpus() -> String {
-    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/quality_yield.txt.gz");
+    let p =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/quality_yield.txt.gz");
     let f = std::fs::File::open(&p).expect("corpus");
     let mut s = String::new();
     flate2::read::GzDecoder::new(f)

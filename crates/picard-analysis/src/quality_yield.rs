@@ -108,7 +108,9 @@ pub struct QualityYieldMetricsCollector {
 /// The cast to `byte` is Java's, and it is why a character above 160 wraps into a negative
 /// score rather than being rejected.
 fn fastq_to_phred(s: &str) -> Vec<i8> {
-    s.chars().map(|c| (c as u32 as u8).wrapping_sub(33) as i8).collect()
+    s.chars()
+        .map(|c| (c as u32 as u8).wrapping_sub(33) as i8)
+        .collect()
 }
 
 impl QualityYieldMetricsCollector {
@@ -124,8 +126,7 @@ impl QualityYieldMetricsCollector {
         if !self.options.include_secondary_alignments && rec.flags & SECONDARY_ALIGNMENT != 0 {
             return;
         }
-        if !self.options.include_supplemental_alignments
-            && rec.flags & SUPPLEMENTARY_ALIGNMENT != 0
+        if !self.options.include_supplemental_alignments && rec.flags & SUPPLEMENTARY_ALIGNMENT != 0
         {
             return;
         }
