@@ -93,6 +93,39 @@ divergence rate, and the output is described as **bio-identical** rather than
 | `picard-rs` | Picard 3.4.0 | `htsjdk-rs` |
 | `gatk-rs` | GATK 4.6.2.0 | `picard-rs`, `htsjdk-rs` |
 
+## Relationship to `fulcrumgenomics/riker`
+
+[riker](https://github.com/fulcrumgenomics/riker) is an independent, MIT-licensed Rust
+reimplementation of these same Picard QC tools, from the maintainers of Picard and htsjdk. It is
+the closest existing work to this repository, so the distinction matters and is worth stating
+plainly.
+
+**riker targets functional equivalence; this repository targets byte equivalence.** riker's own
+README says it "is not intended to be a drop-in replacement for Picard": lowercase `snake_case`
+headers, no metadata lines, `frac_` for `pct_`, and "bug fixes that yield slightly different
+outputs". So riker is the better tool to use; this is a byte-for-byte reproduction of the
+existing one, bugs included, so that GATK and Picard pipelines can be reproduced exactly.
+
+That makes riker **a source of divergence candidates, never a source to port from** — copying it
+would import its deliberate deviations, and the licence being compatible does not make it correct.
+Its `ERRATA.md` is a curated list of exactly where a careful reimplementer differs from Picard,
+and every entry is a place this port must *not* differ. Two are already pinned as conformance
+cases (`riker_mean_aligned_dilution`, `riker_improper_pair_unmapped_mate` in the alignment-summary
+suite), measured against the reference rather than trusted. Where riker's reading of Picard and
+this port's agree, that is an independent cross-check of the reading; where riker's errata is
+silent on something byte comparison catches — Picard's alignment-block cycle binning, recorded in
+`docs/decisions/0003` — that is evidence for the method rather than against riker.
+
+## Commit attribution
+
+Commits are co-authored with the model that wrote them. On 2026-07-21 the history of all three
+repositories was rewritten to add that trailer uniformly, at the maintainer's request, changing
+every commit SHA. The **current** htsjdk-rs pin was moved to the rewritten commit, but pins in
+this repository's *historical* commits name pre-rewrite htsjdk-rs SHAs that no longer exist, so a
+checkout of an old picard-rs commit can no longer fetch its exact dependency. Historical builds
+before that date are therefore no longer bit-reproducible; current and future ones are. This was
+a deliberate trade.
+
 ## License
 
 MIT, matching Picard. See `LICENSE`.
