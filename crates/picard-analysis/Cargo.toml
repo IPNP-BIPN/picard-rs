@@ -11,6 +11,7 @@ htsjdk-bam.workspace = true
 htsjdk-metrics.workspace = true
 # Needed by the runnable binary, not only by the tests: reading a BAM means decompressing it.
 htsjdk-bgzf.workspace = true
+jmath.workspace = true
 
 [dev-dependencies]
 flate2 = { version = "1", default-features = false, features = ["zlib"] }
