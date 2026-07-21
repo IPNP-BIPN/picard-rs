@@ -1,6 +1,6 @@
 # 0001. The metrics archetype is not homogeneous, so a delta from one pair would be an artefact
 
-**Status:** accepted; calibration gate redesigned, delta still unmeasured
+**Status:** accepted; **corrected once** (see the footprint correction), delta still unmeasured
 **Date:** 2026-07-21
 
 ## Context
@@ -98,11 +98,35 @@ One stratum is tight enough for the delta to mean something:
 | `CollectRnaSeqMetrics` | 215 |
 | `CollectAlignmentSummaryMetrics` | 245 |
 
-Three members, `histogram` + `multi_level` + `single_pass`, spanning 191 to 245 lines. That is
-the calibration triple the plan asked for, now **chosen by measurement rather than by guess**.
-The first pays for `MultiLevelCollector` and `Histogram`; the second and third pay the delta,
-and because their sizes are within 28% of each other the delta is attributable to the
-amortisation rather than to the sample.
+Three members, `histogram` + `multi_level` + `single_pass`, spanning 191 to 245 lines, within
+28% of each other.
+
+> ### Correction: those are the wrong numbers
+>
+> Found while porting the second member. The figures above are the **tool file** line counts,
+> and a Picard tool file is a thin dispatcher: the argument declarations, the usage text, and a
+> `finish()` that delegates. The work is in the collector and bean classes it references.
+>
+> | tool | tool file | full footprint |
+> |---|---:|---:|
+> | `CollectInsertSizeMetrics` | 191 | **526** (+`InsertSizeMetricsCollector` 233, `InsertSizeMetrics` 102) |
+> | `CollectRnaSeqMetrics` | 215 | **879** (+`RnaSeqMetricsCollector` 516, `RnaSeqMetrics` 148) |
+> | `CollectAlignmentSummaryMetrics` | 245 | **978** (+`AlignmentSummaryMetricsCollector` 500, `AlignmentSummaryMetrics` 233) |
+>
+> So the spread is **1.86x**, not 1.28x, and the triple was chosen on a metric that measures the
+> wrong thing. `stratify.py` now reports `footprint` and sizes strata by it.
+>
+> This is the second time in this program that a count turned out to be measuring a different
+> population than the label suggested — the first was 57 metric definition classes counted as 57
+> tools. The pattern is the same: a number that is easy to obtain stands in for the number that
+> matters, and nothing complains.
+>
+> Re-sorted by footprint, two strata are tighter than the chosen one: `mergeable_base` (4 tools,
+> 1.44x) and `histogram, mergeable_base, single_pass` (3 tools, 1.44x). The chosen stratum is
+> kept anyway, because its machinery has already been paid and switching now would discard that
+> and prove nothing. What changes is the **methodology**: with a 1.86x spread, a raw line-count
+> delta would be dominated by the size difference, so the gate reports **Rust lines written per
+> Java line ported**, first member against subsequent, rather than the raw counts.
 
 The already-ported `CollectQualityYieldMetrics` is in a different stratum
 (`mergeable_base` + `single_pass`), so it is not a member of this triple and its cost does not

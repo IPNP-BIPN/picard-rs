@@ -1,6 +1,10 @@
 {
   "tools": {
     "AccumulateQualityYieldMetrics": {
+      "footprint": 391,
+      "footprint_parts": [
+        "CollectQualityYieldMetrics(314)"
+      ],
       "lines": 77,
       "machinery_from": [
         "CollectQualityYieldMetrics:mergeable_base+single_pass"
@@ -12,6 +16,10 @@
       ]
     },
     "AccumulateVariantCallingMetrics": {
+      "footprint": 482,
+      "footprint_parts": [
+        "CollectVariantCallingMetrics(346)"
+      ],
       "lines": 136,
       "machinery_from": [
         "CollectVariantCallingMetrics:mergeable_base+needs_intervals"
@@ -23,12 +31,21 @@
       ]
     },
     "CalculateFingerprintMetrics": {
+      "footprint": 362,
+      "footprint_parts": [
+        "FingerprintMetrics(122)"
+      ],
       "lines": 240,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/fingerprint/CalculateFingerprintMetrics.java",
       "signals": []
     },
     "CheckFingerprint": {
+      "footprint": 589,
+      "footprint_parts": [
+        "FingerprintingDetailMetrics(73)",
+        "FingerprintingSummaryMetrics(82)"
+      ],
       "lines": 434,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/fingerprint/CheckFingerprint.java",
@@ -37,12 +54,19 @@
       ]
     },
     "ClusterCrosscheckMetrics": {
+      "footprint": 188,
+      "footprint_parts": [],
       "lines": 188,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/fingerprint/ClusterCrosscheckMetrics.java",
       "signals": []
     },
     "CollectAlignmentSummaryMetrics": {
+      "footprint": 978,
+      "footprint_parts": [
+        "AlignmentSummaryMetrics(233)",
+        "AlignmentSummaryMetricsCollector(500)"
+      ],
       "lines": 245,
       "machinery_from": [
         "AlignmentSummaryMetricsCollector:multi_level"
@@ -57,6 +81,8 @@
       ]
     },
     "CollectArraysVariantCallingMetrics": {
+      "footprint": 497,
+      "footprint_parts": [],
       "lines": 497,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/arrays/CollectArraysVariantCallingMetrics.java",
@@ -65,6 +91,10 @@
       ]
     },
     "CollectBaseDistributionByCycle": {
+      "footprint": 291,
+      "footprint_parts": [
+        "BaseDistributionByCycleMetrics(40)"
+      ],
       "lines": 251,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/analysis/CollectBaseDistributionByCycle.java",
@@ -74,6 +104,10 @@
       ]
     },
     "CollectDuplicateMetrics": {
+      "footprint": 381,
+      "footprint_parts": [
+        "DuplicationMetrics(276)"
+      ],
       "lines": 105,
       "machinery_from": [
         "DuplicationMetrics:histogram+mergeable_base"
@@ -86,6 +120,13 @@
       ]
     },
     "CollectGcBiasMetrics": {
+      "footprint": 827,
+      "footprint_parts": [
+        "GcBiasDetailMetrics(69)",
+        "GcBiasMetrics(43)",
+        "GcBiasMetricsCollector(412)",
+        "GcBiasSummaryMetrics(84)"
+      ],
       "lines": 219,
       "machinery_from": [
         "GcBiasMetricsCollector:multi_level"
@@ -99,12 +140,18 @@
       ]
     },
     "CollectHiSeqXPfFailMetrics": {
+      "footprint": 566,
+      "footprint_parts": [],
       "lines": 566,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/illumina/quality/CollectHiSeqXPfFailMetrics.java",
       "signals": []
     },
     "CollectIlluminaBasecallingMetrics": {
+      "footprint": 408,
+      "footprint_parts": [
+        "IlluminaBasecallingMetrics(87)"
+      ],
       "lines": 321,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/illumina/CollectIlluminaBasecallingMetrics.java",
@@ -113,12 +160,19 @@
       ]
     },
     "CollectIlluminaLaneMetrics": {
+      "footprint": 334,
+      "footprint_parts": [
+        "IlluminaLaneMetrics(27)",
+        "IlluminaPhasingMetrics(75)"
+      ],
       "lines": 232,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/illumina/CollectIlluminaLaneMetrics.java",
       "signals": []
     },
     "CollectIndependentReplicateMetrics": {
+      "footprint": 613,
+      "footprint_parts": [],
       "lines": 613,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/analysis/replicates/CollectIndependentReplicateMetrics.java",
@@ -128,6 +182,11 @@
       ]
     },
     "CollectInsertSizeMetrics": {
+      "footprint": 526,
+      "footprint_parts": [
+        "InsertSizeMetrics(102)",
+        "InsertSizeMetricsCollector(233)"
+      ],
       "lines": 191,
       "machinery_from": [
         "InsertSizeMetricsCollector:histogram+multi_level"
@@ -141,6 +200,11 @@
       ]
     },
     "CollectJumpingLibraryMetrics": {
+      "footprint": 668,
+      "footprint_parts": [
+        "DuplicationMetrics(276)",
+        "JumpingLibraryMetrics(128)"
+      ],
       "lines": 264,
       "machinery_from": [
         "DuplicationMetrics:mergeable_base"
@@ -153,6 +217,8 @@
       ]
     },
     "CollectOxoGMetrics": {
+      "footprint": 510,
+      "footprint_parts": [],
       "lines": 510,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/analysis/CollectOxoGMetrics.java",
@@ -162,6 +228,8 @@
       ]
     },
     "CollectQualityYieldMetrics": {
+      "footprint": 314,
+      "footprint_parts": [],
       "lines": 314,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/analysis/CollectQualityYieldMetrics.java",
@@ -171,6 +239,8 @@
       ]
     },
     "CollectQualityYieldMetricsFlow": {
+      "footprint": 390,
+      "footprint_parts": [],
       "lines": 390,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/analysis/CollectQualityYieldMetricsFlow.java",
@@ -181,6 +251,8 @@
       ]
     },
     "CollectQualityYieldMetricsSNVQ": {
+      "footprint": 549,
+      "footprint_parts": [],
       "lines": 549,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/analysis/CollectQualityYieldMetricsSNVQ.java",
@@ -191,6 +263,11 @@
       ]
     },
     "CollectRnaSeqMetrics": {
+      "footprint": 879,
+      "footprint_parts": [
+        "RnaSeqMetrics(148)",
+        "RnaSeqMetricsCollector(516)"
+      ],
       "lines": 215,
       "machinery_from": [
         "RnaSeqMetricsCollector:multi_level"
@@ -205,6 +282,14 @@
       ]
     },
     "CollectRrbsMetrics": {
+      "footprint": 1051,
+      "footprint_parts": [
+        "MultiLevelCollector(341)",
+        "RrbsCpgDetailMetrics(47)",
+        "RrbsMetrics(59)",
+        "RrbsMetricsCollector(311)",
+        "RrbsSummaryMetrics(62)"
+      ],
       "lines": 231,
       "machinery_from": [
         "RrbsMetricsCollector:histogram"
@@ -218,6 +303,8 @@
       ]
     },
     "CollectSamErrorMetrics": {
+      "footprint": 823,
+      "footprint_parts": [],
       "lines": 823,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/sam/SamErrorMetric/CollectSamErrorMetrics.java",
@@ -227,6 +314,11 @@
       ]
     },
     "CollectSequencingArtifactMetrics": {
+      "footprint": 725,
+      "footprint_parts": [
+        "ErrorSummaryMetrics(39)",
+        "SequencingArtifactMetrics(305)"
+      ],
       "lines": 381,
       "machinery_from": [
         "ErrorSummaryMetrics:mergeable_base"
@@ -239,6 +331,8 @@
       ]
     },
     "CollectUmiPrevalenceMetrics": {
+      "footprint": 212,
+      "footprint_parts": [],
       "lines": 212,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/analysis/CollectUmiPrevalenceMetrics.java",
@@ -248,6 +342,8 @@
       ]
     },
     "CollectVariantCallingMetrics": {
+      "footprint": 346,
+      "footprint_parts": [],
       "lines": 346,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/vcf/CollectVariantCallingMetrics.java",
@@ -257,6 +353,13 @@
       ]
     },
     "CollectWgsMetrics": {
+      "footprint": 1259,
+      "footprint_parts": [
+        "AbstractWgsMetricsCollector(221)",
+        "FastWgsMetricsCollector(195)",
+        "TheoreticalSensitivityMetrics(52)",
+        "WgsMetrics(343)"
+      ],
       "lines": 448,
       "machinery_from": [
         "WgsMetrics:mergeable_base"
@@ -270,6 +373,11 @@
       ]
     },
     "CollectWgsMetricsWithNonZeroCoverage": {
+      "footprint": 1057,
+      "footprint_parts": [
+        "CollectWgsMetrics(448)",
+        "WgsMetrics(343)"
+      ],
       "lines": 266,
       "machinery_from": [
         "CollectWgsMetrics:needs_reference",
@@ -285,12 +393,20 @@
       ]
     },
     "CompareMetrics": {
+      "footprint": 437,
+      "footprint_parts": [],
       "lines": 437,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/analysis/CompareMetrics.java",
       "signals": []
     },
     "ConvertSequencingArtifactToOxoG": {
+      "footprint": 1438,
+      "footprint_parts": [
+        "CollectOxoGMetrics(510)",
+        "CollectSequencingArtifactMetrics(381)",
+        "SequencingArtifactMetrics(305)"
+      ],
       "lines": 242,
       "machinery_from": [
         "CollectOxoGMetrics:needs_intervals",
@@ -304,18 +420,30 @@
       ]
     },
     "CreateBafRegressMetricsFile": {
+      "footprint": 171,
+      "footprint_parts": [
+        "BafRegressMetrics(57)"
+      ],
       "lines": 114,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/arrays/CreateBafRegressMetricsFile.java",
       "signals": []
     },
     "CreateVerifyIDIntensityContaminationMetricsFile": {
+      "footprint": 138,
+      "footprint_parts": [
+        "VerifyIDIntensityContaminationMetrics(20)"
+      ],
       "lines": 118,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/arrays/CreateVerifyIDIntensityContaminationMetricsFile.java",
       "signals": []
     },
     "CrosscheckFingerprints": {
+      "footprint": 1262,
+      "footprint_parts": [
+        "ClusterCrosscheckMetrics(188)"
+      ],
       "lines": 1074,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/fingerprint/CrosscheckFingerprints.java",
@@ -324,6 +452,10 @@
       ]
     },
     "DownsampleSam": {
+      "footprint": 643,
+      "footprint_parts": [
+        "CollectQualityYieldMetrics(314)"
+      ],
       "lines": 329,
       "machinery_from": [
         "CollectQualityYieldMetrics:mergeable_base+single_pass"
@@ -336,6 +468,10 @@
       ]
     },
     "EstimateLibraryComplexity": {
+      "footprint": 952,
+      "footprint_parts": [
+        "DuplicationMetrics(276)"
+      ],
       "lines": 676,
       "machinery_from": [
         "DuplicationMetrics:mergeable_base"
@@ -348,6 +484,10 @@
       ]
     },
     "FindMendelianViolations": {
+      "footprint": 441,
+      "footprint_parts": [
+        "MendelianViolationMetrics(89)"
+      ],
       "lines": 352,
       "machinery_from": [
         "MendelianViolationMetrics:mergeable_base"
@@ -359,6 +499,12 @@
       ]
     },
     "GenotypeConcordance": {
+      "footprint": 1240,
+      "footprint_parts": [
+        "GenotypeConcordanceContingencyMetrics(64)",
+        "GenotypeConcordanceDetailMetrics(43)",
+        "GenotypeConcordanceSummaryMetrics(93)"
+      ],
       "lines": 1040,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/vcf/GenotypeConcordance.java",
@@ -367,6 +513,10 @@
       ]
     },
     "MarkDuplicates": {
+      "footprint": 1323,
+      "footprint_parts": [
+        "DuplicationMetrics(276)"
+      ],
       "lines": 1047,
       "machinery_from": [
         "DuplicationMetrics:histogram+mergeable_base"
@@ -379,6 +529,10 @@
       ]
     },
     "MarkDuplicatesWithMateCigar": {
+      "footprint": 428,
+      "footprint_parts": [
+        "CollectInsertSizeMetrics(191)"
+      ],
       "lines": 237,
       "machinery_from": [
         "CollectInsertSizeMetrics:needs_r+single_pass"
@@ -392,6 +546,8 @@
       ]
     },
     "MarkIlluminaAdapters": {
+      "footprint": 257,
+      "footprint_parts": [],
       "lines": 257,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/illumina/MarkIlluminaAdapters.java",
@@ -401,6 +557,8 @@
       ]
     },
     "MeanQualityByCycle": {
+      "footprint": 154,
+      "footprint_parts": [],
       "lines": 154,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/analysis/MeanQualityByCycle.java",
@@ -410,6 +568,8 @@
       ]
     },
     "QualityScoreDistribution": {
+      "footprint": 176,
+      "footprint_parts": [],
       "lines": 176,
       "machinery_from": [],
       "path": "picard/src/main/java/picard/analysis/QualityScoreDistribution.java",
@@ -420,6 +580,10 @@
       ]
     },
     "SimpleMarkDuplicatesWithMateCigar": {
+      "footprint": 512,
+      "footprint_parts": [
+        "DuplicationMetrics(276)"
+      ],
       "lines": 236,
       "machinery_from": [
         "DuplicationMetrics:histogram+mergeable_base"
@@ -432,6 +596,10 @@
       ]
     },
     "UmiAwareMarkDuplicatesWithMateCigar": {
+      "footprint": 314,
+      "footprint_parts": [
+        "UmiMetrics(156)"
+      ],
       "lines": 158,
       "machinery_from": [
         "UmiMetrics:histogram"
