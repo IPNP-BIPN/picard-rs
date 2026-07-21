@@ -54,7 +54,34 @@
 //! caller that skipped the uppercase would depend on it, and it is documented as unreachable
 //! rather than presented as a live divergence.
 //!
-//! Getting to that took two probes. The first put the no-calls at the start of the sequence,
+//! ## Where the uncomputed windows go
+//!
+//! The zeros left at index 0 and at or past `lastWindowStart` are not inert.
+//! `GcBiasMetricsCollector.addRead` reads `gc[pos]` and bins on the result without checking
+//! whether that entry was ever written, so **a read whose window start falls outside the
+//! computed range is charged to GC bin 0**, not skipped. Measured in the oracle
+//! (`tools/gcbias-conformance/WindowBinningProbe.java`), a read at position 320 of a 400-base
+//! contig with a 100-base window reports `gc=0`.
+//!
+//! Two more from the same probe, both about which window a read is charged to:
+//!
+//! ```java
+//! final int pos = rec.getReadNegativeStrandFlag()
+//!     ? rec.getAlignmentEnd() - scanWindowSize
+//!     : rec.getAlignmentStart();
+//! ```
+//!
+//! A forward read is charged to the window at its alignment *start*, a reverse read to the one
+//! at its alignment *end* minus the window size. Two reads covering **the same reference bases**
+//! therefore land in different bins: over a pure-GC stretch the forward read reports `gc=99` and
+//! the reverse `gc=100`. riker's errata describes "a forward-strand window-binning fix", so this
+//! is a place an independent reimplementation chose to differ.
+//!
+//! And `if (pos > 0)` silently drops a reverse read near the contig start from the GC bins while
+//! still counting it in `totalAlignedReads`, so the per-bin read counts do not sum to the
+//! aligned-read total.
+//!
+//! Getting to the case asymmetry took two probes. The first put the no-calls at the start of the sequence,
 //! where they only ever *left* the window, so the buggy branch never ran and the two cases
 //! agreed. That probe proved nothing; the second one, with the no-calls entering, is the
 //! evidence.
