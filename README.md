@@ -39,6 +39,20 @@ into `main` when the whole tool is byte-identical across its corpus.
 | `CollectInsertSizeMetrics` | **byte-identical**, first member of the calibration pair |
 | `CollectAlignmentSummaryMetrics` | **byte-identical**, 22 cases, decision 0003 |
 
+## Throughput
+
+Measured, not claimed. `tools/benchmark/run.sh` times the port against Picard on the same input,
+inside the same container, and asserts byte-identity of the two outputs in the same run.
+
+At 2,000,000 reads on real x86-64: **1.46x** wall clock, **1.36x** net of JVM startup, output
+byte-identical.
+
+The same code measured 5.2x on a 200,000-read input and 2.0x under x86-64 emulation. Each time
+the measurement got more careful the number got smaller, which is the direction benchmarks move
+when they start optimistic;
+[decision 0004](docs/decisions/0004-the-speedup-is-mostly-jvm-startup-until-it-is-not.md) records
+all three and why. No optimisation work has been done, so 1.46x is a floor.
+
 ## Decisions
 
 | # | Title |
@@ -46,6 +60,7 @@ into `main` when the whole tool is byte-identical across its corpus.
 | [0001](docs/decisions/0001-the-metrics-archetype-is-not-homogeneous.md) | The metrics archetype is not homogeneous |
 | [0002](docs/decisions/0002-the-first-within-stratum-delta.md) | The first within-stratum delta, smaller than the archetype story assumed |
 | [0003](docs/decisions/0003-the-delta-at-the-large-end-is-negative.md) | The within-stratum delta at the large end is negative |
+| [0004](docs/decisions/0004-the-speedup-is-mostly-jvm-startup-until-it-is-not.md) | The speedup is mostly JVM startup, until the input is big enough that it is not |
 
 ## Bit-identity contract
 

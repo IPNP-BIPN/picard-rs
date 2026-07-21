@@ -179,3 +179,70 @@ jobs:
               print(f"  {path} {k}\n    real={r[:200]}\n    committed={c[:200]}")
           sys.exit(1 if bad else 0)
           PY
+
+  benchmark:
+    name: "Throughput against Picard, on real x86-64"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the pinned oracle image
+        run: docker build -t picard-rs-oracle:3.4.0 tools/oracle
+
+      - name: Generate the benchmark corpus
+        run: |
+          mkdir -p target/benchmark
+          docker run --rm -v "$PWD/tools/benchmark":/harness:ro \
+            -v "$PWD/target/benchmark":/out -w /work picard-rs-oracle:3.4.0 \
+            'cp /harness/MakeBenchmarkBam.java . && javac -cp $PICARD_JAR -d . MakeBenchmarkBam.java \
+             && java -cp .:$PICARD_JAR MakeBenchmarkBam 2000000 /out/bench'
+          ls -la target/benchmark/bench.bam
+
+      - name: Build the port
+        run: cargo build --release --bin collect-alignment-summary-metrics
+
+      - name: Time both, on the same hardware, neither emulated
+        # The runner is real x86-64, so this is the authoritative figure; the numbers in
+        # decision 0004 come from an emulated container and say so.
+        run: |
+          cp target/release/collect-alignment-summary-metrics target/benchmark/
+          cat > target/benchmark/bench.sh <<'INNER'
+          cd /out
+          TIMEFORMAT='%3R'
+          echo "jvm_startup_floor_s"
+          for i in 1 2; do { time java -jar $PICARD_JAR CollectAlignmentSummaryMetrics --version >/dev/null 2>&1 ; } 2>&1; done
+          echo "picard_gkl_default_s"
+          for i in 1 2 3; do { time java -jar $PICARD_JAR CollectAlignmentSummaryMetrics I=bench.bam O=/out/picard.txt R=bench.fasta >/dev/null 2>&1 ; } 2>&1; done
+          echo "rust_s"
+          for i in 1 2 3; do { time /out/collect-alignment-summary-metrics I=bench.bam O=/out/rust.txt R=bench.fasta >/dev/null 2>&1 ; } 2>&1; done
+          echo "rust_phases"
+          PICARD_RS_TIMING=1 /out/collect-alignment-summary-metrics I=bench.bam O=/out/rust.txt R=bench.fasta
+          INNER
+          docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.4.0 'bash /out/bench.sh'
+
+      - name: The fast output is also the identical output
+        # A throughput number for output that does not match is worthless, so the two are
+        # asserted in the same job rather than in separate ones that could drift.
+        run: |
+          python3 - <<'PY'
+          import sys
+          def body(path):
+              return ''.join(l for l in open(path)
+                             if not l.startswith('# CollectAlignmentSummaryMetrics')
+                             and not l.startswith('# Started on:'))
+          picard = body('target/benchmark/picard.txt')
+          rust = body('target/benchmark/rust.txt')
+          print("byte-identical over 2,000,000 reads:", picard == rust)
+          if picard != rust:
+              for i, (a, b) in enumerate(zip(picard.split('\n'), rust.split('\n'))):
+                  if a != b:
+                      print(f"line {i}\n  picard: {a[:200]}\n  ours  : {b[:200]}")
+                      break
+              sys.exit(1)
+          PY
