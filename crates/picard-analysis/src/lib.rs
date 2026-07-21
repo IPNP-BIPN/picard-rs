@@ -7,6 +7,7 @@ pub mod alignment_summary;
 pub mod cycle;
 pub mod gc;
 pub mod insert_size;
+pub mod quality_score_distribution;
 pub mod quality_yield;
 
 pub use cycle::{
