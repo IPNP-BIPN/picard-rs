@@ -4,3 +4,4 @@ target/
 /picard/
 /htsjdk/
 /target
+tools/asm-conformance/out_*.txt
