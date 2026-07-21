@@ -29,6 +29,24 @@ main                                    shared infrastructure only
 A feature merges into its tool branch when it is byte-identical for its scope. A tool merges
 into `main` when the whole tool is byte-identical across its corpus.
 
+## Status
+
+| Tool | Status |
+|---|---|
+| `CollectQualityYieldMetrics` | **byte-identical** |
+| `MeanQualityByCycle` | **byte-identical** |
+| `CollectBaseDistributionByCycle` | **byte-identical** |
+| `CollectInsertSizeMetrics` | **byte-identical**, first member of the calibration pair |
+| `CollectAlignmentSummaryMetrics` | **byte-identical**, 22 cases, decision 0003 |
+
+## Decisions
+
+| # | Title |
+|---|---|
+| [0001](docs/decisions/0001-the-metrics-archetype-is-not-homogeneous.md) | The metrics archetype is not homogeneous |
+| [0002](docs/decisions/0002-the-first-within-stratum-delta.md) | The first within-stratum delta, smaller than the archetype story assumed |
+| [0003](docs/decisions/0003-the-delta-at-the-large-end-is-negative.md) | The within-stratum delta at the large end is negative |
+
 ## Bit-identity contract
 
 Goldens are produced by the pinned reference in a digest-pinned `linux/amd64` container on
