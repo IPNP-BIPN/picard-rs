@@ -22,6 +22,20 @@ jobs:
           grep -qi "not the official Picard" README.md || { echo "attribution notice missing"; exit 1; }
           echo "licence and attribution consistent"
 
+      - name: Goldens live in exactly one place
+        # They were committed twice, under tools/metrics-conformance/ and under the crate's
+        # tests/data/, with nothing keeping the two in sync. A corpus that exists twice is a
+        # corpus that can disagree with itself, and the CI comparison would have kept passing
+        # against the stale copy.
+        run: |
+          strays=$(ls tools/metrics-conformance/*.txt.gz 2>/dev/null || true)
+          if [ -n "$strays" ]; then
+            echo "goldens duplicated outside crates/picard-analysis/tests/data:"
+            echo "$strays"
+            exit 1
+          fi
+          echo "one copy of each golden"
+
   test:
     name: Test on real x86-64
     runs-on: ubuntu-latest
@@ -94,6 +108,14 @@ jobs:
              && java -cp ".:$ORACLE_CP" CycleDump 2>/dev/null' > /tmp/cy_real.txt
           wc -l /tmp/cy_real.txt
 
+      - name: Regenerate the CollectAlignmentSummaryMetrics goldens
+        run: |
+          docker run --rm --platform linux/amd64 \
+            -v "$PWD/tools/metrics-conformance":/harness:ro -w /work picard-rs-oracle:3.4.0 \
+            'cp /harness/AlignmentSummaryDump.java . && javac -cp "$ORACLE_CP" -d . AlignmentSummaryDump.java \
+             && java -cp ".:$ORACLE_CP" AlignmentSummaryDump 2>/dev/null' > /tmp/asm_real.txt
+          wc -l /tmp/asm_real.txt
+
       - name: Compare the metrics rows against the committed goldens
         # The BAM hex and the two header lines carry JVM-chosen temp paths and a timestamp, so
         # only the metrics body is comparable across runs. That is stated rather than left
@@ -111,6 +133,7 @@ jobs:
               '# CollectInsertSizeMetrics',
               '# MeanQualityByCycle',
               '# CollectBaseDistributionByCycle',
+              '# CollectAlignmentSummaryMetrics',
               '# Started on:',
           ]
 
@@ -124,16 +147,21 @@ jobs:
               for line in open_fn(path):
                   parts = line.rstrip('\n').split('\t', 2)
                   # 'metrics' for the single-tool harnesses, the tool name for the multi-tool
-                  # one. The 'bam' lines are skipped: the Rust tests compare those.
-                  if len(parts) < 3 or parts[0] == 'bam':
+                  # one. The 'bam' and 'fasta' lines are inputs, not output: the Rust tests
+                  # compare those.
+                  if len(parts) < 3 or parts[0] in ('bam', 'fasta'):
                       continue
                   d[(parts[0], parts[1])] = body(parts[2])
               return d
 
+          # One path per corpus, and it is the path the Rust tests read. The goldens used to
+          # sit in tools/metrics-conformance/ as well, two copies with nothing keeping them in
+          # sync; the invariants job now fails if that comes back.
           pairs = [
-              ('/tmp/qy_real.txt', 'tools/metrics-conformance/quality_yield.txt.gz'),
-              ('/tmp/is_real.txt', 'tools/metrics-conformance/insert_size.txt.gz'),
-              ('/tmp/cy_real.txt', 'tools/metrics-conformance/cycle.txt.gz'),
+              ('/tmp/qy_real.txt', 'crates/picard-analysis/tests/data/quality_yield.txt.gz'),
+              ('/tmp/is_real.txt', 'crates/picard-analysis/tests/data/insert_size.txt.gz'),
+              ('/tmp/cy_real.txt', 'crates/picard-analysis/tests/data/cycle.txt.gz'),
+              ('/tmp/asm_real.txt', 'crates/picard-analysis/tests/data/alignment_summary.txt.gz'),
           ]
           bad, total = [], 0
           for real_path, committed_path in pairs:
