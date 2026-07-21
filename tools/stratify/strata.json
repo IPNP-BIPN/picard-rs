@@ -1,0 +1,445 @@
+{
+  "tools": {
+    "AccumulateQualityYieldMetrics": {
+      "lines": 77,
+      "machinery_from": [
+        "CollectQualityYieldMetrics:mergeable_base+single_pass"
+      ],
+      "path": "picard/src/main/java/picard/util/AccumulateQualityYieldMetrics.java",
+      "signals": [
+        "mergeable_base",
+        "single_pass"
+      ]
+    },
+    "AccumulateVariantCallingMetrics": {
+      "lines": 136,
+      "machinery_from": [
+        "CollectVariantCallingMetrics:mergeable_base+needs_intervals"
+      ],
+      "path": "picard/src/main/java/picard/vcf/AccumulateVariantCallingMetrics.java",
+      "signals": [
+        "mergeable_base",
+        "needs_intervals"
+      ]
+    },
+    "CalculateFingerprintMetrics": {
+      "lines": 240,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/fingerprint/CalculateFingerprintMetrics.java",
+      "signals": []
+    },
+    "CheckFingerprint": {
+      "lines": 434,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/fingerprint/CheckFingerprint.java",
+      "signals": [
+        "needs_reference"
+      ]
+    },
+    "ClusterCrosscheckMetrics": {
+      "lines": 188,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/fingerprint/ClusterCrosscheckMetrics.java",
+      "signals": []
+    },
+    "CollectAlignmentSummaryMetrics": {
+      "lines": 245,
+      "machinery_from": [
+        "AlignmentSummaryMetricsCollector:multi_level"
+      ],
+      "path": "picard/src/main/java/picard/analysis/CollectAlignmentSummaryMetrics.java",
+      "signals": [
+        "histogram",
+        "multi_level",
+        "needs_r",
+        "needs_reference",
+        "single_pass"
+      ]
+    },
+    "CollectArraysVariantCallingMetrics": {
+      "lines": 497,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/arrays/CollectArraysVariantCallingMetrics.java",
+      "signals": [
+        "mergeable_base"
+      ]
+    },
+    "CollectBaseDistributionByCycle": {
+      "lines": 251,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/analysis/CollectBaseDistributionByCycle.java",
+      "signals": [
+        "needs_r",
+        "single_pass"
+      ]
+    },
+    "CollectDuplicateMetrics": {
+      "lines": 105,
+      "machinery_from": [
+        "DuplicationMetrics:histogram+mergeable_base"
+      ],
+      "path": "picard/src/main/java/picard/sam/markduplicates/CollectDuplicateMetrics.java",
+      "signals": [
+        "histogram",
+        "mergeable_base",
+        "single_pass"
+      ]
+    },
+    "CollectGcBiasMetrics": {
+      "lines": 219,
+      "machinery_from": [
+        "GcBiasMetricsCollector:multi_level"
+      ],
+      "path": "picard/src/main/java/picard/analysis/CollectGcBiasMetrics.java",
+      "signals": [
+        "multi_level",
+        "needs_r",
+        "needs_reference",
+        "single_pass"
+      ]
+    },
+    "CollectHiSeqXPfFailMetrics": {
+      "lines": 566,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/illumina/quality/CollectHiSeqXPfFailMetrics.java",
+      "signals": []
+    },
+    "CollectIlluminaBasecallingMetrics": {
+      "lines": 321,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/illumina/CollectIlluminaBasecallingMetrics.java",
+      "signals": [
+        "histogram"
+      ]
+    },
+    "CollectIlluminaLaneMetrics": {
+      "lines": 232,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/illumina/CollectIlluminaLaneMetrics.java",
+      "signals": []
+    },
+    "CollectIndependentReplicateMetrics": {
+      "lines": 613,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/analysis/replicates/CollectIndependentReplicateMetrics.java",
+      "signals": [
+        "histogram",
+        "needs_reference"
+      ]
+    },
+    "CollectInsertSizeMetrics": {
+      "lines": 191,
+      "machinery_from": [
+        "InsertSizeMetricsCollector:histogram+multi_level"
+      ],
+      "path": "picard/src/main/java/picard/analysis/CollectInsertSizeMetrics.java",
+      "signals": [
+        "histogram",
+        "multi_level",
+        "needs_r",
+        "single_pass"
+      ]
+    },
+    "CollectJumpingLibraryMetrics": {
+      "lines": 264,
+      "machinery_from": [
+        "DuplicationMetrics:mergeable_base"
+      ],
+      "path": "picard/src/main/java/picard/analysis/CollectJumpingLibraryMetrics.java",
+      "signals": [
+        "histogram",
+        "mergeable_base",
+        "needs_reference"
+      ]
+    },
+    "CollectOxoGMetrics": {
+      "lines": 510,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/analysis/CollectOxoGMetrics.java",
+      "signals": [
+        "needs_intervals",
+        "needs_reference"
+      ]
+    },
+    "CollectQualityYieldMetrics": {
+      "lines": 314,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/analysis/CollectQualityYieldMetrics.java",
+      "signals": [
+        "mergeable_base",
+        "single_pass"
+      ]
+    },
+    "CollectQualityYieldMetricsFlow": {
+      "lines": 390,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/analysis/CollectQualityYieldMetricsFlow.java",
+      "signals": [
+        "histogram",
+        "mergeable_base",
+        "single_pass"
+      ]
+    },
+    "CollectQualityYieldMetricsSNVQ": {
+      "lines": 549,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/analysis/CollectQualityYieldMetricsSNVQ.java",
+      "signals": [
+        "histogram",
+        "mergeable_base",
+        "single_pass"
+      ]
+    },
+    "CollectRnaSeqMetrics": {
+      "lines": 215,
+      "machinery_from": [
+        "RnaSeqMetricsCollector:multi_level"
+      ],
+      "path": "picard/src/main/java/picard/analysis/CollectRnaSeqMetrics.java",
+      "signals": [
+        "histogram",
+        "multi_level",
+        "needs_intervals",
+        "needs_r",
+        "single_pass"
+      ]
+    },
+    "CollectRrbsMetrics": {
+      "lines": 231,
+      "machinery_from": [
+        "RrbsMetricsCollector:histogram"
+      ],
+      "path": "picard/src/main/java/picard/analysis/CollectRrbsMetrics.java",
+      "signals": [
+        "histogram",
+        "multi_level",
+        "needs_r",
+        "needs_reference"
+      ]
+    },
+    "CollectSamErrorMetrics": {
+      "lines": 823,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/sam/SamErrorMetric/CollectSamErrorMetrics.java",
+      "signals": [
+        "needs_intervals",
+        "needs_reference"
+      ]
+    },
+    "CollectSequencingArtifactMetrics": {
+      "lines": 381,
+      "machinery_from": [
+        "ErrorSummaryMetrics:mergeable_base"
+      ],
+      "path": "picard/src/main/java/picard/analysis/artifacts/CollectSequencingArtifactMetrics.java",
+      "signals": [
+        "mergeable_base",
+        "needs_intervals",
+        "single_pass"
+      ]
+    },
+    "CollectUmiPrevalenceMetrics": {
+      "lines": 212,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/analysis/CollectUmiPrevalenceMetrics.java",
+      "signals": [
+        "histogram",
+        "needs_reference"
+      ]
+    },
+    "CollectVariantCallingMetrics": {
+      "lines": 346,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/vcf/CollectVariantCallingMetrics.java",
+      "signals": [
+        "mergeable_base",
+        "needs_intervals"
+      ]
+    },
+    "CollectWgsMetrics": {
+      "lines": 448,
+      "machinery_from": [
+        "WgsMetrics:mergeable_base"
+      ],
+      "path": "picard/src/main/java/picard/analysis/CollectWgsMetrics.java",
+      "signals": [
+        "histogram",
+        "mergeable_base",
+        "needs_intervals",
+        "needs_reference"
+      ]
+    },
+    "CollectWgsMetricsWithNonZeroCoverage": {
+      "lines": 266,
+      "machinery_from": [
+        "CollectWgsMetrics:needs_reference",
+        "WgsMetrics:mergeable_base"
+      ],
+      "path": "picard/src/main/java/picard/analysis/CollectWgsMetricsWithNonZeroCoverage.java",
+      "signals": [
+        "histogram",
+        "mergeable_base",
+        "needs_intervals",
+        "needs_r",
+        "needs_reference"
+      ]
+    },
+    "CompareMetrics": {
+      "lines": 437,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/analysis/CompareMetrics.java",
+      "signals": []
+    },
+    "ConvertSequencingArtifactToOxoG": {
+      "lines": 242,
+      "machinery_from": [
+        "CollectOxoGMetrics:needs_intervals",
+        "CollectSequencingArtifactMetrics:single_pass"
+      ],
+      "path": "picard/src/main/java/picard/analysis/artifacts/ConvertSequencingArtifactToOxoG.java",
+      "signals": [
+        "needs_intervals",
+        "needs_reference",
+        "single_pass"
+      ]
+    },
+    "CreateBafRegressMetricsFile": {
+      "lines": 114,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/arrays/CreateBafRegressMetricsFile.java",
+      "signals": []
+    },
+    "CreateVerifyIDIntensityContaminationMetricsFile": {
+      "lines": 118,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/arrays/CreateVerifyIDIntensityContaminationMetricsFile.java",
+      "signals": []
+    },
+    "CrosscheckFingerprints": {
+      "lines": 1074,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/fingerprint/CrosscheckFingerprints.java",
+      "signals": [
+        "needs_reference"
+      ]
+    },
+    "DownsampleSam": {
+      "lines": 329,
+      "machinery_from": [
+        "CollectQualityYieldMetrics:mergeable_base+single_pass"
+      ],
+      "path": "picard/src/main/java/picard/sam/DownsampleSam.java",
+      "signals": [
+        "mergeable_base",
+        "needs_reference",
+        "single_pass"
+      ]
+    },
+    "EstimateLibraryComplexity": {
+      "lines": 676,
+      "machinery_from": [
+        "DuplicationMetrics:mergeable_base"
+      ],
+      "path": "picard/src/main/java/picard/sam/markduplicates/EstimateLibraryComplexity.java",
+      "signals": [
+        "histogram",
+        "mergeable_base",
+        "needs_reference"
+      ]
+    },
+    "FindMendelianViolations": {
+      "lines": 352,
+      "machinery_from": [
+        "MendelianViolationMetrics:mergeable_base"
+      ],
+      "path": "picard/src/main/java/picard/vcf/MendelianViolations/FindMendelianViolations.java",
+      "signals": [
+        "mergeable_base",
+        "needs_intervals"
+      ]
+    },
+    "GenotypeConcordance": {
+      "lines": 1040,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/vcf/GenotypeConcordance.java",
+      "signals": [
+        "needs_intervals"
+      ]
+    },
+    "MarkDuplicates": {
+      "lines": 1047,
+      "machinery_from": [
+        "DuplicationMetrics:histogram+mergeable_base"
+      ],
+      "path": "picard/src/main/java/picard/sam/markduplicates/MarkDuplicates.java",
+      "signals": [
+        "histogram",
+        "mergeable_base",
+        "needs_reference"
+      ]
+    },
+    "MarkDuplicatesWithMateCigar": {
+      "lines": 237,
+      "machinery_from": [
+        "CollectInsertSizeMetrics:needs_r+single_pass"
+      ],
+      "path": "picard/src/main/java/picard/sam/markduplicates/MarkDuplicatesWithMateCigar.java",
+      "signals": [
+        "histogram",
+        "needs_r",
+        "needs_reference",
+        "single_pass"
+      ]
+    },
+    "MarkIlluminaAdapters": {
+      "lines": 257,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/illumina/MarkIlluminaAdapters.java",
+      "signals": [
+        "histogram",
+        "needs_reference"
+      ]
+    },
+    "MeanQualityByCycle": {
+      "lines": 154,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/analysis/MeanQualityByCycle.java",
+      "signals": [
+        "needs_r",
+        "single_pass"
+      ]
+    },
+    "QualityScoreDistribution": {
+      "lines": 176,
+      "machinery_from": [],
+      "path": "picard/src/main/java/picard/analysis/QualityScoreDistribution.java",
+      "signals": [
+        "histogram",
+        "needs_r",
+        "single_pass"
+      ]
+    },
+    "SimpleMarkDuplicatesWithMateCigar": {
+      "lines": 236,
+      "machinery_from": [
+        "DuplicationMetrics:histogram+mergeable_base"
+      ],
+      "path": "picard/src/main/java/picard/sam/markduplicates/SimpleMarkDuplicatesWithMateCigar.java",
+      "signals": [
+        "histogram",
+        "mergeable_base",
+        "needs_reference"
+      ]
+    },
+    "UmiAwareMarkDuplicatesWithMateCigar": {
+      "lines": 158,
+      "machinery_from": [
+        "UmiMetrics:histogram"
+      ],
+      "path": "picard/src/main/java/picard/sam/markduplicates/UmiAwareMarkDuplicatesWithMateCigar.java",
+      "signals": [
+        "histogram"
+      ]
+    }
+  }
+}
