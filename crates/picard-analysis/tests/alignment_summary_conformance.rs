@@ -173,6 +173,61 @@ fn every_metrics_file_matches_picards() {
     );
 }
 
+/// The two divergences `fulcrumgenomics/riker` documents against Picard, asserted on the
+/// goldens. Riker is an independent Rust reimplementation of these same tools, MIT-licensed,
+/// whose stated goal is functional rather than byte equivalence; its ERRATA is therefore a list
+/// of the places a careful reimplementer chooses to differ from Picard. Each one is a place this
+/// port must **not** differ, so each is pinned here rather than left as prose.
+#[test]
+fn the_divergences_riker_documents_are_reproduced_not_fixed() {
+    let metrics = rows("metrics");
+    let field = |case: &str, category: &str, column: &str| -> String {
+        let (_, raw) = metrics.iter().find(|(n, _)| n == case).expect(case);
+        let text = unescape(raw);
+        let lines: Vec<&str> = text.lines().collect();
+        let h = lines
+            .iter()
+            .position(|l| l.starts_with("CATEGORY"))
+            .expect("header");
+        let header: Vec<&str> = lines[h].split('\t').collect();
+        let i = header.iter().position(|x| *x == column).expect(column);
+        for row in &lines[h + 1..] {
+            if row.is_empty() || row.starts_with('#') {
+                break;
+            }
+            let v: Vec<&str> = row.split('\t').collect();
+            if v[0] == category {
+                return v[i].to_string();
+            }
+        }
+        panic!("no {category} row in {case}");
+    };
+
+    // "Picard computes mean_aligned_read_length over all PF reads, including unmapped reads
+    // which contribute zero to the sum." One mapped 20-base read and one unmapped 20-base read.
+    assert_eq!(
+        field(
+            "riker_mean_aligned_dilution",
+            "UNPAIRED",
+            "MEAN_ALIGNED_READ_LENGTH"
+        ),
+        "10",
+        "riker reports 20 here; Picard dilutes the mean with the unmapped read"
+    );
+
+    // "Picard counts all mapped, paired, non-proper reads as improperly paired, including reads
+    // whose mate is unmapped." Riker requires both mates mapped.
+    assert_eq!(
+        field(
+            "riker_improper_pair_unmapped_mate",
+            "FIRST_OF_PAIR",
+            "PF_READS_IMPROPER_PAIRS"
+        ),
+        "1",
+        "riker reports 0 here; Picard does not require the mate to be mapped"
+    );
+}
+
 /// The divergence, asserted directly on the goldens rather than only through the whole file, so
 /// that its removal is loud. `collide` and `distinct` are the same read against references that
 /// differ in one base position; if the cycle were indexed by the read they would agree.
