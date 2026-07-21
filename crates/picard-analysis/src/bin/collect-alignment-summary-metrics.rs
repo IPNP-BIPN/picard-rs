@@ -20,7 +20,19 @@ fn arg(args: &[String], key: &str) -> Option<String> {
         .find_map(|a| a.strip_prefix(key).map(str::to_string))
 }
 
+/// Coarse phase timing, printed to stderr when `PICARD_RS_TIMING=1`.
+///
+/// It exists because a single wall-clock number cannot say whether the port is slow at the work
+/// or slow at getting to the work, and those have opposite remedies.
+fn phase(label: &str, start: std::time::Instant) -> std::time::Instant {
+    if std::env::var("PICARD_RS_TIMING").as_deref() == Ok("1") {
+        eprintln!("{label}\t{:.3}", start.elapsed().as_secs_f64());
+    }
+    std::time::Instant::now()
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut t = std::time::Instant::now();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -34,13 +46,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // it is stated rather than hidden, because it is part of what any timing measures.
     let mut raw = Vec::new();
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+    t = phase("read_file", t);
     let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+    t = phase("bgzf_decompress", t);
 
     let contigs = match &reference {
         Some(path) => read_fasta_file(path).map_err(|e| format!("{e:?}"))?,
         None => Vec::new(),
     };
 
+    t = phase("read_reference", t);
     let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
     let mut collector = GroupCollector::new(Options::default());
     for record in reader {
@@ -51,6 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         collector.accept(&rec, bases);
     }
     collector.finish()?;
+    t = phase("decode_and_collect", t);
 
     let mut file = MetricsFile::new();
     file.add_header("CollectAlignmentSummaryMetrics <command line>");
@@ -70,5 +86,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
     std::fs::write(&output, file.write())?;
+    phase("write_metrics", t);
     Ok(())
 }
