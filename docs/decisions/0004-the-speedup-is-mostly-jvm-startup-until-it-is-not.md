@@ -25,7 +25,7 @@ information.
 
 Three runs each, median reported. Output compared byte for byte in the same session.
 
-## The correction
+## The number, in three measurements, each more honest than the last
 
 At **200,000 reads** the first measurement said:
 
@@ -47,8 +47,25 @@ At **2,000,000 reads**, the same code, the same machine:
 | **net of JVM startup** | **1.8x** |
 
 **The 5.2x was mostly `java -jar`.** At 200,000 reads the JVM's ~1.3 s of startup is more than
-half of Picard's 2.45 s, so the ratio was measuring process launch. At ten times the input it
-falls to 2.0x and keeps falling toward the steady-state ratio.
+half of Picard's 2.45 s, so the ratio was measuring process launch.
+
+And then CI ran the same benchmark on **real x86-64**, where neither implementation is emulated:
+
+| | median |
+|---|---:|
+| JVM startup floor | 0.65 s |
+| Picard, GKL default | 9.64 s |
+| picard-rs | 6.62 s |
+| **wall clock** | **1.46x** |
+| **net of JVM startup** | **1.36x** |
+
+So the honest figure is **1.46x**, and the emulated container was flattering the port: a static
+AOT binary loses less to x86-64 translation than a JIT does, so running both under emulation is
+fair in the sense of "same platform" and unfair in the sense of "same handicap".
+
+**Three measurements, each more careful than the last, each smaller than the last: 5.2x, 2.0x,
+1.46x.** That is the shape of a benchmark converging on the truth from the optimistic side, which
+is the side benchmarks always start on. The number to quote is 1.46x.
 
 Both numbers are real and they answer different questions. For a user running one tool on a small
 file, the 5x is what they experience, because startup is a cost they pay. For anyone asking how
@@ -57,14 +74,14 @@ not say which question it answers is choosing the flattering one by default.
 
 ## Where the time goes
 
-`PICARD_RS_TIMING=1` on the 2M-read input:
+`PICARD_RS_TIMING=1` on the 2M-read input, on real x86-64:
 
 | phase | seconds | share |
 |---|---:|---:|
-| read the file | 0.065 | 1% |
-| BGZF decompress | 1.163 | 24% |
+| read the file | 0.026 | — |
+| BGZF decompress | 1.490 | 23% |
 | read the reference | 0.002 | — |
-| **decode records and collect** | **3.901** | **75%** |
+| **decode records and collect** | **5.085** | **77%** |
 | write the metrics | 0.003 | — |
 
 Three quarters is the work itself: decoding records and running the collector. So the port is not
@@ -99,5 +116,6 @@ The last line confirms that the deflater choice pinned in the oracle contract do
 metrics, which the contract assumes and had not checked.
 
 CI repeats the whole thing on **real x86-64**, where neither implementation is emulated, and
-fails if the outputs stop matching. The timing there is the authoritative figure; the numbers
-above are from an emulated container and are reported as such.
+fails if the outputs stop matching. That is where the 1.46x comes from, and it is the figure to
+quote; the emulated numbers are kept above because the difference between them is the point of
+this record.

@@ -44,12 +44,14 @@ into `main` when the whole tool is byte-identical across its corpus.
 Measured, not claimed. `tools/benchmark/run.sh` times the port against Picard on the same input,
 inside the same container, and asserts byte-identity of the two outputs in the same run.
 
-At 2,000,000 reads: **2.0x** wall clock, **1.8x** net of JVM startup, output byte-identical.
+At 2,000,000 reads on real x86-64: **1.46x** wall clock, **1.36x** net of JVM startup, output
+byte-identical.
 
-The first measurement of the same code said 5.2x, on a 200,000-read input where the JVM's ~1.3 s
-of startup was more than half of Picard's time. Both numbers are real and they answer different
-questions; [decision 0004](docs/decisions/0004-the-speedup-is-mostly-jvm-startup-until-it-is-not.md)
-says which is which. No optimisation work has been done, so 2.0x is a floor.
+The same code measured 5.2x on a 200,000-read input and 2.0x under x86-64 emulation. Each time
+the measurement got more careful the number got smaller, which is the direction benchmarks move
+when they start optimistic;
+[decision 0004](docs/decisions/0004-the-speedup-is-mostly-jvm-startup-until-it-is-not.md) records
+all three and why. No optimisation work has been done, so 1.46x is a floor.
 
 ## Decisions
 
