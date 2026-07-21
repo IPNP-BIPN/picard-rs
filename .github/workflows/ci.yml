@@ -19,5 +19,5 @@ jobs:
         run: |
           grep -q "MIT License" LICENSE || { echo "LICENSE is not MIT"; exit 1; }
           grep -q "MIT, matching Picard" README.md || { echo "README licence claim changed"; exit 1; }
-          grep -q "Not the official Picard" README.md || { echo "attribution notice missing"; exit 1; }
+          grep -qi "not the official Picard" README.md || { echo "attribution notice missing"; exit 1; }
           echo "licence and attribution consistent"
