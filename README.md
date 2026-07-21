@@ -62,5 +62,4 @@ divergence rate, and the output is described as **bio-identical** rather than
 
 ## License
 
-Picard is MIT licensed. License for this port is to be finalized before the repository is made
-public.
+MIT, matching Picard. See `LICENSE`.
