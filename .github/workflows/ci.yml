@@ -71,6 +71,14 @@ jobs:
              && java -cp ".:$ORACLE_CP" QualityYieldDump 2>/dev/null' > /tmp/qy_real.txt
           wc -l /tmp/qy_real.txt
 
+      - name: Regenerate the CollectInsertSizeMetrics goldens
+        run: |
+          docker run --rm --platform linux/amd64 \
+            -v "$PWD/tools/metrics-conformance":/harness:ro -w /work picard-rs-oracle:3.4.0 \
+            'cp /harness/InsertSizeDump.java . && javac -cp "$ORACLE_CP" -d . InsertSizeDump.java \
+             && java -cp ".:$ORACLE_CP" InsertSizeDump 2>/dev/null' > /tmp/is_real.txt
+          wc -l /tmp/is_real.txt
+
       - name: Compare the metrics rows against the committed goldens
         # The BAM hex and the metrics header lines carry JVM-chosen temp paths and a timestamp,
         # so only the metrics body is comparable across runs. That is stated here rather than
@@ -78,27 +86,32 @@ jobs:
         run: |
           python3 - <<'PY'
           import sys, gzip, re
-          def body(text):
+          def body(text, prefix):
               # Drop the two header lines whose content is chosen at run time.
               keep = [l for l in text.split('\\n')
-                      if not l.startswith('# CollectQualityYieldMetrics')
-                      and not l.startswith('# Started on:')]
+                      if not l.startswith(prefix) and not l.startswith('# Started on:')]
               return '\\n'.join(keep)
-          def parse(path, open_fn=open):
+          def parse(path, open_fn=open, prefix=''):
               d = {}
               for line in open_fn(path):
                   parts = line.rstrip('\n').split('\t', 2)
                   if len(parts) < 3 or parts[0] != 'metrics': continue
-                  d[parts[1]] = body(parts[2])
+                  d[parts[1]] = body(parts[2], prefix)
               return d
-          real = parse('/tmp/qy_real.txt')
-          committed = parse('tools/metrics-conformance/quality_yield.txt.gz',
-                            lambda p: gzip.open(p, 'rt'))
-          if set(real) != set(committed):
-              print(f"case sets differ: {sorted(set(real) ^ set(committed))}")
-              sys.exit(1)
-          bad = [k for k in real if real[k] != committed[k]]
-          print(f"compared={len(real)} mismatches={len(bad)}")
+          bad, total = [], 0
+          for real_path, committed_path, prefix in [
+                  ('/tmp/qy_real.txt', 'tools/metrics-conformance/quality_yield.txt.gz',
+                   '# CollectQualityYieldMetrics'),
+                  ('/tmp/is_real.txt', 'tools/metrics-conformance/insert_size.txt.gz',
+                   '# CollectInsertSizeMetrics')]:
+              real = parse(real_path, prefix=prefix)
+              committed = parse(committed_path, lambda p: gzip.open(p, 'rt'), prefix=prefix)
+              if set(real) != set(committed):
+                  print(f"case sets differ in {real_path}: {sorted(set(real) ^ set(committed))}")
+                  sys.exit(1)
+              total += len(real)
+              bad += [(real_path, k) for k in real if real[k] != committed[k]]
+          print(f"compared={total} mismatches={len(bad)}")
           for k in bad[:5]:
               print(f"  {k}\n    real={real[k][:200]}\n    committed={committed[k][:200]}")
           sys.exit(1 if bad else 0)
