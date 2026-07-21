@@ -180,6 +180,21 @@ jobs:
           sys.exit(1 if bad else 0)
           PY
 
+      - name: "Decision 0020 (htsjdk-rs): is CollectRnaSeqMetrics order-independent?"
+        # OverlapDetector in htsjdk-rs skips a byte-exact IntervalTree because the overlap set is
+        # folded commutatively by this Picard tool. The probe belongs here, not in htsjdk-rs,
+        # because it instantiates CollectRnaSeqMetrics and only the Picard oracle has it. Two
+        # runs differ iff the HashSet<Gene> order reaches the output; identical means it does not.
+        run: |
+          docker run --rm --platform linux/amd64 \
+            -v "$PWD/tools/rnaseq-conformance":/harness:ro -w /work picard-rs-oracle:3.4.0 \
+            'cp /harness/OverlapOrderProbe.java . && javac -cp "$ORACLE_CP" -d . OverlapOrderProbe.java \
+             && java -cp ".:$ORACLE_CP" OverlapOrderProbe' 2>/dev/null | tee /tmp/overlap.txt
+          grep -q 'TWO_RUNS_IDENTICAL=true' /tmp/overlap.txt || {
+            echo "CollectRnaSeqMetrics is no longer order-independent. htsjdk-rs decision 0020 must be revisited."
+            exit 1
+          }
+
   benchmark:
     name: "Throughput against Picard, on real x86-64"
     runs-on: ubuntu-latest
