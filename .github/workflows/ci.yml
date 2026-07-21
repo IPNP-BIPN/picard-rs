@@ -79,6 +79,14 @@ jobs:
              && java -cp ".:$ORACLE_CP" InsertSizeDump 2>/dev/null' > /tmp/is_real.txt
           wc -l /tmp/is_real.txt
 
+      - name: Regenerate the cycle-collector goldens
+        run: |
+          docker run --rm --platform linux/amd64 \
+            -v "$PWD/tools/metrics-conformance":/harness:ro -w /work picard-rs-oracle:3.4.0 \
+            'cp /harness/CycleDump.java . && javac -cp "$ORACLE_CP" -d . CycleDump.java \
+             && java -cp ".:$ORACLE_CP" CycleDump 2>/dev/null' > /tmp/cy_real.txt
+          wc -l /tmp/cy_real.txt
+
       - name: Compare the metrics rows against the committed goldens
         # The BAM hex and the metrics header lines carry JVM-chosen temp paths and a timestamp,
         # so only the metrics body is comparable across runs. That is stated here rather than
@@ -95,15 +103,21 @@ jobs:
               d = {}
               for line in open_fn(path):
                   parts = line.rstrip('\n').split('\t', 2)
-                  if len(parts) < 3 or parts[0] != 'metrics': continue
-                  d[parts[1]] = body(parts[2], prefix)
+                  # 'metrics' for the single-tool harnesses, the tool name for the multi-tool
+                  # one. The `bam` lines are skipped: they are compared by the Rust tests.
+                  if len(parts) < 3 or parts[0] == 'bam': continue
+                  d[(parts[0], parts[1])] = body(parts[2], prefix)
               return d
           bad, total = [], 0
           for real_path, committed_path, prefix in [
                   ('/tmp/qy_real.txt', 'tools/metrics-conformance/quality_yield.txt.gz',
                    '# CollectQualityYieldMetrics'),
                   ('/tmp/is_real.txt', 'tools/metrics-conformance/insert_size.txt.gz',
-                   '# CollectInsertSizeMetrics')]:
+                   '# CollectInsertSizeMetrics'),
+                  ('/tmp/cy_real.txt', 'tools/metrics-conformance/cycle.txt.gz',
+                   '# MeanQualityByCycle'),
+                  ('/tmp/cy_real.txt', 'tools/metrics-conformance/cycle.txt.gz',
+                   '# CollectBaseDistributionByCycle')]:
               real = parse(real_path, prefix=prefix)
               committed = parse(committed_path, lambda p: gzip.open(p, 'rt'), prefix=prefix)
               if set(real) != set(committed):

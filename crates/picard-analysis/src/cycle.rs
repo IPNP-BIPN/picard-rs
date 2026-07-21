@@ -439,7 +439,12 @@ mod tests {
         assert_eq!(base_to_int(b'N'), 4);
         assert_eq!(base_to_int(b'='), 4);
         for code in *b"MRSVWYHKDB" {
-            assert_eq!(base_to_int(code), 4, "IUPAC code {} is not A/C/G/T", code as char);
+            assert_eq!(
+                base_to_int(code),
+                4,
+                "IUPAC code {} is not A/C/G/T",
+                code as char
+            );
         }
     }
 
@@ -513,8 +518,16 @@ mod tests {
         c.accept(&read(b"AAAA", vec![30; 4], READ_PAIRED | 0x40));
         c.accept(&read(b"CCCC", vec![30; 4], READ_PAIRED | SECOND_OF_PAIR));
         let m = c.finish();
-        let first: Vec<i32> = m.iter().filter(|x| x.read_end == 1).map(|x| x.cycle).collect();
-        let second: Vec<i32> = m.iter().filter(|x| x.read_end == 2).map(|x| x.cycle).collect();
+        let first: Vec<i32> = m
+            .iter()
+            .filter(|x| x.read_end == 1)
+            .map(|x| x.cycle)
+            .collect();
+        let second: Vec<i32> = m
+            .iter()
+            .filter(|x| x.read_end == 2)
+            .map(|x| x.cycle)
+            .collect();
         assert_eq!(first, vec![1, 2, 3, 4]);
         assert_eq!(second, vec![5, 6, 7, 8]);
     }
