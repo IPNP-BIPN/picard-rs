@@ -13,8 +13,13 @@ FROM eclipse-temurin@sha256:068a8f9ae4b74d9a20de3ecca771ba1a6437f1d7a8a8ad6deaf9
 
 ARG PICARD_VERSION=3.4.0
 
+# R is not optional for a large part of the archetype. Ten of the 44 metrics tools declare
+# a chart argument as REQUIRED (CollectInsertSizeMetrics's HISTOGRAM_FILE among them) and shell
+# out to Rscript, so without R they refuse to run at all and no golden can be produced. The
+# stratification in docs/decisions/0001 predicted this as an oracle-environment cost paid once
+# for the repository; this is that payment.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends curl ca-certificates \
+ && apt-get install -y --no-install-recommends curl ca-certificates r-base-core \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/oracle/jars

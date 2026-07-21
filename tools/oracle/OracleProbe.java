@@ -89,6 +89,19 @@ public class OracleProbe {
             failures.add("usingIntelDeflater is false. The oracle pins the JDK deflater, but a"
                     + " GKL that cannot load means that pin is untested.");
         }
+        // Ten of the 44 metrics tools require a chart argument and shell out to Rscript. A
+        // missing R means those tools refuse to run, which is loud; a *different* R could in
+        // principle change a chart, but never the metrics file, so only presence is checked.
+        String rVersion = "absent";
+        try {
+            final Process p = new ProcessBuilder("Rscript", "--version").redirectErrorStream(true).start();
+            rVersion = new String(p.getInputStream().readAllBytes()).trim();
+            p.waitFor();
+        } catch (final Exception e) {
+            failures.add("Rscript is not available: " + e
+                    + ". Tools with a required chart argument cannot produce a golden.");
+        }
+
         for (final String flag : REQUIRED_CPU_FLAGS) {
             if (!cpuFlags.isEmpty() && !cpuFlags.contains(flag)) {
                 failures.add("CPU flag '" + flag + "' is absent");
@@ -103,6 +116,7 @@ public class OracleProbe {
         json.append("  \"picard_version\": \"").append(picardVersion).append("\",\n");
         json.append("  \"default_locale\": \"").append(locale).append("\",\n");
         json.append("  \"decimal_sample\": \"").append(decimalSample).append("\",\n");
+        json.append("  \"rscript\": \"").append(rVersion.replace("\"", "'").replace("\n", " ")).append("\",\n");
         json.append("  \"using_intel_deflater\": ").append(gklPresent).append(",\n");
         json.append("  \"avx\": ").append(cpuFlags.contains("avx")).append(",\n");
         json.append("  \"avx2\": ").append(cpuFlags.contains("avx2")).append(",\n");
