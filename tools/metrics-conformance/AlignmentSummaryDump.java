@@ -244,6 +244,31 @@ public class AlignmentSummaryDump {
         noise.setAttribute("XN", 1);
         emit("noise_read", List.of(noise), reference());
 
+        // The two divergences fulcrumgenomics/riker documents in its ERRATA against Picard.
+        // Riker is an independent Rust reimplementation of these same tools whose stated goal is
+        // functional rather than byte equivalence, so its errata is a list of the places a
+        // careful reimplementer chooses to differ. Each is turned into a corpus case here, so
+        // that what this port reproduces is pinned rather than argued about.
+
+        // 1. "Picard computes mean_aligned_read_length over all PF reads, including unmapped
+        //    reads which contribute zero to the sum." One mapped 20-base read and one unmapped
+        //    20-base read: Picard's mean is 10, riker's would be 20.
+        emit("riker_mean_aligned_dilution", List.of(
+                read(h, "mapped", 1, "20M", repeat('A', 20), 0, 60),
+                read(h, "unmapped", 1, "*", repeat('A', 20), 0x4, 0)),
+             reference());
+
+        // 2. "Picard counts all mapped, paired, non-proper reads as improperly paired, including
+        //    reads whose mate is unmapped." Riker requires both mates mapped.
+        SAMRecord halfMapped = read(h, "half", 1, "20M", repeat('A', 20), 0x1 | 0x40 | 0x8, 60);
+        halfMapped.setMateReferenceIndex(0);
+        halfMapped.setMateAlignmentStart(1);
+        SAMRecord unmappedMate = read(h, "half", 1, "*", repeat('A', 20), 0x1 | 0x80 | 0x4, 0);
+        unmappedMate.setMateReferenceIndex(0);
+        unmappedMate.setMateAlignmentStart(1);
+        emit("riker_improper_pair_unmapped_mate", List.of(halfMapped, unmappedMate),
+             reference());
+
         // Reads of different lengths, so the read-length histogram has something to summarise.
         List<SAMRecord> mixed = new ArrayList<>();
         int[] lengths = {10, 15, 20, 20, 25, 30, 30, 30, 40, 50};
