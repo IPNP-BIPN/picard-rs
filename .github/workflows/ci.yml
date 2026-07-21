@@ -36,6 +36,13 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: Every ported symbol comes from a licence-compatible source
+        # htsjdk-rs decision 0014: a transcription of GPL2-only HotSpot source was published in
+        # an MIT crate and found eleven commits later by reading module headers. The same guard
+        # runs here before picard-rs ports a symbol whose source is not obviously in the pinned
+        # clones.
+        run: python3 tools/audit/provenance.py crates
+
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace --release
