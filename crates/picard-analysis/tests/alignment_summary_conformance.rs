@@ -206,7 +206,11 @@ fn the_divergences_riker_documents_are_reproduced_not_fixed() {
     // "Picard computes mean_aligned_read_length over all PF reads, including unmapped reads
     // which contribute zero to the sum." One mapped 20-base read and one unmapped 20-base read.
     assert_eq!(
-        field("riker_mean_aligned_dilution", "UNPAIRED", "MEAN_ALIGNED_READ_LENGTH"),
+        field(
+            "riker_mean_aligned_dilution",
+            "UNPAIRED",
+            "MEAN_ALIGNED_READ_LENGTH"
+        ),
         "10",
         "riker reports 20 here; Picard dilutes the mean with the unmapped read"
     );
@@ -214,7 +218,11 @@ fn the_divergences_riker_documents_are_reproduced_not_fixed() {
     // "Picard counts all mapped, paired, non-proper reads as improperly paired, including reads
     // whose mate is unmapped." Riker requires both mates mapped.
     assert_eq!(
-        field("riker_improper_pair_unmapped_mate", "FIRST_OF_PAIR", "PF_READS_IMPROPER_PAIRS"),
+        field(
+            "riker_improper_pair_unmapped_mate",
+            "FIRST_OF_PAIR",
+            "PF_READS_IMPROPER_PAIRS"
+        ),
         "1",
         "riker reports 0 here; Picard does not require the mate to be mapped"
     );
