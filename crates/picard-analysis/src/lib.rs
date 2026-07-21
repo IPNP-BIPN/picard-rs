@@ -5,6 +5,7 @@
 pub mod adapter;
 pub mod alignment_summary;
 pub mod cycle;
+pub mod gc;
 pub mod insert_size;
 pub mod quality_yield;
 
