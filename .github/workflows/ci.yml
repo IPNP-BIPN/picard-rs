@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  guard:
+    name: Repository invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: LICENSE and README state the same licence
+        # picard-rs is MIT because Picard is MIT. gatk-rs is Apache 2.0. Getting these crossed
+        # is easy and consequential, so it is checked rather than remembered.
+        run: |
+          grep -q "MIT License" LICENSE || { echo "LICENSE is not MIT"; exit 1; }
+          grep -q "MIT, matching Picard" README.md || { echo "README licence claim changed"; exit 1; }
+          grep -q "Not the official Picard" README.md || { echo "attribution notice missing"; exit 1; }
+          echo "licence and attribution consistent"
