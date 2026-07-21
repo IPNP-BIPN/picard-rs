@@ -4,11 +4,13 @@
 
 pub mod adapter;
 pub mod alignment_summary;
+pub mod annotation;
 pub mod cycle;
 pub mod gc;
 pub mod insert_size;
 pub mod quality_score_distribution;
 pub mod quality_yield;
+pub mod refflat;
 
 pub use cycle::{
     BaseDistributionByCycleMetrics, CollectBaseDistributionByCycle, MeanQualityByCycle,
