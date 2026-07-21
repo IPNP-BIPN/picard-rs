@@ -1,0 +1,16 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/IPNP-BIPN/picard-rs"
+
+# htsjdk-rs is pinned by revision, mirroring how Picard's build.gradle pins
+# htsjdkVersion = '4.2.0'. A floating dependency would let the I/O layer change under a
+# byte-identity claim without anything failing.
+[workspace.dependencies]
+htsjdk-bam = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "42ab57fd80287a7a0a6bcbbbed09f55f13fbb722" }
+htsjdk-bgzf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "42ab57fd80287a7a0a6bcbbbed09f55f13fbb722" }
+htsjdk-metrics = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "42ab57fd80287a7a0a6bcbbbed09f55f13fbb722" }
