@@ -104,3 +104,39 @@ is false of its own tool. The oracle settles it: the `supplementary` case is one
 20-base read plus one supplementary 20-base read, and Picard reports `PF_ALIGNED_BASES = 20`.
 Were the comment true it would be 40. The port reproduces both guards, and does not repeat the
 comment as though it described behaviour.
+
+
+## Prior art: `fulcrumgenomics/riker`
+
+`fulcrumgenomics/riker` is an independent Rust reimplementation of these same Picard QC tools,
+MIT-licensed, from the maintainers of Picard and htsjdk. It covers `alignment`, `isize`, `basic`,
+`gcbias`, `rna`, `wgs`, `hybcap` and `error` — the same ground this repository is porting.
+
+**It cannot be a source to port from, and the reason is its own stated goal.** Riker says it "is
+not intended to be a drop-in replacement for Picard": lowercase `snake_case` headers, no metadata
+lines, `frac_` in place of `pct_`, and "bug fixes that yield slightly different outputs in
+specific edge cases". Functional equivalence is its target. Byte equivalence is this project's,
+and those are not the same target in the one place that matters. Copying riker would import its
+deliberate deviations, and the licence being compatible does not make it correct.
+
+**It is, however, the best available map of divergence candidates.** Riker's `ERRATA.md` is a
+curated list of exactly the places a careful reimplementer chooses to differ from Picard, written
+by people who know this codebase better than anyone. Every entry in it is a place this port must
+*not* differ. So each is turned into a corpus case rather than left as prose. Two are pinned:
+
+| riker's claim | Picard, measured | pinned as |
+|---|---|---|
+| "Picard computes `mean_aligned_read_length` over all PF reads, including unmapped reads which contribute zero to the sum" | one mapped and one unmapped 20-base read gives `MEAN_ALIGNED_READ_LENGTH = 10`, not 20 | `riker_mean_aligned_dilution` |
+| "Picard counts all mapped, paired, non-proper reads as improperly paired, including reads whose mate is unmapped" | a mapped non-proper read with an unmapped mate gives `PF_READS_IMPROPER_PAIRS = 1`, not 0 | `riker_improper_pair_unmapped_mate` |
+
+Both are reproduced by this port byte-identically, and neither needed any code written for it,
+because the port follows the source. Riker's reading of Picard and this port's agree in both
+cases, which is a genuine independent cross-check of the reading rather than of the bytes.
+
+**One asymmetry is worth recording.** Riker's errata does not mention `BAD_CYCLES`, cycle
+counting, or alignment-block offsets. The divergence measured above — that the bad-cycle
+histogram is binned by the offset within an alignment block rather than by the read cycle — is
+not on their list. That is not a criticism of riker, whose goal does not require finding it. It
+is evidence about method: byte comparison against the reference surfaces behaviours that reading
+the reference and reimplementing it carefully does not, even when the reimplementers are the
+reference's own maintainers.
