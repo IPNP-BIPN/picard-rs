@@ -21,3 +21,85 @@ jobs:
           grep -q "MIT, matching Picard" README.md || { echo "README licence claim changed"; exit 1; }
           grep -qi "not the official Picard" README.md || { echo "attribution notice missing"; exit 1; }
           echo "licence and attribution consistent"
+
+  test:
+    name: Test on real x86-64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          # Pinned; must match rust-toolchain.toml.
+          toolchain: "1.97.1"
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace --release
+
+      - name: htsjdk-rs is pinned by revision, not by branch
+        # Picard's build.gradle pins htsjdkVersion. A floating dependency would let the I/O
+        # layer change under a byte-identity claim without anything failing.
+        run: |
+          if grep -E 'htsjdk-[a-z]+ = \{ git' Cargo.toml | grep -qv 'rev = "'; then
+            echo "an htsjdk-rs dependency is not pinned to a revision"
+            exit 1
+          fi
+          grep -c 'rev = "' Cargo.toml
+
+  oracle:
+    name: Regenerate the metrics goldens on real x86-64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record the host CPU
+        run: grep -m1 'model name' /proc/cpuinfo; grep -m1 'vendor_id' /proc/cpuinfo
+
+      - name: Build the oracle image
+        # The probe runs during the build, so a degraded environment cannot produce an image.
+        run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
+
+      - name: Regenerate the CollectQualityYieldMetrics goldens
+        run: |
+          docker run --rm --platform linux/amd64 \
+            -v "$PWD/tools/metrics-conformance":/harness:ro -w /work picard-rs-oracle:3.4.0 \
+            'cp /harness/QualityYieldDump.java . && javac -cp "$ORACLE_CP" -d . QualityYieldDump.java \
+             && java -cp ".:$ORACLE_CP" QualityYieldDump 2>/dev/null' > /tmp/qy_real.txt
+          wc -l /tmp/qy_real.txt
+
+      - name: Compare the metrics rows against the committed goldens
+        # The BAM hex and the metrics header lines carry JVM-chosen temp paths and a timestamp,
+        # so only the metrics body is comparable across runs. That is stated here rather than
+        # left implicit, because a comparison that quietly ignores most of a file is worthless.
+        run: |
+          python3 - <<'PY'
+          import sys, gzip, re
+          def body(text):
+              # Drop the two header lines whose content is chosen at run time.
+              keep = [l for l in text.split('\\n')
+                      if not l.startswith('# CollectQualityYieldMetrics')
+                      and not l.startswith('# Started on:')]
+              return '\\n'.join(keep)
+          def parse(path, open_fn=open):
+              d = {}
+              for line in open_fn(path):
+                  parts = line.rstrip('\n').split('\t', 2)
+                  if len(parts) < 3 or parts[0] != 'metrics': continue
+                  d[parts[1]] = body(parts[2])
+              return d
+          real = parse('/tmp/qy_real.txt')
+          committed = parse('tools/metrics-conformance/quality_yield.txt.gz',
+                            lambda p: gzip.open(p, 'rt'))
+          if set(real) != set(committed):
+              print(f"case sets differ: {sorted(set(real) ^ set(committed))}")
+              sys.exit(1)
+          bad = [k for k in real if real[k] != committed[k]]
+          print(f"compared={len(real)} mismatches={len(bad)}")
+          for k in bad[:5]:
+              print(f"  {k}\n    real={real[k][:200]}\n    committed={committed[k][:200]}")
+          sys.exit(1 if bad else 0)
+          PY
