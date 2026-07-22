@@ -1,10 +1,12 @@
 //! `ValidateSamFile`.
 //!
 //! Ports `picard.sam.ValidateSamFile` + `htsjdk.samtools.SamFileValidator` at tags 3.4.0 / 4.2.0,
-//! for the **default VERBOSE mode**, SAM text input, and no reference. In VERBOSE mode the tool
-//! prints one raw [`SAMValidationError.toString`] line per error as it is found (no timestamp, no
-//! banner), and prints `No errors found` when the file is clean, so the whole output is compared
-//! raw.
+//! for **both output modes** (VERBOSE, the default, and SUMMARY), SAM text input, and an optional
+//! reference. In VERBOSE mode the tool prints one raw [`SAMValidationError.toString`] line per error
+//! as it is found (no timestamp, no banner); in SUMMARY mode it prints a `MetricsFile` histogram of
+//! error-type counts (rendered by [`htsjdk_metrics`], with no command-line banner because
+//! `SamFileValidator` adds none). Either mode prints `No errors found` when the file is clean, so
+//! the whole output is compared raw.
 //!
 //! Covered so far are the header checks and the per-record checks that need no reference:
 //!
@@ -41,7 +43,7 @@
 //! missing-reference-name checks, and `isValidReferenceIndexAndPosition`), the `duplicate`
 //! sort order, the secondary base calls (`E2`/`U2`) and duplicate/`CG` tag checks, the header parser's own
 //! validation errors (`HEADER_RECORD_MISSING_REQUIRED_TAG`, `MISSING_VERSION_NUMBER` when `VN` is
-//! absent), the SUMMARY mode histogram, BAM/CRAM input, and the quality-format detector.
+//! absent), BAM/CRAM input, and the quality-format detector.
 //!
 //! The quality-format detector is safe to defer here: `ValidateSamFile` calls
 //! `generateBestGuess(SAM, Standard)`, the expected-quality branch with `checkExpected = false`,
@@ -49,7 +51,7 @@
 //! Every spec-conformant SAM `QUAL` character is in `[33,126]`, so Standard always survives and the
 //! tool never emits `INVALID_QUALITY_FORMAT` for conformant input.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use htsjdk_bam::fasta::{read_fasta, FastaError};
 use htsjdk_bam::header::SamHeader;
@@ -116,23 +118,30 @@ const BIN_GENOMIC_SPAN: i64 = 512 * 1024 * 1024;
 const WARNING: &str = "WARNING";
 const ERROR: &str = "ERROR";
 
-/// Accumulates the verbose report and the running error+warning count (`errorsByType.getCount()`),
-/// which decides whether `No errors found` is printed.
+/// Accumulates a validation run. In verbose mode `out` gets one `SAMValidationError.toString` line
+/// per error; in summary mode nothing is printed per error, but `counts` (keyed by the histogram
+/// string `SEVERITY:TYPE`, ordered as htsjdk's `TreeMap` orders it) drives the summary histogram.
+/// `count` is `errorsByType.getCount()`, which decides whether `No errors found` is printed.
 struct Report {
     out: String,
     count: usize,
+    verbose: bool,
+    counts: BTreeMap<String, f64>,
 }
 
 impl Report {
-    fn new() -> Self {
+    fn new(verbose: bool) -> Self {
         Report {
             out: String::new(),
             count: 0,
+            verbose,
+            counts: BTreeMap::new(),
         }
     }
 
-    /// `out.println(error)` in verbose mode plus `errorsByType.increment`: renders one
-    /// `SAMValidationError.toString` (there is never a file source here) and bumps the count.
+    /// `errorsByType.increment` plus, in verbose mode, `out.println(error)`: bumps the count and the
+    /// per-type bin, and renders one `SAMValidationError.toString` (there is never a file source
+    /// here) when verbose.
     fn add(
         &mut self,
         severity: &str,
@@ -142,6 +151,10 @@ impl Report {
         message: &str,
     ) {
         self.count += 1;
+        *self.counts.entry(format!("{severity}:{ty}")).or_insert(0.0) += 1.0;
+        if !self.verbose {
+            return;
+        }
         self.out.push_str(severity);
         self.out.push_str("::");
         self.out.push_str(ty);
@@ -548,7 +561,7 @@ impl SortOrder {
 
 /// `ValidateSamFile MODE=VERBOSE`, SAM text input, no reference: the raw verbose report.
 pub fn validate_sam_file_verbose(input_sam: &str) -> Result<String, ValidateError> {
-    validate(input_sam, None)
+    validate(input_sam, None, true)
 }
 
 /// `ValidateSamFile MODE=VERBOSE REFERENCE_SEQUENCE=<fasta>`: as above, plus the reference-based
@@ -557,14 +570,30 @@ pub fn validate_sam_file_verbose_with_reference(
     input_sam: &str,
     fasta: &[u8],
 ) -> Result<String, ValidateError> {
-    validate(input_sam, Some(fasta))
+    validate(input_sam, Some(fasta), true)
 }
 
-/// `SamFileValidator.validateSamFileVerbose`. When `fasta` is present, each mapped read's `NM` tag
-/// is checked against the value recomputed from the reference (`INVALID_TAG_NM`); otherwise only its
-/// presence is checked (`MISSING_TAG_NM`), exactly as htsjdk skips the value check without a
-/// reference.
-fn validate(input_sam: &str, fasta: Option<&[u8]>) -> Result<String, ValidateError> {
+/// `ValidateSamFile MODE=SUMMARY`, SAM text input, no reference: the summary histogram (or
+/// `No errors found`).
+pub fn validate_sam_file_summary(input_sam: &str) -> Result<String, ValidateError> {
+    validate(input_sam, None, false)
+}
+
+/// `ValidateSamFile MODE=SUMMARY REFERENCE_SEQUENCE=<fasta>`: the summary histogram, with the
+/// reference-based `NM` value check included in the counts.
+pub fn validate_sam_file_summary_with_reference(
+    input_sam: &str,
+    fasta: &[u8],
+) -> Result<String, ValidateError> {
+    validate(input_sam, Some(fasta), false)
+}
+
+/// `SamFileValidator.validateSamFileVerbose` / `validateSamFileSummary`. When `fasta` is present,
+/// each mapped read's `NM` tag is checked against the value recomputed from the reference
+/// (`INVALID_TAG_NM`); otherwise only its presence is checked (`MISSING_TAG_NM`), exactly as htsjdk
+/// skips the value check without a reference. `verbose` selects the per-error report vs the summary
+/// histogram.
+fn validate(input_sam: &str, fasta: Option<&[u8]>, verbose: bool) -> Result<String, ValidateError> {
     let (header, records) = read_sam_with(input_sam, ValidationStringency::Silent)?;
 
     // The reference bases by contig name, resolved once, for the `NM` value check.
@@ -578,7 +607,7 @@ fn validate(input_sam: &str, fasta: Option<&[u8]>) -> Result<String, ValidateErr
         .collect();
     let have_reference = fasta.is_some();
 
-    let mut rep = Report::new();
+    let mut rep = Report::new(verbose);
     validate_header(&header, &mut rep);
 
     // Armed by an empty dictionary, disarmed by the first mapped read it reports on.
@@ -725,10 +754,22 @@ fn validate(input_sam: &str, fasta: Option<&[u8]>) -> Result<String, ValidateErr
         );
     }
 
+    // A clean file prints `No errors found` in either mode. In verbose mode the per-error lines are
+    // already in `out`; in summary mode the errors, if any, become the histogram.
     if rep.count == 0 {
-        rep.out.push_str("No errors found\n");
+        return Ok("No errors found\n".to_string());
     }
-    Ok(rep.out)
+    if verbose {
+        return Ok(rep.out);
+    }
+    let mut metrics = htsjdk_metrics::file::MetricsFile::new();
+    metrics.histograms.push(htsjdk_metrics::file::Histogram {
+        bin_label: "Error Type".to_string(),
+        value_label: "Count".to_string(),
+        key_class: "java.lang.String".to_string(),
+        bins: rep.counts.into_iter().collect(),
+    });
+    Ok(metrics.write())
 }
 
 #[cfg(test)]
@@ -763,6 +804,28 @@ mod tests {
             validate_sam_file_verbose(sam).unwrap(),
             "ERROR::READ_GROUP_NOT_FOUND:Record 1, Read name a, RG ID on SAMRecord not found in header: other\n\
              WARNING::RECORD_MISSING_READ_GROUP:Read name a, A record is missing a read group\n"
+        );
+    }
+
+    #[test]
+    fn summary_mode_prints_a_histogram_of_error_types() {
+        let sam = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:100\n\
+            @RG\tID:rg1\tSM:s\tPL:illumina\n\
+            a\t2\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\tNM:i:0\n";
+        // One ERROR: the proper-pair flag on an unpaired read.
+        let out = validate_sam_file_summary(sam).unwrap();
+        assert_eq!(
+            out,
+            "\n\n## HISTOGRAM\tjava.lang.String\nError Type\tCount\n\
+             ERROR:INVALID_FLAG_PROPER_PAIR\t1\n\n"
+        );
+        // A clean file prints the same line in either mode.
+        let clean = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:100\n\
+            @RG\tID:rg1\tSM:s\tPL:illumina\n\
+            a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\tNM:i:0\n";
+        assert_eq!(
+            validate_sam_file_summary(clean).unwrap(),
+            "No errors found\n"
         );
     }
 
