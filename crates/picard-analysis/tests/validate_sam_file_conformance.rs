@@ -10,7 +10,9 @@
 
 use std::io::Read;
 
-use picard_analysis::validate_sam_file::validate_sam_file_verbose;
+use picard_analysis::validate_sam_file::{
+    validate_sam_file_verbose, validate_sam_file_verbose_with_reference,
+};
 
 fn corpus(name: &str) -> String {
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -80,12 +82,42 @@ fn check(name: &str) -> usize {
     checked
 }
 
+/// Like [`check`], but each case is a `fasta`, `input`, `output` triple run through the
+/// reference-taking validator.
+fn check_with_ref(name: &str) -> usize {
+    let rows = rows(name);
+    let mut checked = 0;
+    for window in rows.chunks(3) {
+        let (case, kind0, fasta) = &window[0];
+        let (_, kind1, input) = &window[1];
+        let (_, kind2, expected) = &window[2];
+        assert_eq!(kind0, "fasta", "case {case} out of shape");
+        assert_eq!(kind1, "input", "case {case} out of shape");
+        assert_eq!(kind2, "output", "case {case} out of shape");
+
+        let ours = validate_sam_file_verbose_with_reference(input, fasta.as_bytes())
+            .expect("input parses");
+        assert_eq!(&ours, expected, "case {case} diverged");
+        checked += 1;
+    }
+    checked
+}
+
 #[test]
 fn every_header_and_record_case_is_byte_identical() {
     assert_eq!(
         check("validate_sam_file.txt.gz"),
         9,
         "expected 9 header/record cases"
+    );
+}
+
+#[test]
+fn every_nm_value_case_is_byte_identical() {
+    assert_eq!(
+        check_with_ref("validate_sam_file_nmvalue.txt.gz"),
+        5,
+        "expected 5 NM-value cases"
     );
 }
 
