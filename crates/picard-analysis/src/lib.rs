@@ -27,6 +27,7 @@ pub mod revert_sam;
 pub mod rnaseq_metrics;
 pub mod sam_format_converter;
 pub mod sam_to_fastq;
+pub mod set_nm_md_and_uq_tags;
 pub mod snvq;
 pub mod sort_sam;
 pub mod view_sam;
