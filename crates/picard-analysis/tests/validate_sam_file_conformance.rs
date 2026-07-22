@@ -12,9 +12,10 @@ use std::io::Read;
 
 use picard_analysis::validate_sam_file::validate_sam_file_verbose;
 
-fn corpus() -> String {
+fn corpus(name: &str) -> String {
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/data/validate_sam_file.txt.gz");
+        .join("tests/data")
+        .join(name);
     let f = std::fs::File::open(&p).expect("corpus");
     let mut s = String::new();
     flate2::read::GzDecoder::new(f)
@@ -46,8 +47,8 @@ fn unescape(s: &str) -> String {
 }
 
 /// Every case's input, keyed by case name, in file order: `(case, kind) -> payload`.
-fn rows() -> Vec<(String, String, String)> {
-    corpus()
+fn rows(name: &str) -> Vec<(String, String, String)> {
+    corpus(name)
         .lines()
         .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
         .map(|l| {
@@ -60,9 +61,10 @@ fn rows() -> Vec<(String, String, String)> {
         .collect()
 }
 
-#[test]
-fn every_case_is_byte_identical() {
-    let rows = rows();
+/// Runs every `(input, output)` pair in a corpus through the verbose validator and asserts
+/// byte-identity, returning the number of cases checked.
+fn check(name: &str) -> usize {
+    let rows = rows(name);
     let mut checked = 0;
     // Each case has an `input` row followed by an `output` row.
     for window in rows.chunks(2) {
@@ -75,5 +77,23 @@ fn every_case_is_byte_identical() {
         assert_eq!(&ours, expected, "case {case} diverged");
         checked += 1;
     }
-    assert_eq!(checked, 9, "expected 9 conformance cases");
+    checked
+}
+
+#[test]
+fn every_header_and_record_case_is_byte_identical() {
+    assert_eq!(
+        check("validate_sam_file.txt.gz"),
+        9,
+        "expected 9 header/record cases"
+    );
+}
+
+#[test]
+fn every_mate_case_is_byte_identical() {
+    assert_eq!(
+        check("validate_sam_file_mates.txt.gz"),
+        6,
+        "expected 6 mate cases"
+    );
 }
