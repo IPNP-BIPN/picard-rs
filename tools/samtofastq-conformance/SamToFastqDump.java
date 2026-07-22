@@ -1,36 +1,46 @@
 /*
- * Oracle dump harness for SamToFastq (unpaired, default options) conformance in picard-rs.
+ * Oracle dump harness for SamToFastq (default options) conformance in picard-rs.
  *
- * Emits an escaped TSV to stdout: a `bam` row (hex of the input BAM) and a `fastq` row (the FASTQ
- * file SamToFastq produced). The committed corpus is `java ... SamToFastqDump | gzip > ...`,
- * regenerated and compared in CI. The Rust test decodes the BAM, runs the unpaired path, and must
- * reproduce the FASTQ bytes.
+ * Emits an escaped TSV to stdout, two cases:
+ *   unpaired: a `bam` row and a `fastq` row (single FASTQ output).
+ *   paired:   a `bam` row and `fastq_r1`/`fastq_r2` rows (FASTQ + SECOND_END_FASTQ).
  *
- * The reads are all unpaired and mapped (the SAM validator forbids secondary/supplementary flags on
- * unmapped reads). They exercise a forward read, a negative-strand read (reverse-complemented with
- * its qualities reversed), an N base, and secondary / supplementary / vendor-fail reads that are
- * dropped by default.
+ * The committed corpus is `java ... SamToFastqDump | gzip > ...`, regenerated and compared in CI.
+ * FASTQ output has no header, so every row is compared raw.
  *
  *   java -cp picard-fat.jar:. SamToFastqDump
  */
 import htsjdk.samtools.*;
+import htsjdk.samtools.util.BlockCompressedOutputStream;
+import htsjdk.samtools.util.zip.DeflaterFactory;
 
 import java.io.File;
 import java.nio.file.Files;
 
 public class SamToFastqDump {
     public static void main(final String[] args) throws Exception {
-        final SAMFileHeader header = new SAMFileHeader();
-        header.addSequence(new SAMSequenceRecord("chr1", 100000));
-        header.setSortOrder(SAMFileHeader.SortOrder.unsorted);
-        final SAMReadGroupRecord rg = new SAMReadGroupRecord("rg1");
-        rg.setSample("s1");
-        header.addReadGroup(rg);
+        emitUnpaired();
+        emitPaired();
+    }
 
-        final File bam = File.createTempFile("s2f-", ".bam");
+    /*
+     * Force the JDK deflater before writing any BAM. Running a Picard tool installs
+     * IntelDeflaterFactory globally, and GKL's igzip emits different BGZF bytes than zlib, so a BAM
+     * written after the first tool run would deflate with GKL on real x86-64 but with the JDK on a
+     * machine where GKL cannot load. Pinning the JDK deflater makes the input BAM identical on both,
+     * which is what lets the committed hex match what CI regenerates.
+     */
+    private static void forceJdkDeflater() {
+        BlockCompressedOutputStream.setDefaultDeflaterFactory(new DeflaterFactory());
+    }
+
+    /** Unpaired reads to a single FASTQ, exercising RE_REVERSE and the default filters. */
+    private static void emitUnpaired() throws Exception {
+        forceJdkDeflater();
+        final SAMFileHeader header = header();
+        final File bam = File.createTempFile("s2f-u-", ".bam");
         bam.deleteOnExit();
         final SAMFileWriter w = new SAMFileWriterFactory().makeBAMWriter(header, false, bam);
-
         w.addAlignment(read(header, "fwd", 0, "ACGTACGT", new int[] {40, 40, 30, 30, 20, 20, 41, 45}));
         w.addAlignment(read(header, "rev", SAMFlag.READ_REVERSE_STRAND.intValue(), "ACGTN",
                 new int[] {40, 30, 20, 10, 5}));
@@ -40,19 +50,52 @@ public class SamToFastqDump {
         w.addAlignment(read(header, "qcfail", SAMFlag.READ_FAILS_VENDOR_QUALITY_CHECK.intValue(), "AC", new int[] {40, 40}));
         w.close();
 
-        final File out = File.createTempFile("s2f-", ".fastq");
+        final File out = File.createTempFile("s2f-u-", ".fastq");
         out.deleteOnExit();
-        final int rc = new picard.sam.SamToFastq().instanceMain(new String[] {
-                "INPUT=" + bam.getAbsolutePath(),
-                "FASTQ=" + out.getAbsolutePath(),
-        });
-        if (rc != 0) {
-            System.err.println("SamToFastq exited " + rc);
-            System.exit(rc);
-        }
+        run(new String[] {"INPUT=" + bam.getAbsolutePath(), "FASTQ=" + out.getAbsolutePath()});
 
         emit("bam", "unpaired", hex(Files.readAllBytes(bam.toPath())));
         emit("fastq", "unpaired", esc(new String(Files.readAllBytes(out.toPath()))));
+    }
+
+    /** Paired reads to two FASTQs, exercising the /1 /2 split and RE_REVERSE on a mate. */
+    private static void emitPaired() throws Exception {
+        forceJdkDeflater();
+        final SAMRecordSetBuilder builder = new SAMRecordSetBuilder(true, SAMFileHeader.SortOrder.queryname);
+        builder.setRandomSeed(0);
+        final int idx = builder.getHeader().getSequenceIndex("chr1");
+        builder.addPair("pairA", idx, 100, 300);
+        builder.addPair("pairB", idx, 500, 700);
+
+        final File bam = File.createTempFile("s2f-p-", ".bam");
+        bam.deleteOnExit();
+        final SAMFileWriter w = new SAMFileWriterFactory().makeBAMWriter(builder.getHeader(), false, bam);
+        for (final SAMRecord r : builder.getRecords()) w.addAlignment(r);
+        w.close();
+
+        final File r1 = File.createTempFile("s2f-p1-", ".fastq");
+        final File r2 = File.createTempFile("s2f-p2-", ".fastq");
+        r1.deleteOnExit();
+        r2.deleteOnExit();
+        run(new String[] {
+                "INPUT=" + bam.getAbsolutePath(),
+                "FASTQ=" + r1.getAbsolutePath(),
+                "SECOND_END_FASTQ=" + r2.getAbsolutePath(),
+        });
+
+        emit("bam", "paired", hex(Files.readAllBytes(bam.toPath())));
+        emit("fastq_r1", "paired", esc(new String(Files.readAllBytes(r1.toPath()))));
+        emit("fastq_r2", "paired", esc(new String(Files.readAllBytes(r2.toPath()))));
+    }
+
+    private static SAMFileHeader header() {
+        final SAMFileHeader header = new SAMFileHeader();
+        header.addSequence(new SAMSequenceRecord("chr1", 100000));
+        header.setSortOrder(SAMFileHeader.SortOrder.unsorted);
+        final SAMReadGroupRecord rg = new SAMReadGroupRecord("rg1");
+        rg.setSample("s1");
+        header.addReadGroup(rg);
+        return header;
     }
 
     private static SAMRecord read(final SAMFileHeader header, final String name, final int extraFlags,
@@ -69,6 +112,14 @@ public class SamToFastqDump {
         r.setAttribute("RG", "rg1");
         r.setFlags(r.getFlags() | extraFlags);
         return r;
+    }
+
+    private static void run(final String[] toolArgs) {
+        final int rc = new picard.sam.SamToFastq().instanceMain(toolArgs);
+        if (rc != 0) {
+            System.err.println("SamToFastq exited " + rc);
+            System.exit(rc);
+        }
     }
 
     private static String hex(final byte[] b) {
