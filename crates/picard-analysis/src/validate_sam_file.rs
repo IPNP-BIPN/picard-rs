@@ -6,8 +6,7 @@
 //! banner), and prints `No errors found` when the file is clean, so the whole output is compared
 //! raw.
 //!
-//! This first slice covers the header checks and the per-record checks that need neither the
-//! reference nor cross-record state:
+//! Covered so far are the header checks and the per-record checks that need no reference:
 //!
 //! - Header: version present/acceptable, empty read groups, missing/invalid read-group platform,
 //!   and the empty-sequence-dictionary tracking (`REF_SEQ_TOO_LONG_FOR_BAI` is wired but never
@@ -15,11 +14,16 @@
 //! - Per record: a record missing its read group, a mapped read missing its `NM` tag (presence
 //!   only, since there is no reference), the `QUAL == *` warning, and the first mapped read under
 //!   an empty dictionary.
+//! - Mate pairs (`SamFileValidator.validateMateFields` / `PairEndInfo.validateMates`): a paired
+//!   read whose mate never arrives (`MATE_NOT_FOUND`), and the mate-field mismatches
+//!   `MISMATCH_MATE_ALIGNMENT_START`, `MISMATCH_FLAG_MATE_NEG_STRAND`, `MISMATCH_MATE_REF_INDEX`,
+//!   `MISMATCH_FLAG_MATE_UNMAPPED`, `MISMATCH_MATE_CIGAR_STRING` (via the `MC` tag), and
+//!   `MATES_ARE_SAME_END`. Pairs are matched on one reference, as htsjdk's coordinate-sorted map
+//!   does; cross-reference pairing and multi-leftover ordering are deferred.
 //!
 //! Deferred to follow-up slices (each entangled with a wider htsjdk surface): everything from
 //! `SAMRecord.isValid()` (flag/CIGAR/mapping-quality/reference-index checks, and the
-//! `READ_GROUP_NOT_FOUND` message it raises), the mate-pair validation
-//! (`MATE_NOT_FOUND`/`MISMATCH_MATE_*`/`MATES_ARE_SAME_END`), the sort-order checker
+//! `READ_GROUP_NOT_FOUND` message it raises), the sort-order checker
 //! (`RECORD_OUT_OF_ORDER`), the reference-based `NM` **value** check (`INVALID_TAG_NM`), the
 //! secondary base calls (`E2`/`U2`) and duplicate/`CG` tag checks, the header parser's own
 //! validation errors (`HEADER_RECORD_MISSING_REQUIRED_TAG`, `MISSING_VERSION_NUMBER` when `VN` is
@@ -37,7 +41,14 @@ use htsjdk_bam::sam_file::read_sam_with;
 use htsjdk_bam::tag::Tag;
 use htsjdk_bam::text_parse::{ParseError, ValidationStringency};
 
+const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
+const MATE_UNMAPPED: u16 = 0x8;
+const READ_REVERSE: u16 = 0x10;
+const MATE_REVERSE: u16 = 0x20;
+const FIRST_OF_PAIR: u16 = 0x40;
+const SECONDARY: u16 = 0x100;
+const SUPPLEMENTARY: u16 = 0x800;
 
 /// `SAMFileHeader.ACCEPTABLE_VERSIONS`.
 const ACCEPTABLE_VERSIONS: [&str; 5] = ["1.0", "1.3", "1.4", "1.5", "1.6"];
@@ -215,6 +226,120 @@ fn read_group_present(header: &SamHeader, rec: &BamRecord) -> bool {
     }
 }
 
+/// `SamFileValidator.PairEndInfo`: the per-read view kept while waiting to meet a read's mate,
+/// carrying both the read's own fields and what the read asserts about its mate.
+struct PairEndInfo {
+    read_alignment_start: i32,
+    read_reference_index: i32,
+    read_neg_strand: bool,
+    read_unmapped: bool,
+    read_cigar: String,
+    mate_alignment_start: i32,
+    mate_reference_index: i32,
+    mate_neg_strand: bool,
+    mate_unmapped: bool,
+    mate_cigar: Option<String>,
+    first_of_pair: bool,
+    record_number: i64,
+}
+
+impl PairEndInfo {
+    fn new(rec: &BamRecord, record_number: i64) -> Self {
+        let mate_cigar = match rec.tags.get(Tag::new(b"MC")) {
+            Some(htsjdk_bam::tag::TagValue::Str(s)) => Some(s.clone()),
+            _ => None,
+        };
+        PairEndInfo {
+            read_alignment_start: rec.alignment_start,
+            read_reference_index: rec.reference_index,
+            read_neg_strand: rec.flags & READ_REVERSE != 0,
+            read_unmapped: rec.flags & READ_UNMAPPED != 0,
+            read_cigar: rec.cigar.to_text(),
+            mate_alignment_start: rec.mate_alignment_start,
+            mate_reference_index: rec.mate_reference_index,
+            mate_neg_strand: rec.flags & MATE_REVERSE != 0,
+            mate_unmapped: rec.flags & MATE_UNMAPPED != 0,
+            mate_cigar,
+            first_of_pair: rec.flags & FIRST_OF_PAIR != 0,
+            record_number,
+        }
+    }
+}
+
+/// `PairEndInfo.validateMateFields(end1, end2)`: the mate fields `end1` asserts must agree with
+/// `end2`'s own fields. All errors carry `end1`'s record number.
+fn validate_mate_fields(end1: &PairEndInfo, end2: &PairEndInfo, read_name: &str, rep: &mut Report) {
+    let rn = Some(end1.record_number);
+    if end1.mate_alignment_start != end2.read_alignment_start {
+        rep.add(
+            ERROR,
+            "MISMATCH_MATE_ALIGNMENT_START",
+            rn,
+            Some(read_name),
+            "Mate alignment does not match alignment start of mate",
+        );
+    }
+    if end1.mate_neg_strand != end2.read_neg_strand {
+        rep.add(
+            ERROR,
+            "MISMATCH_FLAG_MATE_NEG_STRAND",
+            rn,
+            Some(read_name),
+            "Mate negative strand flag does not match read negative strand flag of mate",
+        );
+    }
+    if end1.mate_reference_index != end2.read_reference_index {
+        rep.add(
+            ERROR,
+            "MISMATCH_MATE_REF_INDEX",
+            rn,
+            Some(read_name),
+            "Mate reference index (MRNM) does not match reference index of mate",
+        );
+    }
+    if end1.mate_unmapped != end2.read_unmapped {
+        rep.add(
+            ERROR,
+            "MISMATCH_FLAG_MATE_UNMAPPED",
+            rn,
+            Some(read_name),
+            "Mate unmapped flag does not match read unmapped flag of mate",
+        );
+    }
+    if let Some(mc) = &end1.mate_cigar {
+        if mc != &end2.read_cigar {
+            rep.add(
+                ERROR,
+                "MISMATCH_MATE_CIGAR_STRING",
+                rn,
+                Some(read_name),
+                "Mate CIGAR string does not match CIGAR string of mate",
+            );
+        }
+    }
+}
+
+/// `PairEndInfo.validateMates`: both directions, then the both-marked-same-end check (reported once,
+/// against the first-seen read's record number).
+fn validate_mates(first: &PairEndInfo, second: &PairEndInfo, read_name: &str, rep: &mut Report) {
+    validate_mate_fields(first, second, read_name, rep);
+    validate_mate_fields(second, first, read_name, rep);
+    if first.first_of_pair == second.first_of_pair {
+        let which = if first.first_of_pair {
+            "first"
+        } else {
+            "second"
+        };
+        rep.add(
+            ERROR,
+            "MATES_ARE_SAME_END",
+            Some(first.record_number),
+            Some(read_name),
+            &format!("Both mates are marked as {which} of pair"),
+        );
+    }
+}
+
 /// `ValidateSamFile MODE=VERBOSE`, SAM text input, no reference: the raw verbose report.
 pub fn validate_sam_file_verbose(input_sam: &str) -> Result<String, ParseError> {
     let (header, records) = read_sam_with(input_sam, ValidationStringency::Silent)?;
@@ -225,9 +350,35 @@ pub fn validate_sam_file_verbose(input_sam: &str) -> Result<String, ParseError> 
     // Armed by an empty dictionary, disarmed by the first mapped read it reports on.
     let mut dict_empty_pending = header.sequences.is_empty();
 
+    // Reads awaiting their mate. Keyed, as htsjdk's coordinate-sorted map is, by (reference bucket,
+    // read name): a read is stored under the reference index it claims for its mate, and matched
+    // when a later read on that reference arrives. A linear vector keeps a deterministic order for
+    // the leftover `MATE_NOT_FOUND` pass. (Cross-reference pairing and multi-leftover ordering are
+    // deferred; the covered corpus keeps every pair on one reference with at most one leftover.)
+    let mut pending: Vec<(i32, String, PairEndInfo)> = Vec::new();
+
     for (i, rec) in records.iter().enumerate() {
         let record_number = (i + 1) as i64;
         let unmapped = rec.flags & READ_UNMAPPED != 0;
+
+        // validateMateFields: only for paired, primary reads. (The MC-as-valid-cigar check is
+        // deferred; the corpus MC tags are valid cigars.)
+        if rec.flags & READ_PAIRED != 0 && rec.flags & (SECONDARY | SUPPLEMENTARY) == 0 {
+            let found = pending.iter().position(|(bucket, name, _)| {
+                *bucket == rec.reference_index && *name == rec.read_name
+            });
+            if let Some(pos) = found {
+                let (_, _, first) = pending.remove(pos);
+                let second = PairEndInfo::new(rec, record_number);
+                validate_mates(&first, &second, &rec.read_name, &mut rep);
+            } else {
+                pending.push((
+                    rec.mate_reference_index,
+                    rec.read_name.clone(),
+                    PairEndInfo::new(rec, record_number),
+                ));
+            }
+        }
 
         // validateReadGroup
         if !read_group_present(&header, rec) {
@@ -276,6 +427,17 @@ pub fn validate_sam_file_verbose(input_sam: &str) -> Result<String, ParseError> 
         }
     }
 
+    // validateUnmatchedPairs: reads marked paired whose mate never arrived.
+    for (_, name, _) in &pending {
+        rep.add(
+            ERROR,
+            "MATE_NOT_FOUND",
+            None,
+            Some(name),
+            "Mate not found for paired read",
+        );
+    }
+
     if rep.count == 0 {
         rep.out.push_str("No errors found\n");
     }
@@ -292,6 +454,17 @@ mod tests {
             @RG\tID:rg1\tSM:s\tPL:illumina\n\
             a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\tNM:i:0\n";
         assert_eq!(validate_sam_file_verbose(sam).unwrap(), "No errors found\n");
+    }
+
+    #[test]
+    fn an_absent_mate_is_reported() {
+        let sam = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:100\n\
+            @RG\tID:rg1\tSM:s\tPL:illumina\n\
+            p\t99\tchr1\t10\t60\t4M\t=\t20\t14\tACGT\tIIII\tRG:Z:rg1\tNM:i:0\n";
+        assert_eq!(
+            validate_sam_file_verbose(sam).unwrap(),
+            "ERROR::MATE_NOT_FOUND:Read name p, Mate not found for paired read\n"
+        );
     }
 
     #[test]
