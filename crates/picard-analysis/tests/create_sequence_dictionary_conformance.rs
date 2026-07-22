@@ -68,7 +68,8 @@ fn strip_ur(dict: &str) -> String {
 
 #[test]
 fn the_dictionary_is_byte_identical_apart_from_the_ur_field() {
-    let ours = create_sequence_dictionary(payload("fasta").as_bytes(), "file:///placeholder").unwrap();
+    let ours =
+        create_sequence_dictionary(payload("fasta").as_bytes(), "file:///placeholder").unwrap();
     let ours = strip_ur(&ours);
     let theirs = strip_ur(&payload("dict"));
     if ours != theirs {
