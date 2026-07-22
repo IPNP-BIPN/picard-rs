@@ -7,6 +7,7 @@ pub mod add_oa_tag;
 pub mod add_or_replace_read_groups;
 pub mod alignment_summary;
 pub mod annotation;
+pub mod calculate_read_group_checksum;
 pub mod clean_sam;
 pub mod cycle;
 pub mod fastq_to_sam;
