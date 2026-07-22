@@ -16,6 +16,7 @@ pub mod insert_size;
 pub mod quality_score_distribution;
 pub mod quality_yield;
 pub mod refflat;
+pub mod reorder_sam;
 pub mod rnaseq_metrics;
 pub mod sam_to_fastq;
 pub mod snvq;
