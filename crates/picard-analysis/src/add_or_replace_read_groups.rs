@@ -14,6 +14,7 @@
 //! that already carried an `RG` keeps its tag position and only its value changes.
 
 use htsjdk_bam::header::{ReadGroup, SamHeader};
+use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::text_parse::ParseError;
@@ -55,8 +56,11 @@ fn replace_read_groups(header: &mut SamHeader, opts: &Options) {
     header.read_groups = vec![build_read_group(opts)];
 }
 
-/// `AddOrReplaceReadGroups.doWork` for SAM I/O, default sort order.
-pub fn add_or_replace_read_groups(input_sam: &str, opts: &Options) -> Result<String, ParseError> {
+/// `AddOrReplaceReadGroups.doWork` up to the write: the reheadered records with the new `RG` tag.
+fn apply(
+    input_sam: &str,
+    opts: &Options,
+) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
     use rayon::prelude::*;
     let (mut header, mut records) = read_sam(input_sam)?;
     replace_read_groups(&mut header, opts);
@@ -66,7 +70,36 @@ pub fn add_or_replace_read_groups(input_sam: &str, opts: &Options) -> Result<Str
         rec.tags
             .insert(Tag::new(b"RG"), TagValue::Str(opts.rgid.clone()));
     });
+    Ok((header, records))
+}
+
+/// `AddOrReplaceReadGroups.doWork` for SAM I/O, default sort order.
+pub fn add_or_replace_read_groups(input_sam: &str, opts: &Options) -> Result<String, ParseError> {
+    let (header, records) = apply(input_sam, opts)?;
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
+}
+
+/// `AddOrReplaceReadGroups.doWork` for SAM input and **BAM** output. Same reheader + RG stamp, written
+/// through htsjdk-rs's byte-identical `BamWriter`; the tool adds no `@PG`. Byte-identity to Picard's
+/// `USE_JDK_DEFLATER=true` output follows transitively: the records are the ones
+/// `add_or_replace_read_groups` already reproduces (its oracle), and the `BamWriter` is proven
+/// byte-identical over arbitrary records (the SamFormatConverter oracle and htsjdk-rs's
+/// `every_file_is_byte_identical_to_htsjdks`).
+pub fn add_or_replace_read_groups_to_bam(
+    input_sam: &str,
+    opts: &Options,
+) -> Result<Vec<u8>, ParseError> {
+    use htsjdk_bam::writer::BamWriter;
+    let (header, records) = apply(input_sam, opts)?;
+    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &records {
+        writer
+            .write(rec)
+            .expect("records that parsed re-encode as BAM");
+    }
+    Ok(writer
+        .finish()
+        .expect("in-memory BAM writer never fails to finish"))
 }
 
 #[cfg(test)]
@@ -115,5 +148,21 @@ mod tests {
             .filter_map(|l| l.split('\t').next())
             .collect();
         assert_eq!(names, ["r1", "r2"]);
+    }
+
+    /// The BAM output decodes back to exactly the SAM output; the writer's byte-identity to htsjdk is
+    /// proven elsewhere.
+    #[test]
+    fn the_bam_output_round_trips_to_the_sam_output() {
+        let sam = add_or_replace_read_groups(INPUT, &opts()).unwrap();
+        let bam = add_or_replace_read_groups_to_bam(INPUT, &opts()).unwrap();
+        let plain = htsjdk_bgzf::decompress_all(&bam).expect("bam decompresses");
+        let reader = htsjdk_bam::reader::BamReader::new(&plain).unwrap();
+        let header = reader.header.text.clone();
+        let records: Vec<BamRecord> = reader.map(|r| r.unwrap()).collect();
+        assert_eq!(
+            htsjdk_bam::sam_file::write_sam(&header, &records).unwrap(),
+            sam
+        );
     }
 }
