@@ -1,0 +1,107 @@
+//! `CleanSam`.
+//!
+//! Ports `picard.sam.CleanSam.doWork` at tag 3.4.0, with the per-record work in
+//! `AbstractAlignmentMerger.createNewCigarsIfMapsOffEndOfReference` and
+//! `CigarUtil.softClipEndOfRead`. Two edits per record: soft-clip an alignment that hangs off the
+//! end of its reference, and set `MAPQ` to 0 on an unmapped read that still carries a nonzero one.
+//!
+//! `doWork` keeps the input header unchanged, adds no `@PG` and no timestamp, and does not re-sort,
+//! so the whole output is comparable raw.
+//!
+//! This ports the **read's** off-the-end clip and the MAPQ fix. The mate's clip (via the `MC` tag)
+//! is a separate surface: a record carrying an `MC` tag would need it too, so the port asserts there
+//! is none rather than silently leaving a mate cigar unclipped.
+
+use htsjdk_bam::cigar::{soft_clip_end_of_read, Cigar, Op};
+use htsjdk_bam::header::SamHeader;
+use htsjdk_bam::record::BamRecord;
+use htsjdk_bam::sam_file::{read_sam_with, write_sam};
+use htsjdk_bam::tag::Tag;
+use htsjdk_bam::text_parse::{ParseError, ValidationStringency};
+
+const READ_UNMAPPED: u16 = 0x4;
+
+/// `createNewCigarIfMapsOffEndOfReference` for the read, then the unmapped-MAPQ fix.
+fn clean_record(rec: &mut BamRecord, header: &SamHeader) {
+    assert!(
+        rec.tags.get(Tag::new(b"MC")).is_none(),
+        "CleanSam: a record carries an MC tag; the mate clip is not ported"
+    );
+
+    if rec.flags & READ_UNMAPPED == 0 {
+        let ref_len = header.sequences[rec.reference_index as usize].length;
+        // getAlignmentEnd = alignmentStart + referenceLength - 1.
+        let alignment_end = rec.alignment_start + rec.cigar.reference_length() as i32 - 1;
+        let overhang = alignment_end - ref_len;
+        if overhang > 0 {
+            // 1-based first read base to clip.
+            let mut clip_from = rec.read_length() as i32 - overhang + 1;
+            // If the last element is already a soft clip, subtract it from clipFrom.
+            if let Some(last) = rec.cigar.elements.last() {
+                if last.op == Op::S {
+                    clip_from -= last.length as i32;
+                }
+            }
+            let new_elements = soft_clip_end_of_read(clip_from, &rec.cigar.elements);
+            rec.cigar = Cigar::new(new_elements);
+        }
+    }
+
+    if rec.flags & READ_UNMAPPED != 0 && rec.mapping_quality != 0 {
+        rec.mapping_quality = 0;
+    }
+}
+
+/// `CleanSam.doWork` for SAM I/O: clean every record in input order and rewrite.
+///
+/// Reads at LENIENT stringency, as CleanSam does (it downgrades STRICT to LENIENT), so it can
+/// accept the very records it exists to fix, such as an unmapped read with a nonzero MAPQ.
+pub fn clean_sam(input_sam: &str) -> Result<String, ParseError> {
+    let (header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
+    for rec in &mut records {
+        clean_record(rec, &header);
+    }
+    Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // chr1 is 150 long, so a 36M read at 130 ends at 165, hanging 15 off the end.
+    const INPUT: &str = "@HD\tVN:1.6\tSO:coordinate\n\
+        @SQ\tSN:chr1\tLN:150\n\
+        offend\t0\tchr1\t130\t60\t36M\t*\t0\t0\tACGTACGTACGTACGTACGTACGTACGTACGTACGT\t\
+        IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII\n\
+        inside\t0\tchr1\t10\t60\t36M\t*\t0\t0\tACGTACGTACGTACGTACGTACGTACGTACGTACGT\t\
+        IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII\n\
+        unmapped\t4\t*\t0\t30\t*\t*\t0\t0\tACGT\tIIII\n";
+
+    fn cigars(sam: &str) -> Vec<(String, String)> {
+        sam.lines()
+            .filter(|l| !l.starts_with('@'))
+            .map(|l| {
+                let f: Vec<&str> = l.split('\t').collect();
+                (f[0].to_string(), f[5].to_string())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_read_hanging_off_the_end_is_soft_clipped() {
+        let out = clean_sam(INPUT).unwrap();
+        let c = cigars(&out);
+        // 130..165 over a 150bp contig: overhang 15, clipFrom = 36-15+1 = 22 -> 21M15S.
+        assert_eq!(c.iter().find(|(n, _)| n == "offend").unwrap().1, "21M15S");
+        // A read comfortably inside is untouched.
+        assert_eq!(c.iter().find(|(n, _)| n == "inside").unwrap().1, "36M");
+    }
+
+    #[test]
+    fn an_unmapped_read_has_its_mapping_quality_zeroed() {
+        let out = clean_sam(INPUT).unwrap();
+        let row = out.lines().find(|l| l.starts_with("unmapped")).unwrap();
+        let mapq = row.split('\t').nth(4).unwrap();
+        assert_eq!(mapq, "0", "unmapped read kept a nonzero MAPQ: {row}");
+    }
+}

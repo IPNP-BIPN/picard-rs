@@ -6,6 +6,7 @@ pub mod adapter;
 pub mod add_or_replace_read_groups;
 pub mod alignment_summary;
 pub mod annotation;
+pub mod clean_sam;
 pub mod cycle;
 pub mod fastq_to_sam;
 pub mod gc;
