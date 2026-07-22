@@ -793,6 +793,12 @@ jobs:
           for i in 1 2 3; do { time env RAYON_NUM_THREADS=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_nt_s"
           for i in 1 2 3; do { time /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
+          # The whole-program numbers above are I/O-bound; these phase lines isolate the transform
+          # itself, where the add_oa step is the only thing rayon parallelizes. Compare add_oa across
+          # the two: that ratio is the multicore speedup on the work, before decode/encode/write dilute
+          # it end to end.
+          echo "rust_1t_phases"
+          PICARD_RS_TIMING=1 RAYON_NUM_THREADS=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam
           echo "rust_nt_phases"
           PICARD_RS_TIMING=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam
           INNER

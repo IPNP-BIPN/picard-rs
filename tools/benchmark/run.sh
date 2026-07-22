@@ -42,6 +42,10 @@ echo "rust_addoatag_1t_s"
 for i in 1 2 3; do { time env RAYON_NUM_THREADS=1 /out/amd64/release/add-oa-tag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
 echo "rust_addoatag_nt_s"
 for i in 1 2 3; do { time /out/amd64/release/add-oa-tag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
+echo "rust_addoatag_1t_phases"
+PICARD_RS_TIMING=1 RAYON_NUM_THREADS=1 /out/amd64/release/add-oa-tag I=bench.bam O=/out/rust_oa.sam
+echo "rust_addoatag_nt_phases"
+PICARD_RS_TIMING=1 /out/amd64/release/add-oa-tag I=bench.bam O=/out/rust_oa.sam
 INNER
 
 echo "== timing"
