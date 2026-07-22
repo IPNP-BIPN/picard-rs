@@ -25,6 +25,7 @@ pub mod replace_sam_header;
 pub mod revert_original_quals_add_mate_cigar;
 pub mod revert_sam;
 pub mod rnaseq_metrics;
+pub mod sam_format_converter;
 pub mod sam_to_fastq;
 pub mod snvq;
 pub mod sort_sam;
