@@ -9,6 +9,7 @@ pub mod annotation;
 pub mod clean_sam;
 pub mod cycle;
 pub mod fastq_to_sam;
+pub mod fix_mate_information;
 pub mod gc;
 pub mod insert_size;
 pub mod quality_score_distribution;
