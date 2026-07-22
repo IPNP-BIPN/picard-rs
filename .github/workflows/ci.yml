@@ -735,7 +735,7 @@ jobs:
           ls -la target/benchmark/bench.bam
 
       - name: Build the port
-        run: cargo build --release --bin collect-alignment-summary-metrics
+        run: cargo build --release --bin collect-alignment-summary-metrics --bin add-oa-tag
 
       - name: Time both, on the same hardware, neither emulated
         # The runner is real x86-64, so this is the authoritative figure; the numbers in
@@ -774,5 +774,45 @@ jobs:
                   if a != b:
                       print(f"line {i}\n  picard: {a[:200]}\n  ours  : {b[:200]}")
                       break
+              sys.exit(1)
+          PY
+
+      - name: "Multicore: time AddOATag, single thread vs all cores vs Picard"
+        # The metrics collector's fold is serial (float non-associativity, decision 0005). AddOATag
+        # is a pure per-record transform, so it fans across cores; this measures that. rust_1t pins
+        # RAYON_NUM_THREADS=1 to expose the single-thread floor, rust_nt leaves rayon on all cores,
+        # and the gap between them is the multicore win, isolated from the Rust-vs-JVM baseline.
+        run: |
+          cp target/release/add-oa-tag target/benchmark/
+          cat > target/benchmark/oabench.sh <<'INNER'
+          cd /out
+          TIMEFORMAT='%3R'
+          echo "picard_addoatag_s"
+          for i in 1 2 3; do { time java -jar $PICARD_JAR AddOATag I=bench.bam O=/out/picard_oa.sam VALIDATION_STRINGENCY=SILENT >/dev/null 2>&1 ; } 2>&1; done
+          echo "rust_1t_s"
+          for i in 1 2 3; do { time env RAYON_NUM_THREADS=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
+          echo "rust_nt_s"
+          for i in 1 2 3; do { time /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
+          echo "rust_nt_phases"
+          PICARD_RS_TIMING=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam
+          INNER
+          docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.4.0 'bash /out/oabench.sh'
+
+      - name: The parallel AddOATag output is byte-identical to Picard
+        # AddOATag adds no @PG and no timestamp and preserves the coordinate order, so the whole SAM
+        # is compared raw over the 2,000,000-read benchmark.
+        run: |
+          python3 - <<'PY'
+          import sys
+          picard = open('target/benchmark/picard_oa.sam', 'rb').read()
+          rust = open('target/benchmark/rust_oa.sam', 'rb').read()
+          print("AddOATag byte-identical over 2,000,000 reads:", picard == rust)
+          if picard != rust:
+              pl, rl = picard.split(b'\n'), rust.split(b'\n')
+              for i, (a, b) in enumerate(zip(pl, rl)):
+                  if a != b:
+                      print(f"line {i}\n  picard: {a[:200]}\n  ours  : {b[:200]}")
+                      break
+              print(f"lines: picard={len(pl)} rust={len(rl)}")
               sys.exit(1)
           PY
