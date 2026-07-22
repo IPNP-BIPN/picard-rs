@@ -11,7 +11,7 @@
 use std::io::Read;
 
 use picard_analysis::validate_sam_file::{
-    validate_sam_file_verbose, validate_sam_file_verbose_with_reference,
+    validate_sam_file_summary, validate_sam_file_verbose, validate_sam_file_verbose_with_reference,
 };
 
 fn corpus(name: &str) -> String {
@@ -127,6 +127,32 @@ fn every_mate_case_is_byte_identical() {
         check("validate_sam_file_mates.txt.gz"),
         6,
         "expected 6 mate cases"
+    );
+}
+
+/// Like [`check`], but runs each `(input, output)` pair through the SUMMARY-mode validator.
+fn check_summary(name: &str) -> usize {
+    let rows = rows(name);
+    let mut checked = 0;
+    for window in rows.chunks(2) {
+        let (case, kind0, input) = &window[0];
+        let (_, kind1, expected) = &window[1];
+        assert_eq!(kind0, "input", "case {case} out of shape");
+        assert_eq!(kind1, "output", "case {case} out of shape");
+
+        let ours = validate_sam_file_summary(input).expect("input parses");
+        assert_eq!(&ours, expected, "case {case} diverged");
+        checked += 1;
+    }
+    checked
+}
+
+#[test]
+fn every_summary_case_is_byte_identical() {
+    assert_eq!(
+        check_summary("validate_sam_file_summary.txt.gz"),
+        3,
+        "expected 3 summary cases"
     );
 }
 
