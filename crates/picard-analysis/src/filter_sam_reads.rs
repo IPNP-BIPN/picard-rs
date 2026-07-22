@@ -120,6 +120,67 @@ pub fn filter_sam_reads_by_tag(
     Ok(write_sam(&header, &kept).expect("records that parsed re-encode as SAM text"))
 }
 
+const READ_UNMAPPED: u16 = 0x4;
+
+/// Whether `includeAligned` (keep aligned templates) or `excludeAligned` (keep templates with an
+/// unmapped read).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlignedFilter {
+    /// `includeAligned`: keep a template only when **all** its reads are aligned.
+    IncludeAligned,
+    /// `excludeAligned`: keep a template when **any** of its reads is unmapped.
+    ExcludeAligned,
+}
+
+fn is_aligned(rec: &BamRecord) -> bool {
+    rec.flags & READ_UNMAPPED == 0
+}
+
+/// `FilterSamReads` with `FILTER=includeAligned` / `excludeAligned`, ported from
+/// `htsjdk.samtools.filter.AlignedFilter` driven pairwise by `FilteringSamIterator` (constructed with
+/// `filterByPair = true`).
+///
+/// The input must be **queryname-sorted**, so the reads of a template are consecutive. A template is
+/// kept or dropped as a unit: for `includeAligned`, a two-read template is kept only when both reads
+/// are aligned and a lone read only when it is aligned; for `excludeAligned`, a two-read template is
+/// kept when either read is unmapped and a lone read only when it is unmapped. The kept reads pass
+/// through in input order; no `@PG` is added and the sort order is untouched, so the output is
+/// comparable raw.
+///
+/// This is a **sequential** grouped pass (the pairing depends on encounter order), so unlike the
+/// read-list and tag-value filters it is not parallelized. Templates of one or two reads are handled;
+/// a template with secondary/supplementary records is a separate surface and is asserted against.
+pub fn filter_sam_reads_aligned(
+    input_sam: &str,
+    filter: AlignedFilter,
+) -> Result<String, ParseError> {
+    let (header, records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
+    let include = matches!(filter, AlignedFilter::IncludeAligned);
+
+    let mut kept: Vec<BamRecord> = Vec::with_capacity(records.len());
+    let mut start = 0;
+    while start < records.len() {
+        let mut end = start + 1;
+        while end < records.len() && records[end].read_name == records[start].read_name {
+            end += 1;
+        }
+        let group = &records[start..end];
+        assert!(
+            group.len() <= 2,
+            "filter_sam_reads_aligned: templates with more than two reads are not ported"
+        );
+
+        // A template is "aligned" when all its reads are aligned; keep it iff that matches include.
+        let all_aligned = group.iter().all(is_aligned);
+        if all_aligned == include {
+            kept.extend_from_slice(group);
+        }
+        start = end;
+    }
+
+    Ok(write_sam(&header, &kept).expect("records that parsed re-encode as SAM text"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,5 +252,33 @@ mod tests {
             filter_sam_reads_by_tag(TAGGED, b"RG", &["rg1", "rg2"], TagFilter::IncludeTagValues)
                 .unwrap();
         assert_eq!(names(&out), ["a", "b", "c"]);
+    }
+
+    // Queryname-sorted: a both-aligned pair, a one-unmapped pair, a both-unmapped pair, an aligned
+    // singleton, and an unmapped singleton.
+    const PAIRS: &str = "@HD\tVN:1.6\tSO:queryname\n\
+        @SQ\tSN:chr1\tLN:100000\n\
+        pairAA\t99\tchr1\t100\t60\t4M\t=\t200\t104\tACGT\tIIII\n\
+        pairAA\t147\tchr1\t200\t60\t4M\t=\t100\t-104\tACGT\tIIII\n\
+        pairAU\t97\tchr1\t300\t60\t4M\t=\t300\t0\tACGT\tIIII\n\
+        pairAU\t141\t*\t0\t0\t*\t=\t300\t0\tACGT\tIIII\n\
+        pairUU\t77\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n\
+        pairUU\t141\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n\
+        singleA\t0\tchr1\t500\t60\t4M\t*\t0\t0\tACGT\tIIII\n\
+        singleU\t4\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n";
+
+    #[test]
+    fn include_aligned_keeps_fully_aligned_templates() {
+        let out = filter_sam_reads_aligned(PAIRS, AlignedFilter::IncludeAligned).unwrap();
+        assert_eq!(names(&out), ["pairAA", "pairAA", "singleA"]);
+    }
+
+    #[test]
+    fn exclude_aligned_keeps_templates_with_an_unmapped_read() {
+        let out = filter_sam_reads_aligned(PAIRS, AlignedFilter::ExcludeAligned).unwrap();
+        assert_eq!(
+            names(&out),
+            ["pairAU", "pairAU", "pairUU", "pairUU", "singleU"]
+        );
     }
 }
