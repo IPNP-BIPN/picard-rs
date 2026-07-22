@@ -27,12 +27,15 @@
 //!   `INVALID_FLAG_SUPPLEMENTARY_ALIGNMENT`, `INVALID_MAPPING_QUALITY`), the mapped-read
 //!   `INVALID_CIGAR`, and `READ_GROUP_NOT_FOUND`.
 //!
+//! - The reference-based `NM` **value** check (`INVALID_TAG_NM`), when a `REFERENCE_SEQUENCE` is
+//!   given: each mapped read's `NM` tag is compared against the value recomputed from the reference
+//!   by [`calculate_md_and_nm`], reusing the same primitive as `SetNmMdAndUqTags`.
+//!
 //! Deferred to follow-up slices (each entangled with a wider htsjdk surface): the rest of
 //! `SAMRecord.isValid()` (the unpaired mate-reference checks, the paired branch's
 //! reference/position checks, `INVALID_INSERT_SIZE`, the mapped read's empty-dictionary /
 //! missing-reference-name checks, and `isValidReferenceIndexAndPosition`), the sort-order checker
-//! (`RECORD_OUT_OF_ORDER`), the reference-based `NM` **value** check (`INVALID_TAG_NM`), the
-//! secondary base calls (`E2`/`U2`) and duplicate/`CG` tag checks, the header parser's own
+//! (`RECORD_OUT_OF_ORDER`), the secondary base calls (`E2`/`U2`) and duplicate/`CG` tag checks, the header parser's own
 //! validation errors (`HEADER_RECORD_MISSING_REQUIRED_TAG`, `MISSING_VERSION_NUMBER` when `VN` is
 //! absent), the SUMMARY mode histogram, BAM/CRAM input, and the quality-format detector.
 //!
@@ -42,11 +45,34 @@
 //! Every spec-conformant SAM `QUAL` character is in `[33,126]`, so Standard always survives and the
 //! tool never emits `INVALID_QUALITY_FORMAT` for conformant input.
 
+use std::collections::HashMap;
+
+use htsjdk_bam::fasta::{read_fasta, FastaError};
 use htsjdk_bam::header::SamHeader;
+use htsjdk_bam::md_nm::calculate_md_and_nm;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam_with;
 use htsjdk_bam::tag::Tag;
 use htsjdk_bam::text_parse::{ParseError, ValidationStringency};
+
+/// Why `ValidateSamFile` could not run: the input failed to parse, or the reference FASTA did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ValidateError {
+    Parse(ParseError),
+    Fasta(String),
+}
+
+impl From<ParseError> for ValidateError {
+    fn from(e: ParseError) -> Self {
+        ValidateError::Parse(e)
+    }
+}
+
+impl From<FastaError> for ValidateError {
+    fn from(e: FastaError) -> Self {
+        ValidateError::Fasta(format!("{e:?}"))
+    }
+}
 
 const READ_PAIRED: u16 = 0x1;
 const PROPER_PAIR: u16 = 0x2;
@@ -463,8 +489,36 @@ fn is_valid_record(header: &SamHeader, rec: &BamRecord, record_number: i64, rep:
 }
 
 /// `ValidateSamFile MODE=VERBOSE`, SAM text input, no reference: the raw verbose report.
-pub fn validate_sam_file_verbose(input_sam: &str) -> Result<String, ParseError> {
+pub fn validate_sam_file_verbose(input_sam: &str) -> Result<String, ValidateError> {
+    validate(input_sam, None)
+}
+
+/// `ValidateSamFile MODE=VERBOSE REFERENCE_SEQUENCE=<fasta>`: as above, plus the reference-based
+/// `NM` value check (`INVALID_TAG_NM`). `fasta` is the `REFERENCE_SEQUENCE` bytes.
+pub fn validate_sam_file_verbose_with_reference(
+    input_sam: &str,
+    fasta: &[u8],
+) -> Result<String, ValidateError> {
+    validate(input_sam, Some(fasta))
+}
+
+/// `SamFileValidator.validateSamFileVerbose`. When `fasta` is present, each mapped read's `NM` tag
+/// is checked against the value recomputed from the reference (`INVALID_TAG_NM`); otherwise only its
+/// presence is checked (`MISSING_TAG_NM`), exactly as htsjdk skips the value check without a
+/// reference.
+fn validate(input_sam: &str, fasta: Option<&[u8]>) -> Result<String, ValidateError> {
     let (header, records) = read_sam_with(input_sam, ValidationStringency::Silent)?;
+
+    // The reference bases by contig name, resolved once, for the `NM` value check.
+    let contigs = match fasta {
+        Some(bytes) => read_fasta(bytes)?,
+        None => Vec::new(),
+    };
+    let ref_by_name: HashMap<&str, &[u8]> = contigs
+        .iter()
+        .map(|c| (c.name.as_str(), c.bases.as_slice()))
+        .collect();
+    let have_reference = fasta.is_some();
 
     let mut rep = Report::new();
     validate_header(&header, &mut rep);
@@ -516,15 +570,41 @@ pub fn validate_sam_file_verbose(input_sam: &str) -> Result<String, ParseError> 
             );
         }
 
-        // validateNmTag (presence only; the reference-based value check is deferred).
-        if !unmapped && rec.tags.get(Tag::new(b"NM")).is_none() {
-            rep.add(
-                WARNING,
-                "MISSING_TAG_NM",
-                Some(record_number),
-                Some(&rec.read_name),
-                "NM tag (nucleotide differences) is missing",
-            );
+        // validateNmTag: the tag must be present (MISSING_TAG_NM) and, when a reference is given,
+        // must equal the value recomputed from the reference (INVALID_TAG_NM).
+        if !unmapped {
+            match rec.tags.get(Tag::new(b"NM")) {
+                None => rep.add(
+                    WARNING,
+                    "MISSING_TAG_NM",
+                    Some(record_number),
+                    Some(&rec.read_name),
+                    "NM tag (nucleotide differences) is missing",
+                ),
+                Some(htsjdk_bam::tag::TagValue::Int(tag_nm)) if have_reference => {
+                    let name = &header.sequences[rec.reference_index as usize].name;
+                    if let Some(ref_bases) = ref_by_name.get(name.as_str()) {
+                        let (_, actual) = calculate_md_and_nm(
+                            rec.alignment_start,
+                            &rec.cigar,
+                            &rec.read_bases,
+                            ref_bases,
+                        );
+                        if *tag_nm != actual as i64 {
+                            rep.add(
+                                ERROR,
+                                "INVALID_TAG_NM",
+                                Some(record_number),
+                                Some(&rec.read_name),
+                                &format!(
+                                    "NM tag (nucleotide differences) in file [{tag_nm}] does not match reality [{actual}]"
+                                ),
+                            );
+                        }
+                    }
+                }
+                Some(_) => {}
+            }
         }
 
         // Empty dictionary reported once, on the first mapped read.
@@ -602,6 +682,20 @@ mod tests {
             "ERROR::READ_GROUP_NOT_FOUND:Record 1, Read name a, RG ID on SAMRecord not found in header: other\n\
              WARNING::RECORD_MISSING_READ_GROUP:Read name a, A record is missing a read group\n"
         );
+    }
+
+    #[test]
+    fn a_wrong_nm_tag_is_reported_against_the_reference() {
+        let fasta: &[u8] = b">chr1\nACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT\n";
+        let sam = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:40\n\
+            @RG\tID:rg1\tSM:s\tPL:illumina\n\
+            a\t0\tchr1\t1\t60\t8M\t*\t0\t0\tACCTACGT\tIIIIIIII\tRG:Z:rg1\tNM:i:0\n";
+        assert_eq!(
+            validate_sam_file_verbose_with_reference(sam, fasta).unwrap(),
+            "ERROR::INVALID_TAG_NM:Record 1, Read name a, NM tag (nucleotide differences) in file [0] does not match reality [1]\n"
+        );
+        // Without a reference the value check is skipped and the correct-presence read is clean.
+        assert_eq!(validate_sam_file_verbose(sam).unwrap(), "No errors found\n");
     }
 
     #[test]
