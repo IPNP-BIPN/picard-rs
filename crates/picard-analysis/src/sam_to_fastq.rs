@@ -23,10 +23,11 @@ use htsjdk_bam::fastq::{phred_to_fastq, write_record, FastqRecord};
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sequence::reverse_complement;
 
+const READ_PAIRED: u16 = 0x1;
 const READ_NEGATIVE_STRAND: u16 = 0x10;
 const SECONDARY_ALIGNMENT: u16 = 0x100;
 const READ_FAILS_VENDOR_QUALITY: u16 = 0x200;
-const READ_PAIRED: u16 = 0x1;
+const FIRST_OF_PAIR: u16 = 0x40;
 const SUPPLEMENTARY_ALIGNMENT: u16 = 0x800;
 
 const NULL_STRING: &str = "*";
@@ -70,8 +71,11 @@ fn base_quality_string(rec: &BamRecord) -> String {
     }
 }
 
-/// `writeRecord(read, null, writer, 0, null)`: the FASTQ text for one unpaired read.
-fn write_one(rec: &BamRecord, opts: &Options) -> String {
+/// `writeRecord(read, mateNumber, writer, 0, null)`: the FASTQ text for one read.
+///
+/// `mate_number` is `None` for an unpaired read (`@name`) and `Some(1)`/`Some(2)` for a paired
+/// read (`@name/1`, `@name/2`).
+fn write_one(rec: &BamRecord, mate_number: Option<u32>, opts: &Options) -> String {
     let mut seq = read_string(rec);
     let mut quals = base_quality_string(rec);
 
@@ -83,12 +87,25 @@ fn write_one(rec: &BamRecord, opts: &Options) -> String {
         quals = quals.chars().rev().collect();
     }
 
+    let name = match mate_number {
+        None => rec.read_name.clone(),
+        Some(n) => format!("{}/{}", rec.read_name, n),
+    };
     write_record(&FastqRecord {
-        read_name: Some(rec.read_name.clone()),
+        read_name: Some(name),
         read_string: Some(seq),
         quality_header: Some(String::new()),
         quality_string: Some(quals),
     })
+}
+
+/// Whether `handleRecord` drops this record before writing: a secondary or supplementary read
+/// without `INCLUDE_NON_PRIMARY_ALIGNMENTS`, or a vendor-failed read without `INCLUDE_NON_PF_READS`.
+fn is_dropped(rec: &BamRecord, opts: &Options) -> bool {
+    let secondary_or_supplementary =
+        rec.flags & (SECONDARY_ALIGNMENT | SUPPLEMENTARY_ALIGNMENT) != 0;
+    (secondary_or_supplementary && !opts.include_non_primary)
+        || (rec.flags & READ_FAILS_VENDOR_QUALITY != 0 && !opts.include_non_pf)
 }
 
 /// Runs the unpaired default path over the records in file order, returning the FASTQ file text.
@@ -98,23 +115,58 @@ fn write_one(rec: &BamRecord, opts: &Options) -> String {
 pub fn sam_to_fastq_unpaired(records: &[BamRecord], opts: &Options) -> String {
     let mut out = String::new();
     for rec in records {
-        // isSecondaryOrSupplementary && !INCLUDE_NON_PRIMARY_ALIGNMENTS
-        let secondary_or_supplementary =
-            rec.flags & (SECONDARY_ALIGNMENT | SUPPLEMENTARY_ALIGNMENT) != 0;
-        if secondary_or_supplementary && !opts.include_non_primary {
-            continue;
-        }
-        // vendor fail && !INCLUDE_NON_PF_READS
-        if rec.flags & READ_FAILS_VENDOR_QUALITY != 0 && !opts.include_non_pf {
+        if is_dropped(rec, opts) {
             continue;
         }
         assert!(
             rec.flags & READ_PAIRED == 0,
             "sam_to_fastq_unpaired given a paired read; the paired path is not ported"
         );
-        out.push_str(&write_one(rec, opts));
+        out.push_str(&write_one(rec, None, opts));
     }
     out
+}
+
+/// The paired default path with `SECOND_END_FASTQ` (two separate files), returning
+/// `(first_of_pair_fastq, second_of_pair_fastq)`.
+///
+/// Ports `handleRecord`'s paired branch: reads are matched by name through a first-seen map, and a
+/// pair is emitted only when its second mate arrives, so the output order in each file follows the
+/// order pairs *complete* in the input. The first-of-pair mate is written to the first file with a
+/// `/1` suffix and the second-of-pair to the second file with `/2`, regardless of which physically
+/// arrived second. A read filtered by [`is_dropped`] never enters the map, so a pair with one
+/// dropped mate is left incomplete and unwritten, matching htsjdk's MATE_NOT_FOUND handling.
+pub fn sam_to_fastq_paired(records: &[BamRecord], opts: &Options) -> (String, String) {
+    use std::collections::HashMap;
+
+    let mut first_seen: HashMap<&str, &BamRecord> = HashMap::new();
+    let mut first_end = String::new();
+    let mut second_end = String::new();
+
+    for rec in records {
+        if is_dropped(rec, opts) {
+            continue;
+        }
+        assert!(
+            rec.flags & READ_PAIRED != 0,
+            "sam_to_fastq_paired given an unpaired read"
+        );
+        match first_seen.remove(rec.read_name.as_str()) {
+            None => {
+                first_seen.insert(rec.read_name.as_str(), rec);
+            }
+            Some(first) => {
+                let (read1, read2) = if rec.flags & FIRST_OF_PAIR != 0 {
+                    (rec, first)
+                } else {
+                    (first, rec)
+                };
+                first_end.push_str(&write_one(read1, Some(1), opts));
+                second_end.push_str(&write_one(read2, Some(2), opts));
+            }
+        }
+    }
+    (first_end, second_end)
 }
 
 #[cfg(test)]
@@ -170,5 +222,30 @@ mod tests {
     fn a_paired_read_is_rejected() {
         let r = rec("r1", READ_PAIRED, b"AC", &[40, 40]);
         sam_to_fastq_unpaired(&[r], &Options::default());
+    }
+
+    #[test]
+    fn a_pair_is_split_across_the_two_files_by_first_second_of_pair() {
+        // The second-of-pair mate physically arrives first, but read1 is still the first-of-pair.
+        let second = rec("p1", READ_PAIRED | 0x80, b"TT", &[30, 30]);
+        let first = rec("p1", READ_PAIRED | FIRST_OF_PAIR, b"AA", &[40, 40]);
+        let (r1, r2) = sam_to_fastq_paired(&[second, first], &Options::default());
+        assert_eq!(r1, "@p1/1\nAA\n+\nII\n");
+        assert_eq!(r2, "@p1/2\nTT\n+\n??\n");
+    }
+
+    #[test]
+    fn a_pair_with_a_dropped_mate_is_not_written() {
+        // The first-of-pair is a supplementary read (dropped), so the pair never completes.
+        let first = rec(
+            "p1",
+            READ_PAIRED | FIRST_OF_PAIR | SUPPLEMENTARY_ALIGNMENT,
+            b"AA",
+            &[40, 40],
+        );
+        let second = rec("p1", READ_PAIRED | 0x80, b"TT", &[30, 30]);
+        let (r1, r2) = sam_to_fastq_paired(&[first, second], &Options::default());
+        assert_eq!(r1, "");
+        assert_eq!(r2, "");
     }
 }
