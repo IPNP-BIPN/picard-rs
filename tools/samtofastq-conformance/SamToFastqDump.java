@@ -11,6 +11,8 @@
  *   java -cp picard-fat.jar:. SamToFastqDump
  */
 import htsjdk.samtools.*;
+import htsjdk.samtools.util.BlockCompressedOutputStream;
+import htsjdk.samtools.util.zip.DeflaterFactory;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -21,8 +23,20 @@ public class SamToFastqDump {
         emitPaired();
     }
 
+    /*
+     * Force the JDK deflater before writing any BAM. Running a Picard tool installs
+     * IntelDeflaterFactory globally, and GKL's igzip emits different BGZF bytes than zlib, so a BAM
+     * written after the first tool run would deflate with GKL on real x86-64 but with the JDK on a
+     * machine where GKL cannot load. Pinning the JDK deflater makes the input BAM identical on both,
+     * which is what lets the committed hex match what CI regenerates.
+     */
+    private static void forceJdkDeflater() {
+        BlockCompressedOutputStream.setDefaultDeflaterFactory(new DeflaterFactory());
+    }
+
     /** Unpaired reads to a single FASTQ, exercising RE_REVERSE and the default filters. */
     private static void emitUnpaired() throws Exception {
+        forceJdkDeflater();
         final SAMFileHeader header = header();
         final File bam = File.createTempFile("s2f-u-", ".bam");
         bam.deleteOnExit();
@@ -46,6 +60,7 @@ public class SamToFastqDump {
 
     /** Paired reads to two FASTQs, exercising the /1 /2 split and RE_REVERSE on a mate. */
     private static void emitPaired() throws Exception {
+        forceJdkDeflater();
         final SAMRecordSetBuilder builder = new SAMRecordSetBuilder(true, SAMFileHeader.SortOrder.queryname);
         builder.setRandomSeed(0);
         final int idx = builder.getHeader().getSequenceIndex("chr1");
