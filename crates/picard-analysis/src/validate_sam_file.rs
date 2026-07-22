@@ -20,10 +20,17 @@
 //!   `MISMATCH_FLAG_MATE_UNMAPPED`, `MISMATCH_MATE_CIGAR_STRING` (via the `MC` tag), and
 //!   `MATES_ARE_SAME_END`. Pairs are matched on one reference, as htsjdk's coordinate-sorted map
 //!   does; cross-reference pairing and multi-leftover ordering are deferred.
+//! - `SAMRecord.isValid()`, the reference-free / dictionary-independent subset, emitted first per
+//!   record in htsjdk's own order: the unpaired-read flag checks (`INVALID_FLAG_PROPER_PAIR`,
+//!   `INVALID_FLAG_MATE_UNMAPPED`, `INVALID_FLAG_MATE_NEG_STRAND`, `INVALID_FLAG_FIRST_OF_PAIR`,
+//!   `INVALID_FLAG_SECOND_OF_PAIR`), the unmapped-read checks (`INVALID_FLAG_NOT_PRIM_ALIGNMENT`,
+//!   `INVALID_FLAG_SUPPLEMENTARY_ALIGNMENT`, `INVALID_MAPPING_QUALITY`), the mapped-read
+//!   `INVALID_CIGAR`, and `READ_GROUP_NOT_FOUND`.
 //!
-//! Deferred to follow-up slices (each entangled with a wider htsjdk surface): everything from
-//! `SAMRecord.isValid()` (flag/CIGAR/mapping-quality/reference-index checks, and the
-//! `READ_GROUP_NOT_FOUND` message it raises), the sort-order checker
+//! Deferred to follow-up slices (each entangled with a wider htsjdk surface): the rest of
+//! `SAMRecord.isValid()` (the unpaired mate-reference checks, the paired branch's
+//! reference/position checks, `INVALID_INSERT_SIZE`, the mapped read's empty-dictionary /
+//! missing-reference-name checks, and `isValidReferenceIndexAndPosition`), the sort-order checker
 //! (`RECORD_OUT_OF_ORDER`), the reference-based `NM` **value** check (`INVALID_TAG_NM`), the
 //! secondary base calls (`E2`/`U2`) and duplicate/`CG` tag checks, the header parser's own
 //! validation errors (`HEADER_RECORD_MISSING_REQUIRED_TAG`, `MISSING_VERSION_NUMBER` when `VN` is
@@ -42,11 +49,13 @@ use htsjdk_bam::tag::Tag;
 use htsjdk_bam::text_parse::{ParseError, ValidationStringency};
 
 const READ_PAIRED: u16 = 0x1;
+const PROPER_PAIR: u16 = 0x2;
 const READ_UNMAPPED: u16 = 0x4;
 const MATE_UNMAPPED: u16 = 0x8;
 const READ_REVERSE: u16 = 0x10;
 const MATE_REVERSE: u16 = 0x20;
 const FIRST_OF_PAIR: u16 = 0x40;
+const SECOND_OF_PAIR: u16 = 0x80;
 const SECONDARY: u16 = 0x100;
 const SUPPLEMENTARY: u16 = 0x800;
 
@@ -340,6 +349,119 @@ fn validate_mates(first: &PairEndInfo, second: &PairEndInfo, read_name: &str, re
     }
 }
 
+/// `SAMRecord.isValid`, restricted to the reference-free, dictionary-independent flag / mapping /
+/// CIGAR / read-group checks, emitted in htsjdk's own order. Every error carries the record number
+/// (`SamFileValidator` calls `setRecordNumber` on each). The mate-reference checks for unpaired
+/// reads, the paired branch's reference/position checks, `INVALID_INSERT_SIZE`, the mapped read's
+/// empty-dictionary / missing-reference-name checks, and `isValidReferenceIndexAndPosition` are
+/// deferred (each needs the mate reference, the insert-size bound, or the sequence dictionary).
+fn is_valid_record(header: &SamHeader, rec: &BamRecord, record_number: i64, rep: &mut Report) {
+    let rn = Some(record_number);
+    let name = Some(rec.read_name.as_str());
+    let paired = rec.flags & READ_PAIRED != 0;
+    let unmapped = rec.flags & READ_UNMAPPED != 0;
+
+    if !paired {
+        if rec.flags & PROPER_PAIR != 0 {
+            rep.add(
+                ERROR,
+                "INVALID_FLAG_PROPER_PAIR",
+                rn,
+                name,
+                "Proper pair flag should not be set for unpaired read.",
+            );
+        }
+        if rec.flags & MATE_UNMAPPED != 0 {
+            rep.add(
+                ERROR,
+                "INVALID_FLAG_MATE_UNMAPPED",
+                rn,
+                name,
+                "Mate unmapped flag should not be set for unpaired read.",
+            );
+        }
+        if rec.flags & MATE_REVERSE != 0 {
+            rep.add(
+                ERROR,
+                "INVALID_FLAG_MATE_NEG_STRAND",
+                rn,
+                name,
+                "Mate negative strand flag should not be set for unpaired read.",
+            );
+        }
+        if rec.flags & FIRST_OF_PAIR != 0 {
+            rep.add(
+                ERROR,
+                "INVALID_FLAG_FIRST_OF_PAIR",
+                rn,
+                name,
+                "First of pair flag should not be set for unpaired read.",
+            );
+        }
+        if rec.flags & SECOND_OF_PAIR != 0 {
+            rep.add(
+                ERROR,
+                "INVALID_FLAG_SECOND_OF_PAIR",
+                rn,
+                name,
+                "Second of pair flag should not be set for unpaired read.",
+            );
+        }
+    }
+
+    if unmapped {
+        if rec.flags & SECONDARY != 0 {
+            rep.add(
+                ERROR,
+                "INVALID_FLAG_NOT_PRIM_ALIGNMENT",
+                rn,
+                name,
+                "Secondary alignment flag should not be set for unmapped read.",
+            );
+        }
+        if rec.flags & SUPPLEMENTARY != 0 {
+            rep.add(
+                ERROR,
+                "INVALID_FLAG_SUPPLEMENTARY_ALIGNMENT",
+                rn,
+                name,
+                "Supplementary alignment flag should not be set for unmapped read.",
+            );
+        }
+        if rec.mapping_quality != 0 {
+            rep.add(
+                ERROR,
+                "INVALID_MAPPING_QUALITY",
+                rn,
+                name,
+                "MAPQ should be 0 for unmapped read.",
+            );
+        }
+    } else if rec.cigar.elements.is_empty() {
+        // (MAPQ >= 256 is unreachable: the field is a single byte.)
+        rep.add(
+            ERROR,
+            "INVALID_CIGAR",
+            rn,
+            name,
+            "CIGAR should have > zero elements for mapped read.",
+        );
+    }
+
+    // The RG ID, when present, must resolve in the header.
+    if let Some(htsjdk_bam::tag::TagValue::Str(id)) = rec.tags.get(Tag::new(b"RG")) {
+        if !header.read_groups.iter().any(|rg| rg.id == *id) {
+            rep.add(
+                ERROR,
+                "READ_GROUP_NOT_FOUND",
+                rn,
+                name,
+                &format!("RG ID on SAMRecord not found in header: {id}"),
+            );
+        }
+    }
+}
+
 /// `ValidateSamFile MODE=VERBOSE`, SAM text input, no reference: the raw verbose report.
 pub fn validate_sam_file_verbose(input_sam: &str) -> Result<String, ParseError> {
     let (header, records) = read_sam_with(input_sam, ValidationStringency::Silent)?;
@@ -360,6 +482,9 @@ pub fn validate_sam_file_verbose(input_sam: &str) -> Result<String, ParseError> 
     for (i, rec) in records.iter().enumerate() {
         let record_number = (i + 1) as i64;
         let unmapped = rec.flags & READ_UNMAPPED != 0;
+
+        // isValid(): the per-record flag / mapping / CIGAR / read-group checks, emitted first.
+        is_valid_record(&header, rec, record_number, &mut rep);
 
         // validateMateFields: only for paired, primary reads. (The MC-as-valid-cigar check is
         // deferred; the corpus MC tags are valid cigars.)
@@ -454,6 +579,29 @@ mod tests {
             @RG\tID:rg1\tSM:s\tPL:illumina\n\
             a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\tNM:i:0\n";
         assert_eq!(validate_sam_file_verbose(sam).unwrap(), "No errors found\n");
+    }
+
+    #[test]
+    fn an_unpaired_read_with_a_pairing_flag_is_invalid() {
+        let sam = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:100\n\
+            @RG\tID:rg1\tSM:s\tPL:illumina\n\
+            a\t2\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\tNM:i:0\n";
+        assert_eq!(
+            validate_sam_file_verbose(sam).unwrap(),
+            "ERROR::INVALID_FLAG_PROPER_PAIR:Record 1, Read name a, Proper pair flag should not be set for unpaired read.\n"
+        );
+    }
+
+    #[test]
+    fn a_record_with_an_unknown_read_group_is_reported() {
+        let sam = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:100\n\
+            @RG\tID:rg1\tSM:s\tPL:illumina\n\
+            a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:other\tNM:i:0\n";
+        assert_eq!(
+            validate_sam_file_verbose(sam).unwrap(),
+            "ERROR::READ_GROUP_NOT_FOUND:Record 1, Read name a, RG ID on SAMRecord not found in header: other\n\
+             WARNING::RECORD_MISSING_READ_GROUP:Read name a, A record is missing a read group\n"
+        );
     }
 
     #[test]
