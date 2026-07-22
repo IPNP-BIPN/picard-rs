@@ -7,7 +7,9 @@
 
 use std::io::Read;
 
-use picard_analysis::filter_sam_reads::{filter_sam_reads, Filter};
+use picard_analysis::filter_sam_reads::{
+    filter_sam_reads, filter_sam_reads_by_tag, Filter, TagFilter,
+};
 
 fn corpus() -> String {
     let p =
@@ -81,4 +83,31 @@ fn the_include_filter_is_byte_identical() {
 #[test]
 fn the_exclude_filter_is_byte_identical() {
     assert_byte_identical("exclude", Filter::ExcludeReadList);
+}
+
+fn assert_tag_byte_identical(kind: &str, filter: TagFilter) {
+    let ours = filter_sam_reads_by_tag(&payload("tag_input"), b"RG", &["rg1"], filter).unwrap();
+    let theirs = payload(kind);
+    if ours != theirs {
+        let at = ours
+            .lines()
+            .zip(theirs.lines())
+            .position(|(a, b)| a != b)
+            .unwrap_or(0);
+        panic!(
+            "{kind}: first difference at line {at}\n  picard: {:?}\n  ours  : {:?}",
+            theirs.lines().nth(at),
+            ours.lines().nth(at)
+        );
+    }
+}
+
+#[test]
+fn the_include_tag_filter_is_byte_identical() {
+    assert_tag_byte_identical("include_tag", TagFilter::IncludeTagValues);
+}
+
+#[test]
+fn the_exclude_tag_filter_is_byte_identical() {
+    assert_tag_byte_identical("exclude_tag", TagFilter::ExcludeTagValues);
 }

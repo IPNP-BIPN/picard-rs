@@ -35,6 +35,21 @@ public class FilterDump {
         emit("list", "case", list);
         emit("include", "case", run(input, listFile, "includeReadList"));
         emit("exclude", "case", run(input, listFile, "excludeReadList"));
+
+        // A second input with an RG tag on some reads (and one without), for the tag-value filters.
+        final StringBuilder tagged = new StringBuilder();
+        tagged.append("@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:100000\n@RG\tID:rg1\tSM:s\n@RG\tID:rg2\tSM:t\n");
+        tagged.append("a\t0\tchr1\t100\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n");
+        tagged.append("b\t0\tchr1\t200\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg2\n");
+        tagged.append("c\t0\tchr1\t300\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n");
+        tagged.append("d\t0\tchr1\t400\t60\t4M\t*\t0\t0\tACGT\tIIII\n");
+        final File tagInput = File.createTempFile("fs-tag-", ".sam");
+        tagInput.deleteOnExit();
+        try (PrintStream ps = new PrintStream(tagInput)) { ps.print(tagged.toString()); }
+
+        emit("tag_input", "case", tagged.toString());
+        emit("include_tag", "case", runTag(tagInput, "includeTagValues"));
+        emit("exclude_tag", "case", runTag(tagInput, "excludeTagValues"));
     }
 
     static String run(final File input, final File listFile, final String filter) throws Exception {
@@ -45,6 +60,21 @@ public class FilterDump {
                 "OUTPUT=" + out.getAbsolutePath(),
                 "READ_LIST_FILE=" + listFile.getAbsolutePath(),
                 "FILTER=" + filter,
+                "VALIDATION_STRINGENCY=SILENT",
+        });
+        if (rc != 0) { System.err.println("FilterSamReads " + filter + " exited " + rc); System.exit(rc); }
+        return new String(Files.readAllBytes(out.toPath()));
+    }
+
+    static String runTag(final File input, final String filter) throws Exception {
+        final File out = File.createTempFile("fs-tag-out-", ".sam");
+        out.deleteOnExit();
+        final int rc = new picard.sam.FilterSamReads().instanceMain(new String[] {
+                "INPUT=" + input.getAbsolutePath(),
+                "OUTPUT=" + out.getAbsolutePath(),
+                "FILTER=" + filter,
+                "TAG=RG",
+                "TAG_VALUE=rg1",
                 "VALIDATION_STRINGENCY=SILENT",
         });
         if (rc != 0) { System.err.println("FilterSamReads " + filter + " exited " + rc); System.exit(rc); }
