@@ -97,3 +97,12 @@ fn every_mate_case_is_byte_identical() {
         "expected 6 mate cases"
     );
 }
+
+#[test]
+fn every_isvalid_case_is_byte_identical() {
+    assert_eq!(
+        check("validate_sam_file_isvalid.txt.gz"),
+        10,
+        "expected 10 isValid() cases"
+    );
+}
