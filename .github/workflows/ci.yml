@@ -330,6 +330,41 @@ jobs:
           sys.exit(1 if bad else 0)
           PY
 
+      - name: Regenerate the SortSam golden
+        run: |
+          docker run --rm --platform linux/amd64 \
+            -v "$PWD/tools/sortsam-conformance":/harness:ro -w /work picard-rs-oracle:3.4.0 \
+            'cp /harness/SortSamDump.java . && javac -cp "$ORACLE_CP" -d . SortSamDump.java \
+             && java -Duser.language=en -Duser.country=US -cp ".:$ORACLE_CP" SortSamDump 2>/dev/null' > /tmp/sortsam_real.txt
+          wc -l /tmp/sortsam_real.txt
+
+      - name: Compare the SortSam golden against the committed corpus
+        # SortSam changes only the header SO field and writes no @PG or timestamp, so every SAM is
+        # compared raw.
+        run: |
+          python3 - <<'PY'
+          import sys, gzip
+          def parse(path, open_fn=open):
+              d = {}
+              for line in open_fn(path):
+                  if line.startswith('#'): continue
+                  p = line.rstrip('\n').split('\t', 2)
+                  if len(p) < 3: continue
+                  d[(p[0], p[1])] = p[2]
+              return d
+          real = parse('/tmp/sortsam_real.txt')
+          committed = parse('crates/picard-analysis/tests/data/sort_sam.txt.gz',
+                            lambda p: gzip.open(p, 'rt'))
+          if set(real) != set(committed):
+              print("row sets differ:", sorted(set(real) ^ set(committed)))
+              sys.exit(1)
+          bad = [k for k in real if real[k] != committed[k]]
+          print(f"compared={len(real)} mismatches={len(bad)}")
+          for k in bad[:5]:
+              print(f"  {k}\n    real={real[k][:200]}\n    committed={committed[k][:200]}")
+          sys.exit(1 if bad else 0)
+          PY
+
       - name: "Decision 0020 (htsjdk-rs): is CollectRnaSeqMetrics order-independent?"
         # OverlapDetector in htsjdk-rs skips a byte-exact IntervalTree because the overlap set is
         # folded commutatively by this Picard tool. The probe belongs here, not in htsjdk-rs,
