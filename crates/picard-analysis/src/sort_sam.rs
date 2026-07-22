@@ -52,6 +52,28 @@ pub fn sort_sam(input_sam: &str, order: SortOrder) -> Result<String, ParseError>
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
 }
 
+/// `SortSam.doWork` for SAM input and **BAM** output: the same sort, written as a BAM through
+/// htsjdk-rs's byte-identical `BamWriter`. The returned bytes are the whole BAM file. Byte-identical
+/// to Picard run with `USE_JDK_DEFLATER=true` (the BGZF blocks come from the port's zlib writer);
+/// Picard's default GKL deflater is a separate surface.
+pub fn sort_sam_to_bam(input_sam: &str, order: SortOrder) -> Result<Vec<u8>, ParseError> {
+    use htsjdk_bam::writer::BamWriter;
+
+    let (mut header, mut records) = read_sam(input_sam)?;
+    header.set_sort_order(order.name());
+    records.sort_by(order.comparator());
+
+    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &records {
+        writer
+            .write(rec)
+            .expect("records that parsed re-encode as BAM");
+    }
+    Ok(writer
+        .finish()
+        .expect("in-memory BAM writer never fails to finish"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
