@@ -85,6 +85,28 @@ pub fn add_oa_tag(input_sam: &str) -> Result<String, ParseError> {
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
 }
 
+/// `AddOATag.doWork` for SAM input and **BAM** output: the same parallel OA stamping, written as a
+/// BAM through htsjdk-rs's byte-identical `BamWriter`. Byte-identical to Picard run with
+/// `USE_JDK_DEFLATER=true` (the BGZF blocks come from the port's zlib writer); AddOATag adds no `@PG`.
+/// This joins the multicore transform to a byte-identical BAM write, the two edges the port claims
+/// over single-threaded Picard.
+pub fn add_oa_to_bam(input_sam: &str) -> Result<Vec<u8>, ParseError> {
+    use htsjdk_bam::writer::BamWriter;
+
+    let (header, mut records) = read_sam(input_sam)?;
+    add_oa_records(&header, &mut records);
+
+    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &records {
+        writer
+            .write(rec)
+            .expect("records that parsed re-encode as BAM");
+    }
+    Ok(writer
+        .finish()
+        .expect("in-memory BAM writer never fails to finish"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
