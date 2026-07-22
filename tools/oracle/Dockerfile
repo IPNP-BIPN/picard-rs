@@ -18,8 +18,17 @@ ARG PICARD_VERSION=3.4.0
 # out to Rscript, so without R they refuse to run at all and no golden can be produced. The
 # stratification in docs/decisions/0001 predicted this as an oracle-environment cost paid once
 # for the repository; this is that payment.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends curl ca-certificates r-base-core \
+# Retry the apt step: r-base-core is a large download from the Debian mirrors and the fetch
+# fails intermittently (exit 100) with no bearing on the build's correctness, which turned a
+# transient mirror hiccup into a red oracle job. Three attempts with a short backoff turns the
+# flake back into the non-event it is.
+RUN for attempt in 1 2 3; do \
+      apt-get update \
+      && apt-get install -y --no-install-recommends curl ca-certificates r-base-core \
+      && break; \
+      echo "apt attempt $attempt failed; retrying"; sleep 10; \
+    done \
+ && command -v Rscript >/dev/null \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/oracle/jars
