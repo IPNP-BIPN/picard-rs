@@ -6,6 +6,7 @@ pub mod adapter;
 pub mod alignment_summary;
 pub mod annotation;
 pub mod cycle;
+pub mod fastq_to_sam;
 pub mod gc;
 pub mod insert_size;
 pub mod quality_score_distribution;
