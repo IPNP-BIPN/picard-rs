@@ -66,15 +66,22 @@ fn set_oa_tag(rec: &mut BamRecord, seq_names: &[String]) {
     rec.tags.insert(Tag::new(b"OA"), TagValue::Str(combined));
 }
 
-/// `AddOATag.doWork` for SAM I/O, default path: tag every record and rewrite.
-pub fn add_oa_tag(input_sam: &str) -> Result<String, ParseError> {
-    let (header, mut records) = read_sam(input_sam)?;
+/// `AddOATag.doWork`'s per-record loop over already-parsed records, tagging every record in place.
+///
+/// Separated from the SAM-text entry point so a BAM-reading binary can drive the same transform (the
+/// throughput benchmark does). Each record's OA is computed from its own fields and tags, so the work
+/// is embarrassingly parallel and order-preserving (decision 0006).
+pub fn add_oa_records(header: &htsjdk_bam::header::SamHeader, records: &mut [BamRecord]) {
     let seq_names: Vec<String> = header.sequences.iter().map(|s| s.name.clone()).collect();
-    // Each record's OA is computed from its own fields and tags, so the work is embarrassingly
-    // parallel and order-preserving (decision 0006).
     records
         .par_iter_mut()
         .for_each(|rec| set_oa_tag(rec, &seq_names));
+}
+
+/// `AddOATag.doWork` for SAM I/O, default path: tag every record and rewrite.
+pub fn add_oa_tag(input_sam: &str) -> Result<String, ParseError> {
+    let (header, mut records) = read_sam(input_sam)?;
+    add_oa_records(&header, &mut records);
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
 }
 
