@@ -12,6 +12,9 @@ htsjdk-metrics.workspace = true
 # Needed by the runnable binary, not only by the tests: reading a BAM means decompressing it.
 htsjdk-bgzf.workspace = true
 jmath.workspace = true
+# Multicore for the per-record transforms. The parallel map preserves order, so its output is
+# byte-identical to the serial one; this is where the port beats single-threaded Picard/GATK.
+rayon = "1"
 
 [dev-dependencies]
 flate2 = { version = "1", default-features = false, features = ["zlib"] }
