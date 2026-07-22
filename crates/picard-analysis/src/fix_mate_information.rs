@@ -105,6 +105,16 @@ pub fn fix_mate_information(
     input_sam: &str,
     sort_order: Option<SortOrder>,
 ) -> Result<String, ParseError> {
+    let (header, records) = fix_mates(input_sam, sort_order)?;
+    Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
+}
+
+/// `FixMateInformation.doWork` up to the write: the header (with its final sort order) and the
+/// mate-fixed, re-sorted records.
+fn fix_mates(
+    input_sam: &str,
+    sort_order: Option<SortOrder>,
+) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
     let (mut header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
 
     // The output order defaults to the input header's sort order.
@@ -125,7 +135,30 @@ pub fn fix_mate_information(
     }
 
     header.set_sort_order(output_order.name());
-    Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
+    Ok((header, records))
+}
+
+/// `FixMateInformation.doWork` for SAM input and **BAM** output. The same fix, written through
+/// htsjdk-rs's byte-identical `BamWriter`; FixMateInformation adds no `@PG`. Byte-identity to Picard's
+/// `USE_JDK_DEFLATER=true` output follows transitively: the records are the ones
+/// `fix_mate_information` already reproduces (its oracle), and the `BamWriter` is proven byte-identical
+/// over arbitrary records (the SamFormatConverter oracle and htsjdk-rs's
+/// `every_file_is_byte_identical_to_htsjdks`).
+pub fn fix_mate_information_to_bam(
+    input_sam: &str,
+    sort_order: Option<SortOrder>,
+) -> Result<Vec<u8>, ParseError> {
+    use htsjdk_bam::writer::BamWriter;
+    let (header, records) = fix_mates(input_sam, sort_order)?;
+    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &records {
+        writer
+            .write(rec)
+            .expect("records that parsed re-encode as BAM");
+    }
+    Ok(writer
+        .finish()
+        .expect("in-memory BAM writer never fails to finish"))
 }
 
 #[cfg(test)]
@@ -162,5 +195,21 @@ mod tests {
     fn the_output_keeps_the_input_sort_order() {
         let out = fix_mate_information(INPUT, None).unwrap();
         assert!(out.contains("@HD\tVN:1.6\tSO:coordinate"));
+    }
+
+    /// The BAM output decodes back to exactly the SAM output; the writer's byte-identity to htsjdk is
+    /// proven elsewhere.
+    #[test]
+    fn the_bam_output_round_trips_to_the_sam_output() {
+        let sam = fix_mate_information(INPUT, None).unwrap();
+        let bam = fix_mate_information_to_bam(INPUT, None).unwrap();
+        let plain = htsjdk_bgzf::decompress_all(&bam).expect("bam decompresses");
+        let reader = htsjdk_bam::reader::BamReader::new(&plain).unwrap();
+        let header = reader.header.text.clone();
+        let records: Vec<BamRecord> = reader.map(|r| r.unwrap()).collect();
+        assert_eq!(
+            htsjdk_bam::sam_file::write_sam(&header, &records).unwrap(),
+            sam
+        );
     }
 }
