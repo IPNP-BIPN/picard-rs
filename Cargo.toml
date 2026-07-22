@@ -11,8 +11,8 @@ repository = "https://github.com/IPNP-BIPN/picard-rs"
 # htsjdkVersion = '4.2.0'. A floating dependency would let the I/O layer change under a
 # byte-identity claim without anything failing.
 [workspace.dependencies]
-htsjdk-bam = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "b915b8916c5fb5d3bdcb01ae4e2c9acde38b4530" }
-htsjdk-bgzf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "b915b8916c5fb5d3bdcb01ae4e2c9acde38b4530" }
-htsjdk-metrics = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "b915b8916c5fb5d3bdcb01ae4e2c9acde38b4530" }
+htsjdk-bam = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "7f6b9aca08e1b4e33e1bab3ef89595aabd69deca" }
+htsjdk-bgzf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "7f6b9aca08e1b4e33e1bab3ef89595aabd69deca" }
+htsjdk-metrics = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "7f6b9aca08e1b4e33e1bab3ef89595aabd69deca" }
 # jmath, for the Math.log10 that QualityUtil.getPhredScoreFromObsAndErrors runs through.
-jmath = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "b915b8916c5fb5d3bdcb01ae4e2c9acde38b4530" }
+jmath = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "7f6b9aca08e1b4e33e1bab3ef89595aabd69deca" }
