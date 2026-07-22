@@ -17,18 +17,19 @@ three ways (Picard, Rust with `RAYON_NUM_THREADS=1`, Rust on all cores), and add
 Rust phase timings at one thread and at all cores. The output is byte-identical to Picard in every
 case (asserted in the same job).
 
-The phase breakdown is the point:
+The phase breakdown is the point (one CI run, a GitHub-hosted runner with only a few cores):
 
-| phase | time (all cores) |
-|---|---|
-| decode (BGZF already inflated) | ~0.82 s |
-| **add_oa (the parallel transform)** | **~0.19 s** |
-| encode_sam | ~1.45 s |
+| phase | 1 thread | all cores |
+|---|---|---|
+| decode (BGZF already inflated) | ~1.21 s | ~1.22 s |
+| **add_oa (the parallel transform)** | **~0.72 s** | **~0.29 s** |
+| encode_sam | ~1.94 s | ~1.90 s |
 
-The `add_oa` step is the *only* thing rayon parallelizes, and it is a small fraction of the run.
-Decode, SAM encoding, and writing a ~300 MB text file are serial and dominate. So the whole-program
-numbers barely move between one thread (~7.4 s) and all cores (~7.1 s), even though the transform
-step itself scales close to linearly with cores.
+The `add_oa` step is the *only* thing rayon parallelizes, and it does: ~0.72 s at one thread drops to
+~0.29 s on all cores, a **~2.5x** speedup even on the runner's handful of cores. But it is a small
+fraction of the run. Decode, SAM encoding, and writing a ~300 MB text file are serial and unchanged by
+the thread count. So the whole-program numbers barely move between one thread (~7.4 s) and all cores
+(~7.1 s), even though the transform step itself scales with cores.
 
 ## The finding
 
