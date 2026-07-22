@@ -15,6 +15,7 @@ pub mod refflat;
 pub mod rnaseq_metrics;
 pub mod sam_to_fastq;
 pub mod snvq;
+pub mod sort_sam;
 
 pub use cycle::{
     BaseDistributionByCycleMetrics, CollectBaseDistributionByCycle, MeanQualityByCycle,
