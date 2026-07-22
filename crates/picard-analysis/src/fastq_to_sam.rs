@@ -59,8 +59,12 @@ fn build_header(read_group_name: &str, sample_name: &str) -> SamHeader {
 pub fn fastq_to_sam_unpaired(fastq_text: &str, opts: &Options) -> Result<String, FastqError> {
     let header = build_header(&opts.read_group_name, &opts.sample_name);
 
+    use rayon::prelude::*;
+    // Converting each FASTQ record to an unmapped SAM record is independent; the parallel map's
+    // `collect` preserves order, so the pre-sort record list is identical to the serial one
+    // (decision 0006). The queryname sort below then imposes the final order.
     let mut records: Vec<BamRecord> = parse_fastq(fastq_text, false)?
-        .iter()
+        .par_iter()
         .map(|frec| {
             // createSamRecord: asSAMRecord gives the unmapped read (name cleaned, bases, quals);
             // FastqToSam then tags it with the read group.

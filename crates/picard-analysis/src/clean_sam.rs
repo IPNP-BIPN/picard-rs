@@ -57,10 +57,14 @@ fn clean_record(rec: &mut BamRecord, header: &SamHeader) {
 /// Reads at LENIENT stringency, as CleanSam does (it downgrades STRICT to LENIENT), so it can
 /// accept the very records it exists to fix, such as an unmapped read with a nonzero MAPQ.
 pub fn clean_sam(input_sam: &str) -> Result<String, ParseError> {
+    use rayon::prelude::*;
     let (header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
-    for rec in &mut records {
-        clean_record(rec, &header);
-    }
+    // Each record is cleaned independently from the (immutable, shared) header, and `par_iter_mut`
+    // mutates them in place without reordering, so the result is byte-identical to a serial loop
+    // regardless of how the work is split across cores. See decision 0006.
+    records
+        .par_iter_mut()
+        .for_each(|rec| clean_record(rec, &header));
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
 }
 
@@ -95,6 +99,51 @@ mod tests {
         assert_eq!(c.iter().find(|(n, _)| n == "offend").unwrap().1, "21M15S");
         // A read comfortably inside is untouched.
         assert_eq!(c.iter().find(|(n, _)| n == "inside").unwrap().1, "36M");
+    }
+
+    /// The parallel per-record cleaning is byte-identical to a serial loop, on an input large
+    /// enough that rayon actually splits the work. This is the invariant that lets the transform go
+    /// multicore without weakening the byte-identity claim (decision 0006).
+    #[test]
+    fn parallel_and_serial_cleaning_produce_the_same_bytes() {
+        use htsjdk_bam::cigar::{Cigar, CigarElement, Op};
+        use htsjdk_bam::header::{SamHeader, SequenceRecord};
+        use htsjdk_bam::sam_file::write_sam;
+        use rayon::prelude::*;
+
+        let mut header = SamHeader::new();
+        header.set_sort_order("coordinate");
+        header.sequences.push(SequenceRecord::new("chr1", 150));
+
+        let make = || {
+            (0..5000)
+                .map(|i| BamRecord {
+                    read_name: format!("r{i}"),
+                    reference_index: 0,
+                    alignment_start: 100 + (i % 45), // most reads hang off the 150bp contig
+                    mapping_quality: 60,
+                    cigar: Cigar::new(vec![CigarElement {
+                        length: 36,
+                        op: Op::M,
+                    }]),
+                    read_bases: vec![b'A'; 36],
+                    base_qualities: vec![40; 36],
+                    ..Default::default()
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let mut serial = make();
+        for r in &mut serial {
+            clean_record(r, &header);
+        }
+
+        let mut parallel = make();
+        parallel
+            .par_iter_mut()
+            .for_each(|r| clean_record(r, &header));
+
+        assert_eq!(write_sam(&header, &serial), write_sam(&header, &parallel));
     }
 
     #[test]
