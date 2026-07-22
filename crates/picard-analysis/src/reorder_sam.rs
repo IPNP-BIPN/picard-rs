@@ -94,8 +94,10 @@ fn build_new_index(
     // First pass, over the reference dictionary: fill in every read contig that has a name match,
     // checking lengths as htsjdk does.
     for (ref_idx, ref_rec) in reference.iter().enumerate() {
-        if let Some((read_idx, read_rec)) =
-            reads.iter().enumerate().find(|(_, r)| r.name == ref_rec.name)
+        if let Some((read_idx, read_rec)) = reads
+            .iter()
+            .enumerate()
+            .find(|(_, r)| r.name == ref_rec.name)
         {
             if ref_rec.length != read_rec.length && !opts.allow_contig_length_discordance {
                 return Err(ReorderError::DiscordantContigLength {
@@ -299,7 +301,8 @@ mod tests {
 
     #[test]
     fn a_length_mismatch_without_allow_discordance_is_an_error() {
-        let dict = "@HD\tVN:1.6\n@SQ\tSN:chr2\tLN:1000\n@SQ\tSN:chr1\tLN:999\n@SQ\tSN:chr3\tLN:1000\n";
+        let dict =
+            "@HD\tVN:1.6\n@SQ\tSN:chr2\tLN:1000\n@SQ\tSN:chr1\tLN:999\n@SQ\tSN:chr3\tLN:1000\n";
         let err = reorder_sam(INPUT, dict, &Options::default()).unwrap_err();
         assert_eq!(
             err,
