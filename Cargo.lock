@@ -188,6 +188,7 @@ dependencies = [
  "htsjdk-bgzf",
  "htsjdk-metrics",
  "jmath",
+ "md-5",
  "rayon",
 ]
 
