@@ -131,6 +131,15 @@ fn every_mate_case_is_byte_identical() {
 }
 
 #[test]
+fn every_sort_order_case_is_byte_identical() {
+    assert_eq!(
+        check("validate_sam_file_sort.txt.gz"),
+        5,
+        "expected 5 sort-order cases"
+    );
+}
+
+#[test]
 fn every_isvalid_case_is_byte_identical() {
     assert_eq!(
         check("validate_sam_file_isvalid.txt.gz"),
