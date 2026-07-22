@@ -30,12 +30,16 @@
 //! - The reference-based `NM` **value** check (`INVALID_TAG_NM`), when a `REFERENCE_SEQUENCE` is
 //!   given: each mapped read's `NM` tag is compared against the value recomputed from the reference
 //!   by [`calculate_md_and_nm`], reusing the same primitive as `SetNmMdAndUqTags`.
+//! - The sort-order check (`SAMSortOrderChecker` / `RECORD_OUT_OF_ORDER`): each record is compared
+//!   against the previous one under the header's comparator for `SO:coordinate`
+//!   (`SAMRecordCoordinateComparator.fileOrderCompare`) and `SO:queryname` (`String.compareTo`).
+//!   `unsorted` / `unknown` / a missing `SO` skip the check; `duplicate` is deferred.
 //!
 //! Deferred to follow-up slices (each entangled with a wider htsjdk surface): the rest of
 //! `SAMRecord.isValid()` (the unpaired mate-reference checks, the paired branch's
 //! reference/position checks, `INVALID_INSERT_SIZE`, the mapped read's empty-dictionary /
-//! missing-reference-name checks, and `isValidReferenceIndexAndPosition`), the sort-order checker
-//! (`RECORD_OUT_OF_ORDER`), the secondary base calls (`E2`/`U2`) and duplicate/`CG` tag checks, the header parser's own
+//! missing-reference-name checks, and `isValidReferenceIndexAndPosition`), the `duplicate`
+//! sort order, the secondary base calls (`E2`/`U2`) and duplicate/`CG` tag checks, the header parser's own
 //! validation errors (`HEADER_RECORD_MISSING_REQUIRED_TAG`, `MISSING_VERSION_NUMBER` when `VN` is
 //! absent), the SUMMARY mode histogram, BAM/CRAM input, and the quality-format detector.
 //!
@@ -488,6 +492,60 @@ fn is_valid_record(header: &SamHeader, rec: &BamRecord, record_number: i64, rep:
     }
 }
 
+/// The header sort orders that carry a comparator (`SortOrder.getComparatorInstance`). `unsorted`,
+/// `unknown`, a missing `SO`, and `duplicate` (deferred) get no order check.
+enum SortOrder {
+    Coordinate,
+    Queryname,
+    Unchecked,
+}
+
+impl SortOrder {
+    fn of(header: &SamHeader) -> Self {
+        match header.attributes.get("SO") {
+            Some("coordinate") => SortOrder::Coordinate,
+            Some("queryname") => SortOrder::Queryname,
+            _ => SortOrder::Unchecked,
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        match self {
+            SortOrder::Coordinate => "coordinate",
+            SortOrder::Queryname => "queryname",
+            SortOrder::Unchecked => "unsorted",
+        }
+    }
+
+    /// `SAMRecordCoordinateComparator` / `SAMRecordQueryNameComparator` `fileOrderCompare`. `prev` is
+    /// in order iff this is `<= 0`.
+    fn file_order_compare(&self, prev: &BamRecord, rec: &BamRecord) -> i32 {
+        match self {
+            SortOrder::Coordinate => {
+                let (r1, r2) = (prev.reference_index, rec.reference_index);
+                if r1 == -1 {
+                    return if r2 == -1 { 0 } else { 1 };
+                }
+                if r2 == -1 {
+                    return -1;
+                }
+                if r1 != r2 {
+                    return r1 - r2;
+                }
+                prev.alignment_start - rec.alignment_start
+            }
+            // compareReadNames is String.compareTo, i.e. UTF-16 code-unit order, which equals Rust's
+            // byte order for the ASCII read names in practice.
+            SortOrder::Queryname => match prev.read_name.cmp(&rec.read_name) {
+                std::cmp::Ordering::Less => -1,
+                std::cmp::Ordering::Equal => 0,
+                std::cmp::Ordering::Greater => 1,
+            },
+            SortOrder::Unchecked => 0,
+        }
+    }
+}
+
 /// `ValidateSamFile MODE=VERBOSE`, SAM text input, no reference: the raw verbose report.
 pub fn validate_sam_file_verbose(input_sam: &str) -> Result<String, ValidateError> {
     validate(input_sam, None)
@@ -526,6 +584,10 @@ fn validate(input_sam: &str, fasta: Option<&[u8]>) -> Result<String, ValidateErr
     // Armed by an empty dictionary, disarmed by the first mapped read it reports on.
     let mut dict_empty_pending = header.sequences.is_empty();
 
+    // Sort-order checking: the comparator from the header's SO, and the previous record seen.
+    let sort_order = SortOrder::of(&header);
+    let mut prev_record: Option<&BamRecord> = None;
+
     // Reads awaiting their mate. Keyed, as htsjdk's coordinate-sorted map is, by (reference bucket,
     // read name): a read is stored under the reference index it claims for its mate, and matched
     // when a later read on that reference arrives. A linear vector keeps a deterministic order for
@@ -558,6 +620,26 @@ fn validate(input_sam: &str, fasta: Option<&[u8]>) -> Result<String, ValidateErr
                 ));
             }
         }
+
+        // validateSortOrder: compare against the previous record under the header's comparator.
+        if let Some(prev) = prev_record {
+            if sort_order.file_order_compare(prev, rec) > 0 {
+                rep.add(
+                    ERROR,
+                    "RECORD_OUT_OF_ORDER",
+                    Some(record_number),
+                    Some(&rec.read_name),
+                    &format!(
+                        "The record is out of [{}] order, prior read name [{}], prior coodinates [{}:{}]",
+                        sort_order.name(),
+                        prev.read_name,
+                        prev.reference_index,
+                        prev.alignment_start,
+                    ),
+                );
+            }
+        }
+        prev_record = Some(rec);
 
         // validateReadGroup
         if !read_group_present(&header, rec) {
@@ -681,6 +763,18 @@ mod tests {
             validate_sam_file_verbose(sam).unwrap(),
             "ERROR::READ_GROUP_NOT_FOUND:Record 1, Read name a, RG ID on SAMRecord not found in header: other\n\
              WARNING::RECORD_MISSING_READ_GROUP:Read name a, A record is missing a read group\n"
+        );
+    }
+
+    #[test]
+    fn a_coordinate_out_of_order_record_is_reported() {
+        let sam = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:100\n\
+            @RG\tID:rg1\tSM:s\tPL:illumina\n\
+            a\t0\tchr1\t50\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\tNM:i:0\n\
+            b\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\tNM:i:0\n";
+        assert_eq!(
+            validate_sam_file_verbose(sam).unwrap(),
+            "ERROR::RECORD_OUT_OF_ORDER:Record 2, Read name b, The record is out of [coordinate] order, prior read name [a], prior coodinates [0:50]\n"
         );
     }
 
