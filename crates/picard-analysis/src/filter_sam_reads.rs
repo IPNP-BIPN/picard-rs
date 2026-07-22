@@ -54,6 +54,16 @@ pub fn filter_sam_reads(
     read_list_text: &str,
     filter: Filter,
 ) -> Result<String, ParseError> {
+    let (header, kept) = filter_read_list(input_sam, read_list_text, filter)?;
+    Ok(write_sam(&header, &kept).expect("records that parsed re-encode as SAM text"))
+}
+
+/// The read-list filter's work up to the write: the header and the kept records.
+fn filter_read_list(
+    input_sam: &str,
+    read_list_text: &str,
+    filter: Filter,
+) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
     let (header, records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
     let names = read_name_set(read_list_text);
     let include = filter.include();
@@ -66,7 +76,31 @@ pub fn filter_sam_reads(
         .cloned()
         .collect();
 
-    Ok(write_sam(&header, &kept).expect("records that parsed re-encode as SAM text"))
+    Ok((header, kept))
+}
+
+/// `FilterSamReads` with a read-list filter, for SAM input and **BAM** output. Same filter, written
+/// through htsjdk-rs's byte-identical `BamWriter`; FilterSamReads adds no `@PG`. Byte-identity to
+/// Picard's `USE_JDK_DEFLATER=true` output follows transitively: the kept records are the ones
+/// `filter_sam_reads` already reproduces (its oracle), and the `BamWriter` is proven byte-identical
+/// over arbitrary records (the SamFormatConverter oracle and htsjdk-rs's
+/// `every_file_is_byte_identical_to_htsjdks`).
+pub fn filter_sam_reads_to_bam(
+    input_sam: &str,
+    read_list_text: &str,
+    filter: Filter,
+) -> Result<Vec<u8>, ParseError> {
+    use htsjdk_bam::writer::BamWriter;
+    let (header, kept) = filter_read_list(input_sam, read_list_text, filter)?;
+    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &kept {
+        writer
+            .write(rec)
+            .expect("records that parsed re-encode as BAM");
+    }
+    Ok(writer
+        .finish()
+        .expect("in-memory BAM writer never fails to finish"))
 }
 
 /// Whether the reads matching `TAG_VALUE` are the reads to keep or the reads to drop.
@@ -279,6 +313,22 @@ mod tests {
         assert_eq!(
             names(&out),
             ["pairAU", "pairAU", "pairUU", "pairUU", "singleU"]
+        );
+    }
+
+    /// The BAM output decodes back to exactly the SAM output; the writer's byte-identity to htsjdk is
+    /// proven elsewhere.
+    #[test]
+    fn the_bam_output_round_trips_to_the_sam_output() {
+        let sam = filter_sam_reads(INPUT, LIST, Filter::IncludeReadList).unwrap();
+        let bam = filter_sam_reads_to_bam(INPUT, LIST, Filter::IncludeReadList).unwrap();
+        let plain = htsjdk_bgzf::decompress_all(&bam).expect("bam decompresses");
+        let reader = htsjdk_bam::reader::BamReader::new(&plain).unwrap();
+        let header = reader.header.text.clone();
+        let records: Vec<BamRecord> = reader.map(|r| r.unwrap()).collect();
+        assert_eq!(
+            htsjdk_bam::sam_file::write_sam(&header, &records).unwrap(),
+            sam
         );
     }
 }
