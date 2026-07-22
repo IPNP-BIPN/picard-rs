@@ -11,7 +11,8 @@ use std::io::Read;
 use picard_analysis::downsample_sam::{downsample_sam, DEFAULT_SEED};
 
 fn corpus() -> String {
-    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/downsample_sam.txt.gz");
+    let p =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/downsample_sam.txt.gz");
     let f = std::fs::File::open(&p).expect("corpus");
     let mut s = String::new();
     flate2::read::GzDecoder::new(f)
