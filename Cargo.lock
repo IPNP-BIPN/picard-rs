@@ -92,7 +92,7 @@ dependencies = [
 [[package]]
 name = "htsjdk-bam"
 version = "0.1.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=91de0849d0e86b689af2989aa476cdb911b2da19#91de0849d0e86b689af2989aa476cdb911b2da19"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=d58ad5c37d114712f220b7c138829a4cda3cf8c2#d58ad5c37d114712f220b7c138829a4cda3cf8c2"
 dependencies = [
  "htsjdk-bgzf",
  "md-5",
@@ -101,7 +101,7 @@ dependencies = [
 [[package]]
 name = "htsjdk-bgzf"
 version = "0.0.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=91de0849d0e86b689af2989aa476cdb911b2da19#91de0849d0e86b689af2989aa476cdb911b2da19"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=d58ad5c37d114712f220b7c138829a4cda3cf8c2#d58ad5c37d114712f220b7c138829a4cda3cf8c2"
 dependencies = [
  "flate2",
  "libz-sys",
@@ -110,12 +110,12 @@ dependencies = [
 [[package]]
 name = "htsjdk-metrics"
 version = "0.1.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=91de0849d0e86b689af2989aa476cdb911b2da19#91de0849d0e86b689af2989aa476cdb911b2da19"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=d58ad5c37d114712f220b7c138829a4cda3cf8c2#d58ad5c37d114712f220b7c138829a4cda3cf8c2"
 
 [[package]]
 name = "jmath"
 version = "0.0.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=91de0849d0e86b689af2989aa476cdb911b2da19#91de0849d0e86b689af2989aa476cdb911b2da19"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=d58ad5c37d114712f220b7c138829a4cda3cf8c2#d58ad5c37d114712f220b7c138829a4cda3cf8c2"
 
 [[package]]
 name = "libz-sys"
