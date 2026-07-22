@@ -18,6 +18,7 @@ use std::collections::HashSet;
 
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam_with, write_sam};
+use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::text_parse::{ParseError, ValidationStringency};
 use rayon::prelude::*;
 
@@ -68,6 +69,57 @@ pub fn filter_sam_reads(
     Ok(write_sam(&header, &kept).expect("records that parsed re-encode as SAM text"))
 }
 
+/// Whether the reads matching `TAG_VALUE` are the reads to keep or the reads to drop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TagFilter {
+    /// `includeTagValues`: keep the reads whose `TAG` value is one of the listed values.
+    IncludeTagValues,
+    /// `excludeTagValues`: keep the reads whose `TAG` value is **not** one of the listed values.
+    ExcludeTagValues,
+}
+
+impl TagFilter {
+    /// `TagFilter`'s `includeReads` flag.
+    fn include(self) -> bool {
+        matches!(self, TagFilter::IncludeTagValues)
+    }
+}
+
+/// `FilterSamReads` with `FILTER=includeTagValues` / `excludeTagValues`, ported from
+/// `htsjdk.samtools.filter.TagFilter`: a read matches when its `tag` attribute equals one of the
+/// `values`. `TagFilter.filterOut` is `values.contains(record.getAttribute(tag)) != includeReads`,
+/// so a read is kept when `matches == include`.
+///
+/// `getAttribute` returns the typed value, and the `TAG_VALUE` command-line arguments are strings, so
+/// a value can only match a **string** (`Z`) tag; an integer tag or an absent tag never matches, just
+/// as an `Integer` (or `null`) is never in a `List<String>`. Like the read-list filter this is a pure
+/// per-record predicate, so it runs on all cores in input order (decision 0006), adds no `@PG`, and
+/// leaves the sort order untouched.
+pub fn filter_sam_reads_by_tag(
+    input_sam: &str,
+    tag: &[u8; 2],
+    values: &[&str],
+    filter: TagFilter,
+) -> Result<String, ParseError> {
+    let (header, records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
+    let value_set: HashSet<&str> = values.iter().copied().collect();
+    let tag = Tag::new(tag);
+    let include = filter.include();
+
+    let matches = |rec: &BamRecord| match rec.tags.get(tag) {
+        Some(TagValue::Str(s)) => value_set.contains(s.as_str()),
+        _ => false, // absent, or a non-string tag, never matches a string value
+    };
+
+    let kept: Vec<BamRecord> = records
+        .par_iter()
+        .filter(|rec| matches(rec) == include)
+        .cloned()
+        .collect();
+
+    Ok(write_sam(&header, &kept).expect("records that parsed re-encode as SAM text"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,5 +160,36 @@ mod tests {
     fn blank_lines_in_the_list_are_ignored() {
         let out = filter_sam_reads(INPUT, "keepA\n\n  \nkeepE\n", Filter::IncludeReadList).unwrap();
         assert_eq!(names(&out), ["keepA", "keepE"]);
+    }
+
+    const TAGGED: &str = "@HD\tVN:1.6\tSO:coordinate\n\
+        @SQ\tSN:chr1\tLN:100000\n\
+        @RG\tID:rg1\tSM:s\n@RG\tID:rg2\tSM:t\n\
+        a\t0\tchr1\t100\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n\
+        b\t0\tchr1\t200\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg2\n\
+        c\t0\tchr1\t300\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n\
+        d\t0\tchr1\t400\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
+
+    #[test]
+    fn include_tag_values_keeps_reads_whose_tag_matches() {
+        let out =
+            filter_sam_reads_by_tag(TAGGED, b"RG", &["rg1"], TagFilter::IncludeTagValues).unwrap();
+        assert_eq!(names(&out), ["a", "c"]);
+    }
+
+    #[test]
+    fn exclude_tag_values_keeps_reads_whose_tag_does_not_match_including_absent() {
+        // b has rg2 and d has no RG tag; both are kept, a and c (rg1) are dropped.
+        let out =
+            filter_sam_reads_by_tag(TAGGED, b"RG", &["rg1"], TagFilter::ExcludeTagValues).unwrap();
+        assert_eq!(names(&out), ["b", "d"]);
+    }
+
+    #[test]
+    fn multiple_tag_values_are_a_set() {
+        let out =
+            filter_sam_reads_by_tag(TAGGED, b"RG", &["rg1", "rg2"], TagFilter::IncludeTagValues)
+                .unwrap();
+        assert_eq!(names(&out), ["a", "b", "c"]);
     }
 }
