@@ -177,13 +177,12 @@ fn writer_sort(header: &SamHeader) -> Result<Option<RecordComparator>, ReorderEr
     }
 }
 
-/// `ReorderSam.doWork` for SAM input and output. `dict_text` is the `SEQUENCE_DICTIONARY` file (a
-/// `.dict`, or any header-bearing text); its `@SQ` records are the new reference dictionary.
-pub fn reorder_sam(
+/// `ReorderSam.doWork`'s work, up to the write: the reordered output header and records.
+fn reorder(
     input_sam: &str,
     dict_text: &str,
     opts: &Options,
-) -> Result<String, ReorderError> {
+) -> Result<(SamHeader, Vec<BamRecord>), ReorderError> {
     // The input is read leniently, as the tool reads it (VALIDATION_STRINGENCY does not reach the
     // bytes; it only decides which records are admitted).
     let (input_header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
@@ -207,7 +206,44 @@ pub fn reorder_sam(
         records.sort_by(cmp);
     }
 
+    Ok((out_header, records))
+}
+
+/// `ReorderSam.doWork` for SAM input and output. `dict_text` is the `SEQUENCE_DICTIONARY` file (a
+/// `.dict`, or any header-bearing text); its `@SQ` records are the new reference dictionary.
+pub fn reorder_sam(
+    input_sam: &str,
+    dict_text: &str,
+    opts: &Options,
+) -> Result<String, ReorderError> {
+    let (out_header, records) = reorder(input_sam, dict_text, opts)?;
     Ok(write_sam(&out_header, &records).expect("records that parsed re-encode as SAM text"))
+}
+
+/// `ReorderSam.doWork` for SAM input and **BAM** output. Same reorder, written through htsjdk-rs's
+/// byte-identical `BamWriter`; ReorderSam adds no `@PG`. Byte-identity follows transitively: the
+/// records are the ones `reorder_sam` already reproduces against Picard, and the `BamWriter` is
+/// proven byte-identical to htsjdk's over arbitrary records (SamFormatConverter's oracle and
+/// htsjdk-rs's `every_file_is_byte_identical_to_htsjdks`), so their composition matches Picard run
+/// with `USE_JDK_DEFLATER=true`.
+pub fn reorder_sam_to_bam(
+    input_sam: &str,
+    dict_text: &str,
+    opts: &Options,
+) -> Result<Vec<u8>, ReorderError> {
+    use htsjdk_bam::writer::BamWriter;
+
+    let (out_header, records) = reorder(input_sam, dict_text, opts)?;
+    let mut writer =
+        BamWriter::new(Vec::new(), &out_header).expect("in-memory BAM writer never fails");
+    for rec in &records {
+        writer
+            .write(rec)
+            .expect("records that parsed re-encode as BAM");
+    }
+    Ok(writer
+        .finish()
+        .expect("in-memory BAM writer never fails to finish"))
 }
 
 #[cfg(test)]
@@ -312,6 +348,22 @@ mod tests {
                 ref_name: "chr1".to_string(),
                 ref_length: 999,
             }
+        );
+    }
+
+    /// The BAM output decodes back to exactly the SAM output. With the `BamWriter` proven
+    /// byte-identical to htsjdk's elsewhere, this is enough to tie the BAM path to the SAM path.
+    #[test]
+    fn the_bam_output_round_trips_to_the_sam_output() {
+        let sam = reorder_sam(INPUT, DICT, &incomplete()).unwrap();
+        let bam = reorder_sam_to_bam(INPUT, DICT, &incomplete()).unwrap();
+        let plain = htsjdk_bgzf::decompress_all(&bam).expect("bam decompresses");
+        let reader = htsjdk_bam::reader::BamReader::new(&plain).unwrap();
+        let header = reader.header.text.clone();
+        let records: Vec<BamRecord> = reader.map(|r| r.unwrap()).collect();
+        assert_eq!(
+            htsjdk_bam::sam_file::write_sam(&header, &records).unwrap(),
+            sam
         );
     }
 }
