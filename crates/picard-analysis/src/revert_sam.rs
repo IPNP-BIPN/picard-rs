@@ -121,8 +121,9 @@ fn revert_record(rec: &mut BamRecord) {
     }
 }
 
-/// `RevertSam.doWork` for SAM input and output, default options.
-pub fn revert_sam(input_sam: &str) -> Result<String, ParseError> {
+/// `RevertSam.doWork` up to the write: the bare output header and the reverted, queryname-sorted
+/// records.
+fn revert(input_sam: &str) -> Result<(SamHeader, Vec<BamRecord>), ParseError> {
     // RevertSam opens the input EAGERLY_DECODE at VALIDATION_STRINGENCY.SILENT; stringency does not
     // reach the bytes.
     let (input_header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
@@ -140,7 +141,33 @@ pub fn revert_sam(input_sam: &str) -> Result<String, ParseError> {
     // compare equal in input order (decision 0021).
     records.sort_by(query_name::compare);
 
+    Ok((out_header, records))
+}
+
+/// `RevertSam.doWork` for SAM input and output, default options.
+pub fn revert_sam(input_sam: &str) -> Result<String, ParseError> {
+    let (out_header, records) = revert(input_sam)?;
     Ok(write_sam(&out_header, &records).expect("unmapped records always encode as SAM text"))
+}
+
+/// `RevertSam.doWork` for SAM input and **BAM** output, default options. Same revert, written through
+/// htsjdk-rs's byte-identical `BamWriter`; RevertSam adds no `@PG`. Byte-identity to Picard's
+/// `USE_JDK_DEFLATER=true` output follows transitively: the records are the ones `revert_sam` already
+/// reproduces (its oracle), and the `BamWriter` is proven byte-identical over arbitrary records (the
+/// SamFormatConverter oracle and htsjdk-rs's `every_file_is_byte_identical_to_htsjdks`).
+pub fn revert_sam_to_bam(input_sam: &str) -> Result<Vec<u8>, ParseError> {
+    use htsjdk_bam::writer::BamWriter;
+    let (out_header, records) = revert(input_sam)?;
+    let mut writer =
+        BamWriter::new(Vec::new(), &out_header).expect("in-memory BAM writer never fails");
+    for rec in &records {
+        writer
+            .write(rec)
+            .expect("records that parsed re-encode as BAM");
+    }
+    Ok(writer
+        .finish()
+        .expect("in-memory BAM writer never fails to finish"))
 }
 
 #[cfg(test)]
@@ -246,5 +273,21 @@ mod tests {
         let serial = write_sam(&out_header, &records).unwrap();
 
         assert_eq!(parallel, serial);
+    }
+
+    /// The BAM output decodes back to exactly the SAM output; the writer's byte-identity to htsjdk is
+    /// proven elsewhere.
+    #[test]
+    fn the_bam_output_round_trips_to_the_sam_output() {
+        let sam = revert_sam(INPUT).unwrap();
+        let bam = revert_sam_to_bam(INPUT).unwrap();
+        let plain = htsjdk_bgzf::decompress_all(&bam).expect("bam decompresses");
+        let reader = htsjdk_bam::reader::BamReader::new(&plain).unwrap();
+        let header = reader.header.text.clone();
+        let records: Vec<BamRecord> = reader.map(|r| r.unwrap()).collect();
+        assert_eq!(
+            htsjdk_bam::sam_file::write_sam(&header, &records).unwrap(),
+            sam
+        );
     }
 }
