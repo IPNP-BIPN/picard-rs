@@ -82,9 +82,12 @@ fn sum_qualities_of_mismatches(rec: &BamRecord, ref_bases: &[u8]) -> i32 {
     qualities
 }
 
-/// `SetNmMdAndUqTags.doWork` for SAM input and output, default (non-bisulfite) options. `fasta` is the
-/// `REFERENCE_SEQUENCE` bytes.
-pub fn set_nm_md_and_uq_tags(input_sam: &str, fasta: &[u8]) -> Result<String, SetTagsError> {
+/// `SetNmMdAndUqTags.doWork` up to the write: the coordinate-sorted header and the records with their
+/// recomputed `MD`/`NM`/`UQ` tags.
+fn set_tags(
+    input_sam: &str,
+    fasta: &[u8],
+) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), SetTagsError> {
     let (header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
 
     if header.attributes.get("SO") != Some("coordinate") {
@@ -125,5 +128,72 @@ pub fn set_nm_md_and_uq_tags(input_sam: &str, fasta: &[u8]) -> Result<String, Se
         }
     }
 
+    Ok((header, records))
+}
+
+/// `SetNmMdAndUqTags.doWork` for SAM input and output, default (non-bisulfite) options. `fasta` is the
+/// `REFERENCE_SEQUENCE` bytes.
+pub fn set_nm_md_and_uq_tags(input_sam: &str, fasta: &[u8]) -> Result<String, SetTagsError> {
+    let (header, records) = set_tags(input_sam, fasta)?;
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
+}
+
+/// `SetNmMdAndUqTags.doWork` for SAM input and **BAM** output, its default output format. Same
+/// recomputation, written through htsjdk-rs's byte-identical `BamWriter`; the tool adds no `@PG`.
+/// Byte-identity to Picard's `USE_JDK_DEFLATER=true` output follows transitively: the tagged records
+/// are the ones `set_nm_md_and_uq_tags` already reproduces (its oracle), and the `BamWriter` is proven
+/// byte-identical over arbitrary records (the SamFormatConverter oracle and htsjdk-rs's
+/// `every_file_is_byte_identical_to_htsjdks`).
+pub fn set_nm_md_and_uq_tags_to_bam(
+    input_sam: &str,
+    fasta: &[u8],
+) -> Result<Vec<u8>, SetTagsError> {
+    use htsjdk_bam::writer::BamWriter;
+    let (header, records) = set_tags(input_sam, fasta)?;
+    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &records {
+        writer
+            .write(rec)
+            .expect("records that parsed re-encode as BAM");
+    }
+    Ok(writer
+        .finish()
+        .expect("in-memory BAM writer never fails to finish"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const FASTA: &[u8] = b">chr1\nACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT\n";
+    const INPUT: &str = "@HD\tVN:1.6\tSO:coordinate\n\
+        @SQ\tSN:chr1\tLN:40\n\
+        r\t0\tchr1\t1\t60\t8M\t*\t0\t0\tACCTACGT\t##II##II\n";
+
+    /// The BAM output decodes back to exactly the SAM output; the writer's byte-identity to htsjdk is
+    /// proven elsewhere.
+    #[test]
+    fn the_bam_output_round_trips_to_the_sam_output() {
+        let sam = set_nm_md_and_uq_tags(INPUT, FASTA).unwrap();
+        let bam = set_nm_md_and_uq_tags_to_bam(INPUT, FASTA).unwrap();
+        let plain = htsjdk_bgzf::decompress_all(&bam).expect("bam decompresses");
+        let reader = htsjdk_bam::reader::BamReader::new(&plain).unwrap();
+        let header = reader.header.text.clone();
+        let records: Vec<BamRecord> = reader.map(|r| r.unwrap()).collect();
+        assert_eq!(
+            htsjdk_bam::sam_file::write_sam(&header, &records).unwrap(),
+            sam
+        );
+    }
+
+    /// A sanity check that the recomputation actually fires: the one mismatch yields NM:i:1 and a UQ
+    /// summing the two low qualities at that position (here a single mismatch at offset 2).
+    #[test]
+    fn a_mismatch_gets_md_nm_and_uq() {
+        let sam = set_nm_md_and_uq_tags(INPUT, FASTA).unwrap();
+        let row = sam.lines().find(|l| l.starts_with('r')).unwrap();
+        assert!(row.contains("MD:Z:2G5"), "got {row}");
+        assert!(row.contains("NM:i:1"), "got {row}");
+        assert!(row.contains("UQ:i:"), "got {row}");
+    }
 }
