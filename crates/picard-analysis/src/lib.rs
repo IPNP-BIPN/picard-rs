@@ -30,6 +30,7 @@ pub mod sam_to_fastq;
 pub mod set_nm_md_and_uq_tags;
 pub mod snvq;
 pub mod sort_sam;
+pub mod validate_sam_file;
 pub mod view_sam;
 
 pub use cycle::{
