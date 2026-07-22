@@ -12,6 +12,7 @@ pub mod quality_score_distribution;
 pub mod quality_yield;
 pub mod refflat;
 pub mod rnaseq_metrics;
+pub mod snvq;
 
 pub use cycle::{
     BaseDistributionByCycleMetrics, CollectBaseDistributionByCycle, MeanQualityByCycle,
