@@ -8,7 +8,8 @@
 use std::io::Read;
 
 use picard_analysis::filter_sam_reads::{
-    filter_sam_reads, filter_sam_reads_by_tag, Filter, TagFilter,
+    filter_sam_reads, filter_sam_reads_aligned, filter_sam_reads_by_tag, AlignedFilter, Filter,
+    TagFilter,
 };
 
 fn corpus() -> String {
@@ -110,4 +111,31 @@ fn the_include_tag_filter_is_byte_identical() {
 #[test]
 fn the_exclude_tag_filter_is_byte_identical() {
     assert_tag_byte_identical("exclude_tag", TagFilter::ExcludeTagValues);
+}
+
+fn assert_aligned_byte_identical(kind: &str, filter: AlignedFilter) {
+    let ours = filter_sam_reads_aligned(&payload("pairs_input"), filter).unwrap();
+    let theirs = payload(kind);
+    if ours != theirs {
+        let at = ours
+            .lines()
+            .zip(theirs.lines())
+            .position(|(a, b)| a != b)
+            .unwrap_or(0);
+        panic!(
+            "{kind}: first difference at line {at}\n  picard: {:?}\n  ours  : {:?}",
+            theirs.lines().nth(at),
+            ours.lines().nth(at)
+        );
+    }
+}
+
+#[test]
+fn the_include_aligned_filter_is_byte_identical() {
+    assert_aligned_byte_identical("include_aligned", AlignedFilter::IncludeAligned);
+}
+
+#[test]
+fn the_exclude_aligned_filter_is_byte_identical() {
+    assert_aligned_byte_identical("exclude_aligned", AlignedFilter::ExcludeAligned);
 }

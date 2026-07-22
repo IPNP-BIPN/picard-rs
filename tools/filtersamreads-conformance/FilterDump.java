@@ -50,6 +50,39 @@ public class FilterDump {
         emit("tag_input", "case", tagged.toString());
         emit("include_tag", "case", runTag(tagInput, "includeTagValues"));
         emit("exclude_tag", "case", runTag(tagInput, "excludeTagValues"));
+
+        // A queryname-sorted input for the aligned filters: a both-aligned pair, a one-unmapped pair,
+        // a both-unmapped pair, an aligned singleton, and an unmapped singleton.
+        final StringBuilder pairs = new StringBuilder();
+        pairs.append("@HD\tVN:1.6\tSO:queryname\n@SQ\tSN:chr1\tLN:100000\n");
+        pairs.append("pairAA\t99\tchr1\t100\t60\t4M\t=\t200\t104\tACGT\tIIII\n");
+        pairs.append("pairAA\t147\tchr1\t200\t60\t4M\t=\t100\t-104\tACGT\tIIII\n");
+        pairs.append("pairAU\t97\tchr1\t300\t60\t4M\t=\t300\t0\tACGT\tIIII\n");
+        pairs.append("pairAU\t141\t*\t0\t0\t*\t=\t300\t0\tACGT\tIIII\n");
+        pairs.append("pairUU\t77\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n");
+        pairs.append("pairUU\t141\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n");
+        pairs.append("singleA\t0\tchr1\t500\t60\t4M\t*\t0\t0\tACGT\tIIII\n");
+        pairs.append("singleU\t4\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n");
+        final File pairsInput = File.createTempFile("fs-pairs-", ".sam");
+        pairsInput.deleteOnExit();
+        try (PrintStream ps = new PrintStream(pairsInput)) { ps.print(pairs.toString()); }
+
+        emit("pairs_input", "case", pairs.toString());
+        emit("include_aligned", "case", runPlain(pairsInput, "includeAligned"));
+        emit("exclude_aligned", "case", runPlain(pairsInput, "excludeAligned"));
+    }
+
+    static String runPlain(final File input, final String filter) throws Exception {
+        final File out = File.createTempFile("fs-aln-out-", ".sam");
+        out.deleteOnExit();
+        final int rc = new picard.sam.FilterSamReads().instanceMain(new String[] {
+                "INPUT=" + input.getAbsolutePath(),
+                "OUTPUT=" + out.getAbsolutePath(),
+                "FILTER=" + filter,
+                "VALIDATION_STRINGENCY=SILENT",
+        });
+        if (rc != 0) { System.err.println("FilterSamReads " + filter + " exited " + rc); System.exit(rc); }
+        return new String(Files.readAllBytes(out.toPath()));
     }
 
     static String run(final File input, final File listFile, final String filter) throws Exception {
