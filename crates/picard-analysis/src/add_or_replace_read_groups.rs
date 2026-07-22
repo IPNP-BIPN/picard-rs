@@ -57,12 +57,15 @@ fn replace_read_groups(header: &mut SamHeader, opts: &Options) {
 
 /// `AddOrReplaceReadGroups.doWork` for SAM I/O, default sort order.
 pub fn add_or_replace_read_groups(input_sam: &str, opts: &Options) -> Result<String, ParseError> {
+    use rayon::prelude::*;
     let (mut header, mut records) = read_sam(input_sam)?;
     replace_read_groups(&mut header, opts);
-    for rec in &mut records {
+    // Stamping the RG tag is per-record and independent; par_iter_mut keeps the order, so the bytes
+    // match the serial loop (decision 0006).
+    records.par_iter_mut().for_each(|rec| {
         rec.tags
             .insert(Tag::new(b"RG"), TagValue::Str(opts.rgid.clone()));
-    }
+    });
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
 }
 

@@ -113,18 +113,21 @@ fn is_dropped(rec: &BamRecord, opts: &Options) -> bool {
 /// Panics on a paired read, since the paired writers are not part of this port and emitting a
 /// fragment file for paired input would be a silent, wrong result rather than a missing feature.
 pub fn sam_to_fastq_unpaired(records: &[BamRecord], opts: &Options) -> String {
-    let mut out = String::new();
-    for rec in records {
-        if is_dropped(rec, opts) {
-            continue;
-        }
-        assert!(
-            rec.flags & READ_PAIRED == 0,
-            "sam_to_fastq_unpaired given a paired read; the paired path is not ported"
-        );
-        out.push_str(&write_one(rec, None, opts));
-    }
-    out
+    use rayon::prelude::*;
+    // Each surviving record's FASTQ block is computed independently; rayon's `collect` keeps the
+    // original order through the filter and map, so the file is byte-identical to the serial build
+    // (decision 0006).
+    records
+        .par_iter()
+        .filter(|rec| !is_dropped(rec, opts))
+        .map(|rec| {
+            assert!(
+                rec.flags & READ_PAIRED == 0,
+                "sam_to_fastq_unpaired given a paired read; the paired path is not ported"
+            );
+            write_one(rec, None, opts)
+        })
+        .collect()
 }
 
 /// The paired default path with `SECOND_END_FASTQ` (two separate files), returning
