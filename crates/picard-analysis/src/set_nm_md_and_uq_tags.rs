@@ -115,20 +115,25 @@ fn set_tags(
         let ref_bases = *by_name
             .get(name.as_str())
             .ok_or_else(|| SetTagsError::MissingReferenceContig(name.clone()))?;
-
-        let (md, nm) =
-            calculate_md_and_nm(rec.alignment_start, &rec.cigar, &rec.read_bases, ref_bases);
-        rec.tags.insert(Tag::new(b"MD"), TagValue::Str(md));
-        rec.tags.insert(Tag::new(b"NM"), TagValue::Int(nm as i64));
-
-        // fixUq: UQ only when the read carries qualities.
-        if !rec.base_qualities.is_empty() {
-            let uq = sum_qualities_of_mismatches(rec, ref_bases);
-            rec.tags.insert(Tag::new(b"UQ"), TagValue::Int(uq as i64));
-        }
+        fix_nm_md_and_uq(rec, ref_bases);
     }
 
     Ok((header, records))
+}
+
+/// `AbstractAlignmentMerger.fixNmMdAndUq` (non-bisulfite): recompute `MD`/`NM` from the reference and,
+/// when the read carries qualities, `UQ`. Shared with the alignment merger, which recomputes the same
+/// tags in its coordinate-sorted final pass.
+pub(crate) fn fix_nm_md_and_uq(rec: &mut BamRecord, ref_bases: &[u8]) {
+    let (md, nm) = calculate_md_and_nm(rec.alignment_start, &rec.cigar, &rec.read_bases, ref_bases);
+    rec.tags.insert(Tag::new(b"MD"), TagValue::Str(md));
+    rec.tags.insert(Tag::new(b"NM"), TagValue::Int(nm as i64));
+
+    // fixUq: UQ only when the read carries qualities.
+    if !rec.base_qualities.is_empty() {
+        let uq = sum_qualities_of_mismatches(rec, ref_bases);
+        rec.tags.insert(Tag::new(b"UQ"), TagValue::Int(uq as i64));
+    }
 }
 
 /// `SetNmMdAndUqTags.doWork` for SAM input and output, default (non-bisulfite) options. `fasta` is the
