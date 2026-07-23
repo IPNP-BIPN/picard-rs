@@ -34,6 +34,13 @@ public class MergeDump {
     String hp="@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n@RG\tID:rg1\tSM:s\tLB:lib1\n@PG\tID:p1\tPN:tool\tVN:1\n@CO\ta comment\n";
     run("with_pg_co","coordinate", hp+"a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n",
                                    hp+"b\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n");
+    // distinct read groups across files (no collision): the merged header unions both @RG.
+    String sq="@SQ\tSN:chr1\tLN:1000\n";
+    String ua="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@RG\tID:rg1\tSM:s1\tLB:lib1\n"+
+      "a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n";
+    String ub="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@RG\tID:rg2\tSM:s2\tLB:lib2\n"+
+      "b\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg2\n";
+    run("distinct_read_groups","coordinate", ua, ub);
     System.out.print(buf);
   }
 }
