@@ -57,6 +57,16 @@ fn build_header(read_group_name: &str, sample_name: &str) -> SamHeader {
 /// Blank-line skipping is off (`ALLOW_AND_IGNORE_EMPTY_LINES` defaults false), matching the reader
 /// FastqToSam constructs.
 pub fn fastq_to_sam_unpaired(fastq_text: &str, opts: &Options) -> Result<String, FastqError> {
+    let (header, records) = fastq_to_records_unpaired(fastq_text, opts)?;
+    Ok(write_sam(&header, &records).expect("unmapped records always encode as SAM text"))
+}
+
+/// `doUnpaired` up to the write: the header and the queryname-sorted unmapped records. Shared by the
+/// SAM and BAM renderers so they cannot drift.
+fn fastq_to_records_unpaired(
+    fastq_text: &str,
+    opts: &Options,
+) -> Result<(SamHeader, Vec<BamRecord>), FastqError> {
     let header = build_header(&opts.read_group_name, &opts.sample_name);
 
     use rayon::prelude::*;
@@ -77,8 +87,24 @@ pub fn fastq_to_sam_unpaired(fastq_text: &str, opts: &Options) -> Result<String,
 
     // The writer sorts by queryname because the header is SO:queryname.
     records.sort_by(query_name::compare);
+    Ok((header, records))
+}
 
-    Ok(write_sam(&header, &records).expect("unmapped records always encode as SAM text"))
+/// `FastqToSam` `doUnpaired` for **BAM** output: the same unmapped, queryname-sorted records written
+/// through htsjdk-rs's byte-identical `BamWriter`. FastqToSam adds no `@PG`, so byte-identity to
+/// Picard with `USE_JDK_DEFLATER=true` follows transitively (the records are those the SAM path
+/// already reproduces, and `BamWriter` is oracle-gated over arbitrary records).
+pub fn fastq_to_sam_unpaired_to_bam(
+    fastq_text: &str,
+    opts: &Options,
+) -> Result<Vec<u8>, FastqError> {
+    use htsjdk_bam::writer::BamWriter;
+    let (header, records) = fastq_to_records_unpaired(fastq_text, opts)?;
+    let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &records {
+        w.write(rec).expect("unmapped record re-encodes as BAM");
+    }
+    Ok(w.finish().expect("finish never fails on a Vec"))
 }
 
 #[cfg(test)]
@@ -91,6 +117,20 @@ mod tests {
         assert!(text.contains("@HD\tVN:1.6\tSO:queryname"), "got {text}");
         assert!(text.contains("@RG\tID:A\tSM:s1"), "got {text}");
         assert!(!text.contains("@PG"), "FastqToSam writes no @PG: {text}");
+    }
+
+    #[test]
+    fn the_bam_output_round_trips_to_the_sam_output() {
+        use htsjdk_bam::reader::BamReader;
+        let input = "@r2\nAA\n+\nII\n@r1\nCC\n+\nII\n@r10\nGG\n+\nII\n";
+        let opts = Options::new("s1");
+        let sam = fastq_to_sam_unpaired(input, &opts).unwrap();
+        let bam = fastq_to_sam_unpaired_to_bam(input, &opts).unwrap();
+        let plain = htsjdk_bgzf::decompress_all(&bam).unwrap();
+        let reader = BamReader::new(&plain).unwrap();
+        let header = reader.header.text.clone();
+        let records: Vec<BamRecord> = reader.map(|r| r.unwrap()).collect();
+        assert_eq!(write_sam(&header, &records).unwrap(), sam);
     }
 
     #[test]
