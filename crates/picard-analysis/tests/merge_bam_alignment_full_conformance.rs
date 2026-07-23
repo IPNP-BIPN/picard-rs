@@ -88,7 +88,7 @@ fn cases() -> Vec<(String, Case)> {
 #[test]
 fn the_whole_output_file_is_byte_identical() {
     let cases = cases();
-    assert_eq!(cases.len(), 2, "case count");
+    assert_eq!(cases.len(), 3, "case count");
     let reference_bases = HashMap::from([("chr1".to_string(), REF.to_vec())]);
     for (name, case) in &cases {
         let got = merge_bam_alignment(&case.dict, &case.unmapped, &case.aligned, &reference_bases)
