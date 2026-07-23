@@ -8,6 +8,7 @@ pub mod add_or_replace_read_groups;
 pub mod alignment_summary;
 pub mod annotation;
 pub mod calculate_read_group_checksum;
+pub mod check_terminator_block;
 pub mod clean_sam;
 pub mod create_sequence_dictionary;
 pub mod cycle;
