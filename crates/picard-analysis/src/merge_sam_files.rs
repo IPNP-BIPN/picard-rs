@@ -39,8 +39,12 @@ fn merged_header(first: &SamHeader, comments: Vec<String>, order: SortOrder) -> 
     h
 }
 
-/// `MergeSamFiles.doWork` for shared-header SAM inputs: the merged, sorted SAM.
-pub fn merge_sam_files(inputs: &[&str], order: SortOrder) -> Result<String, ParseError> {
+/// The merge itself: the merged header and the merged, sorted records. Shared by the SAM and BAM
+/// renderers so the header construction and record ordering cannot drift.
+fn merge_records(
+    inputs: &[&str],
+    order: SortOrder,
+) -> Result<(SamHeader, Vec<BamRecord>), ParseError> {
     let mut first_header: Option<SamHeader> = None;
     let mut comments: Vec<String> = Vec::new();
     let mut records: Vec<BamRecord> = Vec::new();
@@ -56,7 +60,27 @@ pub fn merge_sam_files(inputs: &[&str], order: SortOrder) -> Result<String, Pars
 
     // A stable sort so wholly-identical records keep input order (decision 0021).
     records.sort_by(order.comparator());
+    Ok((header, records))
+}
+
+/// `MergeSamFiles.doWork` for shared-header SAM inputs: the merged, sorted SAM.
+pub fn merge_sam_files(inputs: &[&str], order: SortOrder) -> Result<String, ParseError> {
+    let (header, records) = merge_records(inputs, order)?;
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
+}
+
+/// `MergeSamFiles.doWork` for shared-header inputs with **BAM** output: the same merge, written as a
+/// BAM through htsjdk-rs's byte-identical `BamWriter`. Byte-identical to Picard with
+/// `USE_JDK_DEFLATER=true` (the merged records are those the SAM path already reproduces).
+pub fn merge_sam_files_to_bam(inputs: &[&str], order: SortOrder) -> Result<Vec<u8>, ParseError> {
+    use htsjdk_bam::writer::BamWriter;
+
+    let (header, records) = merge_records(inputs, order)?;
+    let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &records {
+        w.write(rec).expect("record re-encodes as BAM");
+    }
+    Ok(w.finish().expect("finish never fails on a Vec"))
 }
 
 #[cfg(test)]
@@ -93,5 +117,19 @@ mod tests {
         let b = format!("{H}{}", rec("b", 20));
         let out = merge_sam_files(&[&a, &b], SortOrder::Coordinate).unwrap();
         assert_eq!(out.matches("@RG\t").count(), 1);
+    }
+
+    #[test]
+    fn bam_output_decodes_to_the_same_as_the_sam_output() {
+        use htsjdk_bam::reader::BamReader;
+        let a = format!("{H}{}{}", rec("a", 10), rec("c", 30));
+        let b = format!("{H}{}{}", rec("b", 20), rec("d", 40));
+        let sam = merge_sam_files(&[&a, &b], SortOrder::Coordinate).unwrap();
+        let bam = merge_sam_files_to_bam(&[&a, &b], SortOrder::Coordinate).unwrap();
+        let decoded = htsjdk_bgzf::decompress_all(&bam).unwrap();
+        let reader = BamReader::new(&decoded).unwrap();
+        let header = reader.header.text.clone();
+        let recs: Vec<_> = reader.map(|r| r.unwrap()).collect();
+        assert_eq!(write_sam(&header, &recs).unwrap(), sam);
     }
 }
