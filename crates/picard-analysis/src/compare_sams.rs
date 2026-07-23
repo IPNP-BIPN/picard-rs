@@ -1,16 +1,20 @@
 //! `CompareSAMs`.
 //!
 //! Ports `picard.sam.CompareSAMs` + `picard.sam.util.SamComparison` at tag 3.4.0, for the
-//! **default strict mode over queryname-sorted input**. Compares two SAM files and reports, in a
-//! [`SamComparisonMetric`] row, how many primary alignments match, differ, are unmapped on one or
-//! both sides, are missing on one side, or disagree on duplicate marking; the tool prints
-//! `SAM files match.` or `SAM files differ.` accordingly.
+//! **default strict mode over queryname- or coordinate-sorted input**. Compares two SAM files and
+//! reports, in a [`SamComparisonMetric`] row, how many primary alignments match, differ, are
+//! unmapped on one or both sides, are missing on one side, or disagree on duplicate marking; the
+//! tool prints `SAM files match.` or `SAM files differ.` accordingly.
 //!
-//! Scope of this slice: queryname-sorted inputs, strict comparison (`LENIENT_*` all false),
-//! `COMPARE_MQ=false` (so no mapping-quality histogram). Header comparison is a structural equality
-//! of the two headers, which is correct for equal headers; htsjdk's finer field-by-field
-//! `compareHeaders` (and thus header-difference reporting), the coordinate- and unsorted-order
-//! comparison paths, the lenient modes, and the mapping-quality histogram are deferred.
+//! Scope of this slice: queryname- and coordinate-sorted inputs (dispatched on the shared sort
+//! order), strict comparison (`LENIENT_*` all false), `COMPARE_MQ=false` (so no mapping-quality
+//! histogram). The coordinate path matches reads within a coordinate by `PrimaryAlignmentKey`, so
+//! order within a coordinate does not matter; the per-type counts are commutative, so the port
+//! reproduces htsjdk's totals without reproducing its exact `LinkedHashMap` iteration order. Header
+//! comparison is a structural equality of the two headers, which is correct for equal headers;
+//! htsjdk's finer field-by-field `compareHeaders` (and thus header-difference reporting), the
+//! unsorted-order path, mismatched sort orders, the lenient modes, and the mapping-quality
+//! histogram are deferred.
 //!
 //! Two Picard behaviours are reproduced deliberately. `alignmentsMatch` compares
 //! `s1.getReadNegativeStrandFlag() == s1.getReadNegativeStrandFlag()` (the left record against
@@ -181,11 +185,12 @@ pub fn compare_sams(
     let (h1, recs1) = read_sam_with(left_sam, ValidationStringency::Silent)?;
     let (h2, recs2) = read_sam_with(right_sam, ValidationStringency::Silent)?;
 
-    for h in [&h1, &h2] {
-        let so = h.attributes.get("SO").unwrap_or("unsorted");
-        if so != "queryname" {
-            return Err(CompareError::UnsupportedSortOrder(so.to_string()));
-        }
+    // htsjdk requires both files to share a sort order and dispatches on it. This slice handles
+    // queryname and coordinate; the unsorted path and mismatched sort orders are deferred.
+    let so1 = h1.attributes.get("SO").unwrap_or("unsorted");
+    let so2 = h2.attributes.get("SO").unwrap_or("unsorted");
+    if so1 != so2 || (so1 != "queryname" && so1 != "coordinate") {
+        return Err(CompareError::UnsupportedSortOrder(format!("{so1}/{so2}")));
     }
 
     let mut m = SamComparisonMetric {
@@ -203,7 +208,25 @@ pub fn compare_sams(
         .filter(|r| !is_secondary_or_supplementary(r))
         .collect();
 
-    // compareQueryNameSortedAlignments: a merge of the two name-ordered streams by PrimaryAlignmentKey.
+    if so1 == "queryname" {
+        compare_queryname(&left, &right, &h1, &h2, &mut m);
+    } else {
+        compare_coordinate(&left, &right, &h1, &h2, &mut m);
+    }
+
+    let headers_equal = h1 == h2;
+    m.are_equal = headers_equal && m.all_visited_equal() && m.duplicate_markings_differ == 0;
+    Ok(m)
+}
+
+/// `compareQueryNameSortedAlignments`: a merge of the two name-ordered streams by `PrimaryAlignmentKey`.
+fn compare_queryname(
+    left: &[&BamRecord],
+    right: &[&BamRecord],
+    h1: &SamHeader,
+    h2: &SamHeader,
+    m: &mut SamComparisonMetric,
+) {
     let (mut i, mut j) = (0usize, 0usize);
     while i < left.len() {
         if j >= right.len() {
@@ -223,7 +246,7 @@ pub fn compare_sams(
                 j += 1;
             }
             std::cmp::Ordering::Equal => {
-                tally(&h1, left[i], &h2, right[j], &mut m);
+                tally(h1, left[i], h2, right[j], m);
                 i += 1;
                 j += 1;
             }
@@ -232,10 +255,104 @@ pub fn compare_sams(
     if j < right.len() {
         m.missing_left += (right.len() - j) as i64;
     }
+}
 
-    let headers_equal = h1 == h2;
-    m.are_equal = headers_equal && m.all_visited_equal() && m.duplicate_markings_differ == 0;
-    Ok(m)
+/// `compareAlignmentCoordinates`: unmapped reads (no reference) sort last and equal to each other,
+/// else order by reference index then alignment start.
+fn compare_alignment_coordinates(left: &BamRecord, right: &BamRecord) -> std::cmp::Ordering {
+    let lu = left.reference_index < 0;
+    let ru = right.reference_index < 0;
+    match (lu, ru) {
+        (true, true) => std::cmp::Ordering::Equal,
+        (true, false) => std::cmp::Ordering::Greater,
+        (false, true) => std::cmp::Ordering::Less,
+        (false, false) => left
+            .reference_index
+            .cmp(&right.reference_index)
+            .then(left.alignment_start.cmp(&right.alignment_start)),
+    }
+}
+
+/// `compareCoordinateSortedAlignments`: within each coordinate, reads are matched by
+/// `PrimaryAlignmentKey` rather than by position, so order within a coordinate does not matter. The
+/// per-type counts are commutative, so the port matches htsjdk's totals without reproducing its
+/// exact `LinkedHashMap` iteration order.
+fn compare_coordinate(
+    left: &[&BamRecord],
+    right: &[&BamRecord],
+    h1: &SamHeader,
+    h2: &SamHeader,
+    m: &mut SamComparisonMetric,
+) {
+    use std::collections::HashMap;
+
+    let (mut i, mut j) = (0usize, 0usize);
+    let mut left_unmatched: HashMap<(String, u8), &BamRecord> = HashMap::new();
+    let mut right_unmatched: HashMap<(String, u8), &BamRecord> = HashMap::new();
+
+    while i < left.len() {
+        if j >= right.len() {
+            // Right exhausted: match remaining lefts against saved rights, else MISSING_RIGHT.
+            for l in &left[i..] {
+                match right_unmatched.remove(&primary_alignment_key(l)) {
+                    Some(r) => tally(h1, l, h2, r, m),
+                    None => m.missing_right += 1,
+                }
+            }
+            break;
+        }
+        // Grab all lefts sharing this coordinate.
+        let anchor = left[i];
+        let mut left_here: HashMap<(String, u8), &BamRecord> = HashMap::new();
+        while i < left.len()
+            && compare_alignment_coordinates(anchor, left[i]) == std::cmp::Ordering::Equal
+        {
+            left_here.insert(primary_alignment_key(left[i]), left[i]);
+            i += 1;
+        }
+        // Advance right past everything ordered before this coordinate, saving those rights.
+        while j < right.len()
+            && compare_alignment_coordinates(anchor, right[j]) == std::cmp::Ordering::Greater
+        {
+            right_unmatched.insert(primary_alignment_key(right[j]), right[j]);
+            j += 1;
+        }
+        // Rights at this coordinate: match against left_here by key, else save.
+        while j < right.len()
+            && compare_alignment_coordinates(anchor, right[j]) == std::cmp::Ordering::Equal
+        {
+            let rk = primary_alignment_key(right[j]);
+            match left_here.remove(&rk) {
+                Some(l) => tally(h1, l, h2, right[j], m),
+                None => {
+                    right_unmatched.insert(rk, right[j]);
+                }
+            }
+            j += 1;
+        }
+        // Unmatched lefts at this coordinate carry over.
+        for (k, l) in left_here {
+            left_unmatched.insert(k, l);
+        }
+    }
+
+    // Remaining rights: match against saved lefts, else MISSING_LEFT.
+    for r in &right[j..] {
+        match left_unmatched.remove(&primary_alignment_key(r)) {
+            Some(l) => tally(h1, l, h2, r, m),
+            None => m.missing_left += 1,
+        }
+    }
+    // Saved lefts: match against saved rights, else MISSING_RIGHT.
+    let keys: Vec<(String, u8)> = left_unmatched.keys().cloned().collect();
+    for k in keys {
+        let l = left_unmatched[&k];
+        match right_unmatched.remove(&k) {
+            Some(r) => tally(h1, l, h2, r, m),
+            None => m.missing_right += 1,
+        }
+    }
+    m.missing_left += right_unmatched.len() as i64;
 }
 
 /// The stdout line `CompareSAMs.doWork` prints.
@@ -277,6 +394,19 @@ mod tests {
         let r = format!("{H}a\t16\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n");
         let m = compare_sams(&l, &r, "L", "R").unwrap();
         assert_eq!(m.mappings_match, 1);
+        assert!(m.are_equal);
+    }
+
+    #[test]
+    fn coordinate_matching_is_order_independent_within_a_coordinate() {
+        // Two reads at the same coordinate, in opposite order across the files, still match.
+        let h = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:100\n";
+        let p1 = "p\t99\tchr1\t10\t60\t4M\t=\t10\t0\tACGT\tIIII\n";
+        let p2 = "p\t147\tchr1\t10\t60\t4M\t=\t10\t0\tACGT\tIIII\n";
+        let l = format!("{h}{p1}{p2}");
+        let r = format!("{h}{p2}{p1}");
+        let m = compare_sams(&l, &r, "L", "R").unwrap();
+        assert_eq!(m.mappings_match, 2);
         assert!(m.are_equal);
     }
 
