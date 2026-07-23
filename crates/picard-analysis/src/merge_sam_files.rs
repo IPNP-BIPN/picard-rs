@@ -24,15 +24,19 @@
 //! wholly-identical records, where the stable sort keeps input order (first file first), as the merge
 //! does.
 //!
+//! `@PG` records additionally honour the `PP` (previous-program) chain (`mergeProgramGroups`): tree
+//! roots are merged first, then each level of children whose `PP` points at a just-merged record from
+//! the same input, with `PP` rewritten through the accumulating rename table (so a child chaining to a
+//! renamed parent collides and is itself renamed) and the base36 counter shared across every level. A
+//! `PP` pointing at a program group that never appears is an error.
+//!
 //! The sequence dictionaries either match (`SequenceUtil.assertSequenceListsEqual`) or, with
 //! `MERGE_SEQUENCE_DICTIONARIES`, are unioned into the name superset (`mergeSequences`); when unioned,
 //! each input's records have their `reference_index`/`mate_reference_index` remapped by name, as
 //! `MergingSamRecordIterator.setHeader` re-resolves them. A mismatch without the flag, or a shared
 //! sequence ordered incompatibly across inputs, is an error.
 //!
-//! Scope of this slice: `@PG` records carry no `PP` chain. Deferred to a further slice: the `@PG`
-//! previous-program (`PP`) tree merge, which rewrites `PP` pointers through the same rename table
-//! across processing passes; it is reported as an error here rather than merged.
+//! This completes the `SamFileHeaderMerger` surface `MergeSamFiles` exercises.
 
 use std::collections::{HashMap, HashSet};
 
@@ -53,9 +57,10 @@ pub enum MergeError {
     DuplicateReadGroupId(String),
     /// The same for a `@PG` ID.
     DuplicateProgramId(String),
-    /// A `@PG` record carries a `PP` (previous-program) attribute. The `PP`-chain tree merge is a
-    /// separate slice.
-    ProgramChainNotSupported,
+    /// A `@PG` record's `PP` (previous-program) attribute points at a program group that does not
+    /// exist, so `mergeProgramGroups` cannot place it in the tree (`program groups weren't
+    /// processed`).
+    ProgramChainBroken,
     /// The inputs' sequence dictionaries differ and `MERGE_SEQUENCE_DICTIONARIES` was not set.
     SequenceDictionaryMismatch,
     /// `MERGE_SEQUENCE_DICTIONARIES` was set but two dictionaries order a shared sequence
@@ -90,10 +95,6 @@ fn base36(mut n: u32) -> String {
 trait IdRecord: Clone {
     fn id(&self) -> &str;
     fn with_id(&self, id: &str) -> Self;
-    /// True when the record carries data the deferred `PP`-chain slice would have to handle.
-    fn has_program_chain(&self) -> bool {
-        false
-    }
 }
 
 impl IdRecord for ReadGroup {
@@ -116,85 +117,197 @@ impl IdRecord for ProgramRecord {
         c.id = id.to_string();
         c
     }
-    fn has_program_chain(&self) -> bool {
-        self.attributes.get("PP").is_some()
-    }
 }
 
 /// The result of merging one record kind: the merged records, and per input index the old-ID ->
 /// new-ID map that `MergingSamRecordIterator` applies to that input's records.
 type MergedRecords<T> = (Vec<T>, Vec<HashMap<String, String>>);
 
-/// `SamFileHeaderMerger.mergeHeaderRecords` for one record kind (`@RG` or `@PG`), for the no-`PP` case:
-/// bin the per-input records by ID in file order, then by identical content; keep the first content of
-/// each ID under its own ID and rename every later content `ID.<base36(counter)>`; sort the result by
-/// ID (`RECORD_ID_COMPARATOR`). Returns the merged records and, per input index, the old-ID -> new-ID
-/// map that `MergingSamRecordIterator` applies to that input's records (identity entries included, as
-/// htsjdk records them).
-fn merge_header_records<T: IdRecord + PartialEq>(
-    per_input: &[Vec<T>],
-    duplicate_err: impl Fn(String) -> MergeError,
-) -> Result<MergedRecords<T>, MergeError> {
-    // idToRecord: insertion-ordered map ID -> [(content, [file indices])]. Both levels are
-    // LinkedHashMap in htsjdk, so file order is deterministic and reproduced by a Vec.
-    let mut id_order: Vec<String> = Vec::new();
-    let mut groups: HashMap<String, Vec<(T, Vec<usize>)>> = HashMap::new();
+/// State threaded across `mergeHeaderRecords` calls: the merged records so far, the ID set (`@PG`
+/// resolves its tree one level per call, all sharing this state), the base36 counter, and the
+/// per-input old-ID -> new-ID translation.
+struct MergeState<T> {
+    ids_taken: HashSet<String>,
+    counter: u32,
+    translations: Vec<HashMap<String, String>>,
+    result: Vec<T>,
+}
 
-    for (fi, records) in per_input.iter().enumerate() {
-        let mut seen_in_file: HashSet<&str> = HashSet::new();
-        for record in records {
+impl<T: IdRecord + PartialEq> MergeState<T> {
+    fn new(n_inputs: usize) -> Self {
+        MergeState {
+            ids_taken: HashSet::new(),
+            counter: 0,
+            translations: vec![HashMap::new(); n_inputs],
+            result: Vec::new(),
+        }
+    }
+
+    /// `SamFileHeaderMerger.mergeHeaderRecords` for one batch of `(file index, record)`: bin by ID in
+    /// batch order, then by identical content; keep the first content of each ID under its own ID and
+    /// rename every later content `ID.<base36(counter)>`; append to `result`, recording each mapping.
+    fn resolve_batch(&mut self, batch: &[(usize, T)]) {
+        // idToRecord: insertion-ordered map ID -> [(content, [file indices])]. Both levels are
+        // LinkedHashMap in htsjdk, so batch order is deterministic and reproduced by a Vec.
+        let mut id_order: Vec<String> = Vec::new();
+        let mut groups: HashMap<String, Vec<(T, Vec<usize>)>> = HashMap::new();
+        for (fi, record) in batch {
             let id = record.id();
-            if !seen_in_file.insert(id) {
-                return Err(duplicate_err(id.to_string()));
-            }
             if !groups.contains_key(id) {
                 id_order.push(id.to_string());
                 groups.insert(id.to_string(), Vec::new());
             }
             let bin = groups.get_mut(id).unwrap();
             match bin.iter_mut().find(|(content, _)| content == record) {
-                Some((_, files)) => files.push(fi),
-                None => bin.push((record.clone(), vec![fi])),
+                Some((_, files)) => files.push(*fi),
+                None => bin.push((record.clone(), vec![*fi])),
             }
         }
-    }
 
-    // Resolve collisions by remapping the second and later contents of each ID.
-    let mut ids_taken: HashSet<String> = HashSet::new();
-    let mut counter: u32 = 0;
-    let mut translations: Vec<HashMap<String, String>> = vec![HashMap::new(); per_input.len()];
-    let mut result: Vec<T> = Vec::new();
-
-    for id in &id_order {
-        for (content, files) in &groups[id] {
-            let new_id = if !ids_taken.contains(id) {
-                // Don't remap the first record with this ID.
-                ids_taken.insert(id.clone());
-                counter += 1;
-                id.clone()
-            } else {
-                let mut candidate;
-                loop {
-                    candidate = format!("{}.{}", id, base36(counter));
-                    counter += 1;
-                    if !ids_taken.contains(&candidate) {
-                        break;
+        for id in &id_order {
+            for (content, files) in &groups[id] {
+                let new_id = if !self.ids_taken.contains(id) {
+                    // Don't remap the first record with this ID.
+                    self.ids_taken.insert(id.clone());
+                    self.counter += 1;
+                    id.clone()
+                } else {
+                    let mut candidate;
+                    loop {
+                        candidate = format!("{}.{}", id, base36(self.counter));
+                        self.counter += 1;
+                        if !self.ids_taken.contains(&candidate) {
+                            break;
+                        }
                     }
+                    self.ids_taken.insert(candidate.clone());
+                    candidate
+                };
+                for &fi in files {
+                    self.translations[fi].insert(id.clone(), new_id.clone());
                 }
-                ids_taken.insert(candidate.clone());
-                candidate
-            };
-            for &fi in files {
-                translations[fi].insert(id.clone(), new_id.clone());
+                self.result.push(content.with_id(&new_id));
             }
-            result.push(content.with_id(&new_id));
         }
     }
+}
 
-    // RECORD_ID_COMPARATOR: String.compareTo, i.e. lexicographic by code unit; for the ASCII IDs here
-    // this is Rust's str ordering.
-    result.sort_by(|a, b| a.id().cmp(b.id()));
-    Ok((result, translations))
+/// No two records in one input may share an ID (`mergeReadGroups`/`mergeProgramGroups` throw
+/// `contains more than one RG/PG with the same id`).
+fn assert_unique_ids<T: IdRecord>(
+    per_input: &[Vec<T>],
+    duplicate_err: impl Fn(String) -> MergeError,
+) -> Result<(), MergeError> {
+    for records in per_input {
+        let mut seen: HashSet<&str> = HashSet::new();
+        for r in records {
+            if !seen.insert(r.id()) {
+                return Err(duplicate_err(r.id().to_string()));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The whole batch flattened to `(file index, record)` in file order.
+fn flatten<T: Clone>(per_input: &[Vec<T>]) -> Vec<(usize, T)> {
+    per_input
+        .iter()
+        .enumerate()
+        .flat_map(|(fi, rs)| rs.iter().cloned().map(move |r| (fi, r)))
+        .collect()
+}
+
+/// `mergeReadGroups`: one `mergeHeaderRecords` pass over every `@RG`, then sort by ID.
+fn merge_read_groups(per_input: &[Vec<ReadGroup>]) -> Result<MergedRecords<ReadGroup>, MergeError> {
+    assert_unique_ids(per_input, MergeError::DuplicateReadGroupId)?;
+    let mut state = MergeState::new(per_input.len());
+    state.resolve_batch(&flatten(per_input));
+    state.result.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok((state.result, state.translations))
+}
+
+/// `translateIds` for one `@PG` record: rename its ID (always) and, when `translate_pp`, its `PP`
+/// pointer, through this record's input translation table. A record that needs no change is returned
+/// unchanged.
+fn translate_program(
+    record: &ProgramRecord,
+    translation: &HashMap<String, String>,
+    translate_pp: bool,
+) -> ProgramRecord {
+    let mut out = record.clone();
+    if let Some(new_id) = translation.get(&record.id) {
+        if new_id != &record.id {
+            out.id = new_id.clone();
+        }
+    }
+    if translate_pp {
+        if let Some(pp) = record.attributes.get("PP") {
+            if let Some(new_pp) = translation.get(pp) {
+                if new_pp != pp {
+                    out.attributes.set("PP", new_pp);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// One level of `@PG` records to process, each tagged with its input's index.
+type Batch = Vec<(usize, ProgramRecord)>;
+
+/// `mergeProgramGroups`: merge `@PG` records honouring the `PP` (previous-program) chain. Process the
+/// tree roots (no `PP`) first, then each level of children whose `PP` points at a just-processed
+/// record from the same input, rewriting `PP` through the accumulating rename table so a child that
+/// now chains to a renamed parent collides (and is itself renamed) exactly as htsjdk does. The base36
+/// counter is shared across every level. Finally sort by ID.
+fn merge_programs(
+    per_input: &[Vec<ProgramRecord>],
+) -> Result<MergedRecords<ProgramRecord>, MergeError> {
+    assert_unique_ids(per_input, MergeError::DuplicateProgramId)?;
+    let mut state = MergeState::new(per_input.len());
+
+    // Split off the tree roots (no PP) as the first level; the rest wait for their parent.
+    let (mut current, mut left): (Batch, Batch) = flatten(per_input)
+        .into_iter()
+        .partition(|(_, r)| r.attributes.get("PP").is_none());
+
+    while !current.is_empty() {
+        state.resolve_batch(&current);
+
+        // Reflect this level's renames: current's own IDs, and every leftover's PP pointer.
+        current = current
+            .iter()
+            .map(|(fi, r)| (*fi, translate_program(r, &state.translations[*fi], false)))
+            .collect();
+        left = left
+            .iter()
+            .map(|(fi, r)| (*fi, translate_program(r, &state.translations[*fi], true)))
+            .collect();
+
+        // The next level is every leftover whose PP now names a just-processed record in its file.
+        let mut next = Vec::new();
+        let mut still_left = Vec::new();
+        for (fi, r) in left {
+            let matches = r
+                .attributes
+                .get("PP")
+                .is_some_and(|pp| current.iter().any(|(cfi, cr)| *cfi == fi && cr.id == pp));
+            if matches {
+                next.push((fi, r));
+            } else {
+                still_left.push((fi, r));
+            }
+        }
+        left = still_left;
+        current = next;
+    }
+
+    if !left.is_empty() {
+        return Err(MergeError::ProgramChainBroken);
+    }
+    state.result.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok((state.result, state.translations))
 }
 
 /// Apply a read-group/program ID translation to one record's `RG:Z` or `PG:Z` tag, as
@@ -352,19 +465,11 @@ fn merge_records(
 
     // Merge @RG and @PG, collecting the per-input ID translations.
     let rg_per_input: Vec<Vec<ReadGroup>> = headers.iter().map(|h| h.read_groups.clone()).collect();
-    let (read_groups, rg_translation) =
-        merge_header_records(&rg_per_input, MergeError::DuplicateReadGroupId)?;
+    let (read_groups, rg_translation) = merge_read_groups(&rg_per_input)?;
 
-    if headers
-        .iter()
-        .any(|h| h.programs.iter().any(ProgramRecord::has_program_chain))
-    {
-        return Err(MergeError::ProgramChainNotSupported);
-    }
     let pg_per_input: Vec<Vec<ProgramRecord>> =
         headers.iter().map(|h| h.programs.clone()).collect();
-    let (programs, pg_translation) =
-        merge_header_records(&pg_per_input, MergeError::DuplicateProgramId)?;
+    let (programs, pg_translation) = merge_programs(&pg_per_input)?;
 
     // Rewrite each input's records' RG/PG tags through that input's translation, then concatenate.
     for (fi, records) in per_input_records.iter_mut().enumerate() {
@@ -553,13 +658,53 @@ mod tests {
     }
 
     #[test]
-    fn a_program_chain_is_not_yet_supported() {
+    fn an_identical_program_chain_is_deduped() {
+        // Both files carry the same p1 (root) and p2 (PP:p1); the whole chain dedupes to one of each.
         let a = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n\
             @PG\tID:p1\tPN:a\n@PG\tID:p2\tPN:b\tPP:p1\n\
+            a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tPG:Z:p2\n";
+        let b = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n\
+            @PG\tID:p1\tPN:a\n@PG\tID:p2\tPN:b\tPP:p1\n\
+            b\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tPG:Z:p2\n";
+        let out = merge_sam_files(&[a, b], SortOrder::Coordinate, false).unwrap();
+        assert_eq!(out.matches("@PG\t").count(), 2, "{out}");
+        assert!(out.contains("@PG\tID:p1\tPN:a\n"), "{out}");
+        assert!(out.contains("@PG\tID:p2\tPN:b\tPP:p1\n"), "{out}");
+    }
+
+    #[test]
+    fn a_colliding_program_chain_renames_the_child_and_rechains_its_pp() {
+        // p1 differs (VN) between files -> p1, p1.1. Each file's p2 (PP:p1) rechains to its own
+        // parent, so file 1's p2 becomes PP:p1.1; the two p2 now differ and collide. The shared
+        // counter is at 2 after the roots, so the child rename uses base36(3) = "3": p2.3.
+        let a = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n\
+            @PG\tID:p1\tPN:a\tVN:1\n@PG\tID:p2\tPN:b\tPP:p1\n\
+            r0\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tPG:Z:p2\n";
+        let b = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n\
+            @PG\tID:p1\tPN:a\tVN:2\n@PG\tID:p2\tPN:b\tPP:p1\n\
+            r1\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tPG:Z:p2\n";
+        let out = merge_sam_files(&[a, b], SortOrder::Coordinate, false).unwrap();
+        assert_eq!(
+            out,
+            "@HD\tVN:1.6\tGO:none\tSO:coordinate\n\
+             @SQ\tSN:chr1\tLN:1000\n\
+             @PG\tID:p1\tPN:a\tVN:1\n\
+             @PG\tID:p1.1\tPN:a\tVN:2\n\
+             @PG\tID:p2\tPN:b\tPP:p1\n\
+             @PG\tID:p2.3\tPN:b\tPP:p1.1\n\
+             r0\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tPG:Z:p2\n\
+             r1\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tPG:Z:p2.3\n"
+        );
+    }
+
+    #[test]
+    fn a_program_pointing_at_a_missing_parent_is_an_error() {
+        let a = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n\
+            @PG\tID:p2\tPN:b\tPP:nope\n\
             a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
         assert!(matches!(
             merge_sam_files(&[a], SortOrder::Coordinate, false),
-            Err(MergeError::ProgramChainNotSupported)
+            Err(MergeError::ProgramChainBroken)
         ));
     }
 

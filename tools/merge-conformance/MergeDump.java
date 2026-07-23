@@ -70,6 +70,19 @@ public class MergeDump {
       "c\t0\tchr2\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\n"+
       "d\t0\tchr3\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
     run("merge_dictionaries","coordinate", true, da, db);
+    // @PG PP-chain, identical in both files -> deduped to one p1 (root) and one p2 (PP:p1).
+    String ga="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@RG\tID:rg1\tSM:s\tLB:lib1\n@PG\tID:p1\tPN:a\n@PG\tID:p2\tPN:b\tPP:p1\n"+
+      "a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\tPG:Z:p2\n";
+    String gb="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@RG\tID:rg1\tSM:s\tLB:lib1\n@PG\tID:p1\tPN:a\n@PG\tID:p2\tPN:b\tPP:p1\n"+
+      "b\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\tPG:Z:p2\n";
+    run("chain_dedup","coordinate", ga, gb);
+    // @PG PP-chain where the root p1 differs -> p1, p1.1; each p2 rechains to its own parent, so the
+    // two p2 collide and the child is renamed p2.3 (shared counter is at 2 after the roots).
+    String ha="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@PG\tID:p1\tPN:a\tVN:1\n@PG\tID:p2\tPN:b\tPP:p1\n"+
+      "r0\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tPG:Z:p2\n";
+    String hb="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@PG\tID:p1\tPN:a\tVN:2\n@PG\tID:p2\tPN:b\tPP:p1\n"+
+      "r1\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tPG:Z:p2\n";
+    run("chain_collide","coordinate", ha, hb);
     System.out.print(buf);
   }
 }
