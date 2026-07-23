@@ -1,10 +1,10 @@
-//! Conformance for `IntervalListTools` (CONCAT / UNION slice) against Picard 3.4.0.
+//! Conformance for `IntervalListTools` invert-dependent paths (SUBTRACT / SYMDIFF / the INVERT
+//! option) against Picard 3.4.0.
 //!
-//! Each case carries two input interval lists, the ACTION/SORT/UNIQUE/DONT_MERGE_ABUTTING options,
-//! and the output Picard wrote. IntervalListTools always adds a `@PG` whose `CL` is the command line
-//! (non-reproducible), so the comparison strips `@PG` lines from Picard's output and the port emits
-//! none; everything else (the `@HD VN:1.6 SO:unsorted` line, the `@SQ` lines, and the interval body)
-//! is compared byte-for-byte.
+//! These all route through `IntervalList.invert`. As with the other slices, the tool adds a `@PG`
+//! (stripped before comparing). The `@HD` differs by action and input count: SUBTRACT and the
+//! single-`INPUT` INVERT case are emitted verbatim (no `SO`), while SYMDIFF's `union` yields
+//! `SO:unsorted`.
 
 use std::collections::HashMap;
 use std::io::Read;
@@ -13,7 +13,7 @@ use picard_analysis::interval_list_tools::{interval_list_tools, Action, Options}
 
 fn corpus() -> String {
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/data/interval_list_tools.txt.gz");
+        .join("tests/data/interval_list_tools_invert.txt.gz");
     let f = std::fs::File::open(&p).expect("corpus");
     let mut s = String::new();
     flate2::read::GzDecoder::new(f)
@@ -44,7 +44,6 @@ fn unescape(s: &str) -> String {
     out
 }
 
-/// Drop `@PG` lines, which carry the non-reproducible command line.
 fn strip_pg(text: &str) -> String {
     text.lines()
         .filter(|l| !l.starts_with("@PG"))
@@ -57,9 +56,7 @@ struct Case {
     input1: String,
     input2: String,
     action: String,
-    sort: bool,
-    unique: bool,
-    dont_merge_abutting: bool,
+    invert: bool,
     output: String,
 }
 
@@ -83,9 +80,7 @@ fn cases() -> Vec<(String, Case)> {
             "input1" => case.input1 = payload,
             "input2" => case.input2 = payload,
             "action" => case.action = payload,
-            "sort" => case.sort = payload == "true",
-            "unique" => case.unique = payload == "true",
-            "dont_merge_abutting" => case.dont_merge_abutting = payload == "true",
+            "invert" => case.invert = payload == "true",
             "output" => case.output = payload,
             other => panic!("unexpected row kind {other}"),
         }
@@ -97,23 +92,27 @@ fn cases() -> Vec<(String, Case)> {
 }
 
 #[test]
-fn every_interval_list_is_byte_identical_after_stripping_pg() {
+fn every_invert_path_is_byte_identical_after_stripping_pg() {
     let cases = cases();
-    assert_eq!(cases.len(), 4, "case count");
+    assert_eq!(cases.len(), 3, "case count");
     for (name, case) in &cases {
-        let action = match case.action.as_str() {
-            "CONCAT" => Action::Concat,
-            "UNION" => Action::Union,
-            other => panic!("unexpected action {other}"),
-        };
         let opts = Options {
-            action,
-            sort: case.sort,
-            unique: case.unique,
-            dont_merge_abutting: case.dont_merge_abutting,
-            invert: false,
+            action: match case.action.as_str() {
+                "CONCAT" => Action::Concat,
+                "SUBTRACT" => Action::Subtract,
+                "SYMDIFF" => Action::Symdiff,
+                other => panic!("unexpected action {other}"),
+            },
+            invert: case.invert,
+            ..Options::default()
         };
-        let got = interval_list_tools(&[&case.input1, &case.input2], &[], &opts).expect("tool");
+        // SUBTRACT/SYMDIFF take input2 as SECOND_INPUT; the INVERT/CONCAT case has no second input.
+        let second: Vec<&str> = if case.input2.is_empty() {
+            vec![]
+        } else {
+            vec![case.input2.as_str()]
+        };
+        let got = interval_list_tools(&[case.input1.as_str()], &second, &opts).expect("tool");
         assert_eq!(got, strip_pg(&case.output), "{name}");
     }
 }

@@ -1,7 +1,6 @@
-//! `IntervalListTools` (CONCAT / UNION / INTERSECT / OVERLAPS slice).
+//! `IntervalListTools` (all actions plus the `INVERT` option; no scatter/padding/break-bands).
 //!
-//! Ports `picard.util.IntervalListTools.doWork` at tag 3.4.0 for the four actions that do not need
-//! `IntervalList.invert` (and therefore no contig lengths):
+//! Ports `picard.util.IntervalListTools.doWork` at tag 3.4.0 for every `ACTION`:
 //! * `CONCAT`: concatenate every `INPUT`'s intervals (file order), then optionally `SORT` / `UNIQUE`.
 //! * `UNION`: `CONCAT` with `SORT` and `UNIQUE` forced on.
 //! * `INTERSECT`: `reduceEach = IntervalList.intersection`, the sorted-and-merged set of loci
@@ -11,26 +10,30 @@
 //!   `uniqued()`.
 //! * `OVERLAPS`: keep each whole `INPUT` interval that overlaps any interval of `SECOND_INPUT` (an
 //!   overlap detector over `SECOND_INPUT.sorted().uniqued()`).
+//! * `SUBTRACT`: `intersection(INPUT, invert(SECOND_INPUT))`, the loci in `INPUT` not in
+//!   `SECOND_INPUT`.
+//! * `SYMDIFF`: `union(subtract(a, b), subtract(b, a))`, the loci in exactly one of the two.
 //!
-//! `SUBTRACT` and `SYMDIFF` both route through `invert` (so they need contig lengths) and are
-//! deferred with `INVERT` / `BREAK_BANDS_AT_MULTIPLES_OF` / `SCATTER` / `PADDING > 0` /
-//! multi-dictionary union. This slice assumes one shared sequence dictionary across the inputs and
-//! `PADDING = 0`.
+//! The `INVERT` option (orthogonal to `ACTION`) complements the result against the dictionary and
+//! forces `SORT=false`, `UNIQUE=true`. `SUBTRACT`, `SYMDIFF` and `INVERT` all use
+//! [`IntervalList::invert`](htsjdk_bam::interval::IntervalList::invert), which needs the `(name,
+//! length)` dictionary read from the `@SQ LN` fields. Still deferred: `BREAK_BANDS_AT_MULTIPLES_OF`,
+//! `SCATTER`, `PADDING > 0`, and multi-dictionary union; this slice assumes one shared dictionary.
 //!
 //! ## The output header, per action, nailed against the oracle
 //!
 //! The tool always adds a `@PG` whose `CL` is the command line; it is non-reproducible, so it is
 //! canonicalized away exactly as for `DownsampleSam` (the port emits none, the conformance strips
-//! `@PG`). The `@HD` sort order, however, differs by action: `CONCAT`/`UNION` (via
-//! `IntervalList.addOther`) and `OVERLAPS` (via `overlaps`) both call `setSortOrder(unsorted)`, so
-//! their `@HD` is `SO:unsorted`; `INTERSECT` clones the first input's header unchanged, so its `@HD`
-//! is emitted verbatim. `sorted()` never rewrites the header's sort order, which is why even a sorted
-//! result keeps `SO:unsorted`.
+//! `@PG`). `doWork` takes the output header from `result.getHeader()`, whose sort order is
+//! `SO:unsorted` only when `act` ran `setSortOrder(unsorted)`: a **multi-`INPUT`** `concatenate`
+//! (`addOther`), `OVERLAPS`, or `SYMDIFF`'s `union`. A single-`INPUT` `reduce` returns the input
+//! header untouched, and `INTERSECT`/`SUBTRACT` clone the left operand's header, so those are emitted
+//! verbatim (no forced `SO`). `sorted()` and `invert()` never rewrite the header's sort order.
 
 use htsjdk_bam::interval::{Interval, IntervalList, ParseError};
 use htsjdk_bam::overlap::OverlapDetector;
 
-/// `IntervalListTools.Action`, restricted to the set-algebra actions this slice covers.
+/// `IntervalListTools.Action`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     /// `CONCAT`: concatenate all inputs, no implied sort or merge.
@@ -41,6 +44,11 @@ pub enum Action {
     Intersect,
     /// `OVERLAPS`: whole `INPUT` intervals that overlap any `SECOND_INPUT` interval.
     Overlaps,
+    /// `SUBTRACT`: loci in `INPUT` but not `SECOND_INPUT` (`intersection(lhs, invert(rhs))`).
+    Subtract,
+    /// `SYMDIFF`: loci in `INPUT` or `SECOND_INPUT` but not both
+    /// (`union(subtract(a, b), subtract(b, a))`).
+    Symdiff,
 }
 
 /// `IntervalListTools`'s options for this slice.
@@ -54,6 +62,8 @@ pub struct Options {
     pub unique: bool,
     /// `DONT_MERGE_ABUTTING`: when uniquing, do not merge intervals that only abut.
     pub dont_merge_abutting: bool,
+    /// `INVERT`: complement the result against the dictionary (forces `SORT=false`, `UNIQUE=true`).
+    pub invert: bool,
 }
 
 impl Default for Options {
@@ -63,37 +73,47 @@ impl Default for Options {
             sort: true,
             unique: false,
             dont_merge_abutting: false,
+            invert: false,
         }
     }
 }
 
-/// The `@SQ` `SN:` names in order (for the coordinate sort) and the verbatim `@SQ` lines (for the
-/// output header).
-fn dictionary(interval_list: &str) -> (Vec<String>, Vec<String>) {
-    let mut names = Vec::new();
+/// The ordered `(name, length)` dictionary (from `@SQ SN:`/`LN:`, for the coordinate sort and for
+/// `invert`) and the verbatim `@SQ` lines (for the output header).
+fn dictionary(interval_list: &str) -> (Vec<(String, i32)>, Vec<String>) {
+    let mut sequences = Vec::new();
     let mut sq_lines = Vec::new();
     for line in interval_list.lines() {
         if !line.starts_with("@SQ") {
             continue;
         }
+        let mut name = None;
+        let mut length = None;
         for field in line.split('\t') {
             if let Some(v) = field.strip_prefix("SN:") {
-                names.push(v.to_string());
+                name = Some(v.to_string());
+            } else if let Some(v) = field.strip_prefix("LN:") {
+                length = v.parse().ok();
             }
+        }
+        if let (Some(name), Some(length)) = (name, length) {
+            sequences.push((name, length));
         }
         sq_lines.push(line.to_string());
     }
-    (names, sq_lines)
+    (sequences, sq_lines)
 }
 
-/// The output `@HD` line. `INTERSECT` clones the first input's header verbatim; every other action
-/// calls `setSortOrder(unsorted)`, which rewrites (or adds) `SO:unsorted` after `VN`.
-fn output_hd(first_input: &str, force_unsorted: bool) -> String {
+/// The output `@HD` line, which `doWork` takes from `result.getHeader()`. When `unsorted` (the
+/// header went through `setSortOrder(unsorted)`), any existing `SO` is rewritten to `SO:unsorted`
+/// after `VN`; otherwise the first input's `@HD` is emitted verbatim (a single-`INPUT` reduce, or
+/// `INTERSECT`/`SUBTRACT` whose `intersection` clones the left header unchanged).
+fn output_hd(first_input: &str, unsorted: bool) -> String {
     let hd = first_input
         .lines()
         .find(|l| l.starts_with("@HD"))
         .unwrap_or("@HD\tVN:1.6");
-    if !force_unsorted {
+    if !unsorted {
         return hd.to_string();
     }
     let mut fields: Vec<&str> = hd.split('\t').filter(|f| !f.starts_with("SO:")).collect();
@@ -202,6 +222,35 @@ fn overlaps(lhs: &[Interval], rhs: &[Interval], names: &[String]) -> Vec<Interva
         .collect()
 }
 
+/// `IntervalList.subtract(lhs, rhs)` = `intersection(lhs, invert(rhs))`: the loci in `lhs` not in
+/// `rhs`. `invert` needs the `(name, length)` dictionary.
+fn subtract(
+    lhs: &[Interval],
+    rhs: &[Interval],
+    names: &[String],
+    sequences: &[(String, i32)],
+) -> Vec<Interval> {
+    let inverted = IntervalList {
+        dictionary: names.to_vec(),
+        intervals: rhs.to_vec(),
+    }
+    .invert(sequences);
+    intersection(lhs, &inverted.intervals, names)
+}
+
+/// `IntervalList.union(a, b)` = `concatenate(a, b).uniqued()`: merge the two, then unique.
+fn union2(a: &[Interval], b: &[Interval], names: &[String]) -> Vec<Interval> {
+    let mut both = a.to_vec();
+    both.extend_from_slice(b);
+    uniqued(
+        &IntervalList {
+            dictionary: names.to_vec(),
+            intervals: both,
+        },
+        true,
+    )
+}
+
 /// `IntervalListTools.doWork` over the `INPUT` and `SECOND_INPUT` interval lists, returning the
 /// output interval list.
 ///
@@ -212,7 +261,8 @@ pub fn interval_list_tools(
     second_inputs: &[&str],
     opts: &Options,
 ) -> Result<String, ParseError> {
-    let (names, sq_lines) = inputs.first().map(|s| dictionary(s)).unwrap_or_default();
+    let (sequences, sq_lines) = inputs.first().map(|s| dictionary(s)).unwrap_or_default();
+    let names: Vec<String> = sequences.iter().map(|(n, _)| n.clone()).collect();
 
     // openIntervalLists reduces the INPUT files with the action's reduceEach: concatenate for every
     // action except INTERSECT, which reduces by intersection. PADDING is 0, so no padding.
@@ -228,40 +278,64 @@ pub fn interval_list_tools(
         _ => lists.into_iter().flatten().collect(),
     };
 
-    // act: OVERLAPS combines with the reduced SECOND_INPUT; the others ignore it.
+    // The reduced SECOND_INPUT (concatenated), used by the actions that take a second input.
+    let second: Vec<Interval> = second_inputs
+        .iter()
+        .map(|s| parse(s))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect();
+
+    // act: combine the reduced INPUT with the reduced SECOND_INPUT per the action.
     let result: Vec<Interval> = match opts.action {
-        Action::Overlaps => {
-            let second: Vec<Interval> = second_inputs
-                .iter()
-                .map(|s| parse(s))
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .flatten()
-                .collect();
-            overlaps(&combined, &second, &names)
-        }
+        Action::Overlaps => overlaps(&combined, &second, &names),
+        Action::Subtract => subtract(&combined, &second, &names, &sequences),
+        Action::Symdiff => union2(
+            &subtract(&combined, &second, &names, &sequences),
+            &subtract(&second, &combined, &names, &sequences),
+            &names,
+        ),
         _ => combined,
     };
 
-    // UNION forces SORT and UNIQUE on.
-    let (sort, unique) = match opts.action {
-        Action::Union => (true, true),
-        _ => (opts.sort, opts.unique),
-    };
+    // UNION forces SORT and UNIQUE on; INVERT forces SORT off and UNIQUE on.
+    let mut sort = opts.sort;
+    let mut unique = opts.unique;
+    if opts.invert {
+        sort = false;
+        unique = true;
+    }
+    if opts.action == Action::Union {
+        sort = true;
+        unique = true;
+    }
 
     let list = IntervalList {
         dictionary: names.clone(),
         intervals: result,
     };
     let sorted = if sort { list.sorted() } else { list };
-    let final_intervals = if unique {
-        uniqued(&sorted, !opts.dont_merge_abutting)
+    let inverted = if opts.invert {
+        sorted.invert(&sequences)
     } else {
-        sorted.intervals
+        sorted
+    };
+    let final_intervals = if unique {
+        uniqued(&inverted, !opts.dont_merge_abutting)
+    } else {
+        inverted.intervals
     };
 
-    let force_unsorted = opts.action != Action::Intersect;
-    let mut output = output_hd(inputs.first().copied().unwrap_or(""), force_unsorted);
+    // The output header is result.getHeader(): SO:unsorted when act ran setSortOrder(unsorted) - a
+    // multi-INPUT concatenate (addOther), OVERLAPS, or SYMDIFF's union - else the input header
+    // verbatim (single-INPUT reduce, or INTERSECT/SUBTRACT whose intersection clones the left).
+    let unsorted = match opts.action {
+        Action::Overlaps | Action::Symdiff => true,
+        Action::Intersect => false,
+        Action::Concat | Action::Union | Action::Subtract => inputs.len() >= 2,
+    };
+    let mut output = output_hd(inputs.first().copied().unwrap_or(""), unsorted);
     output.push('\n');
     for sq in &sq_lines {
         output.push_str(sq);
@@ -334,6 +408,54 @@ mod tests {
         let out = interval_list_tools(&[a], &[second], &opts).unwrap();
         // Only A(1-20) overlaps B(10-30); C and E do not.
         assert_eq!(out, format!("{UNSORTED}chr1\t1\t20\t+\tA\n"));
+    }
+
+    #[test]
+    fn invert_complements_against_the_dictionary() {
+        // CONCAT (single input) + INVERT: complement of {10-20, 50-60} on chr1[1..100].
+        let a = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:100\nchr1\t10\t20\t+\tA\nchr1\t50\t60\t+\tC\n";
+        let opts = Options {
+            invert: true,
+            ..Options::default()
+        };
+        let out = interval_list_tools(&[a], &[], &opts).unwrap();
+        // Single INPUT -> header verbatim (no SO). Gaps named interval-1..3.
+        assert_eq!(
+            out,
+            format!("{NOSORT}chr1\t1\t9\t+\tinterval-1\nchr1\t21\t49\t+\tinterval-2\nchr1\t61\t100\t+\tinterval-3\n")
+        );
+    }
+
+    #[test]
+    fn subtract_removes_the_second_from_the_first() {
+        // {1-50} minus {20-30} = {1-19, 31-50}. Single INPUT -> header verbatim.
+        let big = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:100\nchr1\t1\t50\t+\tA\n";
+        let mid = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:100\nchr1\t20\t30\t+\tB\n";
+        let opts = Options {
+            action: Action::Subtract,
+            ..Options::default()
+        };
+        let out = interval_list_tools(&[big], &[mid], &opts).unwrap();
+        assert_eq!(
+            out,
+            format!("{NOSORT}chr1\t1\t19\t+\tinterval-1 intersection A\nchr1\t31\t50\t+\tinterval-2 intersection A\n")
+        );
+    }
+
+    #[test]
+    fn symdiff_keeps_loci_in_exactly_one_input() {
+        // {1-30} xor {20-50} = {1-19, 31-50}. SYMDIFF's union -> SO:unsorted.
+        let left = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:100\nchr1\t1\t30\t+\tA\n";
+        let right = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:100\nchr1\t20\t50\t+\tB\n";
+        let opts = Options {
+            action: Action::Symdiff,
+            ..Options::default()
+        };
+        let out = interval_list_tools(&[left], &[right], &opts).unwrap();
+        assert_eq!(
+            out,
+            format!("{UNSORTED}chr1\t1\t19\t+\tinterval-1 intersection A\nchr1\t31\t50\t+\tinterval-1 intersection B\n")
+        );
     }
 
     #[test]
