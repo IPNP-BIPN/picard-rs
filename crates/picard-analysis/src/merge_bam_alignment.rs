@@ -213,6 +213,57 @@ pub fn merge_aligned_fragment(
     Ok(merged)
 }
 
+/// The merged, coordinate-sorted records for the default unpaired single-hit path: match each aligned
+/// record to its unmapped read by name, [`merge_aligned_fragment`] the pair, then sort by coordinate
+/// (`MergingSamRecordIterator` walks the two queryname-sorted inputs and the output writer re-sorts to
+/// `SORT_ORDER=coordinate`).
+///
+/// `aligned_sequences` is the aligned file's dictionary (to resolve each aligned record's reference
+/// name), `out_sequences` the output dictionary, and `reference_bases` maps each output contig name to
+/// its bases (for the `NM`/`MD`/`UQ` recomputation). `program_id` is linked into each read's `PG`.
+///
+/// Scope: one primary hit per read, every unmapped read having exactly one aligned record of the same
+/// name. The merged-header construction, paired mate-fixing, clipping and multi-hit selection are
+/// later slices.
+pub fn merge_bam_alignment_records(
+    unmapped: &[BamRecord],
+    aligned: &[BamRecord],
+    aligned_sequences: &[SequenceRecord],
+    out_sequences: &[SequenceRecord],
+    reference_bases: &std::collections::HashMap<String, Vec<u8>>,
+    program_id: Option<&str>,
+) -> Result<Vec<BamRecord>, MergeAlignmentError> {
+    let unmapped_by_name: std::collections::HashMap<&str, &BamRecord> =
+        unmapped.iter().map(|r| (r.read_name.as_str(), r)).collect();
+
+    let mut merged: Vec<BamRecord> = Vec::with_capacity(aligned.len());
+    for a in aligned {
+        let reference_name = if a.reference_index < 0 {
+            "*".to_string()
+        } else {
+            aligned_sequences[a.reference_index as usize].name.clone()
+        };
+        let contig_bases: &[u8] = reference_bases
+            .get(&reference_name)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[]);
+        let u = unmapped_by_name
+            .get(a.read_name.as_str())
+            .expect("every aligned read has a same-named unmapped read");
+        merged.push(merge_aligned_fragment(
+            u,
+            a,
+            &reference_name,
+            out_sequences,
+            contig_bases,
+            program_id,
+        )?);
+    }
+
+    merged.sort_by(htsjdk_bam::coordinate::compare);
+    Ok(merged)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
