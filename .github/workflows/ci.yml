@@ -1336,6 +1336,35 @@ jobs:
           print(f"compared={len(real)} lines, identical")
           PY
 
+      - name: Regenerate the SplitSamByLibrary golden
+        run: |
+          docker run --rm --platform linux/amd64 \
+            -v "$PWD/tools/split-conformance":/harness:ro -w /work picard-rs-oracle:3.4.0 \
+            'cp /harness/SplitLibDump.java . && javac -cp "$ORACLE_CP" -d . SplitLibDump.java \
+             && java -Duser.language=en -Duser.country=US -cp ".:$ORACLE_CP" SplitLibDump 2>/dev/null' > /tmp/splitlib_real.txt
+          wc -l /tmp/splitlib_real.txt
+
+      - name: Compare the SplitSamByLibrary golden against the committed corpus
+        # Several `file:<base>` rows per case, so compare full line sequences (minus comments).
+        run: |
+          python3 - <<'PY'
+          import sys, gzip
+          def lines(path, open_fn=open):
+              return [l.rstrip('\n') for l in open_fn(path)
+                      if not l.startswith('#') and l.strip()]
+          real = lines('/tmp/splitlib_real.txt')
+          committed = lines('crates/picard-analysis/tests/data/split_sam_by_library.txt.gz',
+                            lambda p: gzip.open(p, 'rt'))
+          if real != committed:
+              print(f"lines differ: real={len(real)} committed={len(committed)}")
+              for i, (r, c) in enumerate(zip(real, committed)):
+                  if r != c:
+                      print(f"  first diff at line {i}:\n    real={r[:200]}\n    committed={c[:200]}")
+                      break
+              sys.exit(1)
+          print(f"compared={len(real)} lines, identical")
+          PY
+
       - name: "Decision 0020 (htsjdk-rs): is CollectRnaSeqMetrics order-independent?"
         # OverlapDetector in htsjdk-rs skips a byte-exact IntervalTree because the overlap set is
         # folded commutatively by this Picard tool. The probe belongs here, not in htsjdk-rs,
