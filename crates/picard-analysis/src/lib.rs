@@ -24,6 +24,7 @@ pub mod fix_mate_information;
 pub mod gather_bam_files;
 pub mod gc;
 pub mod insert_size;
+pub mod interval_list_to_bed;
 pub mod merge_bam_alignment;
 pub mod merge_sam_files;
 pub mod non_n_fasta_size;
