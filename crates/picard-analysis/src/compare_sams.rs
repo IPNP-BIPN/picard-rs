@@ -1,20 +1,20 @@
 //! `CompareSAMs`.
 //!
 //! Ports `picard.sam.CompareSAMs` + `picard.sam.util.SamComparison` at tag 3.4.0, for the
-//! **default strict mode over queryname- or coordinate-sorted input**. Compares two SAM files and
-//! reports, in a [`SamComparisonMetric`] row, how many primary alignments match, differ, are
-//! unmapped on one or both sides, are missing on one side, or disagree on duplicate marking; the
-//! tool prints `SAM files match.` or `SAM files differ.` accordingly.
+//! **default strict mode over any single shared sort order**. Compares two SAM files and reports, in
+//! a [`SamComparisonMetric`] row, how many primary alignments match, differ, are unmapped on one or
+//! both sides, are missing on one side, or disagree on duplicate marking; the tool prints
+//! `SAM files match.` or `SAM files differ.` accordingly.
 //!
-//! Scope of this slice: queryname- and coordinate-sorted inputs (dispatched on the shared sort
-//! order), strict comparison (`LENIENT_*` all false), `COMPARE_MQ=false` (so no mapping-quality
-//! histogram). The coordinate path matches reads within a coordinate by `PrimaryAlignmentKey`, so
-//! order within a coordinate does not matter; the per-type counts are commutative, so the port
-//! reproduces htsjdk's totals without reproducing its exact `LinkedHashMap` iteration order. Header
-//! comparison is a structural equality of the two headers, which is correct for equal headers;
-//! htsjdk's finer field-by-field `compareHeaders` (and thus header-difference reporting), the
-//! unsorted-order path, mismatched sort orders, the lenient modes, and the mapping-quality
-//! histogram are deferred.
+//! Scope of this slice: inputs that share a sort order, dispatched on it to the coordinate,
+//! queryname, or (any other value) unsorted comparison path; strict comparison (`LENIENT_*` all
+//! false); `COMPARE_MQ=false` (so no mapping-quality histogram). Each path matches reads by
+//! `PrimaryAlignmentKey` rather than by position, so order within a coordinate (and, in the unsorted
+//! path, order at all) does not matter; the per-type counts are commutative, so the port reproduces
+//! htsjdk's totals without reproducing its exact `LinkedHashMap` iteration order. Header comparison
+//! is a structural equality of the two headers, which is correct for equal headers; htsjdk's finer
+//! field-by-field `compareHeaders` (and thus header-difference reporting), mismatched sort orders,
+//! the lenient modes, and the mapping-quality histogram are deferred.
 //!
 //! Two Picard behaviours are reproduced deliberately. `alignmentsMatch` compares
 //! `s1.getReadNegativeStrandFlag() == s1.getReadNegativeStrandFlag()` (the left record against
@@ -185,11 +185,11 @@ pub fn compare_sams(
     let (h1, recs1) = read_sam_with(left_sam, ValidationStringency::Silent)?;
     let (h2, recs2) = read_sam_with(right_sam, ValidationStringency::Silent)?;
 
-    // htsjdk requires both files to share a sort order and dispatches on it. This slice handles
-    // queryname and coordinate; the unsorted path and mismatched sort orders are deferred.
+    // htsjdk requires both files to share a sort order and dispatches on it: coordinate, queryname,
+    // or (any other value) the unsorted path. Mismatched sort orders are deferred.
     let so1 = h1.attributes.get("SO").unwrap_or("unsorted");
     let so2 = h2.attributes.get("SO").unwrap_or("unsorted");
-    if so1 != so2 || (so1 != "queryname" && so1 != "coordinate") {
+    if so1 != so2 {
         return Err(CompareError::UnsupportedSortOrder(format!("{so1}/{so2}")));
     }
 
@@ -208,10 +208,10 @@ pub fn compare_sams(
         .filter(|r| !is_secondary_or_supplementary(r))
         .collect();
 
-    if so1 == "queryname" {
-        compare_queryname(&left, &right, &h1, &h2, &mut m);
-    } else {
-        compare_coordinate(&left, &right, &h1, &h2, &mut m);
+    match so1 {
+        "queryname" => compare_queryname(&left, &right, &h1, &h2, &mut m),
+        "coordinate" => compare_coordinate(&left, &right, &h1, &h2, &mut m),
+        _ => compare_unsorted(&left, &right, &h1, &h2, &mut m),
     }
 
     let headers_equal = h1 == h2;
@@ -355,6 +355,31 @@ fn compare_coordinate(
     m.missing_left += right_unmatched.len() as i64;
 }
 
+/// `compareUnsortedAlignments`: with no order assumed, index every left by `PrimaryAlignmentKey`,
+/// match each right against it, and treat whatever is left over as missing. As above, the counts are
+/// commutative, so a plain map matches htsjdk's totals.
+fn compare_unsorted(
+    left: &[&BamRecord],
+    right: &[&BamRecord],
+    h1: &SamHeader,
+    h2: &SamHeader,
+    m: &mut SamComparisonMetric,
+) {
+    use std::collections::HashMap;
+
+    let mut left_unmatched: HashMap<(String, u8), &BamRecord> = HashMap::new();
+    for l in left {
+        left_unmatched.insert(primary_alignment_key(l), l);
+    }
+    for r in right {
+        match left_unmatched.remove(&primary_alignment_key(r)) {
+            Some(l) => tally(h1, l, h2, r, m),
+            None => m.missing_left += 1,
+        }
+    }
+    m.missing_right += left_unmatched.len() as i64;
+}
+
 /// The stdout line `CompareSAMs.doWork` prints.
 pub fn verdict(metric: &SamComparisonMetric) -> &'static str {
     if metric.are_equal {
@@ -406,6 +431,16 @@ mod tests {
         let l = format!("{h}{p1}{p2}");
         let r = format!("{h}{p2}{p1}");
         let m = compare_sams(&l, &r, "L", "R").unwrap();
+        assert_eq!(m.mappings_match, 2);
+        assert!(m.are_equal);
+    }
+
+    #[test]
+    fn unsorted_matching_ignores_order() {
+        let h = "@HD\tVN:1.6\tSO:unsorted\n@SQ\tSN:chr1\tLN:100\n";
+        let a = "a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
+        let b = "b\t0\tchr1\t30\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
+        let m = compare_sams(&format!("{h}{a}{b}"), &format!("{h}{b}{a}"), "L", "R").unwrap();
         assert_eq!(m.mappings_match, 2);
         assert!(m.are_equal);
     }
