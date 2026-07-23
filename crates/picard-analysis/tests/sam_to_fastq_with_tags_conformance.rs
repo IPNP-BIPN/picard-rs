@@ -9,7 +9,9 @@ use std::collections::HashMap;
 use std::io::Read;
 
 use htsjdk_bam::sam_file::read_sam;
-use picard_analysis::sam_to_fastq_with_tags::{sam_to_fastq_with_tags_unpaired, TagGroup};
+use picard_analysis::sam_to_fastq_with_tags::{
+    sam_to_fastq_with_tags_paired, sam_to_fastq_with_tags_unpaired, TagGroup,
+};
 
 fn corpus() -> String {
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -91,12 +93,23 @@ fn every_tag_fastq_is_byte_identical() {
         let sam = inputs.get(*case).expect("case input");
         let records = read_sam(sam).unwrap().1;
         let produced = sam_to_fastq_with_tags_unpaired(&records, groups).expect("tag fastq");
-        for (file_name, text) in &produced {
-            let key = format!("{case}:{file_name}");
-            let golden = outs
-                .get(&key)
-                .unwrap_or_else(|| panic!("no golden for {key}"));
-            assert_eq!(text, golden, "{key}");
-        }
+        assert_files(case, &produced, &outs);
+    }
+
+    // The paired case: the same tags but reads split across first/second of pair, into one file.
+    let sam = inputs.get("paired").expect("paired input");
+    let records = read_sam(sam).unwrap().1;
+    let groups = [TagGroup::new("CR").with_quality("CY")];
+    let produced = sam_to_fastq_with_tags_paired(&records, &groups).expect("paired tag fastq");
+    assert_files("paired", &produced, &outs);
+}
+
+fn assert_files(case: &str, produced: &[(String, String)], outs: &HashMap<String, String>) {
+    for (file_name, text) in produced {
+        let key = format!("{case}:{file_name}");
+        let golden = outs
+            .get(&key)
+            .unwrap_or_else(|| panic!("no golden for {key}"));
+        assert_eq!(text, golden, "{key}");
     }
 }

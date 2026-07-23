@@ -16,17 +16,20 @@
 //! A referenced tag that the record lacks is an error (`assertTagExists` throws).
 //!
 //! The output file for a group is `IOUtil.makeFileNameSafe(spec.replace(',', '_')) + ".fastq"`, e.g.
-//! `SEQUENCE_TAG_GROUP=CB,UR` writes `CB_UR.fastq`.
+//! `SEQUENCE_TAG_GROUP=CB,UR` writes `CB_UR.fastq`. Unpaired input writes one record per read; paired
+//! input (`SECOND_END_FASTQ`) writes both ends (`name/1`, `name/2`) into the **same** group file, per
+//! completed pair.
 //!
-//! Scope of this slice: **unpaired** reads with default options (no `OUTPUT_PER_RG`, no
-//! `COMPRESS_OUTPUTS_PER_TAG_GROUP`). The paired split and per-read-group file fan-out are separate
-//! surfaces; the collector asserts it was given only unpaired reads rather than emitting a half-right
-//! paired file.
+//! Scope of this slice: unpaired and paired reads with default options (no `OUTPUT_PER_RG`, no
+//! `COMPRESS_OUTPUTS_PER_TAG_GROUP`). The per-read-group file fan-out is a separate surface; each
+//! entry point asserts it was given input of the matching pairing rather than emitting a half-right
+//! file.
 
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
 
 const READ_PAIRED: u16 = 0x1;
+const FIRST_OF_PAIR: u16 = 0x40;
 const SECONDARY_ALIGNMENT: u16 = 0x100;
 const READ_FAILS_VENDOR_QUALITY: u16 = 0x200;
 const SUPPLEMENTARY_ALIGNMENT: u16 = 0x800;
@@ -183,6 +186,56 @@ pub fn sam_to_fastq_with_tags_unpaired(
     Ok(files)
 }
 
+/// `SamToFastqWithTags`' additional output for **paired** reads (with `SECOND_END_FASTQ`) with default
+/// options: one `(file name, FASTQ text)` per `SEQUENCE_TAG_GROUP`. Unlike the base read FASTQ, which
+/// splits the two ends into two files, each group's tag FASTQ is a **single** file carrying both ends,
+/// the first-of-pair (`name/1`) then the second-of-pair (`name/2`), per completed pair.
+///
+/// Mirrors [`crate::sam_to_fastq::sam_to_fastq_paired`]'s pairing: reads are matched by name through a
+/// first-seen map, a pair is emitted only when its second mate arrives (so ordering follows pair
+/// completion), and a pair with a dropped mate is left unwritten. Panics on an unpaired read.
+pub fn sam_to_fastq_with_tags_paired(
+    records: &[BamRecord],
+    groups: &[TagGroup],
+) -> Result<Vec<(String, String)>, MissingTag> {
+    use std::collections::HashMap;
+
+    let mut files: Vec<(String, String)> = groups
+        .iter()
+        .map(|g| (g.file_name(), String::new()))
+        .collect();
+    let mut first_seen: HashMap<&str, &BamRecord> = HashMap::new();
+
+    for rec in records.iter().filter(|r| !is_dropped(r)) {
+        assert!(
+            rec.flags & READ_PAIRED != 0,
+            "sam_to_fastq_with_tags_paired given an unpaired read"
+        );
+        match first_seen.remove(rec.read_name.as_str()) {
+            None => {
+                first_seen.insert(rec.read_name.as_str(), rec);
+            }
+            Some(first) => {
+                let (read1, read2) = if rec.flags & FIRST_OF_PAIR != 0 {
+                    (rec, first)
+                } else {
+                    (first, rec)
+                };
+                for (i, group) in groups.iter().enumerate() {
+                    files[i]
+                        .1
+                        .push_str(&write_tag_group(read1, Some(1), group)?);
+                    files[i]
+                        .1
+                        .push_str(&write_tag_group(read2, Some(2), group)?);
+                }
+            }
+        }
+    }
+
+    Ok(files)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -240,5 +293,19 @@ mod tests {
         let err = sam_to_fastq_with_tags_unpaired(&records(), &groups).unwrap_err();
         assert_eq!(err.tag, "ZZ");
         assert_eq!(err.read_name, "r1");
+    }
+
+    #[test]
+    fn a_pair_writes_both_ends_into_one_file_per_group() {
+        // A first/second-of-pair template; the tag FASTQ carries both ends interleaved (name/1, name/2).
+        let paired = "@HD\tVN:1.6\tSO:queryname\n@SQ\tSN:chr1\tLN:100\n\
+            p1\t77\t*\t0\t0\t*\t*\t0\t0\tAAAA\tIIII\tCR:Z:ACGT\tCY:Z:FFFF\n\
+            p1\t141\t*\t0\t0\t*\t*\t0\t0\tCCCC\tJJJJ\tCR:Z:TTTT\tCY:Z:####\n";
+        let recs = read_sam(paired).unwrap().1;
+        let groups = [TagGroup::new("CR").with_quality("CY")];
+        let out = sam_to_fastq_with_tags_paired(&recs, &groups).unwrap();
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].0, "CR.fastq");
+        assert_eq!(out[0].1, "@p1/1\nACGT\n+\nFFFF\n@p1/2\nTTTT\n+\n####\n");
     }
 }
