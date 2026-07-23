@@ -104,8 +104,8 @@ pub fn scatter_intervals_by_ns(
         }
         let mut n_open = is_no_call(bases[0]);
         let mut start = 0usize;
-        for i in 0..bases.len() {
-            let current_is_n = is_no_call(bases[i]);
+        for (i, &base) in bases.iter().enumerate() {
+            let current_is_n = is_no_call(base);
             if n_open != current_is_n {
                 preliminary.push(run(&contig.name, start + 1, i, n_open));
                 start = i;
