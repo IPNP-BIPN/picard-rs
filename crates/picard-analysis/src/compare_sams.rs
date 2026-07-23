@@ -7,14 +7,20 @@
 //! `SAM files match.` or `SAM files differ.` accordingly.
 //!
 //! Scope of this slice: inputs that share a sort order, dispatched on it to the coordinate,
-//! queryname, or (any other value) unsorted comparison path; strict comparison (`LENIENT_*` all
-//! false); `COMPARE_MQ=false` (so no mapping-quality histogram). Each path matches reads by
+//! queryname, or (any other value) unsorted comparison path. Each path matches reads by
 //! `PrimaryAlignmentKey` rather than by position, so order within a coordinate (and, in the unsorted
 //! path, order at all) does not matter; the per-type counts are commutative, so the port reproduces
 //! htsjdk's totals without reproducing its exact `LinkedHashMap` iteration order. Header comparison
-//! is a structural equality of the two headers, which is correct for equal headers; htsjdk's finer
-//! field-by-field `compareHeaders` (and thus header-difference reporting), mismatched sort orders,
-//! the lenient modes, and the mapping-quality histogram are deferred.
+//! is a structural equality of the two headers, which is correct for equal headers.
+//!
+//! Comparison options are carried in [`CompareOptions`], covering the mapping-quality features:
+//! `LENIENT_LOW_MQ_ALIGNMENT` (count reads whose mapping quality is `<= LOW_MQ_THRESHOLD`, default 3,
+//! in both files but mapped to different locations as matches), `LENIENT_UNKNOWN_MQ_ALIGNMENT` (the
+//! same for the sentinel mapping quality 255), and `COMPARE_MQ` (emit a `## HISTOGRAM` of `mq1,mq2`
+//! concordance counts for every matched pair). [`compare_sams`] runs the strict defaults;
+//! [`compare_sams_with_options`] takes an explicit [`CompareOptions`]. htsjdk's finer field-by-field
+//! `compareHeaders` (and thus header-difference reporting), mismatched sort orders, `LENIENT_HEADER`,
+//! and `LENIENT_DUP` (duplicate-set swap logic) are deferred.
 //!
 //! Two Picard behaviours are reproduced deliberately. `alignmentsMatch` compares
 //! `s1.getReadNegativeStrandFlag() == s1.getReadNegativeStrandFlag()` (the left record against
@@ -24,11 +30,13 @@
 //! counts them as `MISSING_RIGHT`, a divergence on that malformed edge which the conformance corpus
 //! does not cover.
 
+use std::collections::BTreeMap;
+
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam_with;
 use htsjdk_bam::text_parse::{ParseError, ValidationStringency};
-use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
+use htsjdk_metrics::file::{Histogram, MetricBean, MetricsFile, Value};
 
 const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
@@ -36,6 +44,34 @@ const SECOND_OF_PAIR: u16 = 0x80;
 const SECONDARY: u16 = 0x100;
 const DUPLICATE: u16 = 0x400;
 const SUPPLEMENTARY: u16 = 0x800;
+
+/// `SAMRecord.UNKNOWN_MAPPING_QUALITY`: the sentinel value for "no mapping quality available".
+const UNKNOWN_MAPPING_QUALITY: u8 = 255;
+
+/// `SAMComparisonArgumentCollection`: the comparison options this port covers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompareOptions {
+    /// `LENIENT_LOW_MQ_ALIGNMENT`: count reads whose mapping quality is `<= low_mq_threshold` in
+    /// both files but mapped to different locations as matches.
+    pub lenient_low_mq_alignment: bool,
+    /// `LENIENT_UNKNOWN_MQ_ALIGNMENT`: the same for reads with no mapping quality (value 255) in both.
+    pub lenient_unknown_mq_alignment: bool,
+    /// `LOW_MQ_THRESHOLD`: the ceiling for `lenient_low_mq_alignment`. Default 3.
+    pub low_mq_threshold: i32,
+    /// `COMPARE_MQ`: emit a `## HISTOGRAM` of `mq1,mq2` concordance counts for every matched pair.
+    pub compare_mq: bool,
+}
+
+impl Default for CompareOptions {
+    fn default() -> Self {
+        CompareOptions {
+            lenient_low_mq_alignment: false,
+            lenient_unknown_mq_alignment: false,
+            low_mq_threshold: 3,
+            compare_mq: false,
+        }
+    }
+}
 
 /// Why `CompareSAMs` could not run this slice.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,6 +101,11 @@ pub struct SamComparisonMetric {
     pub missing_right: i64,
     pub duplicate_markings_differ: i64,
     pub are_equal: bool,
+    /// `SamComparison.mappingQualityHistogram`: accumulated `"mq1,mq2" -> count` bins for every
+    /// matched pair, populated only when `COMPARE_MQ` is set. Not a metric column; carried here so
+    /// [`write_report`] can emit it. Keyed in a `BTreeMap` so the bins come out in the same natural
+    /// `String` order htsjdk's `TreeSet` comparator produces.
+    pub mq_histogram: BTreeMap<String, i64>,
 }
 
 impl SamComparisonMetric {
@@ -142,18 +183,34 @@ fn reference_name<'a>(header: &'a SamHeader, rec: &BamRecord) -> Option<&'a str>
     }
 }
 
-/// `alignmentsMatch` (strict): same reference and start. Strand is not compared, reproducing
-/// htsjdk's `s1 == s1` self-comparison.
-fn alignments_match(h1: &SamHeader, s1: &BamRecord, h2: &SamHeader, s2: &BamRecord) -> bool {
-    reference_name(h1, s1) == reference_name(h2, s2) && s1.alignment_start == s2.alignment_start
+/// `alignmentsMatch`: same reference and start (strand is not compared, reproducing htsjdk's
+/// `s1 == s1` self-comparison), OR the lenient-MQ escape hatches: both mapping qualities
+/// `<= low_mq_threshold` under `lenient_low_mq_alignment`, or both the unknown-MQ sentinel 255 under
+/// `lenient_unknown_mq_alignment`.
+fn alignments_match(
+    h1: &SamHeader,
+    s1: &BamRecord,
+    h2: &SamHeader,
+    s2: &BamRecord,
+    opts: &CompareOptions,
+) -> bool {
+    (reference_name(h1, s1) == reference_name(h2, s2) && s1.alignment_start == s2.alignment_start)
+        || (opts.lenient_low_mq_alignment
+            && s1.mapping_quality as i32 <= opts.low_mq_threshold
+            && s2.mapping_quality as i32 <= opts.low_mq_threshold)
+        || (opts.lenient_unknown_mq_alignment
+            && s1.mapping_quality == UNKNOWN_MAPPING_QUALITY
+            && s2.mapping_quality == UNKNOWN_MAPPING_QUALITY)
 }
 
-/// `compareAlignmentRecords` followed by `updateMetric`, plus `catalogDuplicateDifferences`.
+/// `tallyAlignmentRecords`: `catalogDuplicateDifferences`, then `compareAlignmentRecords` +
+/// `updateMetric`, then (under `COMPARE_MQ`) `compareAndUpdateMappingQualityConcordance`.
 fn tally(
     h1: &SamHeader,
     s1: &BamRecord,
     h2: &SamHeader,
     s2: &BamRecord,
+    opts: &CompareOptions,
     m: &mut SamComparisonMetric,
 ) {
     if (s1.flags & DUPLICATE) != (s2.flags & DUPLICATE) {
@@ -167,20 +224,42 @@ fn tally(
         m.unmapped_left += 1;
     } else if s2_unmapped {
         m.unmapped_right += 1;
-    } else if alignments_match(h1, s1, h2, s2) {
+    } else if alignments_match(h1, s1, h2, s2, opts) {
         m.mappings_match += 1;
     } else {
         m.mappings_differ += 1;
     }
+    if opts.compare_mq {
+        // `String.format("%d,%d", s1.getMappingQuality(), s2.getMappingQuality())`.
+        let key = format!("{},{}", s1.mapping_quality, s2.mapping_quality);
+        *m.mq_histogram.entry(key).or_insert(0) += 1;
+    }
 }
 
-/// `CompareSAMs`/`SamComparison` for queryname-sorted, strict input. `left_name`/`right_name` fill
-/// the `LEFT_FILE`/`RIGHT_FILE` columns.
+/// `CompareSAMs`/`SamComparison` with the strict default options. `left_name`/`right_name` fill the
+/// `LEFT_FILE`/`RIGHT_FILE` columns.
 pub fn compare_sams(
     left_sam: &str,
     right_sam: &str,
     left_name: &str,
     right_name: &str,
+) -> Result<SamComparisonMetric, CompareError> {
+    compare_sams_with_options(
+        left_sam,
+        right_sam,
+        left_name,
+        right_name,
+        &CompareOptions::default(),
+    )
+}
+
+/// `CompareSAMs`/`SamComparison` with explicit comparison [`CompareOptions`].
+pub fn compare_sams_with_options(
+    left_sam: &str,
+    right_sam: &str,
+    left_name: &str,
+    right_name: &str,
+    opts: &CompareOptions,
 ) -> Result<SamComparisonMetric, CompareError> {
     let (h1, recs1) = read_sam_with(left_sam, ValidationStringency::Silent)?;
     let (h2, recs2) = read_sam_with(right_sam, ValidationStringency::Silent)?;
@@ -209,9 +288,9 @@ pub fn compare_sams(
         .collect();
 
     match so1 {
-        "queryname" => compare_queryname(&left, &right, &h1, &h2, &mut m),
-        "coordinate" => compare_coordinate(&left, &right, &h1, &h2, &mut m),
-        _ => compare_unsorted(&left, &right, &h1, &h2, &mut m),
+        "queryname" => compare_queryname(&left, &right, &h1, &h2, opts, &mut m),
+        "coordinate" => compare_coordinate(&left, &right, &h1, &h2, opts, &mut m),
+        _ => compare_unsorted(&left, &right, &h1, &h2, opts, &mut m),
     }
 
     let headers_equal = h1 == h2;
@@ -225,6 +304,7 @@ fn compare_queryname(
     right: &[&BamRecord],
     h1: &SamHeader,
     h2: &SamHeader,
+    opts: &CompareOptions,
     m: &mut SamComparisonMetric,
 ) {
     let (mut i, mut j) = (0usize, 0usize);
@@ -246,7 +326,7 @@ fn compare_queryname(
                 j += 1;
             }
             std::cmp::Ordering::Equal => {
-                tally(h1, left[i], h2, right[j], m);
+                tally(h1, left[i], h2, right[j], opts, m);
                 i += 1;
                 j += 1;
             }
@@ -282,6 +362,7 @@ fn compare_coordinate(
     right: &[&BamRecord],
     h1: &SamHeader,
     h2: &SamHeader,
+    opts: &CompareOptions,
     m: &mut SamComparisonMetric,
 ) {
     use std::collections::HashMap;
@@ -295,7 +376,7 @@ fn compare_coordinate(
             // Right exhausted: match remaining lefts against saved rights, else MISSING_RIGHT.
             for l in &left[i..] {
                 match right_unmatched.remove(&primary_alignment_key(l)) {
-                    Some(r) => tally(h1, l, h2, r, m),
+                    Some(r) => tally(h1, l, h2, r, opts, m),
                     None => m.missing_right += 1,
                 }
             }
@@ -323,7 +404,7 @@ fn compare_coordinate(
         {
             let rk = primary_alignment_key(right[j]);
             match left_here.remove(&rk) {
-                Some(l) => tally(h1, l, h2, right[j], m),
+                Some(l) => tally(h1, l, h2, right[j], opts, m),
                 None => {
                     right_unmatched.insert(rk, right[j]);
                 }
@@ -339,7 +420,7 @@ fn compare_coordinate(
     // Remaining rights: match against saved lefts, else MISSING_LEFT.
     for r in &right[j..] {
         match left_unmatched.remove(&primary_alignment_key(r)) {
-            Some(l) => tally(h1, l, h2, r, m),
+            Some(l) => tally(h1, l, h2, r, opts, m),
             None => m.missing_left += 1,
         }
     }
@@ -348,7 +429,7 @@ fn compare_coordinate(
     for k in keys {
         let l = left_unmatched[&k];
         match right_unmatched.remove(&k) {
-            Some(r) => tally(h1, l, h2, r, m),
+            Some(r) => tally(h1, l, h2, r, opts, m),
             None => m.missing_right += 1,
         }
     }
@@ -363,6 +444,7 @@ fn compare_unsorted(
     right: &[&BamRecord],
     h1: &SamHeader,
     h2: &SamHeader,
+    opts: &CompareOptions,
     m: &mut SamComparisonMetric,
 ) {
     use std::collections::HashMap;
@@ -373,7 +455,7 @@ fn compare_unsorted(
     }
     for r in right {
         match left_unmatched.remove(&primary_alignment_key(r)) {
-            Some(l) => tally(h1, l, h2, r, m),
+            Some(l) => tally(h1, l, h2, r, opts, m),
             None => m.missing_left += 1,
         }
     }
@@ -390,10 +472,24 @@ pub fn verdict(metric: &SamComparisonMetric) -> &'static str {
 }
 
 /// `SamComparison.writeReport`: the metrics file (without the command-line/timestamp banner, which
-/// the caller supplies). One `SamComparisonMetric` row, no histogram (`COMPARE_MQ=false`).
+/// the caller supplies). One `SamComparisonMetric` row, followed by the mapping-quality concordance
+/// `## HISTOGRAM` when `COMPARE_MQ` populated it. htsjdk adds the histogram whenever `COMPARE_MQ` is
+/// set, but `MetricsFile.write` drops an empty histogram, so gating on non-empty is equivalent.
 pub fn write_report(metric: &SamComparisonMetric) -> String {
     let mut mf = MetricsFile::new();
     mf.add_metric(metric);
+    if !metric.mq_histogram.is_empty() {
+        mf.histograms.push(Histogram {
+            bin_label: "BIN".to_string(),
+            value_label: "VALUE".to_string(),
+            key_class: "java.lang.String".to_string(),
+            bins: metric
+                .mq_histogram
+                .iter()
+                .map(|(k, v)| (k.clone(), *v as f64))
+                .collect(),
+        });
+    }
     mf.write()
 }
 
@@ -443,6 +539,51 @@ mod tests {
         let m = compare_sams(&format!("{h}{a}{b}"), &format!("{h}{b}{a}"), "L", "R").unwrap();
         assert_eq!(m.mappings_match, 2);
         assert!(m.are_equal);
+    }
+
+    #[test]
+    fn lenient_low_mq_counts_differing_positions_as_matches() {
+        // Two reads at MQ=2 (<= LOW_MQ_THRESHOLD=3) at different positions: differ strictly, match
+        // leniently.
+        let l = format!("{H}a\t0\tchr1\t10\t2\t4M\t*\t0\t0\tACGT\tIIII\n");
+        let r = format!("{H}a\t0\tchr1\t50\t2\t4M\t*\t0\t0\tACGT\tIIII\n");
+        assert_eq!(compare_sams(&l, &r, "L", "R").unwrap().mappings_differ, 1);
+        let opts = CompareOptions {
+            lenient_low_mq_alignment: true,
+            ..Default::default()
+        };
+        let m = compare_sams_with_options(&l, &r, "L", "R", &opts).unwrap();
+        assert_eq!(m.mappings_match, 1);
+        assert_eq!(m.mappings_differ, 0);
+        assert!(m.are_equal);
+    }
+
+    #[test]
+    fn lenient_unknown_mq_counts_differing_positions_as_matches() {
+        let l = format!("{H}a\t0\tchr1\t10\t255\t4M\t*\t0\t0\tACGT\tIIII\n");
+        let r = format!("{H}a\t0\tchr1\t50\t255\t4M\t*\t0\t0\tACGT\tIIII\n");
+        assert_eq!(compare_sams(&l, &r, "L", "R").unwrap().mappings_differ, 1);
+        let opts = CompareOptions {
+            lenient_unknown_mq_alignment: true,
+            ..Default::default()
+        };
+        let m = compare_sams_with_options(&l, &r, "L", "R", &opts).unwrap();
+        assert_eq!(m.mappings_match, 1);
+        assert!(m.are_equal);
+    }
+
+    #[test]
+    fn compare_mq_records_a_concordance_histogram() {
+        let l = format!("{H}a\t0\tchr1\t10\t40\t4M\t*\t0\t0\tACGT\tIIII\n");
+        let r = format!("{H}a\t0\tchr1\t10\t30\t4M\t*\t0\t0\tACGT\tIIII\n");
+        let opts = CompareOptions {
+            compare_mq: true,
+            ..Default::default()
+        };
+        let m = compare_sams_with_options(&l, &r, "L", "R", &opts).unwrap();
+        assert_eq!(m.mq_histogram.get("40,30"), Some(&1));
+        let report = write_report(&m);
+        assert!(report.contains("## HISTOGRAM\tjava.lang.String\nBIN\tVALUE\n40,30\t1\n"));
     }
 
     #[test]
