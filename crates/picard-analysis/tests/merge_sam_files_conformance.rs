@@ -97,7 +97,7 @@ fn cases() -> Vec<Case> {
 #[test]
 fn every_merge_case_is_byte_identical() {
     let cases = cases();
-    assert_eq!(cases.len(), 5, "case count");
+    assert_eq!(cases.len(), 6, "case count");
     for case in &cases {
         let refs: Vec<&str> = case.inputs.iter().map(|s| s.as_str()).collect();
         let got = merge_sam_files(&refs, case.order).expect("merge");
