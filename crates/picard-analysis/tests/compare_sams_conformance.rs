@@ -104,3 +104,8 @@ fn every_queryname_case_is_byte_identical() {
 fn every_coordinate_case_is_byte_identical() {
     check("compare_sams_coord.txt.gz", 6);
 }
+
+#[test]
+fn every_unsorted_case_is_byte_identical() {
+    check("compare_sams_unsorted.txt.gz", 4);
+}
