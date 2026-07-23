@@ -120,6 +120,15 @@ fn add_mate_info(records: &mut [BamRecord]) {
 pub fn revert_original_base_qualities_and_add_mate_cigar(
     input_sam: &str,
 ) -> Result<String, ParseError> {
+    let (header, records) = revert_original_records(input_sam)?;
+    Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
+}
+
+/// The transform up to the write: the header (with the output sort order) and the reverted,
+/// mate-info'd, sorted records. Shared by the SAM and BAM renderers so they cannot drift.
+fn revert_original_records(
+    input_sam: &str,
+) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
     // The tool opens the input EAGERLY_DECODE at whatever VALIDATION_STRINGENCY; stringency does not
     // reach the bytes.
     let (mut header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
@@ -143,7 +152,22 @@ pub fn revert_original_base_qualities_and_add_mate_cigar(
     }
 
     header.set_sort_order(output_order.name());
-    Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
+    Ok((header, records))
+}
+
+/// The same transform for **BAM** output, byte-identical to Picard with `USE_JDK_DEFLATER=true` via
+/// `BamWriter`. The tool adds no `@PG`, so byte-identity follows transitively (the records are those
+/// the SAM path already reproduces, and `BamWriter` is oracle-gated over arbitrary records).
+pub fn revert_original_base_qualities_and_add_mate_cigar_to_bam(
+    input_sam: &str,
+) -> Result<Vec<u8>, ParseError> {
+    use htsjdk_bam::writer::BamWriter;
+    let (header, records) = revert_original_records(input_sam)?;
+    let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &records {
+        w.write(rec).expect("record re-encodes as BAM");
+    }
+    Ok(w.finish().expect("finish never fails on a Vec"))
 }
 
 #[cfg(test)]
@@ -161,6 +185,18 @@ mod tests {
             .filter(|l| !l.starts_with('@'))
             .map(|l| l.split('\t').collect())
             .collect()
+    }
+
+    #[test]
+    fn the_bam_output_round_trips_to_the_sam_output() {
+        use htsjdk_bam::reader::BamReader;
+        let sam = revert_original_base_qualities_and_add_mate_cigar(INPUT).unwrap();
+        let bam = revert_original_base_qualities_and_add_mate_cigar_to_bam(INPUT).unwrap();
+        let plain = htsjdk_bgzf::decompress_all(&bam).unwrap();
+        let reader = BamReader::new(&plain).unwrap();
+        let header = reader.header.text.clone();
+        let records: Vec<BamRecord> = reader.map(|r| r.unwrap()).collect();
+        assert_eq!(write_sam(&header, &records).unwrap(), sam);
     }
 
     #[test]
