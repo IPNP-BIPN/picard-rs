@@ -32,6 +32,8 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sequence::{reverse, reverse_complement, reverse_qualities};
 use htsjdk_bam::tag::{Tag, TagValue};
 
+use crate::set_nm_md_and_uq_tags::fix_nm_md_and_uq;
+
 const READ_PAIRED: u16 = 0x1;
 const PROPER_PAIR: u16 = 0x2;
 const READ_UNMAPPED: u16 = 0x4;
@@ -168,6 +170,47 @@ pub fn transfer_alignment_info_to_fragment(
     }
 
     Ok(())
+}
+
+/// `AbstractAlignmentMerger.maybeSetPgTag`: link the read to the merge's program record by setting its
+/// `PG` tag (default `ADD_PG_TAG_TO_READS=true`). `program_id` is `None` when no program record is in
+/// play.
+pub fn maybe_set_pg_tag(record: &mut BamRecord, program_id: Option<&str>) {
+    if let Some(id) = program_id {
+        record
+            .tags
+            .insert(Tag::new(b"PG"), TagValue::Str(id.to_string()));
+    }
+}
+
+/// One merged fragment for the default coordinate-sorted output: transfer the alignment, link the
+/// program record, and (for a mapped read) recompute `NM`/`MD`/`UQ` against the reference, exactly as
+/// `AbstractAlignmentMerger` does across `setValuesFromAlignment`, `maybeSetPgTag`, and the
+/// coordinate-sorted `fixNmMdAndUq` pass. `reference_bases` is the bases of the contig the read maps
+/// to; the caller resolves it from the merged record's reference name.
+///
+/// Scope: a single unpaired primary hit. Paired mate-fixing, off-end clipping and multi-hit selection
+/// are later slices.
+pub fn merge_aligned_fragment(
+    unmapped: &BamRecord,
+    aligned: &BamRecord,
+    aligned_reference_name: &str,
+    out_sequences: &[SequenceRecord],
+    reference_bases: &[u8],
+    program_id: Option<&str>,
+) -> Result<BamRecord, MergeAlignmentError> {
+    let mut merged = unmapped.clone();
+    transfer_alignment_info_to_fragment(
+        &mut merged,
+        aligned,
+        aligned_reference_name,
+        out_sequences,
+    )?;
+    maybe_set_pg_tag(&mut merged, program_id);
+    if merged.flags & READ_UNMAPPED == 0 {
+        fix_nm_md_and_uq(&mut merged, reference_bases);
+    }
+    Ok(merged)
 }
 
 #[cfg(test)]
