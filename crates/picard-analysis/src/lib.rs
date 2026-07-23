@@ -17,6 +17,7 @@ pub mod compare_sams;
 pub mod create_sequence_dictionary;
 pub mod cycle;
 pub mod downsample_sam;
+pub mod extract_sequences;
 pub mod fastq_to_sam;
 pub mod filter_sam_reads;
 pub mod fix_mate_information;
