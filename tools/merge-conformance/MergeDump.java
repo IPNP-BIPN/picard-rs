@@ -41,6 +41,24 @@ public class MergeDump {
     String ub="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@RG\tID:rg2\tSM:s2\tLB:lib2\n"+
       "b\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg2\n";
     run("distinct_read_groups","coordinate", ua, ub);
+    // colliding read groups: same ID:rg1, different content -> rg1, rg1.1; the 2nd file's records
+    // have their RG:Z rewritten to rg1.1.
+    String ca="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@RG\tID:rg1\tSM:s1\tLB:lib1\n"+
+      "a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n";
+    String cb="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@RG\tID:rg1\tSM:s2\tLB:lib2\n"+
+      "b\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n";
+    run("collide_read_groups","coordinate", ca, cb);
+    // three colliding read groups -> rg1, rg1.1, rg1.2.
+    String cc="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@RG\tID:rg1\tSM:s3\tLB:lib3\n"+
+      "c\t0\tchr1\t30\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n";
+    run("collide_read_groups_three","coordinate", ca, cb, cc);
+    // colliding program groups (no PP): same ID:p1, different content -> p1, p1.1; records' PG:Z
+    // rewritten.
+    String pa="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@RG\tID:rg1\tSM:s\tLB:lib1\n@PG\tID:p1\tPN:tool\tVN:1\n"+
+      "a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\tPG:Z:p1\n";
+    String pb="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@RG\tID:rg1\tSM:s\tLB:lib1\n@PG\tID:p1\tPN:tool\tVN:2\n"+
+      "b\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\tPG:Z:p1\n";
+    run("collide_program_groups","coordinate", pa, pb);
     System.out.print(buf);
   }
 }
