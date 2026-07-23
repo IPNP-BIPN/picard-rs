@@ -24,10 +24,15 @@
 //! wholly-identical records, where the stable sort keeps input order (first file first), as the merge
 //! does.
 //!
-//! Scope of this slice: the inputs share a **sequence dictionary**, and `@PG` records carry no `PP`
-//! chain. Deferred to a further slice: the `@PG` previous-program (`PP`) tree merge (which rewrites
-//! `PP` pointers through the same rename table across processing passes) and the sequence-dictionary
-//! **union** (`MERGE_SEQUENCE_DICTIONARIES`). Both are reported as errors here rather than merged.
+//! The sequence dictionaries either match (`SequenceUtil.assertSequenceListsEqual`) or, with
+//! `MERGE_SEQUENCE_DICTIONARIES`, are unioned into the name superset (`mergeSequences`); when unioned,
+//! each input's records have their `reference_index`/`mate_reference_index` remapped by name, as
+//! `MergingSamRecordIterator.setHeader` re-resolves them. A mismatch without the flag, or a shared
+//! sequence ordered incompatibly across inputs, is an error.
+//!
+//! Scope of this slice: `@PG` records carry no `PP` chain. Deferred to a further slice: the `@PG`
+//! previous-program (`PP`) tree merge, which rewrites `PP` pointers through the same rename table
+//! across processing passes; it is reported as an error here rather than merged.
 
 use std::collections::{HashMap, HashSet};
 
@@ -51,9 +56,11 @@ pub enum MergeError {
     /// A `@PG` record carries a `PP` (previous-program) attribute. The `PP`-chain tree merge is a
     /// separate slice.
     ProgramChainNotSupported,
-    /// The inputs' sequence dictionaries differ. `MERGE_SEQUENCE_DICTIONARIES` and the general
-    /// dictionary union are a separate slice.
+    /// The inputs' sequence dictionaries differ and `MERGE_SEQUENCE_DICTIONARIES` was not set.
     SequenceDictionaryMismatch,
+    /// `MERGE_SEQUENCE_DICTIONARIES` was set but two dictionaries order a shared sequence
+    /// incompatibly, so `mergeSequences` cannot find a consistent superset.
+    SequenceDictionaryOrderConflict,
 }
 
 impl From<ParseError> for MergeError {
@@ -202,11 +209,104 @@ fn remap_tag(record: &mut BamRecord, tag: &[u8; 2], translation: &HashMap<String
     }
 }
 
+/// `SAMSequenceRecord.UNKNOWN_SEQUENCE_LENGTH`.
+const UNKNOWN_SEQUENCE_LENGTH: i32 = 0;
+
+/// `SAMSequenceRecord.isSameSequence`, for two records compared **at the same dictionary index** (as
+/// `assertSequenceListsEqual` does): equal length (unless either is unknown), equal `M5` when both
+/// carry one (compared as a hex number, so case and leading zeros do not matter), else equal name.
+///
+/// The alternative-name (`AN`) cross-match that htsjdk falls back to is not reproduced; a dictionary
+/// that relies on `AN` to be considered equal is out of this slice's scope.
+fn is_same_sequence(a: &SequenceRecord, b: &SequenceRecord) -> bool {
+    if a.length != UNKNOWN_SEQUENCE_LENGTH
+        && b.length != UNKNOWN_SEQUENCE_LENGTH
+        && a.length != b.length
+    {
+        return false;
+    }
+    match (a.attributes.get("M5"), b.attributes.get("M5")) {
+        (Some(m5a), Some(m5b)) => m5a
+            .trim_start_matches('0')
+            .eq_ignore_ascii_case(m5b.trim_start_matches('0')),
+        _ => a.name == b.name,
+    }
+}
+
+/// `SequenceUtil.assertSequenceListsEqual` as a predicate: same length, and every record the same
+/// sequence at its index.
+fn dictionaries_equal(a: &[SequenceRecord], b: &[SequenceRecord]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| is_same_sequence(x, y))
+}
+
+/// `SamFileHeaderMerger.mergeSequences`: fold `from` into `into`, finding the sequence-name superset.
+/// New names are held and inserted just before the next shared name (or appended); a shared name that
+/// appears out of order relative to an earlier shared one is unmergeable.
+fn merge_sequences(
+    into: &[SequenceRecord],
+    from: &[SequenceRecord],
+) -> Result<Vec<SequenceRecord>, MergeError> {
+    let mut result: Vec<SequenceRecord> = into.to_vec();
+    let mut holder: Vec<SequenceRecord> = Vec::new();
+    let mut prevloc: i64 = -1;
+    for seq in from {
+        match result.iter().position(|s| s.name == seq.name) {
+            None => holder.push(seq.clone()),
+            Some(loc) => {
+                if prevloc > loc as i64 {
+                    return Err(MergeError::SequenceDictionaryOrderConflict);
+                }
+                let held = std::mem::take(&mut holder);
+                let inserted = held.len();
+                for (k, h) in held.into_iter().enumerate() {
+                    result.insert(loc + k, h);
+                }
+                prevloc = (loc + inserted) as i64;
+            }
+        }
+    }
+    result.extend(holder);
+    Ok(result)
+}
+
+/// `mergeSequenceDictionaries`: fold every input's dictionary together in file order, starting empty.
+fn merge_sequence_dictionaries(headers: &[SamHeader]) -> Result<Vec<SequenceRecord>, MergeError> {
+    let mut merged: Vec<SequenceRecord> = Vec::new();
+    for header in headers {
+        merged = merge_sequences(&merged, &header.sequences)?;
+    }
+    Ok(merged)
+}
+
+/// `createSequenceMapping` for one input: old reference index -> merged reference index, by name.
+fn sequence_index_mapping(input: &[SequenceRecord], merged: &[SequenceRecord]) -> Vec<i32> {
+    input
+        .iter()
+        .map(|s| {
+            merged
+                .iter()
+                .position(|m| m.name == s.name)
+                .map(|i| i as i32)
+                .expect("every input sequence is present in the merged superset")
+        })
+        .collect()
+}
+
+/// Apply an index mapping to one reference index, leaving the unaligned sentinel (`-1`) untouched.
+fn remap_reference_index(index: &mut i32, mapping: &[i32]) {
+    if *index >= 0 {
+        *index = mapping[*index as usize];
+    }
+}
+
 /// The merge itself: the merged header and the merged, sorted records. Shared by the SAM and BAM
-/// renderers so the header construction and record ordering cannot drift.
+/// renderers so the header construction and record ordering cannot drift. `merge_dictionaries` is
+/// `MERGE_SEQUENCE_DICTIONARIES` (default false): when the inputs' dictionaries are not equal it
+/// unions them, otherwise a mismatch is an error.
 fn merge_records(
     inputs: &[&str],
     order: SortOrder,
+    merge_dictionaries: bool,
 ) -> Result<(SamHeader, Vec<BamRecord>), MergeError> {
     let mut headers: Vec<SamHeader> = Vec::with_capacity(inputs.len());
     let mut per_input_records: Vec<Vec<BamRecord>> = Vec::with_capacity(inputs.len());
@@ -218,13 +318,36 @@ fn merge_records(
         per_input_records.push(records);
     }
 
-    // The inputs must share a sequence dictionary (union is a separate slice).
-    let sequences: Vec<SequenceRecord> = headers
+    // Resolve the output dictionary. `getSequenceDictionary` requires every input to be equal (by
+    // `SequenceUtil.assertSequenceListsEqual`); if they differ, `MERGE_SEQUENCE_DICTIONARIES` either
+    // unions them (`mergeSequenceDictionaries`) or the tool errors.
+    let first: &[SequenceRecord] = headers
         .first()
-        .map(|h| h.sequences.clone())
-        .unwrap_or_default();
-    if headers.iter().any(|h| h.sequences != sequences) {
+        .map(|h| h.sequences.as_slice())
+        .unwrap_or(&[]);
+    let dictionaries_equal = headers
+        .iter()
+        .all(|h| dictionaries_equal(first, &h.sequences));
+    let sequences: Vec<SequenceRecord> = if dictionaries_equal {
+        first.to_vec()
+    } else if merge_dictionaries {
+        merge_sequence_dictionaries(&headers)?
+    } else {
         return Err(MergeError::SequenceDictionaryMismatch);
+    };
+
+    // When the dictionary was unioned, each input's records point into its own (smaller/differently
+    // ordered) dictionary, so `MergingSamRecordIterator`'s `record.setHeader(merged)` re-resolves the
+    // reference indices by name. Reproduce that: remap `reference_index` and `mate_reference_index`
+    // from each input's dictionary to the merged one. Equal dictionaries need no remap.
+    if !dictionaries_equal {
+        for (fi, records) in per_input_records.iter_mut().enumerate() {
+            let mapping = sequence_index_mapping(&headers[fi].sequences, &sequences);
+            for record in records.iter_mut() {
+                remap_reference_index(&mut record.reference_index, &mapping);
+                remap_reference_index(&mut record.mate_reference_index, &mapping);
+            }
+        }
     }
 
     // Merge @RG and @PG, collecting the per-input ID translations.
@@ -265,19 +388,28 @@ fn merge_records(
     Ok((header, records))
 }
 
-/// `MergeSamFiles.doWork` for SAM inputs whose dictionaries match: the merged, sorted SAM.
-pub fn merge_sam_files(inputs: &[&str], order: SortOrder) -> Result<String, MergeError> {
-    let (header, records) = merge_records(inputs, order)?;
+/// `MergeSamFiles.doWork`: the merged, sorted SAM. `merge_dictionaries` is
+/// `MERGE_SEQUENCE_DICTIONARIES` (default false).
+pub fn merge_sam_files(
+    inputs: &[&str],
+    order: SortOrder,
+    merge_dictionaries: bool,
+) -> Result<String, MergeError> {
+    let (header, records) = merge_records(inputs, order, merge_dictionaries)?;
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
 }
 
 /// The same merge with **BAM** output, written through htsjdk-rs's byte-identical `BamWriter`.
 /// Byte-identical to Picard with `USE_JDK_DEFLATER=true` (the merged records are those the SAM path
 /// already reproduces).
-pub fn merge_sam_files_to_bam(inputs: &[&str], order: SortOrder) -> Result<Vec<u8>, MergeError> {
+pub fn merge_sam_files_to_bam(
+    inputs: &[&str],
+    order: SortOrder,
+    merge_dictionaries: bool,
+) -> Result<Vec<u8>, MergeError> {
     use htsjdk_bam::writer::BamWriter;
 
-    let (header, records) = merge_records(inputs, order)?;
+    let (header, records) = merge_records(inputs, order, merge_dictionaries)?;
     let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &records {
         w.write(rec).expect("record re-encodes as BAM");
@@ -309,7 +441,7 @@ mod tests {
     fn merges_and_sorts_under_a_group_ordered_header() {
         let a = format!("{H}{}{}", rec("a", 10), rec("c", 30));
         let b = format!("{H}{}{}", rec("b", 20), rec("d", 40));
-        let out = merge_sam_files(&[&a, &b], SortOrder::Coordinate).unwrap();
+        let out = merge_sam_files(&[&a, &b], SortOrder::Coordinate, false).unwrap();
         assert_eq!(
             out,
             "@HD\tVN:1.6\tGO:none\tSO:coordinate\n\
@@ -326,7 +458,7 @@ mod tests {
     fn identical_read_groups_are_not_duplicated() {
         let a = format!("{H}{}", rec("a", 10));
         let b = format!("{H}{}", rec("b", 20));
-        let out = merge_sam_files(&[&a, &b], SortOrder::Coordinate).unwrap();
+        let out = merge_sam_files(&[&a, &b], SortOrder::Coordinate, false).unwrap();
         assert_eq!(out.matches("@RG\t").count(), 1);
     }
 
@@ -335,8 +467,8 @@ mod tests {
         use htsjdk_bam::reader::BamReader;
         let a = format!("{H}{}{}", rec("a", 10), rec("c", 30));
         let b = format!("{H}{}{}", rec("b", 20), rec("d", 40));
-        let sam = merge_sam_files(&[&a, &b], SortOrder::Coordinate).unwrap();
-        let bam = merge_sam_files_to_bam(&[&a, &b], SortOrder::Coordinate).unwrap();
+        let sam = merge_sam_files(&[&a, &b], SortOrder::Coordinate, false).unwrap();
+        let bam = merge_sam_files_to_bam(&[&a, &b], SortOrder::Coordinate, false).unwrap();
         let decoded = htsjdk_bgzf::decompress_all(&bam).unwrap();
         let reader = BamReader::new(&decoded).unwrap();
         let header = reader.header.text.clone();
@@ -350,7 +482,7 @@ mod tests {
             a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n";
         let b = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n@RG\tID:rg2\tSM:s2\n\
             b\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg2\n";
-        let out = merge_sam_files(&[a, b], SortOrder::Coordinate).unwrap();
+        let out = merge_sam_files(&[a, b], SortOrder::Coordinate, false).unwrap();
         assert!(out.contains("@RG\tID:rg1\tSM:s1"));
         assert!(out.contains("@RG\tID:rg2\tSM:s2"));
     }
@@ -363,7 +495,7 @@ mod tests {
             a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n";
         let b = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n@RG\tID:rg1\tSM:s2\n\
             b\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n";
-        let out = merge_sam_files(&[a, b], SortOrder::Coordinate).unwrap();
+        let out = merge_sam_files(&[a, b], SortOrder::Coordinate, false).unwrap();
         assert!(out.contains("@RG\tID:rg1\tSM:s1"), "{out}");
         assert!(out.contains("@RG\tID:rg1.1\tSM:s2"), "{out}");
         // rg1 sorts before rg1.1, so the @RG order is rg1 then rg1.1.
@@ -389,7 +521,7 @@ mod tests {
         let a = mk("s1", "a");
         let b = mk("s2", "b");
         let c = mk("s3", "c");
-        let out = merge_sam_files(&[&a, &b, &c], SortOrder::Coordinate).unwrap();
+        let out = merge_sam_files(&[&a, &b, &c], SortOrder::Coordinate, false).unwrap();
         assert!(out.contains("@RG\tID:rg1\tSM:s1"), "{out}");
         assert!(out.contains("@RG\tID:rg1.1\tSM:s2"), "{out}");
         assert!(out.contains("@RG\tID:rg1.2\tSM:s3"), "{out}");
@@ -403,7 +535,7 @@ mod tests {
             @RG\tID:rg1\tSM:s1\n@RG\tID:rg1\tSM:s2\n\
             a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n";
         assert!(matches!(
-            merge_sam_files(&[a], SortOrder::Coordinate),
+            merge_sam_files(&[a], SortOrder::Coordinate, false),
             Err(MergeError::DuplicateReadGroupId(_))
         ));
     }
@@ -415,7 +547,7 @@ mod tests {
         let b = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr2\tLN:2000\n\
             b\t0\tchr2\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
         assert!(matches!(
-            merge_sam_files(&[a, b], SortOrder::Coordinate),
+            merge_sam_files(&[a, b], SortOrder::Coordinate, false),
             Err(MergeError::SequenceDictionaryMismatch)
         ));
     }
@@ -426,8 +558,57 @@ mod tests {
             @PG\tID:p1\tPN:a\n@PG\tID:p2\tPN:b\tPP:p1\n\
             a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
         assert!(matches!(
-            merge_sam_files(&[a], SortOrder::Coordinate),
+            merge_sam_files(&[a], SortOrder::Coordinate, false),
             Err(MergeError::ProgramChainNotSupported)
         ));
+    }
+
+    #[test]
+    fn dictionaries_are_unioned_into_the_superset_and_records_remapped() {
+        // File 0 knows chr1, chr2; file 1 knows chr2, chr3. Superset is chr1, chr2, chr3. File 1's
+        // records point into its own dictionary (chr2=0, chr3=1) and must be remapped (chr2=1,
+        // chr3=2) so their RNAME renders correctly and they sort into the merged order.
+        let a = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n@SQ\tSN:chr2\tLN:2000\n\
+            a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n\
+            b\t0\tchr2\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
+        let c = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr2\tLN:2000\n@SQ\tSN:chr3\tLN:3000\n\
+            c\t0\tchr2\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\n\
+            d\t0\tchr3\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
+        let out = merge_sam_files(&[a, c], SortOrder::Coordinate, true).unwrap();
+        assert_eq!(
+            out,
+            "@HD\tVN:1.6\tGO:none\tSO:coordinate\n\
+             @SQ\tSN:chr1\tLN:1000\n\
+             @SQ\tSN:chr2\tLN:2000\n\
+             @SQ\tSN:chr3\tLN:3000\n\
+             a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n\
+             b\t0\tchr2\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n\
+             c\t0\tchr2\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\n\
+             d\t0\tchr3\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n"
+        );
+    }
+
+    #[test]
+    fn an_incompatible_dictionary_order_is_an_error() {
+        // chr1 then chr2 vs chr2 then chr1: the shared sequences are ordered oppositely, so no
+        // consistent superset exists.
+        let a = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n@SQ\tSN:chr2\tLN:2000\n\
+            a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
+        let b = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr2\tLN:2000\n@SQ\tSN:chr1\tLN:1000\n\
+            b\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
+        assert!(matches!(
+            merge_sam_files(&[a, b], SortOrder::Coordinate, true),
+            Err(MergeError::SequenceDictionaryOrderConflict)
+        ));
+    }
+
+    #[test]
+    fn equal_dictionaries_need_no_flag_and_no_remap() {
+        // Same dictionary in both: the union path is not taken even with the flag off.
+        let a = format!("{H}{}", rec("a", 10));
+        let b = format!("{H}{}", rec("b", 20));
+        let off = merge_sam_files(&[&a, &b], SortOrder::Coordinate, false).unwrap();
+        let on = merge_sam_files(&[&a, &b], SortOrder::Coordinate, true).unwrap();
+        assert_eq!(off, on);
     }
 }

@@ -3,13 +3,15 @@ public class MergeDump {
   static StringBuilder buf=new StringBuilder();
   static void emit(String k,String c,String p){buf.append(k).append('\t').append(c).append('\t')
     .append(p.replace("\\","\\\\").replace("\t","\\t").replace("\n","\\n")).append('\n');}
-  static void run(String c,String so,String... sams) throws Exception {
+  static void run(String c,String so,String... sams) throws Exception { run(c,so,false,sams); }
+  static void run(String c,String so,boolean msd,String... sams) throws Exception {
     File d=Files.createTempDirectory("mg").toFile();
     List<String> args=new ArrayList<>();
     for(int i=0;i<sams.length;i++){File f=new File(d,"in"+i+".sam");try(PrintStream p=new PrintStream(f)){p.print(sams[i]);}args.add("I="+f.getAbsolutePath());}
     File o=new File(d,"o.sam"); args.add("O="+o.getAbsolutePath()); args.add("SORT_ORDER="+so);
+    args.add("MERGE_SEQUENCE_DICTIONARIES="+msd);
     int rc=new picard.sam.MergeSamFiles().instanceMain(args.toArray(new String[0]));
-    emit("so",c,so); for(int i=0;i<sams.length;i++) emit("input",c,sams[i]);
+    emit("so",c,so); emit("msd",c,String.valueOf(msd)); for(int i=0;i<sams.length;i++) emit("input",c,sams[i]);
     emit("rc",c,String.valueOf(rc));
     emit("output",c,new String(Files.readAllBytes(o.toPath())));
   }
@@ -59,6 +61,15 @@ public class MergeDump {
     String pb="@HD\tVN:1.6\tSO:coordinate\n"+sq+"@RG\tID:rg1\tSM:s\tLB:lib1\n@PG\tID:p1\tPN:tool\tVN:2\n"+
       "b\t0\tchr1\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\tPG:Z:p1\n";
     run("collide_program_groups","coordinate", pa, pb);
+    // MERGE_SEQUENCE_DICTIONARIES: file 0 knows chr1,chr2; file 1 knows chr2,chr3 -> superset
+    // chr1,chr2,chr3, and file 1's records are remapped by name.
+    String da="@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n@SQ\tSN:chr2\tLN:2000\n"+
+      "a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n"+
+      "b\t0\tchr2\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
+    String db="@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr2\tLN:2000\n@SQ\tSN:chr3\tLN:3000\n"+
+      "c\t0\tchr2\t20\t60\t4M\t*\t0\t0\tACGT\tIIII\n"+
+      "d\t0\tchr3\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
+    run("merge_dictionaries","coordinate", true, da, db);
     System.out.print(buf);
   }
 }

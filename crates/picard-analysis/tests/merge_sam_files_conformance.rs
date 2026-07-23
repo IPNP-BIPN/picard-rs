@@ -46,6 +46,15 @@ fn unescape(s: &str) -> String {
 struct Case {
     name: String,
     order: SortOrder,
+    merge_dictionaries: bool,
+    inputs: Vec<String>,
+    output: String,
+}
+
+#[derive(Default)]
+struct Raw {
+    so: String,
+    msd: bool,
     inputs: Vec<String>,
     output: String,
 }
@@ -53,8 +62,7 @@ struct Case {
 fn cases() -> Vec<Case> {
     let text = corpus();
     let mut order: Vec<String> = Vec::new();
-    let mut map: std::collections::HashMap<String, (String, Vec<String>, String)> =
-        std::collections::HashMap::new();
+    let mut map: std::collections::HashMap<String, Raw> = std::collections::HashMap::new();
     for line in text.lines() {
         if line.starts_with('#') || line.trim().is_empty() {
             continue;
@@ -65,21 +73,22 @@ fn cases() -> Vec<Case> {
         let payload = unescape(it.next().unwrap_or(""));
         let entry = map.entry(name.clone()).or_insert_with(|| {
             order.push(name.clone());
-            (String::new(), Vec::new(), String::new())
+            Raw::default()
         });
         match kind {
-            "so" => entry.0 = payload,
-            "input" => entry.1.push(payload),
+            "so" => entry.so = payload,
+            "msd" => entry.msd = payload == "true",
+            "input" => entry.inputs.push(payload),
             "rc" => {} // all corpus cases return 0
-            "output" => entry.2 = payload,
+            "output" => entry.output = payload,
             other => panic!("unexpected row kind {other}"),
         }
     }
     order
         .into_iter()
         .map(|name| {
-            let (so, inputs, output) = map.remove(&name).unwrap();
-            let order = match so.as_str() {
+            let raw = map.remove(&name).unwrap();
+            let order = match raw.so.as_str() {
                 "coordinate" => SortOrder::Coordinate,
                 "queryname" => SortOrder::Queryname,
                 other => panic!("unhandled sort order {other}"),
@@ -87,8 +96,9 @@ fn cases() -> Vec<Case> {
             Case {
                 name,
                 order,
-                inputs,
-                output,
+                merge_dictionaries: raw.msd,
+                inputs: raw.inputs,
+                output: raw.output,
             }
         })
         .collect()
@@ -97,10 +107,10 @@ fn cases() -> Vec<Case> {
 #[test]
 fn every_merge_case_is_byte_identical() {
     let cases = cases();
-    assert_eq!(cases.len(), 9, "case count");
+    assert_eq!(cases.len(), 10, "case count");
     for case in &cases {
         let refs: Vec<&str> = case.inputs.iter().map(|s| s.as_str()).collect();
-        let got = merge_sam_files(&refs, case.order).expect("merge");
+        let got = merge_sam_files(&refs, case.order, case.merge_dictionaries).expect("merge");
         assert_eq!(got, case.output, "{}", case.name);
     }
 }
