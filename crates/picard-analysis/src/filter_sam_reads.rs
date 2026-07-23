@@ -135,6 +135,17 @@ pub fn filter_sam_reads_by_tag(
     values: &[&str],
     filter: TagFilter,
 ) -> Result<String, ParseError> {
+    let (header, kept) = filter_by_tag(input_sam, tag, values, filter)?;
+    Ok(write_sam(&header, &kept).expect("records that parsed re-encode as SAM text"))
+}
+
+/// The tag-value filter's work up to the write: the header and the kept records.
+fn filter_by_tag(
+    input_sam: &str,
+    tag: &[u8; 2],
+    values: &[&str],
+    filter: TagFilter,
+) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
     let (header, records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
     let value_set: HashSet<&str> = values.iter().copied().collect();
     let tag = Tag::new(tag);
@@ -150,8 +161,24 @@ pub fn filter_sam_reads_by_tag(
         .filter(|rec| matches(rec) == include)
         .cloned()
         .collect();
+    Ok((header, kept))
+}
 
-    Ok(write_sam(&header, &kept).expect("records that parsed re-encode as SAM text"))
+/// The tag-value filter for **BAM** output, byte-identical to Picard's `USE_JDK_DEFLATER=true` via
+/// `BamWriter` (transitive, as for the read-list `_to_bam`).
+pub fn filter_sam_reads_by_tag_to_bam(
+    input_sam: &str,
+    tag: &[u8; 2],
+    values: &[&str],
+    filter: TagFilter,
+) -> Result<Vec<u8>, ParseError> {
+    use htsjdk_bam::writer::BamWriter;
+    let (header, kept) = filter_by_tag(input_sam, tag, values, filter)?;
+    let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &kept {
+        w.write(rec).expect("record re-encodes as BAM");
+    }
+    Ok(w.finish().expect("finish never fails on a Vec"))
 }
 
 const READ_UNMAPPED: u16 = 0x4;
@@ -188,6 +215,15 @@ pub fn filter_sam_reads_aligned(
     input_sam: &str,
     filter: AlignedFilter,
 ) -> Result<String, ParseError> {
+    let (header, kept) = filter_aligned(input_sam, filter)?;
+    Ok(write_sam(&header, &kept).expect("records that parsed re-encode as SAM text"))
+}
+
+/// The aligned filter's work up to the write: the header and the kept records.
+fn filter_aligned(
+    input_sam: &str,
+    filter: AlignedFilter,
+) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
     let (header, records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
     let include = matches!(filter, AlignedFilter::IncludeAligned);
 
@@ -211,8 +247,22 @@ pub fn filter_sam_reads_aligned(
         }
         start = end;
     }
+    Ok((header, kept))
+}
 
-    Ok(write_sam(&header, &kept).expect("records that parsed re-encode as SAM text"))
+/// The aligned filter for **BAM** output, byte-identical to Picard's `USE_JDK_DEFLATER=true` via
+/// `BamWriter` (transitive, as for the read-list `_to_bam`).
+pub fn filter_sam_reads_aligned_to_bam(
+    input_sam: &str,
+    filter: AlignedFilter,
+) -> Result<Vec<u8>, ParseError> {
+    use htsjdk_bam::writer::BamWriter;
+    let (header, kept) = filter_aligned(input_sam, filter)?;
+    let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &kept {
+        w.write(rec).expect("record re-encodes as BAM");
+    }
+    Ok(w.finish().expect("finish never fails on a Vec"))
 }
 
 #[cfg(test)]
@@ -330,5 +380,33 @@ mod tests {
             htsjdk_bam::sam_file::write_sam(&header, &records).unwrap(),
             sam
         );
+    }
+
+    fn bam_matches_sam(sam: &str, bam: &[u8]) {
+        let plain = htsjdk_bgzf::decompress_all(bam).expect("bam decompresses");
+        let reader = htsjdk_bam::reader::BamReader::new(&plain).unwrap();
+        let header = reader.header.text.clone();
+        let records: Vec<BamRecord> = reader.map(|r| r.unwrap()).collect();
+        assert_eq!(
+            htsjdk_bam::sam_file::write_sam(&header, &records).unwrap(),
+            sam
+        );
+    }
+
+    #[test]
+    fn the_tag_bam_output_round_trips_to_the_sam_output() {
+        let sam =
+            filter_sam_reads_by_tag(TAGGED, b"RG", &["rg1"], TagFilter::IncludeTagValues).unwrap();
+        let bam =
+            filter_sam_reads_by_tag_to_bam(TAGGED, b"RG", &["rg1"], TagFilter::IncludeTagValues)
+                .unwrap();
+        bam_matches_sam(&sam, &bam);
+    }
+
+    #[test]
+    fn the_aligned_bam_output_round_trips_to_the_sam_output() {
+        let sam = filter_sam_reads_aligned(PAIRS, AlignedFilter::IncludeAligned).unwrap();
+        let bam = filter_sam_reads_aligned_to_bam(PAIRS, AlignedFilter::IncludeAligned).unwrap();
+        bam_matches_sam(&sam, &bam);
     }
 }
