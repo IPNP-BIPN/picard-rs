@@ -64,8 +64,11 @@ fn read_group_id(rec: &BamRecord) -> Option<&str> {
     }
 }
 
-/// `SplitSamByLibrary.doWork`: the outputs as `(file base name, SAM text)`, in output-name order.
-pub fn split_sam_by_library(input_sam: &str) -> Result<Vec<(String, String)>, SplitLibError> {
+/// The split itself: the outputs as `(file base name, output header, records)`, in output-name
+/// order. Shared by the SAM and BAM renderers so the routing and header filtering cannot drift.
+fn split_outputs(
+    input_sam: &str,
+) -> Result<Vec<(String, SamHeader, Vec<BamRecord>)>, SplitLibError> {
     let (header, records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
 
     // Group read groups by library, preserving header order; those with no LB seed the unknown header.
@@ -106,28 +109,59 @@ pub fn split_sam_by_library(input_sam: &str) -> Result<Vec<(String, String)>, Sp
         }
     }
 
+    let owned =
+        |recs: &[&BamRecord]| -> Vec<BamRecord> { recs.iter().map(|r| (*r).clone()).collect() };
+
     // Build the outputs. A library output is always written (even with no records); the unknown
     // output only when at least one record routed there.
-    let mut out: Vec<(String, String)> = Vec::new();
+    let mut out: Vec<(String, SamHeader, Vec<BamRecord>)> = Vec::new();
     for lib in &lib_order {
         let mut h = header.clone();
         h.read_groups = lib_to_rgs[lib].clone();
         let recs = lib_records.get(lib).cloned().unwrap_or_default();
-        out.push((make_file_name_safe(lib), render(&h, &recs)));
+        out.push((make_file_name_safe(lib), h, owned(&recs)));
     }
     if !unknown_records.is_empty() {
         let mut h = header.clone();
         h.read_groups = unknown_rgs.clone();
-        out.push(("unknown".to_string(), render(&h, &unknown_records)));
+        out.push(("unknown".to_string(), h, owned(&unknown_records)));
     }
 
     out.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(out)
 }
 
-fn render(header: &SamHeader, recs: &[&BamRecord]) -> String {
-    let owned: Vec<BamRecord> = recs.iter().map(|r| (*r).clone()).collect();
-    write_sam(header, &owned).expect("records re-encode as SAM")
+/// `SplitSamByLibrary.doWork`: the outputs as `(file base name, SAM text)`, in output-name order.
+pub fn split_sam_by_library(input_sam: &str) -> Result<Vec<(String, String)>, SplitLibError> {
+    Ok(split_outputs(input_sam)?
+        .into_iter()
+        .map(|(name, header, recs)| {
+            (
+                name,
+                write_sam(&header, &recs).expect("records re-encode as SAM"),
+            )
+        })
+        .collect())
+}
+
+/// `SplitSamByLibrary.doWork` for BAM output: the outputs as `(file base name, BAM bytes)`,
+/// byte-identical to Picard with `USE_JDK_DEFLATER=true` via htsjdk-rs's `BamWriter`.
+pub fn split_sam_by_library_to_bam(
+    input_sam: &str,
+) -> Result<Vec<(String, Vec<u8>)>, SplitLibError> {
+    use htsjdk_bam::writer::BamWriter;
+
+    split_outputs(input_sam)?
+        .into_iter()
+        .map(|(name, header, recs)| {
+            let mut w =
+                BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+            for rec in &recs {
+                w.write(rec).expect("record re-encodes as BAM");
+            }
+            Ok((name, w.finish().expect("finish never fails on a Vec")))
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -175,5 +209,26 @@ mod tests {
             split_sam_by_library(input),
             Err(SplitLibError::NoLibrariesInHeader)
         ));
+    }
+
+    #[test]
+    fn bam_outputs_decode_to_the_same_records_as_the_sam_outputs() {
+        use htsjdk_bam::reader::BamReader;
+        use htsjdk_bam::sam_file::write_sam;
+        let input = "@HD\tVN:1.6\tSO:queryname\n@SQ\tSN:chr1\tLN:1000\n\
+            @RG\tID:rg1\tLB:libA\tSM:s\n@RG\tID:rg2\tSM:s\n\
+            a\t0\tchr1\t1\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n\
+            b\t0\tchr1\t2\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg2\n";
+        let sam_out = split_sam_by_library(input).unwrap();
+        let bam_out = split_sam_by_library_to_bam(input).unwrap();
+        assert_eq!(sam_out.len(), bam_out.len());
+        for ((sn, sam), (bn, bam)) in sam_out.iter().zip(&bam_out) {
+            assert_eq!(sn, bn); // same file base names, same order
+            let decoded = htsjdk_bgzf::decompress_all(bam).unwrap();
+            let reader = BamReader::new(&decoded).unwrap();
+            let header = reader.header.text.clone();
+            let recs: Vec<_> = reader.map(|r| r.unwrap()).collect();
+            assert_eq!(write_sam(&header, &recs).unwrap(), *sam);
+        }
     }
 }
