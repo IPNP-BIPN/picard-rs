@@ -47,12 +47,12 @@ fn ceil_div(a: i64, b: i64) -> i64 {
     (a as f64 / b as f64).ceil() as i64
 }
 
-/// `SplitSamByNumberOfReads.doWork`: the shards in order, each a whole SAM (input header verbatim +
-/// its records).
-pub fn split_sam_by_number_of_reads(
+/// The split itself: the input header and the shards as owned record groups, in order. Shared by the
+/// SAM and BAM renderers so the boundary logic cannot drift.
+fn split_shards(
     input_sam: &str,
     opts: &SplitOptions,
-) -> Result<Vec<String>, SplitError> {
+) -> Result<(SamHeader, Vec<Vec<BamRecord>>), SplitError> {
     if opts.total_reads_in_input < 0 {
         return Err(SplitError::NegativeTotalReads);
     }
@@ -74,32 +74,56 @@ pub fn split_sam_by_number_of_reads(
     };
     let reads_per_file = ceil_div(total_reads, split_to_n_files);
 
-    let mut shards: Vec<Vec<&BamRecord>> = Vec::new();
-    let mut current: Vec<&BamRecord> = Vec::new();
+    let mut shards: Vec<Vec<BamRecord>> = Vec::new();
+    let mut current: Vec<BamRecord> = Vec::new();
     let mut reads_written: i64 = 0;
     let mut last_read_name = String::new();
 
-    for rec in &records {
+    for rec in records {
         if reads_written >= reads_per_file && last_read_name != rec.read_name {
             shards.push(std::mem::take(&mut current));
             reads_written = 0;
         }
-        current.push(rec);
         last_read_name = rec.read_name.clone();
+        current.push(rec);
         reads_written += 1;
     }
     shards.push(current);
+    Ok((header, shards))
+}
 
+/// `SplitSamByNumberOfReads.doWork`: the shards in order, each a whole SAM (input header verbatim +
+/// its records).
+pub fn split_sam_by_number_of_reads(
+    input_sam: &str,
+    opts: &SplitOptions,
+) -> Result<Vec<String>, SplitError> {
+    let (header, shards) = split_shards(input_sam, opts)?;
     Ok(shards
         .iter()
-        .map(|recs| render_shard(&header, recs))
+        .map(|recs| write_sam(&header, recs).expect("records re-encode as SAM"))
         .collect())
 }
 
-/// One shard as SAM text: the input header verbatim, then its records.
-fn render_shard(header: &SamHeader, recs: &[&BamRecord]) -> String {
-    let owned: Vec<BamRecord> = recs.iter().map(|r| (*r).clone()).collect();
-    write_sam(header, &owned).expect("records re-encode as SAM")
+/// `SplitSamByNumberOfReads.doWork` for BAM output: the shards as whole BAM files, byte-identical to
+/// Picard with `USE_JDK_DEFLATER=true` (the shard records are those the SAM path already reproduces,
+/// written through htsjdk-rs's byte-identical `BamWriter`).
+pub fn split_sam_by_number_of_reads_to_bam(
+    input_sam: &str,
+    opts: &SplitOptions,
+) -> Result<Vec<Vec<u8>>, SplitError> {
+    use htsjdk_bam::writer::BamWriter;
+
+    let (header, shards) = split_shards(input_sam, opts)?;
+    let mut out = Vec::with_capacity(shards.len());
+    for recs in &shards {
+        let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+        for rec in recs {
+            w.write(rec).expect("record re-encodes as BAM");
+        }
+        out.push(w.finish().expect("finish never fails on a Vec"));
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -169,5 +193,31 @@ mod tests {
             split_sam_by_number_of_reads(&input, &SplitOptions::default()),
             Err(SplitError::NoSplitTarget)
         ));
+    }
+
+    #[test]
+    fn bam_shards_decode_to_the_same_records_as_the_sam_shards() {
+        use htsjdk_bam::reader::BamReader;
+        let input = format!(
+            "{H}{}{}{}{}",
+            rec("a", 1),
+            rec("b", 2),
+            rec("c", 3),
+            rec("d", 4)
+        );
+        let opts = SplitOptions {
+            split_to_n_files: 2,
+            ..Default::default()
+        };
+        let sam_shards = split_sam_by_number_of_reads(&input, &opts).unwrap();
+        let bam_shards = split_sam_by_number_of_reads_to_bam(&input, &opts).unwrap();
+        assert_eq!(sam_shards.len(), bam_shards.len());
+        for (sam, bam) in sam_shards.iter().zip(&bam_shards) {
+            let decoded = htsjdk_bgzf::decompress_all(bam).unwrap();
+            let reader = BamReader::new(&decoded).unwrap();
+            let header = reader.header.text.clone();
+            let recs: Vec<_> = reader.map(|r| r.unwrap()).collect();
+            assert_eq!(write_sam(&header, &recs).unwrap(), *sam);
+        }
     }
 }
