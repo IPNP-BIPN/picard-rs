@@ -1,0 +1,292 @@
+//! `CompareSAMs`.
+//!
+//! Ports `picard.sam.CompareSAMs` + `picard.sam.util.SamComparison` at tag 3.4.0, for the
+//! **default strict mode over queryname-sorted input**. Compares two SAM files and reports, in a
+//! [`SamComparisonMetric`] row, how many primary alignments match, differ, are unmapped on one or
+//! both sides, are missing on one side, or disagree on duplicate marking; the tool prints
+//! `SAM files match.` or `SAM files differ.` accordingly.
+//!
+//! Scope of this slice: queryname-sorted inputs, strict comparison (`LENIENT_*` all false),
+//! `COMPARE_MQ=false` (so no mapping-quality histogram). Header comparison is a structural equality
+//! of the two headers, which is correct for equal headers; htsjdk's finer field-by-field
+//! `compareHeaders` (and thus header-difference reporting), the coordinate- and unsorted-order
+//! comparison paths, the lenient modes, and the mapping-quality histogram are deferred.
+//!
+//! Two Picard behaviours are reproduced deliberately. `alignmentsMatch` compares
+//! `s1.getReadNegativeStrandFlag() == s1.getReadNegativeStrandFlag()` (the left record against
+//! itself), so strand is effectively ignored: two reads at the same reference and start match even
+//! on opposite strands. And when the left file has trailing records with no right counterpart,
+//! htsjdk throws (it reads `it1.getCurrent()` after exhausting the iterator); the port instead
+//! counts them as `MISSING_RIGHT`, a divergence on that malformed edge which the conformance corpus
+//! does not cover.
+
+use htsjdk_bam::header::SamHeader;
+use htsjdk_bam::record::BamRecord;
+use htsjdk_bam::sam_file::read_sam_with;
+use htsjdk_bam::text_parse::{ParseError, ValidationStringency};
+use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
+
+const READ_PAIRED: u16 = 0x1;
+const READ_UNMAPPED: u16 = 0x4;
+const SECOND_OF_PAIR: u16 = 0x80;
+const SECONDARY: u16 = 0x100;
+const DUPLICATE: u16 = 0x400;
+const SUPPLEMENTARY: u16 = 0x800;
+
+/// Why `CompareSAMs` could not run this slice.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompareError {
+    Parse(ParseError),
+    /// A sort order this slice does not yet handle (only `queryname` is supported here).
+    UnsupportedSortOrder(String),
+}
+
+impl From<ParseError> for CompareError {
+    fn from(e: ParseError) -> Self {
+        CompareError::Parse(e)
+    }
+}
+
+/// `picard.sam.SamComparisonMetric`, the one-row comparison result.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SamComparisonMetric {
+    pub left_file: String,
+    pub right_file: String,
+    pub mappings_match: i64,
+    pub mappings_differ: i64,
+    pub unmapped_both: i64,
+    pub unmapped_left: i64,
+    pub unmapped_right: i64,
+    pub missing_left: i64,
+    pub missing_right: i64,
+    pub duplicate_markings_differ: i64,
+    pub are_equal: bool,
+}
+
+impl SamComparisonMetric {
+    /// `allVisitedAlignmentsEqual`: none missing, differing, or unmapped on a single side.
+    fn all_visited_equal(&self) -> bool {
+        self.missing_left == 0
+            && self.missing_right == 0
+            && self.mappings_differ == 0
+            && self.unmapped_left == 0
+            && self.unmapped_right == 0
+    }
+}
+
+impl MetricBean for SamComparisonMetric {
+    fn class_name(&self) -> &str {
+        "picard.sam.SamComparisonMetric"
+    }
+
+    fn columns(&self) -> &[&'static str] {
+        &[
+            "LEFT_FILE",
+            "RIGHT_FILE",
+            "MAPPINGS_MATCH",
+            "MAPPINGS_DIFFER",
+            "UNMAPPED_BOTH",
+            "UNMAPPED_LEFT",
+            "UNMAPPED_RIGHT",
+            "MISSING_LEFT",
+            "MISSING_RIGHT",
+            "DUPLICATE_MARKINGS_DIFFER",
+            "ARE_EQUAL",
+        ]
+    }
+
+    fn values(&self) -> Vec<Value> {
+        vec![
+            Value::Str(self.left_file.clone()),
+            Value::Str(self.right_file.clone()),
+            Value::Long(self.mappings_match),
+            Value::Long(self.mappings_differ),
+            Value::Long(self.unmapped_both),
+            Value::Long(self.unmapped_left),
+            Value::Long(self.unmapped_right),
+            Value::Long(self.missing_left),
+            Value::Long(self.missing_right),
+            Value::Long(self.duplicate_markings_differ),
+            Value::Bool(self.are_equal),
+        ]
+    }
+}
+
+/// `PrimaryAlignmentKey`: a read's name plus its pairing status, ordered `UNPAIRED < FIRST < SECOND`.
+fn primary_alignment_key(rec: &BamRecord) -> (String, u8) {
+    let pair_status = if rec.flags & READ_PAIRED != 0 {
+        if rec.flags & SECOND_OF_PAIR != 0 {
+            2
+        } else {
+            1
+        }
+    } else {
+        0
+    };
+    (rec.read_name.clone(), pair_status)
+}
+
+fn is_secondary_or_supplementary(rec: &BamRecord) -> bool {
+    rec.flags & (SECONDARY | SUPPLEMENTARY) != 0
+}
+
+fn reference_name<'a>(header: &'a SamHeader, rec: &BamRecord) -> Option<&'a str> {
+    if rec.reference_index < 0 {
+        None
+    } else {
+        Some(header.sequences[rec.reference_index as usize].name.as_str())
+    }
+}
+
+/// `alignmentsMatch` (strict): same reference and start. Strand is not compared, reproducing
+/// htsjdk's `s1 == s1` self-comparison.
+fn alignments_match(h1: &SamHeader, s1: &BamRecord, h2: &SamHeader, s2: &BamRecord) -> bool {
+    reference_name(h1, s1) == reference_name(h2, s2) && s1.alignment_start == s2.alignment_start
+}
+
+/// `compareAlignmentRecords` followed by `updateMetric`, plus `catalogDuplicateDifferences`.
+fn tally(
+    h1: &SamHeader,
+    s1: &BamRecord,
+    h2: &SamHeader,
+    s2: &BamRecord,
+    m: &mut SamComparisonMetric,
+) {
+    if (s1.flags & DUPLICATE) != (s2.flags & DUPLICATE) {
+        m.duplicate_markings_differ += 1;
+    }
+    let s1_unmapped = s1.flags & READ_UNMAPPED != 0;
+    let s2_unmapped = s2.flags & READ_UNMAPPED != 0;
+    if s1_unmapped && s2_unmapped {
+        m.unmapped_both += 1;
+    } else if s1_unmapped {
+        m.unmapped_left += 1;
+    } else if s2_unmapped {
+        m.unmapped_right += 1;
+    } else if alignments_match(h1, s1, h2, s2) {
+        m.mappings_match += 1;
+    } else {
+        m.mappings_differ += 1;
+    }
+}
+
+/// `CompareSAMs`/`SamComparison` for queryname-sorted, strict input. `left_name`/`right_name` fill
+/// the `LEFT_FILE`/`RIGHT_FILE` columns.
+pub fn compare_sams(
+    left_sam: &str,
+    right_sam: &str,
+    left_name: &str,
+    right_name: &str,
+) -> Result<SamComparisonMetric, CompareError> {
+    let (h1, recs1) = read_sam_with(left_sam, ValidationStringency::Silent)?;
+    let (h2, recs2) = read_sam_with(right_sam, ValidationStringency::Silent)?;
+
+    for h in [&h1, &h2] {
+        let so = h.attributes.get("SO").unwrap_or("unsorted");
+        if so != "queryname" {
+            return Err(CompareError::UnsupportedSortOrder(so.to_string()));
+        }
+    }
+
+    let mut m = SamComparisonMetric {
+        left_file: left_name.to_string(),
+        right_file: right_name.to_string(),
+        ..Default::default()
+    };
+
+    let left: Vec<&BamRecord> = recs1
+        .iter()
+        .filter(|r| !is_secondary_or_supplementary(r))
+        .collect();
+    let right: Vec<&BamRecord> = recs2
+        .iter()
+        .filter(|r| !is_secondary_or_supplementary(r))
+        .collect();
+
+    // compareQueryNameSortedAlignments: a merge of the two name-ordered streams by PrimaryAlignmentKey.
+    let (mut i, mut j) = (0usize, 0usize);
+    while i < left.len() {
+        if j >= right.len() {
+            // htsjdk throws here; the port counts the trailing lefts (see the module note).
+            m.missing_right += (left.len() - i) as i64;
+            break;
+        }
+        let lk = primary_alignment_key(left[i]);
+        let rk = primary_alignment_key(right[j]);
+        match lk.cmp(&rk) {
+            std::cmp::Ordering::Less => {
+                m.missing_right += 1;
+                i += 1;
+            }
+            std::cmp::Ordering::Greater => {
+                m.missing_left += 1;
+                j += 1;
+            }
+            std::cmp::Ordering::Equal => {
+                tally(&h1, left[i], &h2, right[j], &mut m);
+                i += 1;
+                j += 1;
+            }
+        }
+    }
+    if j < right.len() {
+        m.missing_left += (right.len() - j) as i64;
+    }
+
+    let headers_equal = h1 == h2;
+    m.are_equal = headers_equal && m.all_visited_equal() && m.duplicate_markings_differ == 0;
+    Ok(m)
+}
+
+/// The stdout line `CompareSAMs.doWork` prints.
+pub fn verdict(metric: &SamComparisonMetric) -> &'static str {
+    if metric.are_equal {
+        "SAM files match."
+    } else {
+        "SAM files differ."
+    }
+}
+
+/// `SamComparison.writeReport`: the metrics file (without the command-line/timestamp banner, which
+/// the caller supplies). One `SamComparisonMetric` row, no histogram (`COMPARE_MQ=false`).
+pub fn write_report(metric: &SamComparisonMetric) -> String {
+    let mut mf = MetricsFile::new();
+    mf.add_metric(metric);
+    mf.write()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const H: &str = "@HD\tVN:1.6\tSO:queryname\n@SQ\tSN:chr1\tLN:100\n";
+
+    #[test]
+    fn identical_files_match() {
+        let sam = format!("{H}a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n");
+        let m = compare_sams(&sam, &sam, "L", "R").unwrap();
+        assert_eq!(m.mappings_match, 1);
+        assert!(m.are_equal);
+        assert_eq!(verdict(&m), "SAM files match.");
+    }
+
+    #[test]
+    fn opposite_strand_still_matches() {
+        // Reproduces the s1==s1 strand no-op: same ref+start, opposite strand, still a match.
+        let l = format!("{H}a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n");
+        let r = format!("{H}a\t16\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n");
+        let m = compare_sams(&l, &r, "L", "R").unwrap();
+        assert_eq!(m.mappings_match, 1);
+        assert!(m.are_equal);
+    }
+
+    #[test]
+    fn differing_duplicate_marks_are_counted() {
+        let l = format!("{H}a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n");
+        let r = format!("{H}a\t1024\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n");
+        let m = compare_sams(&l, &r, "L", "R").unwrap();
+        assert_eq!(m.duplicate_markings_differ, 1);
+        assert!(!m.are_equal);
+        assert_eq!(verdict(&m), "SAM files differ.");
+    }
+}
