@@ -27,14 +27,14 @@ pub enum SortOrder {
 
 impl SortOrder {
     /// `SAMFileHeader.SortOrder.getSortOrder()`: the string written into the `@HD SO` field.
-    fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
             SortOrder::Coordinate => "coordinate",
             SortOrder::Queryname => "queryname",
         }
     }
 
-    fn comparator(self) -> fn(&BamRecord, &BamRecord) -> std::cmp::Ordering {
+    pub fn comparator(self) -> fn(&BamRecord, &BamRecord) -> std::cmp::Ordering {
         match self {
             SortOrder::Coordinate => coordinate::compare,
             SortOrder::Queryname => query_name::compare,
