@@ -8,7 +8,9 @@
 
 use std::io::Read;
 
-use picard_analysis::compare_sams::{compare_sams, verdict, write_report};
+use picard_analysis::compare_sams::{
+    compare_sams, compare_sams_with_options, verdict, write_report, CompareOptions,
+};
 
 fn corpus(name: &str) -> String {
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -95,9 +97,73 @@ fn check(name: &str, expected: usize) {
     }
 }
 
+/// Parse a `SamComparisonArgumentCollection`-style `KEY=VALUE` option string (space-separated) into
+/// a [`CompareOptions`]. Empty string is the strict default.
+fn parse_opts(opts: &str) -> CompareOptions {
+    let mut o = CompareOptions::default();
+    for tok in opts.split_whitespace() {
+        let (k, v) = tok.split_once('=').expect("KEY=VALUE");
+        match k {
+            "LENIENT_LOW_MQ_ALIGNMENT" => o.lenient_low_mq_alignment = v == "true",
+            "LENIENT_UNKNOWN_MQ_ALIGNMENT" => o.lenient_unknown_mq_alignment = v == "true",
+            "LOW_MQ_THRESHOLD" => o.low_mq_threshold = v.parse().expect("int"),
+            "COMPARE_MQ" => o.compare_mq = v == "true",
+            other => panic!("unhandled option {other}"),
+        }
+    }
+    o
+}
+
+/// Group the options corpus rows into `(opts, input1, input2, verdict, report)` per case.
+fn opt_cases(name: &str) -> Vec<(String, String, String, String, String)> {
+    let text = corpus(name);
+    let mut it = text
+        .lines()
+        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+        .map(|l| {
+            let mut p = l.splitn(3, '\t');
+            let kind = p.next().unwrap().to_string();
+            let _case = p.next().unwrap();
+            (kind, unescape(p.next().unwrap_or("")))
+        });
+    let mut out = Vec::new();
+    while let Some((k0, opts)) = it.next() {
+        let (k1, input1) = it.next().expect("input1 row");
+        let (k2, input2) = it.next().expect("input2 row");
+        let (k3, verdict) = it.next().expect("verdict row");
+        let (k4, report) = it.next().expect("report row");
+        assert_eq!(
+            (
+                k0.as_str(),
+                k1.as_str(),
+                k2.as_str(),
+                k3.as_str(),
+                k4.as_str()
+            ),
+            ("opts", "input1", "input2", "verdict", "report")
+        );
+        out.push((opts, input1, input2, verdict, report));
+    }
+    out
+}
+
 #[test]
 fn every_queryname_case_is_byte_identical() {
     check("compare_sams.txt.gz", 7);
+}
+
+#[test]
+fn every_options_case_is_byte_identical() {
+    let cases = opt_cases("compare_sams_opts.txt.gz");
+    assert_eq!(cases.len(), 6, "options case count");
+    for (opts, input1, input2, want_verdict, want_report) in &cases {
+        let o = parse_opts(opts);
+        let metric =
+            compare_sams_with_options(input1, input2, "LEFT", "RIGHT", &o).expect("inputs parse");
+        let rc = if metric.are_equal { 0 } else { 1 };
+        assert_eq!(&format!("{} rc={rc}", verdict(&metric)), want_verdict);
+        assert_eq!(&strip_banner(&write_report(&metric)), want_report);
+    }
 }
 
 #[test]
