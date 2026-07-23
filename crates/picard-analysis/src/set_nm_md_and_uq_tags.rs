@@ -161,6 +161,21 @@ pub fn set_nm_md_and_uq_tags_to_bam(
         .expect("in-memory BAM writer never fails to finish"))
 }
 
+/// `SetNmAndUqTags.doWork`. `SetNmAndUqTags` is a `@Deprecated` subclass of `SetNmMdAndUqTags` that
+/// overrides nothing (`SetNmAndUqTags.java` at Picard 3.4.0 is only annotations and usage strings), so
+/// it inherits `doWork` unchanged and, despite its name, still writes `MD` as well as `NM`/`UQ`. Its
+/// output is therefore byte-for-byte the same as [`set_nm_md_and_uq_tags`]; this alias exists so the
+/// deprecated tool name is covered by the port.
+pub fn set_nm_and_uq_tags(input_sam: &str, fasta: &[u8]) -> Result<String, SetTagsError> {
+    set_nm_md_and_uq_tags(input_sam, fasta)
+}
+
+/// `SetNmAndUqTags.doWork` for **BAM** output, identical to [`set_nm_md_and_uq_tags_to_bam`] for the
+/// same reason.
+pub fn set_nm_and_uq_tags_to_bam(input_sam: &str, fasta: &[u8]) -> Result<Vec<u8>, SetTagsError> {
+    set_nm_md_and_uq_tags_to_bam(input_sam, fasta)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,5 +210,19 @@ mod tests {
         assert!(row.contains("MD:Z:2G5"), "got {row}");
         assert!(row.contains("NM:i:1"), "got {row}");
         assert!(row.contains("UQ:i:"), "got {row}");
+    }
+
+    /// The deprecated `SetNmAndUqTags` inherits `doWork`, so its output is identical to
+    /// `SetNmMdAndUqTags` in both formats.
+    #[test]
+    fn the_deprecated_alias_is_identical_to_the_base_tool() {
+        assert_eq!(
+            set_nm_and_uq_tags(INPUT, FASTA).unwrap(),
+            set_nm_md_and_uq_tags(INPUT, FASTA).unwrap()
+        );
+        assert_eq!(
+            set_nm_and_uq_tags_to_bam(INPUT, FASTA).unwrap(),
+            set_nm_md_and_uq_tags_to_bam(INPUT, FASTA).unwrap()
+        );
     }
 }
