@@ -27,6 +27,7 @@ pub mod gather_bam_files;
 pub mod gc;
 pub mod insert_size;
 pub mod interval_list_to_bed;
+pub mod interval_list_tools;
 pub mod lift_over_interval_list;
 pub mod merge_bam_alignment;
 pub mod merge_sam_files;
