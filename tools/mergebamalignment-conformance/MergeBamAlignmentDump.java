@@ -50,6 +50,15 @@ public class MergeBamAlignmentDump {
     run("reverse",
         uHdr + "r3\t4\t*\t0\t0\t*\t*\t0\t0\tGTACGT\tABCDEF\tRG:Z:rg1\n",
         aHdr + "r3\t16\tchr1\t1\t60\t6M\t*\t0\t0\tACGTAC\tFEDCBA\tRG:Z:rg1\n");
+    // Three reads (queryname-sorted input) landing at different positions, so the coordinate-sorted
+    // output re-orders them (a@20, b@5, c@30 in name order -> b, a, c by position).
+    run("multi_read",
+        uHdr + "a\t4\t*\t0\t0\t*\t*\t0\t0\tACGTACGT\tIIIIIIII\tRG:Z:rg1\n" +
+               "b\t4\t*\t0\t0\t*\t*\t0\t0\tACGTACGT\tIIIIIIII\tRG:Z:rg1\n" +
+               "c\t4\t*\t0\t0\t*\t*\t0\t0\tACGTACGT\tIIIIIIII\tRG:Z:rg1\n",
+        aHdr + "a\t0\tchr1\t20\t60\t8M\t*\t0\t0\tACGTACGT\tIIIIIIII\tRG:Z:rg1\n" +
+               "b\t0\tchr1\t5\t60\t8M\t*\t0\t0\tACGTACGT\tIIIIIIII\tRG:Z:rg1\n" +
+               "c\t0\tchr1\t30\t60\t8M\t*\t0\t0\tACGTACGT\tIIIIIIII\tRG:Z:rg1\n");
     System.out.print(buf);
   }
 }
