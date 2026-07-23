@@ -51,12 +51,20 @@ const TAGS_TO_REVERSE_COMPLEMENT: [&[u8; 2]; 2] = [b"E2", b"SQ"];
 /// Tags whose values are merely reversed on a negative-strand read (`SAMRecord.TAGS_TO_REVERSE`).
 const TAGS_TO_REVERSE: [&[u8; 2]; 2] = [b"OQ", b"U2"];
 
-/// Why the transfer could not run.
+/// Why the merge could not run.
 #[derive(Debug)]
 pub enum MergeAlignmentError {
     /// The read taken from the unmapped BAM is itself mapped (`setValuesFromAlignment` throws
     /// `UNMAPPED_BAM contains mapped reads`).
     UnmappedBamContainsMappedRead(String),
+    /// An input SAM (or the reference `.dict`) failed to parse.
+    Parse(htsjdk_bam::text_parse::ParseError),
+}
+
+impl From<htsjdk_bam::text_parse::ParseError> for MergeAlignmentError {
+    fn from(e: htsjdk_bam::text_parse::ParseError) -> Self {
+        MergeAlignmentError::Parse(e)
+    }
 }
 
 /// `AbstractAlignmentMerger.isReservedTag`: a tag is reserved (and so is not copied from the aligner
@@ -436,6 +444,66 @@ pub fn merge_bam_alignment_paired(
 
     merged.sort_by(htsjdk_bam::coordinate::compare);
     Ok(merged)
+}
+
+/// `MergeBamAlignment.doWork` for the default coordinate-sorted output, single primary hit per read,
+/// non-overlapping, on-reference: build the merged header and write the merged records as SAM text.
+///
+/// The header follows `AbstractAlignmentMerger.mergeAlignment` + `SamAlignmentMerger`: a fresh `@HD`
+/// with `SO:coordinate`, the `@RG` from the **unmapped** BAM, the `@SQ` from the reference `.dict`
+/// (which carries `M5`/`UR`; the port passes it through so no `UR` canonicalization is needed), and the
+/// `@PG` adopted from the aligned BAM's single program record. `reference_dict` is the `.dict` text,
+/// `reference_bases` maps each contig to its bases for the `NM`/`MD`/`UQ` recomputation. Whether the
+/// reads are paired is taken from the unmapped records' flags.
+///
+/// Scope: as [`merge_bam_alignment_records`] / [`merge_bam_alignment_paired`]. Overlap/off-end clipping
+/// and multi-hit selection are later slices.
+pub fn merge_bam_alignment(
+    reference_dict: &str,
+    unmapped_sam: &str,
+    aligned_sam: &str,
+    reference_bases: &std::collections::HashMap<String, Vec<u8>>,
+) -> Result<String, MergeAlignmentError> {
+    use htsjdk_bam::header::SamHeader;
+    use htsjdk_bam::sam_file::{read_sam, write_sam};
+
+    let dict = read_sam(reference_dict)?.0;
+    let (unmapped_header, unmapped) = read_sam(unmapped_sam)?;
+    let (aligned_header, aligned) = read_sam(aligned_sam)?;
+
+    // The @PG is the aligned file's single program record (default: no PROGRAM_RECORD_ID).
+    let program_id = aligned_header.programs.first().map(|p| p.id.clone());
+
+    // The merged header: fresh @HD (VN) + SO:coordinate, @RG from the unmapped BAM, @SQ from the
+    // reference .dict, @PG from the aligned BAM.
+    let mut header = SamHeader::new();
+    header.set_sort_order("coordinate");
+    header.sequences = dict.sequences;
+    header.read_groups = unmapped_header.read_groups;
+    header.programs = aligned_header.programs.clone();
+
+    let paired = unmapped.iter().any(|r| r.flags & READ_PAIRED != 0);
+    let records = if paired {
+        merge_bam_alignment_paired(
+            &unmapped,
+            &aligned,
+            &aligned_header.sequences,
+            &header.sequences,
+            reference_bases,
+            program_id.as_deref(),
+        )?
+    } else {
+        merge_bam_alignment_records(
+            &unmapped,
+            &aligned,
+            &aligned_header.sequences,
+            &header.sequences,
+            reference_bases,
+            program_id.as_deref(),
+        )?
+    };
+
+    Ok(write_sam(&header, &records).expect("merged records re-encode as SAM text"))
 }
 
 #[cfg(test)]
