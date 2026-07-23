@@ -14,13 +14,15 @@ public class SamToFastqWithTagsDump {
     buf.append(k).append('\t').append(c).append('\t')
        .append(p.replace("\\", "\\\\").replace("\t", "\\t").replace("\n", "\\n")).append('\n');
   }
-  static void run(String c, String sam, String... extraArgs) throws Exception {
+  static void run(String c, String sam, String... extraArgs) throws Exception { run(c, sam, false, extraArgs); }
+  static void run(String c, String sam, boolean paired, String... extraArgs) throws Exception {
     File d = Files.createTempDirectory("stfwt").toFile();
     File s = new File(d, "in.sam"); Files.write(s.toPath(), sam.getBytes());
     File o = new File(d, "out.fastq");
     List<String> args = new ArrayList<>();
     args.add("I=" + s.getAbsolutePath());
     args.add("FASTQ=" + o.getAbsolutePath());
+    if (paired) args.add("SECOND_END_FASTQ=" + new File(d, "out2.fastq").getAbsolutePath());
     args.addAll(Arrays.asList(extraArgs));
     int rc = new picard.sam.SamToFastqWithTags().instanceMain(args.toArray(new String[0]));
     emit("input", c, sam);
@@ -28,8 +30,9 @@ public class SamToFastqWithTagsDump {
     File[] files = d.listFiles();
     Arrays.sort(files, Comparator.comparing(File::getName));
     for (File f : files) {
-      if (f.getName().endsWith(".fastq") && !f.getName().equals("out.fastq")) {
-        emit("out", c + ":" + f.getName(), new String(Files.readAllBytes(f.toPath())));
+      String n = f.getName();
+      if (n.endsWith(".fastq") && !n.equals("out.fastq") && !n.equals("out2.fastq")) {
+        emit("out", c + ":" + n, new String(Files.readAllBytes(f.toPath())));
       }
     }
   }
@@ -43,6 +46,11 @@ public class SamToFastqWithTagsDump {
         "SEQUENCE_TAG_GROUP=CB,UR", "QUALITY_TAG_GROUP=CY,UY");
     // A group with no quality group at all: quality is filled with '~'.
     run("no_quality", sam, "SEQUENCE_TAG_GROUP=CB,UR");
+    // Paired input (SECOND_END_FASTQ): the tag FASTQ carries both ends (name/1, name/2) in one file.
+    String pairedSam = "@HD\tVN:1.6\tSO:queryname\n@SQ\tSN:chr1\tLN:100\n" +
+      "p1\t77\t*\t0\t0\t*\t*\t0\t0\tAAAA\tIIII\tCR:Z:ACGT\tCY:Z:FFFF\n" +
+      "p1\t141\t*\t0\t0\t*\t*\t0\t0\tCCCC\tJJJJ\tCR:Z:TTTT\tCY:Z:####\n";
+    run("paired", pairedSam, true, "SEQUENCE_TAG_GROUP=CR", "QUALITY_TAG_GROUP=CY");
     System.out.print(buf);
   }
 }
