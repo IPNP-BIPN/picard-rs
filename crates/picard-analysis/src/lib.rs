@@ -23,6 +23,7 @@ pub mod fix_mate_information;
 pub mod gather_bam_files;
 pub mod gc;
 pub mod insert_size;
+pub mod merge_bam_alignment;
 pub mod merge_sam_files;
 pub mod quality_score_distribution;
 pub mod quality_yield;
