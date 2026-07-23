@@ -59,6 +59,13 @@ public class MergeBamAlignmentDump {
         aHdr + "a\t0\tchr1\t20\t60\t8M\t*\t0\t0\tACGTACGT\tIIIIIIII\tRG:Z:rg1\n" +
                "b\t0\tchr1\t5\t60\t8M\t*\t0\t0\tACGTACGT\tIIIIIIII\tRG:Z:rg1\n" +
                "c\t0\tchr1\t30\t60\t8M\t*\t0\t0\tACGTACGT\tIIIIIIII\tRG:Z:rg1\n");
+    // A proper FR pair: first at chr1:1 (+), second at chr1:20 (-). MC/MQ mate tags, proper-pair
+    // flags, insert size +/-27, per-end NM/MD/UQ.
+    run("proper_pair",
+        uHdr + "p1\t77\t*\t0\t0\t*\t*\t0\t0\tACGTACGT\tIIIIIIII\tRG:Z:rg1\n" +
+               "p1\t141\t*\t0\t0\t*\t*\t0\t0\tTTTTGGGG\tIIIIIIII\tRG:Z:rg1\n",
+        aHdr + "p1\t99\tchr1\t1\t60\t8M\t=\t20\t27\tACGTACGT\tIIIIIIII\tRG:Z:rg1\n" +
+               "p1\t147\tchr1\t20\t60\t8M\t=\t1\t-27\tCCCCAAAA\tIIIIIIII\tRG:Z:rg1\n");
     System.out.print(buf);
   }
 }

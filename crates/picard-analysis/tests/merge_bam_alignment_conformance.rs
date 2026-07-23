@@ -13,7 +13,9 @@ use std::io::Read;
 use htsjdk_bam::header::{SamHeader, SequenceRecord};
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
-use picard_analysis::merge_bam_alignment::{merge_aligned_fragment, merge_bam_alignment_records};
+use picard_analysis::merge_bam_alignment::{
+    merge_aligned_fragment, merge_bam_alignment_paired, merge_bam_alignment_records,
+};
 
 const REF: &[u8] = b"ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT";
 
@@ -107,8 +109,9 @@ fn record_line(rec: &BamRecord) -> String {
 #[test]
 fn every_merged_record_is_byte_identical() {
     let cases = cases();
-    assert_eq!(cases.len(), 4, "case count");
-    for (name, case) in &cases {
+    assert_eq!(cases.len(), 5, "case count");
+    // The unpaired fragment path; the paired case is exercised separately below.
+    for (name, case) in cases.iter().filter(|(n, _)| n != "proper_pair") {
         let (_, unmapped) = read_sam(&case.unmapped).unwrap();
         let (aligned_header, aligned) = read_sam(&case.aligned).unwrap();
         assert_eq!(unmapped.len(), aligned.len());
@@ -160,4 +163,31 @@ fn the_whole_file_producer_matches_and_coordinate_sorts() {
 
     let got: Vec<String> = merged.iter().map(record_line).collect();
     assert_eq!(got, case.records, "coordinate-sorted record order");
+}
+
+/// The paired path: mate-info (`MC`/`MQ`/RNEXT/PNEXT/insert size), recomputed proper-pair flags, and
+/// per-end `NM`/`MD`/`UQ`, coordinate-sorted.
+#[test]
+fn the_paired_path_sets_mate_info_and_proper_pair_flags() {
+    let case = cases()
+        .into_iter()
+        .find(|(n, _)| n == "proper_pair")
+        .unwrap()
+        .1;
+    let (_, unmapped) = read_sam(&case.unmapped).unwrap();
+    let (aligned_header, aligned) = read_sam(&case.aligned).unwrap();
+
+    let reference_bases = HashMap::from([("chr1".to_string(), REF.to_vec())]);
+    let merged = merge_bam_alignment_paired(
+        &unmapped,
+        &aligned,
+        &aligned_header.sequences,
+        &out_sequences(),
+        &reference_bases,
+        Some("bwa"),
+    )
+    .unwrap();
+
+    let got: Vec<String> = merged.iter().map(record_line).collect();
+    assert_eq!(got, case.records);
 }

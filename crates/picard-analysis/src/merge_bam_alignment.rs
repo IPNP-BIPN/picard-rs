@@ -28,6 +28,7 @@
 //! the merged-header construction. This function reproduces the transfer those stages build on.
 
 use htsjdk_bam::header::SequenceRecord;
+use htsjdk_bam::pair::set_mate_info;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sequence::{reverse, reverse_complement, reverse_qualities};
 use htsjdk_bam::tag::{Tag, TagValue};
@@ -38,6 +39,8 @@ const READ_PAIRED: u16 = 0x1;
 const PROPER_PAIR: u16 = 0x2;
 const READ_UNMAPPED: u16 = 0x4;
 const READ_REVERSE_STRAND: u16 = 0x10;
+const MATE_NEGATIVE_STRAND: u16 = 0x20;
+const FIRST_OF_PAIR: u16 = 0x40;
 const NOT_PRIMARY_ALIGNMENT: u16 = 0x100;
 const SUPPLEMENTARY_ALIGNMENT: u16 = 0x800;
 
@@ -213,6 +216,112 @@ pub fn merge_aligned_fragment(
     Ok(merged)
 }
 
+/// `SamPairUtil.PairOrientation`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PairOrientation {
+    Fr,
+    Rf,
+    Tandem,
+}
+
+/// `SamPairUtil.getPairOrientation`: the orientation of a paired, both-ends-mapped read from its own
+/// and its mate's strand and 5' positions.
+fn get_pair_orientation(rec: &BamRecord) -> PairOrientation {
+    let read_reverse = rec.flags & READ_REVERSE_STRAND != 0;
+    let mate_reverse = rec.flags & MATE_NEGATIVE_STRAND != 0;
+    if read_reverse == mate_reverse {
+        return PairOrientation::Tandem;
+    }
+    let positive_5prime = if read_reverse {
+        rec.mate_alignment_start
+    } else {
+        rec.alignment_start
+    };
+    let negative_5prime = if read_reverse {
+        rec.alignment_end()
+    } else {
+        rec.alignment_start + rec.inferred_insert_size
+    };
+    if positive_5prime < negative_5prime {
+        PairOrientation::Fr
+    } else {
+        PairOrientation::Rf
+    }
+}
+
+/// `SamPairUtil.isProperPair`: both ends mapped to the same reference with an expected orientation.
+fn is_proper_pair(first: &BamRecord, second: &BamRecord, expected: &[PairOrientation]) -> bool {
+    if first.flags & READ_UNMAPPED != 0 || second.flags & READ_UNMAPPED != 0 {
+        return false;
+    }
+    if first.reference_index < 0 || first.reference_index != second.reference_index {
+        return false;
+    }
+    expected.contains(&get_pair_orientation(first))
+}
+
+/// `SamPairUtil.setProperPairFlags`: set the proper-pair flag on both ends to whether they form a
+/// proper pair (both mapped, expected orientation), or clear it otherwise.
+fn set_proper_pair_flags(rec1: &mut BamRecord, rec2: &mut BamRecord, expected: &[PairOrientation]) {
+    let proper = rec1.flags & READ_UNMAPPED == 0
+        && rec2.flags & READ_UNMAPPED == 0
+        && is_proper_pair(rec1, rec2, expected);
+    set_flag(&mut rec1.flags, PROPER_PAIR, proper);
+    set_flag(&mut rec2.flags, PROPER_PAIR, proper);
+}
+
+/// The merged pair for a paired template, for the default coordinate-sorted output:
+/// `transferAlignmentInfoToPairedRead` transfers each end, `SamPairUtil.setMateInfo` cross-sets the
+/// mate coordinates / strand / `MQ` / `MC` and insert size, `setProperPairFlags` recomputes the
+/// proper-pair flag against the default `FR` orientation, and each end then gets its `PG` and
+/// reference-based `NM`/`MD`/`UQ`. `*_reference_bases` is the bases of the contig each end maps to.
+///
+/// Scope: both ends primary and mapped, non-overlapping (so `CLIP_OVERLAPPING_READS`, though on by
+/// default, does nothing). Overlap clipping and off-end clipping are later slices.
+#[allow(clippy::too_many_arguments)]
+pub fn merge_aligned_pair(
+    first_unmapped: &BamRecord,
+    second_unmapped: &BamRecord,
+    first_aligned: &BamRecord,
+    second_aligned: &BamRecord,
+    first_reference_name: &str,
+    second_reference_name: &str,
+    out_sequences: &[SequenceRecord],
+    first_reference_bases: &[u8],
+    second_reference_bases: &[u8],
+    program_id: Option<&str>,
+) -> Result<(BamRecord, BamRecord), MergeAlignmentError> {
+    let mut first = first_unmapped.clone();
+    let mut second = second_unmapped.clone();
+    transfer_alignment_info_to_fragment(
+        &mut first,
+        first_aligned,
+        first_reference_name,
+        out_sequences,
+    )?;
+    transfer_alignment_info_to_fragment(
+        &mut second,
+        second_aligned,
+        second_reference_name,
+        out_sequences,
+    )?;
+
+    // htsjdk calls setMateInfo(second, first, addMateCigar) then setProperPairFlags(second, first).
+    set_mate_info(&mut second, &mut first, true);
+    set_proper_pair_flags(&mut second, &mut first, &[PairOrientation::Fr]);
+
+    for (rec, bases) in [
+        (&mut first, first_reference_bases),
+        (&mut second, second_reference_bases),
+    ] {
+        maybe_set_pg_tag(rec, program_id);
+        if rec.flags & READ_UNMAPPED == 0 {
+            fix_nm_md_and_uq(rec, bases);
+        }
+    }
+    Ok((first, second))
+}
+
 /// The merged, coordinate-sorted records for the default unpaired single-hit path: match each aligned
 /// record to its unmapped read by name, [`merge_aligned_fragment`] the pair, then sort by coordinate
 /// (`MergingSamRecordIterator` walks the two queryname-sorted inputs and the output writer re-sorts to
@@ -258,6 +367,71 @@ pub fn merge_bam_alignment_records(
             contig_bases,
             program_id,
         )?);
+    }
+
+    merged.sort_by(htsjdk_bam::coordinate::compare);
+    Ok(merged)
+}
+
+/// The paired analogue of [`merge_bam_alignment_records`]: group each template's first- and
+/// second-of-pair ends in both files by name, [`merge_aligned_pair`] them, and coordinate-sort.
+///
+/// Scope: every template has both ends primary and mapped, non-overlapping. Singletons, overlap and
+/// off-end clipping, and multi-hit selection are later slices.
+pub fn merge_bam_alignment_paired(
+    unmapped: &[BamRecord],
+    aligned: &[BamRecord],
+    aligned_sequences: &[SequenceRecord],
+    out_sequences: &[SequenceRecord],
+    reference_bases: &std::collections::HashMap<String, Vec<u8>>,
+    program_id: Option<&str>,
+) -> Result<Vec<BamRecord>, MergeAlignmentError> {
+    use std::collections::HashMap;
+
+    // Index each file's ends by (name, is-first-of-pair).
+    let key = |r: &BamRecord| (r.read_name.clone(), r.flags & FIRST_OF_PAIR != 0);
+    let unmapped_by: HashMap<(String, bool), &BamRecord> =
+        unmapped.iter().map(|r| (key(r), r)).collect();
+    let aligned_by: HashMap<(String, bool), &BamRecord> =
+        aligned.iter().map(|r| (key(r), r)).collect();
+
+    let reference_name = |a: &BamRecord| {
+        if a.reference_index < 0 {
+            "*".to_string()
+        } else {
+            aligned_sequences[a.reference_index as usize].name.clone()
+        }
+    };
+    let bases_for = |name: &str| {
+        reference_bases
+            .get(name)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
+    };
+
+    // Each template appears once as a first-of-pair aligned record.
+    let mut merged: Vec<BamRecord> = Vec::with_capacity(aligned.len());
+    for a_first in aligned.iter().filter(|r| r.flags & FIRST_OF_PAIR != 0) {
+        let name = a_first.read_name.as_str();
+        let a_second = aligned_by[&(name.to_string(), false)];
+        let u_first = unmapped_by[&(name.to_string(), true)];
+        let u_second = unmapped_by[&(name.to_string(), false)];
+        let first_ref = reference_name(a_first);
+        let second_ref = reference_name(a_second);
+        let (first, second) = merge_aligned_pair(
+            u_first,
+            u_second,
+            a_first,
+            a_second,
+            &first_ref,
+            &second_ref,
+            out_sequences,
+            bases_for(&first_ref),
+            bases_for(&second_ref),
+            program_id,
+        )?;
+        merged.push(first);
+        merged.push(second);
     }
 
     merged.sort_by(htsjdk_bam::coordinate::compare);
