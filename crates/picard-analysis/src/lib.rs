@@ -10,6 +10,7 @@ pub mod annotation;
 pub mod calculate_read_group_checksum;
 pub mod check_terminator_block;
 pub mod clean_sam;
+pub mod compare_sams;
 pub mod create_sequence_dictionary;
 pub mod cycle;
 pub mod downsample_sam;
