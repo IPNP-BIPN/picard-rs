@@ -10,8 +10,10 @@ use std::io::Read;
 
 use picard_analysis::compare_sams::{compare_sams, verdict, write_report};
 
-fn corpus() -> String {
-    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/compare_sams.txt.gz");
+fn corpus(name: &str) -> String {
+    let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/data")
+        .join(name);
     let f = std::fs::File::open(&p).expect("corpus");
     let mut s = String::new();
     flate2::read::GzDecoder::new(f)
@@ -56,8 +58,8 @@ fn strip_banner(report: &str) -> String {
 }
 
 /// Group the flat corpus rows into `(input1, input2, verdict, report)` per case, in file order.
-fn cases() -> Vec<(String, String, String, String)> {
-    let text = corpus();
+fn cases(name: &str) -> Vec<(String, String, String, String)> {
+    let text = corpus(name);
     let mut it = text
         .lines()
         .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
@@ -81,10 +83,9 @@ fn cases() -> Vec<(String, String, String, String)> {
     out
 }
 
-#[test]
-fn every_case_is_byte_identical() {
-    let cases = cases();
-    assert_eq!(cases.len(), 7, "expected 7 cases");
+fn check(name: &str, expected: usize) {
+    let cases = cases(name);
+    assert_eq!(cases.len(), expected, "case count for {name}");
     for (input1, input2, want_verdict, want_report) in &cases {
         let metric = compare_sams(input1, input2, "LEFT", "RIGHT").expect("inputs parse");
         // The oracle records "SAM files match. rc=0" (or "differ. rc=1"): rc is 0 when equal, else 1.
@@ -92,4 +93,14 @@ fn every_case_is_byte_identical() {
         assert_eq!(&format!("{} rc={rc}", verdict(&metric)), want_verdict);
         assert_eq!(&strip_banner(&write_report(&metric)), want_report);
     }
+}
+
+#[test]
+fn every_queryname_case_is_byte_identical() {
+    check("compare_sams.txt.gz", 7);
+}
+
+#[test]
+fn every_coordinate_case_is_byte_identical() {
+    check("compare_sams_coord.txt.gz", 6);
 }
