@@ -18,6 +18,7 @@ pub mod downsample_sam;
 pub mod fastq_to_sam;
 pub mod filter_sam_reads;
 pub mod fix_mate_information;
+pub mod gather_bam_files;
 pub mod gc;
 pub mod insert_size;
 pub mod quality_score_distribution;
