@@ -25,6 +25,7 @@ pub mod gc;
 pub mod insert_size;
 pub mod merge_bam_alignment;
 pub mod merge_sam_files;
+pub mod non_n_fasta_size;
 pub mod normalize_fasta;
 pub mod quality_score_distribution;
 pub mod quality_yield;
