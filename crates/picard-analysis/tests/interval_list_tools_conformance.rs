@@ -112,6 +112,9 @@ fn every_interval_list_is_byte_identical_after_stripping_pg() {
             unique: case.unique,
             dont_merge_abutting: case.dont_merge_abutting,
             invert: false,
+            // This suite predates PADDING and BREAK_BANDS and exercises neither; the two are
+            // measured by their own suite, which has no golden yet.
+            ..Options::default()
         };
         let got = interval_list_tools(&[&case.input1, &case.input2], &[], &opts).expect("tool");
         assert_eq!(got, strip_pg(&case.output), "{name}");

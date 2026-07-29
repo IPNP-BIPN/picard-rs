@@ -718,6 +718,35 @@
       ]
     },
     {
+      "id": "intervallisttoolspadbreak",
+      "tools": ["IntervalListTools"],
+      "title": "IntervalListTools PADDING and BREAK_BANDS_AT_MULTIPLES_OF",
+      "status": "golden-pending",
+      "harness": "tools/intervallisttools-conformance",
+      "why": "PADDING pads every input interval before the action, clamped to the contig, and BREAK_BANDS_AT_MULTIPLES_OF splits the final intervals at band multiples and renames them A.1, A.2, A.3. Both change the output bytes and neither was exercised by the three existing cases.",
+      "compare": {
+        "mode": "keyed",
+        "skip_comment_lines": false,
+        "rules": [
+          { "rule": "strip_pg", "why": "@PG CL: is the command line, with the run's temp paths." },
+          { "rule": "strip_ur", "why": "Per-run temp path in the sequence dictionary the harness builds." }
+        ]
+      },
+      "expect_rows": 8,
+      "$expect_why": "Two cases, four rows each: the input list, PADDING, BREAK_BANDS, and the output.",
+      "expect_contains": [
+        "chr1\\t1\\t30\\t+\\tA",
+        "chr1\\t5\\t9\\t+\\tA.1"
+      ],
+      "cases": [
+        {
+          "dump": "IntervalListToolsPadBreakDump",
+          "golden": null,
+          "why": "No golden committed: the one this slice produced came from a laptop, not from the pinned container on real x86-64, which is the provenance decision 0008 exists to enforce. The generated job runs the dump and uploads it; committing that artefact is what makes this suite oracle-backed."
+        }
+      ]
+    },
+    {
       "id": "liftoverintervallist",
       "tools": ["LiftOverIntervalList"],
       "title": "LiftOverIntervalList",

@@ -234,7 +234,7 @@ jobs:
             suites: "normalizefasta samtofastqwithtags mergebamalignment mergebamalignment-full"
           - group: golden-pending
             index: "1/1"
-            suites: "rejections"
+            suites: "rejections intervallisttoolspadbreak"
     steps:
       - uses: actions/checkout@v4
 
