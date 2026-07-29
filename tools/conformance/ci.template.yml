@@ -48,6 +48,52 @@ jobs:
         # existed (docs/decisions/0008), so the condition is now an invariant rather than a habit.
         run: python3 tools/conformance/audit_goldens.py
 
+  determinism:
+    name: "Determinism: same input, different environment"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the pinned oracle image
+        run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
+
+      - run: cargo build --release --bin collect-alignment-summary-metrics --bin add-oa-tag
+
+      - name: Build the fixture corpus
+        run: |
+          mkdir -p target/fixtures
+          docker run --rm --platform linux/amd64 -v "$PWD/tools/coverage":/harness:ro \
+            -v "$PWD/target/fixtures":/out -w /work picard-rs-oracle:3.4.0 \
+            'cp /harness/MakeFixtures.java . && javac -cp "$ORACLE_CP" -d . MakeFixtures.java \
+             && java -Dsamjdk.try_use_intel_deflater=false -cp ".:$ORACLE_CP" MakeFixtures /out'
+
+      - name: The same input twice, under three environments, is the same bytes
+        # A byte-identity claim that only holds in one environment is not a byte-identity claim.
+        # LC_ALL is the interesting one: htsjdk-rs decision 0011 established that metrics number
+        # formatting is locale-dependent in the reference, and the oracle pins en_US for that
+        # reason. The port must not have acquired the same dependency, so it is run under fr_FR,
+        # where a locale-sensitive formatter would write "0,333333".
+        run: |
+          set -eux
+          B=target/release/collect-alignment-summary-metrics
+          F=target/fixtures
+          $B I=$F/small.bam O=/tmp/run1.txt R=$F/ref.fasta
+          $B I=$F/small.bam O=/tmp/run2.txt R=$F/ref.fasta
+          TMPDIR=/tmp/other-tmp LC_ALL=fr_FR.UTF-8 $B I=$F/small.bam O=/tmp/run3.txt R=$F/ref.fasta
+          mkdir -p /tmp/other-tmp
+          JAVA_TOOL_OPTIONS=-Xmx256m $B I=$F/small.bam O=/tmp/run4.txt R=$F/ref.fasta
+          for f in /tmp/run2.txt /tmp/run3.txt /tmp/run4.txt; do
+            diff <(grep -v '^# ' /tmp/run1.txt) <(grep -v '^# ' $f) \
+              || { echo "the port is not deterministic across environments: $f"; exit 1; }
+          done
+          echo "four runs, three environments, identical"
+
   fuzz:
     name: "Coverage-guided fuzzing of the reference"
     runs-on: ubuntu-latest
