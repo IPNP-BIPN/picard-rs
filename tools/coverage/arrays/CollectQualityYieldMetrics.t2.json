@@ -1,0 +1,354 @@
+{
+  "tool": "CollectQualityYieldMetrics",
+  "origin": "picard",
+  "t": 2,
+  "numeric_policy": "strict",
+  "arguments_total": 23,
+  "arguments_in_array": 8,
+  "arguments_excluded": 15,
+  "excluded": [
+    {
+      "argument": "--arguments_file",
+      "type": "List[File]",
+      "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--COMPRESSION_LEVEL",
+      "type": "int",
+      "reason": "excluded by the repository: changes the deflate level of a written BAM. Varying it would make the output bytes differ for a reason that is not the tool's logic, and the deflate pin is asserted by its own suite (htsjdk-rs decision 0001)",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CREATE_MD5_FILE",
+      "type": "boolean",
+      "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--help",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--MAX_RECORDS_IN_RAM",
+      "type": "Integer",
+      "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--OUTPUT",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/out/output.txt",
+      "source": "fixture"
+    },
+    {
+      "argument": "--QUIET",
+      "type": "Boolean",
+      "reason": "excluded by the repository: suppresses the log on stderr; the compared output is stdout and the output file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--REFERENCE_SEQUENCE",
+      "type": "PicardHtsPath",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/ref.fasta",
+      "source": "fixture"
+    },
+    {
+      "argument": "--showHidden",
+      "type": "boolean",
+      "reason": "excluded by the repository: changes the usage text only",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--STOP_AFTER",
+      "type": "long",
+      "reason": "only one value available (default)",
+      "held_at": "0",
+      "source": "default"
+    },
+    {
+      "argument": "--TMP_DIR",
+      "type": "List[File]",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/tmp",
+      "source": "fixture"
+    },
+    {
+      "argument": "--USE_JDK_DEFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract; varying it would compare zlib output against GKL output and call the difference a divergence",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--USE_JDK_INFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--VERBOSITY",
+      "type": "LogLevel",
+      "reason": "excluded by the repository: log level on stderr, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--version",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints the version and exits, same reason",
+      "held_at": null,
+      "source": "none"
+    }
+  ],
+  "rows": 10,
+  "tuples_total": 111,
+  "tuples_covered": 111,
+  "tuples_forbidden": 30,
+  "constraint_notes": [],
+  "coverage": 1.0,
+  "array": [
+    {
+      "row": 0,
+      "labels": {
+        "--ASSUME_SORTED": "true",
+        "--CREATE_INDEX": "true",
+        "--FLOW_MODE": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[0]",
+        "--USE_ORIGINAL_QUALITIES": "true",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=true",
+        "--FLOW_MODE=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--USE_ORIGINAL_QUALITIES=true",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 1,
+      "labels": {
+        "--ASSUME_SORTED": "true",
+        "--CREATE_INDEX": "false",
+        "--FLOW_MODE": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "false",
+        "--INPUT": "fixture[1]",
+        "--USE_ORIGINAL_QUALITIES": "false",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=false",
+        "--FLOW_MODE=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=false",
+        "--INPUT=/work/fixtures/small.sam",
+        "--USE_ORIGINAL_QUALITIES=false",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 2,
+      "labels": {
+        "--ASSUME_SORTED": "false",
+        "--CREATE_INDEX": "true",
+        "--FLOW_MODE": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[1]",
+        "--USE_ORIGINAL_QUALITIES": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=false",
+        "--CREATE_INDEX=true",
+        "--FLOW_MODE=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--USE_ORIGINAL_QUALITIES=true",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 3,
+      "labels": {
+        "--ASSUME_SORTED": "false",
+        "--CREATE_INDEX": "false",
+        "--FLOW_MODE": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "false",
+        "--INPUT": "fixture[0]",
+        "--USE_ORIGINAL_QUALITIES": "false",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=false",
+        "--CREATE_INDEX=false",
+        "--FLOW_MODE=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=false",
+        "--INPUT=/work/fixtures/small.bam",
+        "--USE_ORIGINAL_QUALITIES=false",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 4,
+      "labels": {
+        "--ASSUME_SORTED": "false",
+        "--CREATE_INDEX": "true",
+        "--FLOW_MODE": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "false",
+        "--INPUT": "fixture[0]",
+        "--USE_ORIGINAL_QUALITIES": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=false",
+        "--CREATE_INDEX=true",
+        "--FLOW_MODE=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=false",
+        "--INPUT=/work/fixtures/small.bam",
+        "--USE_ORIGINAL_QUALITIES=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 5,
+      "labels": {
+        "--ASSUME_SORTED": "false",
+        "--CREATE_INDEX": "false",
+        "--FLOW_MODE": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[0]",
+        "--USE_ORIGINAL_QUALITIES": "true",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=false",
+        "--CREATE_INDEX=false",
+        "--FLOW_MODE=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--USE_ORIGINAL_QUALITIES=true",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--ASSUME_SORTED": "true",
+        "--CREATE_INDEX": "true",
+        "--FLOW_MODE": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "false",
+        "--INPUT": "fixture[1]",
+        "--USE_ORIGINAL_QUALITIES": "true",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=true",
+        "--FLOW_MODE=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=false",
+        "--INPUT=/work/fixtures/small.sam",
+        "--USE_ORIGINAL_QUALITIES=true",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--ASSUME_SORTED": "true",
+        "--CREATE_INDEX": "true",
+        "--FLOW_MODE": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[0]",
+        "--USE_ORIGINAL_QUALITIES": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=true",
+        "--FLOW_MODE=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--USE_ORIGINAL_QUALITIES=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--ASSUME_SORTED": "true",
+        "--CREATE_INDEX": "true",
+        "--FLOW_MODE": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[0]",
+        "--USE_ORIGINAL_QUALITIES": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=true",
+        "--FLOW_MODE=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--USE_ORIGINAL_QUALITIES=true",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--ASSUME_SORTED": "true",
+        "--CREATE_INDEX": "true",
+        "--FLOW_MODE": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[0]",
+        "--USE_ORIGINAL_QUALITIES": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=true",
+        "--FLOW_MODE=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--USE_ORIGINAL_QUALITIES=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    }
+  ]
+}
