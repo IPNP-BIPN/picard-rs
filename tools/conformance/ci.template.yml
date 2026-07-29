@@ -48,6 +48,45 @@ jobs:
         # existed (docs/decisions/0008), so the condition is now an invariant rather than a habit.
         run: python3 tools/conformance/audit_goldens.py
 
+  fuzz:
+    name: "Coverage-guided fuzzing of the reference"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the pinned oracle image
+        run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
+
+      - run: cargo build --release --bin collect-alignment-summary-metrics
+
+      - name: Fuzz, seeded from the covering array, and replay against the port
+        # The covering arrays cover interactions between arguments; they say nothing about which
+        # branches of the reference those interactions reach. This starts from the array's rows and
+        # keeps whatever reaches a probe nothing has reached. A short session on every run, because
+        # the value is the regression signal (a divergence class that disappears, or a new one that
+        # appears), not the depth of any single run.
+        run: |
+          python3 tools/fuzz/run_fuzz.py --tool CollectQualityYieldMetrics --iterations 60
+          python3 tools/fuzz/run_fuzz.py --tool CollectAlignmentSummaryMetrics --iterations 60 \
+            --port target/release/collect-alignment-summary-metrics
+
+      - name: Publish the findings
+        # Findings are evidence, not goldens: they say what the reference did and where the port
+        # differs. They are published rather than committed, because a finding produced anywhere
+        # other than real x86-64 CI cannot be quoted (decision 0008).
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-findings
+          path: tools/fuzz/findings/
+          if-no-files-found: ignore
+
   test:
     name: Test on real x86-64
     runs-on: ubuntu-latest

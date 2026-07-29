@@ -70,6 +70,7 @@ all three and why. No optimisation work has been done, so 1.46x is a floor.
 | [0007](docs/decisions/0007-multicore-helps-the-transform-not-the-io.md) | Multicore helps the transform, not the I/O |
 | [0008](docs/decisions/0008-sixteen-goldens-had-never-been-produced-by-the-oracle.md) | Sixteen goldens had never been produced by the oracle |
 | [0009](docs/decisions/0009-the-first-covering-array-run-measures-the-argument-surface.md) | The first covering-array run measures the argument surface, and it is 0% |
+| [0010](docs/decisions/0010-the-fuzzer-found-a-divergence-the-conformance-suite-cannot.md) | The fuzzer found a divergence the conformance suite cannot |
 
 ## Conformance suites
 
@@ -103,6 +104,17 @@ python3 tools/coverage/run_array.py --tool CollectAlignmentSummaryMetrics \
 array cannot invent a file path), `fixtures.json` declares which values this repository is willing
 to pass and which arguments it refuses to vary, and the run writes a corpus in the same dump format
 the conformance suites use. Decision 0009 records what the first two runs measured.
+
+Beyond the array, `tools/fuzz/` mutates from its rows and keeps whatever reaches a probe of the
+reference that nothing has reached, with JaCoCo measuring inside the pinned container:
+
+```sh
+python3 tools/fuzz/run_fuzz.py --tool CollectAlignmentSummaryMetrics --iterations 200 \
+    --port target/release/collect-alignment-summary-metrics
+```
+
+Sixty mutations reach about 10% more of the reference than the whole pairwise array does, and the
+first two sessions found a numeric divergence the conformance corpus cannot contain: decision 0010.
 
 ## Bit-identity contract
 

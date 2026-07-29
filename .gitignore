@@ -14,3 +14,7 @@ tools/coverage/corpus/
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real
 # x86-64 run; a copy produced locally must not be committed (decision 0008).
 tools/conformance/pending/
+
+# Fuzzer findings are oracle output produced locally, in an emulated container. CI publishes them
+# from a real x86-64 run as an artefact; a local copy must not be committed (decision 0008).
+tools/fuzz/findings/
