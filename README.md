@@ -39,6 +39,10 @@ into `main` when the whole tool is byte-identical across its corpus.
 | `CollectInsertSizeMetrics` | **byte-identical**, first member of the calibration pair |
 | `CollectAlignmentSummaryMetrics` | **byte-identical**, 22 cases, decision 0003 |
 
+"Byte-identical" here means byte-identical **on the paths its conformance suite covers**, which is
+the default path plus the cases listed. Over the tool's whole argument surface it is measured
+separately and is much lower: see "Argument coverage" below and decision 0009.
+
 ## Throughput
 
 Measured, not claimed. `tools/benchmark/run.sh` times the port against Picard on the same input,
@@ -61,6 +65,44 @@ all three and why. No optimisation work has been done, so 1.46x is a floor.
 | [0002](docs/decisions/0002-the-first-within-stratum-delta.md) | The first within-stratum delta, smaller than the archetype story assumed |
 | [0003](docs/decisions/0003-the-delta-at-the-large-end-is-negative.md) | The within-stratum delta at the large end is negative |
 | [0004](docs/decisions/0004-the-speedup-is-mostly-jvm-startup-until-it-is-not.md) | The speedup is mostly JVM startup, until the input is big enough that it is not |
+| [0005](docs/decisions/0005-the-rnaseq-coverage-fold-order-is-unobservable.md) | The RnaSeq coverage fold order is unobservable |
+| [0006](docs/decisions/0006-per-record-transforms-parallelize-without-touching-the-bytes.md) | Per-record transforms parallelize without touching the bytes |
+| [0007](docs/decisions/0007-multicore-helps-the-transform-not-the-io.md) | Multicore helps the transform, not the I/O |
+| [0008](docs/decisions/0008-sixteen-goldens-had-never-been-produced-by-the-oracle.md) | Sixteen goldens had never been produced by the oracle |
+| [0009](docs/decisions/0009-the-first-covering-array-run-measures-the-argument-surface.md) | The first covering-array run measures the argument surface, and it is 0% |
+
+## Conformance suites
+
+Every suite is declared once in [`tools/conformance/manifest.json`](tools/conformance/manifest.json):
+the harness that regenerates it, the goldens it produces, and every rule that canonicalizes a field
+away, each with the reason it is there. The oracle jobs of `.github/workflows/ci.yml` are generated
+from that manifest, and the same run happens locally with
+
+```sh
+python3 tools/conformance/run_suite.py --list
+python3 tools/conformance/run_suite.py --suites metrics
+```
+
+A suite's `status` is part of the claim it supports: **oracle-backed** means CI regenerates the
+golden in the pinned container and compares it on every run; **unchecked** means the golden is
+committed and read by the Rust tests but has never been re-derived. Decision 0008 records how
+sixteen goldens came to be in the second category.
+
+## Argument coverage
+
+The conformance suites cover each tool's default path. Coverage of its **argument surface** is
+measured separately, with t-wise covering arrays generated in gatk-rs from the pinned inventory and
+run here against the oracle:
+
+```sh
+python3 tools/coverage/run_array.py --tool CollectAlignmentSummaryMetrics \
+    --port target/release/collect-alignment-summary-metrics
+```
+
+`tools/coverage/MakeFixtures.java` builds the deterministic corpus the rows run against (a covering
+array cannot invent a file path), `fixtures.json` declares which values this repository is willing
+to pass and which arguments it refuses to vary, and the run writes a corpus in the same dump format
+the conformance suites use. Decision 0009 records what the first two runs measured.
 
 ## Bit-identity contract
 
