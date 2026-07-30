@@ -1,0 +1,55 @@
+{
+  "$comment": [
+    "The values this repository is willing to pass for arguments the inventory cannot give a",
+    "domain to, plus the arguments it refuses to vary and why.",
+    "",
+    "Paths point inside the oracle container, where MakeFixtures.java writes the corpus. They are",
+    "not committed files: the corpus is rebuilt from the program on every run, which keeps it",
+    "deterministic and keeps binary fixtures out of the tree.",
+    "",
+    "Adding a value here widens a covering array. Adding an exclusion narrows it, and the reason",
+    "is required, because an exclusion is the one thing in this file that makes a coverage claim",
+    "smaller than it looks."
+  ],
+  "values": {
+    "--INPUT": [
+      "/work/fixtures/small.bam",
+      "/work/fixtures/small.sam",
+      "/work/fixtures/queryname.bam"
+    ],
+    "--OUTPUT": ["/work/out/output.txt"],
+    "--REFERENCE_SEQUENCE": ["/work/fixtures/ref.fasta"],
+    "--HISTOGRAM_FILE": ["/work/out/histogram.pdf"],
+    "--TMP_DIR": ["/work/tmp"],
+    "--INTERVALS": ["/work/fixtures/targets.interval_list"],
+    "--TARGET_INTERVALS": ["/work/fixtures/targets.interval_list"],
+    "--SEQUENCE_DICTIONARY": ["/work/fixtures/ref.fasta"],
+    "--FASTQ": ["/work/fixtures/reads_1.fastq"],
+    "--SECOND_END_FASTQ": ["/work/fixtures/reads_2.fastq"],
+    "--UNMAPPED_BAM": ["/work/fixtures/unmapped.bam"],
+    "--ALIGNED_BAM": ["/work/fixtures/small.bam"]
+  },
+  "constraints": [
+    {
+      "forbid": { "--FLOW_MODE": "true" },
+      "why": "Picard 3.4.0 throws on it: 'FLOW_MODE is obsolete. Flow support now provided by CollectQualityYieldMetricsFlow'. Every row carrying it is rejected before the tool runs, which cost eight of CollectQualityYieldMetrics' eleven rows in the first run (decision 0009). The rejection itself is behaviour worth keeping, but once, as its own case, not as half the array."
+    },
+    {
+      "tools": ["CollectAlignmentSummaryMetrics", "CollectQualityYieldMetrics"],
+      "forbid": { "--INPUT": "/work/fixtures/queryname.bam" },
+      "why": "These collectors require coordinate order, and no value of ASSUME_SORTED makes a queryname input work: false is refused up front ('should be coordinate sorted but the header says the sort order is queryname') and true lets it through until the reference walk fails mid-stream ('Requesting earlier reference sequence: 0 < 1'). This was first declared as two argument-pair clauses and measuring showed that to be the wrong shape: the input itself is invalid for these tools, not a combination of it with something else. The clause is scoped, because the same file is an ordinary input for SortSam or SamToFastq. Both rejection messages are behaviour the port owes and belong in the conformance manifest as their own cases, not as most of a covering array."
+    }
+  ],
+  "exclude": {
+    "--help": "prints usage and exits; the row would measure the argument parser, not the tool",
+    "--version": "prints the version and exits, same reason",
+    "--showHidden": "changes the usage text only",
+    "--QUIET": "suppresses the log on stderr; the compared output is stdout and the output file",
+    "--VERBOSITY": "log level on stderr, same reason",
+    "--COMPRESSION_LEVEL": "changes the deflate level of a written BAM. Varying it would make the output bytes differ for a reason that is not the tool's logic, and the deflate pin is asserted by its own suite (htsjdk-rs decision 0001)",
+    "--USE_JDK_DEFLATER": "pinned true by the oracle contract; varying it would compare zlib output against GKL output and call the difference a divergence",
+    "--USE_JDK_INFLATER": "pinned true by the oracle contract, same reason",
+    "--CREATE_MD5_FILE": "writes a side file whose content is a hash of the output already compared",
+    "--MAX_RECORDS_IN_RAM": "spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all"
+  }
+}

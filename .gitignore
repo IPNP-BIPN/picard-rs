@@ -5,3 +5,18 @@ target/
 /htsjdk/
 /target
 tools/asm-conformance/out_*.txt
+
+# Covering-array corpora are oracle output. A local run happens in an emulated container, and the
+# bit-identity contract only accepts goldens produced on real x86-64 CI, so these are regenerated
+# rather than committed.
+tools/coverage/corpus/
+
+# Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real
+# x86-64 run; a copy produced locally must not be committed (decision 0008).
+tools/conformance/pending/
+
+# Fuzzer findings are oracle output produced locally, in an emulated container. CI publishes them
+# from a real x86-64 run as an artefact; a local copy must not be committed (decision 0008).
+tools/fuzz/findings/
+__pycache__/
+*.pyc
