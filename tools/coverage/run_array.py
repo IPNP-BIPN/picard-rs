@@ -291,6 +291,11 @@ def main(argv):
             for entry in results:
                 labels = ",".join(f"{k.lstrip('-')}={v}" for k, v in sorted(entry["labels"].items()))
                 fh.write(f"row\t{entry['row']}:{labels}\t{entry['oracle_output']}\n")
+                # A mismatching row records what the port answered too. A coverage figure with no
+                # such rows behind it is a number nobody can check, and the first run of this
+                # measurement produced 0% on both tools: the artefact has to say what 0% means.
+                if args.port and not entry["match"]:
+                    fh.write(f"port\t{entry['row']}:{labels}\t{entry['port_output']}\n")
         print(f"wrote {dump_path}")
         return 0
     finally:
