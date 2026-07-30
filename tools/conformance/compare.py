@@ -28,6 +28,10 @@ from pathlib import Path
 # The payload separator emitted by the Java harnesses: a literal backslash followed by 'n'.
 SEGMENT_SEP = "\\n"
 
+# The field separator *inside* a payload segment, escaped for the same reason: the dump's own
+# columns are tabs, so a tab belonging to the record it carries travels as backslash-t.
+FIELD_SEP = "\\t"
+
 
 # --------------------------------------------------------------------------------------
 # Canonicalization rules. Each takes the payload and its rule spec, and returns the payload
@@ -58,10 +62,17 @@ def _strip_pg(payload, spec):
 
 
 def _strip_ur(payload, spec):
-    """Drop `UR:` tab-fields: the reference's `file:` URI, which is path-dependent."""
+    """Drop `UR:` tab-fields: the reference's `file:` URI, which is path-dependent.
+
+    The fields are separated by a *literal* backslash-t, for the same reason `SEGMENT_SEP` is a
+    literal backslash-n: the payload is one line of a tab-separated dump, so its own tabs are
+    escaped. Splitting on a real tab found one field per segment, none of which started with
+    `UR:`, so this rule silently stripped nothing wherever it was declared. Eight suites declared
+    it and ten dumps compared their temp paths anyway.
+    """
     out = []
     for seg in payload.split(SEGMENT_SEP):
-        out.append("\t".join(f for f in seg.split("\t") if not f.startswith("UR:")))
+        out.append(FIELD_SEP.join(f for f in seg.split(FIELD_SEP) if not f.startswith("UR:")))
     return SEGMENT_SEP.join(out)
 
 
