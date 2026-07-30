@@ -721,7 +721,7 @@
       "id": "intervallisttoolspadbreak",
       "tools": ["IntervalListTools"],
       "title": "IntervalListTools PADDING and BREAK_BANDS_AT_MULTIPLES_OF",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "harness": "tools/intervallisttools-conformance",
       "why": "PADDING pads every input interval before the action, clamped to the contig, and BREAK_BANDS_AT_MULTIPLES_OF splits the final intervals at band multiples and renames them A.1, A.2, A.3. Both change the output bytes and neither was exercised by the three existing cases.",
       "compare": {
@@ -741,8 +741,8 @@
       "cases": [
         {
           "dump": "IntervalListToolsPadBreakDump",
-          "golden": null,
-          "why": "No golden committed: the one this slice produced came from a laptop, not from the pinned container on real x86-64, which is the provenance decision 0008 exists to enforce. The generated job runs the dump and uploads it; committing that artefact is what makes this suite oracle-backed."
+          "golden": "crates/picard-analysis/tests/data/interval_list_tools_padbreak.txt.gz",
+          "why": "Produced by the pinned container on real x86-64 in CI run 30572202009, not on a laptop, which is the provenance decision 0008 exists to enforce."
         }
       ]
     },
