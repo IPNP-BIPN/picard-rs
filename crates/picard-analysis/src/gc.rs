@@ -343,12 +343,7 @@ const FIRST_OF_PAIR: u16 = 0x40;
 ///     value is a no-op and is kept only so the shape matches.
 pub fn phred_score_from_obs_and_errors(observations: f64, errors: f64) -> i32 {
     let probability = errors / observations;
-    java_round(-10.0 * jmath::math::log10(probability)) as i32
-}
-
-/// `Math.round(double)`: `floor(x + 0.5)`.
-fn java_round(x: f64) -> i64 {
-    (x + 0.5).floor() as i64
+    jmath::math::round(-10.0 * jmath::math::log10(probability)) as i32
 }
 
 /// `GcBiasMetricsCollector.GcObject`: one accumulation level's counters.
