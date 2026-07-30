@@ -20,3 +20,6 @@ tools/conformance/pending/
 tools/fuzz/findings/
 __pycache__/
 *.pyc
+tools/coverage/corpus/*.txt
+!tools/coverage/corpus/AddOATag.t2.txt
+!tools/coverage/corpus/CollectAlignmentSummaryMetrics.t2.txt
