@@ -34,7 +34,7 @@ RUN for attempt in 1 2 3; do \
 WORKDIR /opt/oracle/jars
 
 RUN set -eux; \
-    curl -fsSL -o picard.jar \
+    curl -fsSL --retry 8 --retry-all-errors --retry-delay 5 -o picard.jar \
       https://github.com/broadinstitute/picard/releases/download/${PICARD_VERSION}/picard.jar; \
     echo "e76128c283889fc583c9dea33a3b7448974c067d102c9e35be152642d4d5f901  picard.jar" \
       | sha256sum -c -
@@ -46,7 +46,7 @@ RUN set -eux; \
 # The zip is taken rather than the individual jars because it carries the agent and the CLI (which
 # bundles jacoco-core, needed to analyse the exec data in process) as one digest.
 RUN set -eux; \
-    curl -fsSL -o /tmp/jacoco.zip \
+    curl -fsSL --retry 8 --retry-all-errors --retry-delay 5 -o /tmp/jacoco.zip \
       https://repo1.maven.org/maven2/org/jacoco/jacoco/0.8.12/jacoco-0.8.12.zip; \
     echo "35cf2a2b8937659ecbc8d0d3902dfa7f55b7ed2250e82424036a3e1d12462cd7  /tmp/jacoco.zip" \
       | sha256sum -c -; \
@@ -66,7 +66,7 @@ RUN set -eux; \
       "org/ow2/asm/asm-tree/9.7/asm-tree-9.7.jar 62f4b3bc436045c1acb5c3ba2d8ec556ec3369093d7f5d06c747eb04b56d52b1" \
     ; do \
       set -- $spec; \
-      curl -fsSL -O "https://repo1.maven.org/maven2/$1"; \
+      curl -fsSL --retry 8 --retry-all-errors --retry-delay 5 -O "https://repo1.maven.org/maven2/$1"; \
       echo "$2  $(basename $1)" | sha256sum -c -; \
     done
 
