@@ -1,0 +1,34 @@
+{
+  "$comment": [
+    "Produced by tools/coverage/measure.py from run_array.py's own summary, in the",
+    "pinned container on real x86-64. `share` is the fraction of the array's rows on",
+    "which the port answered exactly as the reference did, rejections included.",
+    "",
+    "It is not a byte-identity claim over the argument surface: an array covers pairs of",
+    "argument values, and `distinct_outputs` says how many of those pairs the corpus can",
+    "actually observe. A tool whose accepted rows all produce one output has an array",
+    "that covers its arguments without testing them."
+  ],
+  "tools": {
+    "AddOATag": {
+      "rows": 9,
+      "accepted": 9,
+      "rejected": 0,
+      "distinct_outputs": 2,
+      "distinct_rejections": 0,
+      "matched": 0,
+      "t": 2,
+      "share": 0.0
+    },
+    "CollectAlignmentSummaryMetrics": {
+      "rows": 16,
+      "accepted": 16,
+      "rejected": 0,
+      "distinct_outputs": 11,
+      "distinct_rejections": 0,
+      "matched": 0,
+      "t": 2,
+      "share": 0.0
+    }
+  }
+}

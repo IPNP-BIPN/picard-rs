@@ -133,6 +133,70 @@ jobs:
           path: tools/fuzz/findings/
           if-no-files-found: ignore
 
+  coverage:
+    name: "Argument coverage: the covering array against both sides"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the pinned oracle image
+        run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
+
+      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics
+
+      - name: Run the arrays, and record what the port covers
+        # The arrays have existed since the harness landed and have only ever seeded the fuzzer,
+        # so the dashboard's argument-coverage column has been empty for every tool. This runs
+        # them: every row through the reference and through the port, compared under the same
+        # canonicalization the conformance suites use. A rejected row counts as covered when both
+        # sides reject it with the same message, because reproducing a refusal is reproducing the
+        # tool.
+        #
+        # The number that comes out is not a bug count. Today's binaries were written for the
+        # benchmark and take three arguments, so a row varying a fourth is expected to differ; the
+        # figure is how much of the pairwise surface the port implements, which is the figure the
+        # programme has never had.
+        run: |
+          python3 tools/coverage/run_array.py --tool AddOATag \
+            --port target/release/add-oa-tag | tee /tmp/addoatag.log
+          python3 tools/coverage/run_array.py --tool CollectAlignmentSummaryMetrics \
+            --port target/release/collect-alignment-summary-metrics | tee /tmp/casm.log
+          python3 tools/coverage/measure.py --log /tmp/addoatag.log --log /tmp/casm.log \
+            --out tools/coverage/measured.json
+
+      - name: The committed measurement still holds
+        # The corpus and the measurement are goldens like any other: produced here, committed, and
+        # re-derived on every run. A port that grows its argument surface makes this fail, which is
+        # the point, and the fix is to commit the new number.
+        run: |
+          dirty=$(git status --porcelain tools/coverage/measured.json \
+            tools/coverage/corpus/AddOATag.t2.txt \
+            tools/coverage/corpus/CollectAlignmentSummaryMetrics.t2.txt)
+          if [ -n "$dirty" ]; then
+            echo "the measured argument coverage moved:"
+            echo "$dirty"
+            git --no-pager diff -- tools/coverage/measured.json | head -40
+            echo "commit the artefacts this run produced"
+            exit 1
+          fi
+          echo "the committed measurement matches what this run produced"
+
+      - name: Publish the corpus and the measurement
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: covering-corpus
+          path: |
+            tools/coverage/corpus/
+            tools/coverage/measured.json
+          if-no-files-found: ignore
+
   test:
     name: Test on real x86-64
     runs-on: ubuntu-latest

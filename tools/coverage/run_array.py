@@ -26,6 +26,7 @@ Two modes, and the difference matters:
 """
 
 import argparse
+import hashlib
 import json
 import shutil
 import subprocess
@@ -124,9 +125,26 @@ def run_oracle(tool, row_args, workdir):
         capture_output=True,
         text=True,
     )
+    return result.returncode, read_output(out_dir), first_error(result.stderr or result.stdout)
+
+
+def read_output(out_dir):
+    """The row's output file, as text where it is text and as a digest where it is not.
+
+    A record-transform writes a BAM, which is gzip, so reading it as UTF-8 throws on its second
+    byte. Hashing it keeps such a tool measurable: what the comparison needs is whether the two
+    sides produced the same bytes, and for a binary output the digest answers that exactly. It is
+    a weaker artefact than the text corpus, because a divergence shows as two digests rather than
+    as a diff, so the corpus says which it is.
+    """
     produced = out_dir / "output.txt"
-    text = produced.read_text() if produced.exists() else ""
-    return result.returncode, text, first_error(result.stderr or result.stdout)
+    if not produced.exists():
+        return ""
+    raw = produced.read_bytes()
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return f"BINARY sha256={hashlib.sha256(raw).hexdigest()} bytes={len(raw)}"
 
 
 def first_error(text):
@@ -162,16 +180,20 @@ def run_port(binary, row_args, workdir):
     # lands, without pretending the binary understands more than it does.
     argv = [str(binary)] + [a.lstrip("-") for a in rewritten]
     result = subprocess.run(argv, capture_output=True, text=True)
-    produced = out_dir / "output.txt"
-    text = produced.read_text() if produced.exists() else ""
-    return result.returncode, text, first_error(result.stderr or result.stdout)
+    return result.returncode, read_output(out_dir), first_error(result.stderr or result.stdout)
 
 
 def outcome(code, text, error, tool):
     """One row's result, as the thing that will be compared: output, or rejection."""
-    if code == 0:
-        return canonical(text, tool) if text else ""
-    return f"EXIT={code} {error}"
+    if code != 0:
+        return f"EXIT={code} {error}"
+    if not text:
+        return ""
+    # A digest is already canonical, and running it through the metrics stripper would only put a
+    # header prefix through a hash that has none.
+    if text.startswith("BINARY sha256="):
+        return text
+    return canonical(text, tool)
 
 
 def canonical(text, tool):
@@ -269,6 +291,11 @@ def main(argv):
             for entry in results:
                 labels = ",".join(f"{k.lstrip('-')}={v}" for k, v in sorted(entry["labels"].items()))
                 fh.write(f"row\t{entry['row']}:{labels}\t{entry['oracle_output']}\n")
+                # A mismatching row records what the port answered too. A coverage figure with no
+                # such rows behind it is a number nobody can check, and the first run of this
+                # measurement produced 0% on both tools: the artefact has to say what 0% means.
+                if args.port and not entry["match"]:
+                    fh.write(f"port\t{entry['row']}:{labels}\t{entry['port_output']}\n")
         print(f"wrote {dump_path}")
         return 0
     finally:
