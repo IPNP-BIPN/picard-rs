@@ -31,10 +31,16 @@ pub const DEFAULT_SEED: i32 = 1;
 ///
 /// `maxHashValue = Integer.MIN_VALUE + (int) Math.round(range * proportion)`, where
 /// `range = (long) Integer.MAX_VALUE - (long) Integer.MIN_VALUE`, in Java's 32-bit **wrapping**
-/// arithmetic. `Math.round` is `floor(x + 0.5)`, and the cast to `int` truncates the long to 32 bits.
+/// arithmetic. The cast to `int` truncates the long to 32 bits.
+///
+/// `Math.round` is [`jmath::math::round`] and not `floor(x + 0.5)`, which is what this line used to
+/// say: the two disagree on the double immediately below a half, where the addition rounds up to
+/// exactly 1.0 and the arithmetic version rounds twice. Reaching that input needs a `PROBABILITY`
+/// of about 1.16e-10, which the existing corpus does not carry, so this is a latent difference
+/// rather than a measured one; it is fixed because it is the same function either way.
 fn max_hash_value(probability: f64) -> i32 {
     let range = (i32::MAX as i64) - (i32::MIN as i64); // 4_294_967_295
-    let rounded = ((range as f64) * probability + 0.5).floor() as i64; // Math.round(range * proportion)
+    let rounded = jmath::math::round((range as f64) * probability);
     i32::MIN.wrapping_add(rounded as i32) // (int) cast truncates, the + wraps
 }
 
