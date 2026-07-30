@@ -17,8 +17,12 @@
 //! The `INVERT` option (orthogonal to `ACTION`) complements the result against the dictionary and
 //! forces `SORT=false`, `UNIQUE=true`. `SUBTRACT`, `SYMDIFF` and `INVERT` all use
 //! [`IntervalList::invert`](htsjdk_bam::interval::IntervalList::invert), which needs the `(name,
-//! length)` dictionary read from the `@SQ LN` fields. Still deferred: `BREAK_BANDS_AT_MULTIPLES_OF`,
-//! `SCATTER`, `PADDING > 0`, and multi-dictionary union; this slice assumes one shared dictionary.
+//! length)` dictionary read from the `@SQ LN` fields. `PADDING` pads each input (via
+//! [`IntervalList::padded`](htsjdk_bam::interval::IntervalList::padded), clamped to the contig)
+//! before the action, and `BREAK_BANDS_AT_MULTIPLES_OF` splits the final intervals via
+//! [`break_intervals_at_band_multiples`](htsjdk_bam::interval::break_intervals_at_band_multiples).
+//! Still deferred: `SCATTER` (a multi-directory output shape) and multi-dictionary union; this slice
+//! assumes one shared dictionary.
 //!
 //! ## The output header, per action, nailed against the oracle
 //!
@@ -30,7 +34,7 @@
 //! header untouched, and `INTERSECT`/`SUBTRACT` clone the left operand's header, so those are emitted
 //! verbatim (no forced `SO`). `sorted()` and `invert()` never rewrite the header's sort order.
 
-use htsjdk_bam::interval::{Interval, IntervalList, ParseError};
+use htsjdk_bam::interval::{break_intervals_at_band_multiples, Interval, IntervalList, ParseError};
 use htsjdk_bam::overlap::OverlapDetector;
 
 /// `IntervalListTools.Action`.
@@ -64,6 +68,12 @@ pub struct Options {
     pub dont_merge_abutting: bool,
     /// `INVERT`: complement the result against the dictionary (forces `SORT=false`, `UNIQUE=true`).
     pub invert: bool,
+    /// `PADDING`: pad every input interval by this many bases on each side (clamped to the contig),
+    /// applied before the action. `0` is a no-op.
+    pub padding: i32,
+    /// `BREAK_BANDS_AT_MULTIPLES_OF`: split the final intervals at integer multiples of this value.
+    /// `0` disables.
+    pub break_bands_at_multiples_of: i32,
 }
 
 impl Default for Options {
@@ -74,6 +84,8 @@ impl Default for Options {
             unique: false,
             dont_merge_abutting: false,
             invert: false,
+            padding: 0,
+            break_bands_at_multiples_of: 0,
         }
     }
 }
@@ -238,6 +250,31 @@ fn subtract(
     intersection(lhs, &inverted.intervals, names)
 }
 
+/// `IntervalList.padded(PADDING)`: pad each interval by `padding` on both sides, clamped to
+/// `[1, contig length]`. A `padding` of 0 is the identity (and needs no lengths).
+fn pad(
+    intervals: &[Interval],
+    padding: i32,
+    sequences: &[(String, i32)],
+    names: &[String],
+) -> Vec<Interval> {
+    if padding == 0 {
+        return intervals.to_vec();
+    }
+    IntervalList {
+        dictionary: names.to_vec(),
+        intervals: intervals.to_vec(),
+    }
+    .padded(padding, padding, |contig| {
+        sequences
+            .iter()
+            .find(|(n, _)| n == contig)
+            .map(|(_, l)| *l)
+            .unwrap_or(0)
+    })
+    .intervals
+}
+
 /// `IntervalList.union(a, b)` = `concatenate(a, b).uniqued()`: merge the two, then unique.
 fn union2(a: &[Interval], b: &[Interval], names: &[String]) -> Vec<Interval> {
     let mut both = a.to_vec();
@@ -264,9 +301,12 @@ pub fn interval_list_tools(
     let (sequences, sq_lines) = inputs.first().map(|s| dictionary(s)).unwrap_or_default();
     let names: Vec<String> = sequences.iter().map(|(n, _)| n.clone()).collect();
 
-    // openIntervalLists reduces the INPUT files with the action's reduceEach: concatenate for every
-    // action except INTERSECT, which reduces by intersection. PADDING is 0, so no padding.
-    let lists: Vec<Vec<Interval>> = inputs.iter().map(|s| parse(s)).collect::<Result<_, _>>()?;
+    // openIntervalLists pads each file (PADDING) then reduces with the action's reduceEach:
+    // concatenate for every action except INTERSECT, which reduces by intersection.
+    let lists: Vec<Vec<Interval>> = inputs
+        .iter()
+        .map(|s| parse(s).map(|iv| pad(&iv, opts.padding, &sequences, &names)))
+        .collect::<Result<_, _>>()?;
     let combined: Vec<Interval> = match opts.action {
         Action::Intersect => {
             let mut acc = lists.first().cloned().unwrap_or_default();
@@ -278,10 +318,11 @@ pub fn interval_list_tools(
         _ => lists.into_iter().flatten().collect(),
     };
 
-    // The reduced SECOND_INPUT (concatenated), used by the actions that take a second input.
+    // The reduced SECOND_INPUT (padded then concatenated), used by the actions that take a second
+    // input.
     let second: Vec<Interval> = second_inputs
         .iter()
-        .map(|s| parse(s))
+        .map(|s| parse(s).map(|iv| pad(&iv, opts.padding, &sequences, &names)))
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .flatten()
@@ -321,11 +362,17 @@ pub fn interval_list_tools(
     } else {
         sorted
     };
-    let final_intervals = if unique {
+    let mut final_intervals = if unique {
         uniqued(&inverted, !opts.dont_merge_abutting)
     } else {
         inverted.intervals
     };
+
+    // BREAK_BANDS splits the final intervals at integer multiples of the band.
+    if opts.break_bands_at_multiples_of > 0 {
+        final_intervals =
+            break_intervals_at_band_multiples(&final_intervals, opts.break_bands_at_multiples_of);
+    }
 
     // The output header is result.getHeader(): SO:unsorted when act ran setSortOrder(unsorted) - a
     // multi-INPUT concatenate (addOther), OVERLAPS, or SYMDIFF's union - else the input header
@@ -455,6 +502,36 @@ mod tests {
         assert_eq!(
             out,
             format!("{UNSORTED}chr1\t1\t19\t+\tinterval-1 intersection A\nchr1\t31\t50\t+\tinterval-1 intersection B\n")
+        );
+    }
+
+    #[test]
+    fn padding_pads_each_interval_clamped_to_the_contig() {
+        // PADDING=10: A(5-20) -> 1-30 (start clamped), C(95-100) -> 85-100 (end clamped).
+        let a = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:100\nchr1\t5\t20\t+\tA\nchr1\t95\t100\t+\tC\n";
+        let opts = Options {
+            padding: 10,
+            ..Options::default()
+        };
+        let out = interval_list_tools(&[a], &[], &opts).unwrap();
+        assert_eq!(
+            out,
+            format!("{NOSORT}chr1\t1\t30\t+\tA\nchr1\t85\t100\t+\tC\n")
+        );
+    }
+
+    #[test]
+    fn break_bands_splits_the_final_intervals() {
+        // BREAK_BANDS=10: A(5-25) -> A.1(5-9), A.2(10-19), A.3(20-25).
+        let a = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:100\nchr1\t5\t25\t+\tA\n";
+        let opts = Options {
+            break_bands_at_multiples_of: 10,
+            ..Options::default()
+        };
+        let out = interval_list_tools(&[a], &[], &opts).unwrap();
+        assert_eq!(
+            out,
+            format!("{NOSORT}chr1\t5\t9\t+\tA.1\nchr1\t10\t19\t+\tA.2\nchr1\t20\t25\t+\tA.3\n")
         );
     }
 

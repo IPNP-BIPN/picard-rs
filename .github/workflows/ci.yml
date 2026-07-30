@@ -222,7 +222,7 @@ jobs:
             suites: "sortsam-bam setnmmduq addoatag-bam validatesam comparesams"
           - group: oracle-backed
             index: "6/6"
-            suites: "split bamindexstats merge"
+            suites: "split bamindexstats merge intervallisttoolspadbreak"
           - group: unchecked
             index: "1/3"
             suites: "qualityscoredistribution gcbias accumulatequalityyield bedtointervallist intervallisttobed"
