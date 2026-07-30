@@ -11,8 +11,9 @@ repository = "https://github.com/IPNP-BIPN/picard-rs"
 # htsjdkVersion = '4.2.0'. A floating dependency would let the I/O layer change under a
 # byte-identity claim without anything failing.
 [workspace.dependencies]
-htsjdk-bam = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "4993eb27fbaf15a96d361f6ff72443b4fcef70c6" }
-htsjdk-bgzf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "4993eb27fbaf15a96d361f6ff72443b4fcef70c6" }
-htsjdk-metrics = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "4993eb27fbaf15a96d361f6ff72443b4fcef70c6" }
-# jmath, for the Math.log10 that QualityUtil.getPhredScoreFromObsAndErrors runs through.
-jmath = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "4993eb27fbaf15a96d361f6ff72443b4fcef70c6" }
+htsjdk-bam = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "0638773a0ba71f3da056a25978dc57f5f3b42a76" }
+htsjdk-bgzf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "0638773a0ba71f3da056a25978dc57f5f3b42a76" }
+htsjdk-metrics = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "0638773a0ba71f3da056a25978dc57f5f3b42a76" }
+# jmath, for the Math.log10 that QualityUtil.getPhredScoreFromObsAndErrors runs through, and for
+# Math.round, which is not floor(x + 0.5): see htsjdk-rs PR 50.
+jmath = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "0638773a0ba71f3da056a25978dc57f5f3b42a76" }
