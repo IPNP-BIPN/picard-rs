@@ -67,6 +67,24 @@ public class OracleProbe {
                     + ". It degrades silently, which is why this is checked.");
         }
 
+        // libdeflate, which does not exist before htsjdk 5.0.0 and is ON by default from 5.0.0.
+        // There it makes the plain `new DeflaterFactory()` return a LibdeflateDeflater, so the pin
+        // the dumps carry would keep compiling, keep reading like a pin, and produce a third
+        // flavour of bytes beside JDK zlib and GKL. The field is `static final`, read at class
+        // load, so the only place to set it is the command line, which is where the manifest sets
+        // it: `-Dsamjdk.use_libdeflate=false`. Read reflectively so one probe covers both
+        // versions: absent is the correct answer under htsjdk 4.2.0, not a failure.
+        String libdeflate = "absent";
+        try {
+            final Object value = Class.forName("htsjdk.samtools.Defaults")
+                    .getField("USE_LIBDEFLATE").get(null);
+            libdeflate = String.valueOf(value);
+        } catch (final NoSuchFieldException | ClassNotFoundException expectedBefore5) {
+            libdeflate = "absent";
+        } catch (final Throwable t) {
+            failures.add("htsjdk.samtools.Defaults.USE_LIBDEFLATE could not be read: " + t);
+        }
+
         if (!EXPECTED_ARCH.equals(arch)) {
             failures.add("os.arch is '" + arch + "', expected '" + EXPECTED_ARCH + "'");
         }
@@ -88,6 +106,13 @@ public class OracleProbe {
         if (!gklPresent) {
             failures.add("usingIntelDeflater is false. The oracle pins the JDK deflater, but a"
                     + " GKL that cannot load means that pin is untested.");
+        }
+        if ("true".equals(libdeflate)) {
+            failures.add("htsjdk.samtools.Defaults.USE_LIBDEFLATE is true. From htsjdk 5.0.0 that"
+                    + " makes `new DeflaterFactory()` return a LibdeflateDeflater, so every dump's"
+                    + " deflater pin would compile, look like a pin, and produce libdeflate bytes."
+                    + " Pass -Dsamjdk.use_libdeflate=false; the property is read at class load and"
+                    + " cannot be set from inside the run.");
         }
         // Ten of the 44 metrics tools require a chart argument and shell out to Rscript. A
         // missing R means those tools refuse to run, which is loud; a *different* R could in
@@ -118,6 +143,7 @@ public class OracleProbe {
         json.append("  \"decimal_sample\": \"").append(decimalSample).append("\",\n");
         json.append("  \"rscript\": \"").append(rVersion.replace("\"", "'").replace("\n", " ")).append("\",\n");
         json.append("  \"using_intel_deflater\": ").append(gklPresent).append(",\n");
+        json.append("  \"use_libdeflate\": \"").append(libdeflate).append("\",\n");
         json.append("  \"avx\": ").append(cpuFlags.contains("avx")).append(",\n");
         json.append("  \"avx2\": ").append(cpuFlags.contains("avx2")).append(",\n");
         json.append("  \"avx512f\": ").append(cpuFlags.contains("avx512f")).append(",\n");
