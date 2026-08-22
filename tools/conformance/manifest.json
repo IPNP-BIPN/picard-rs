@@ -22,11 +22,21 @@
     "suites_per_job": 5,
     "$why": "Suites are grouped into jobs of this size. One job per suite would restore the ~1 GB oracle image once per suite, which costs more runner time than it buys; one job for everything is what the hand-written workflow did, and it hid every suite after the first failure."
   },
-  "default_java_props": ["-Duser.language=en", "-Duser.country=US"],
+  "default_java_props": [
+    "-Duser.language=en",
+    "-Duser.country=US",
+    "-Dsamjdk.use_libdeflate=false"
+  ],
   "suites": [
     {
       "id": "metrics",
-      "tools": ["CollectQualityYieldMetrics", "CollectInsertSizeMetrics", "MeanQualityByCycle", "CollectBaseDistributionByCycle", "CollectAlignmentSummaryMetrics"],
+      "tools": [
+        "CollectQualityYieldMetrics",
+        "CollectInsertSizeMetrics",
+        "MeanQualityByCycle",
+        "CollectBaseDistributionByCycle",
+        "CollectAlignmentSummaryMetrics"
+      ],
       "title": "the metrics rows",
       "status": "oracle-backed",
       "harness": "tools/metrics-conformance",
@@ -35,7 +45,10 @@
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
-        "skip_kinds": ["bam", "fasta"],
+        "skip_kinds": [
+          "bam",
+          "fasta"
+        ],
         "rules": [
           {
             "rule": "strip_line_prefixes",
@@ -72,7 +85,9 @@
     },
     {
       "id": "rnaseq",
-      "tools": ["CollectRnaSeqMetrics"],
+      "tools": [
+        "CollectRnaSeqMetrics"
+      ],
       "title": "CollectRnaSeqMetrics",
       "status": "oracle-backed",
       "harness": "tools/rnaseq-conformance",
@@ -83,7 +98,10 @@
         "rules": [
           {
             "rule": "strip_line_prefixes",
-            "prefixes": ["# CollectRnaSeqMetrics", "# Started on:"],
+            "prefixes": [
+              "# CollectRnaSeqMetrics",
+              "# Started on:"
+            ],
             "why": "Command line (temp paths) and start time."
           }
         ]
@@ -97,7 +115,9 @@
     },
     {
       "id": "snvq",
-      "tools": ["CollectQualityYieldMetricsSNVQ"],
+      "tools": [
+        "CollectQualityYieldMetricsSNVQ"
+      ],
       "title": "CollectQualityYieldMetricsSNVQ",
       "status": "oracle-backed",
       "harness": "tools/metrics-conformance",
@@ -108,7 +128,10 @@
         "rules": [
           {
             "rule": "strip_line_prefixes",
-            "prefixes": ["# CollectQualityYieldMetricsSNVQ", "# Started on:"],
+            "prefixes": [
+              "# CollectQualityYieldMetricsSNVQ",
+              "# Started on:"
+            ],
             "why": "Command line (temp paths) and start time."
           }
         ]
@@ -122,12 +145,16 @@
     },
     {
       "id": "samtofastq",
-      "tools": ["SamToFastq"],
+      "tools": [
+        "SamToFastq"
+      ],
       "title": "SamToFastq",
       "status": "oracle-backed",
       "harness": "tools/samtofastq-conformance",
       "why": "FASTQ output has no header lines, and the bam row is deterministic hex, so both rows are compared raw.",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "SamToFastqDump",
@@ -137,12 +164,16 @@
     },
     {
       "id": "fastqtosam",
-      "tools": ["FastqToSam"],
+      "tools": [
+        "FastqToSam"
+      ],
       "title": "FastqToSam",
       "status": "oracle-backed",
       "harness": "tools/fastqtosam-conformance",
       "why": "FastqToSam writes no @PG and no timestamp, so the whole SAM (and the FASTQ input) are compared raw.",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "FastqToSamDump",
@@ -152,12 +183,16 @@
     },
     {
       "id": "sortsam",
-      "tools": ["SortSam"],
+      "tools": [
+        "SortSam"
+      ],
       "title": "SortSam",
       "status": "oracle-backed",
       "harness": "tools/sortsam-conformance",
       "why": "SortSam changes only the header SO field and writes no @PG or timestamp, so every SAM is compared raw.",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "SortSamDump",
@@ -167,12 +202,16 @@
     },
     {
       "id": "addreplacerg",
-      "tools": ["AddOrReplaceReadGroups"],
+      "tools": [
+        "AddOrReplaceReadGroups"
+      ],
       "title": "AddOrReplaceReadGroups",
       "status": "oracle-backed",
       "harness": "tools/addreplacerg-conformance",
       "why": "Adds no @PG and no timestamp and does not re-sort, so the whole file is compared raw.",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "AddReplaceRgDump",
@@ -182,12 +221,16 @@
     },
     {
       "id": "cleansam",
-      "tools": ["CleanSam"],
+      "tools": [
+        "CleanSam"
+      ],
       "title": "CleanSam",
       "status": "oracle-backed",
       "harness": "tools/cleansam-conformance",
       "why": "CleanSam adds no @PG and no timestamp, so the whole file is compared raw.",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "CleanSamDump",
@@ -197,12 +240,16 @@
     },
     {
       "id": "fixmate",
-      "tools": ["FixMateInformation"],
+      "tools": [
+        "FixMateInformation"
+      ],
       "title": "FixMateInformation",
       "status": "oracle-backed",
       "harness": "tools/fixmate-conformance",
       "why": "Adds no @PG and no timestamp, so the whole file is compared raw.",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "FixMateDump",
@@ -212,12 +259,16 @@
     },
     {
       "id": "addoatag",
-      "tools": ["AddOATag"],
+      "tools": [
+        "AddOATag"
+      ],
       "title": "AddOATag",
       "status": "oracle-backed",
       "harness": "tools/addoatag-conformance",
       "why": "AddOATag adds no @PG and no timestamp and preserves the order, so the whole SAM is compared raw.",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "AddOaDump",
@@ -227,11 +278,15 @@
     },
     {
       "id": "reordersam",
-      "tools": ["ReorderSam"],
+      "tools": [
+        "ReorderSam"
+      ],
       "title": "ReorderSam",
       "status": "oracle-backed",
       "harness": "tools/reordersam-conformance",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "ReorderDump",
@@ -241,11 +296,15 @@
     },
     {
       "id": "replacesamheader",
-      "tools": ["ReplaceSamHeader"],
+      "tools": [
+        "ReplaceSamHeader"
+      ],
       "title": "ReplaceSamHeader",
       "status": "oracle-backed",
       "harness": "tools/replacesamheader-conformance",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "ReplaceHeaderDump",
@@ -255,11 +314,15 @@
     },
     {
       "id": "revertsam",
-      "tools": ["RevertSam"],
+      "tools": [
+        "RevertSam"
+      ],
       "title": "RevertSam",
       "status": "oracle-backed",
       "harness": "tools/revertsam-conformance",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "RevertSamDump",
@@ -269,11 +332,15 @@
     },
     {
       "id": "revertorigmatecigar",
-      "tools": ["RevertOriginalBaseQualitiesAndAddMateCigar"],
+      "tools": [
+        "RevertOriginalBaseQualitiesAndAddMateCigar"
+      ],
       "title": "RevertOriginalBaseQualitiesAndAddMateCigar",
       "status": "oracle-backed",
       "harness": "tools/revertorigmatecigar-conformance",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "RevertOrigDump",
@@ -283,11 +350,15 @@
     },
     {
       "id": "viewsam",
-      "tools": ["ViewSam"],
+      "tools": [
+        "ViewSam"
+      ],
       "title": "ViewSam",
       "status": "oracle-backed",
       "harness": "tools/viewsam-conformance",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "ViewSamDump",
@@ -297,11 +368,15 @@
     },
     {
       "id": "rgchecksum",
-      "tools": ["CalculateReadGroupChecksum"],
+      "tools": [
+        "CalculateReadGroupChecksum"
+      ],
       "title": "CalculateReadGroupChecksum",
       "status": "oracle-backed",
       "harness": "tools/rgchecksum-conformance",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "RgChecksumDump",
@@ -311,7 +386,9 @@
     },
     {
       "id": "downsamplesam",
-      "tools": ["DownsampleSam"],
+      "tools": [
+        "DownsampleSam"
+      ],
       "title": "DownsampleSam",
       "status": "oracle-backed",
       "harness": "tools/downsamplesam-conformance",
@@ -334,12 +411,16 @@
     },
     {
       "id": "filtersamreads",
-      "tools": ["FilterSamReads"],
+      "tools": [
+        "FilterSamReads"
+      ],
       "title": "FilterSamReads",
       "status": "oracle-backed",
       "harness": "tools/filtersamreads-conformance",
       "why": "Keeps the input sort order and adds no @PG and no timestamp, so each SAM is compared raw.",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "FilterDump",
@@ -349,7 +430,9 @@
     },
     {
       "id": "createdict",
-      "tools": ["CreateSequenceDictionary"],
+      "tools": [
+        "CreateSequenceDictionary"
+      ],
       "title": "CreateSequenceDictionary",
       "status": "oracle-backed",
       "harness": "tools/createdict-conformance",
@@ -359,7 +442,9 @@
         "rules": [
           {
             "rule": "strip_ur",
-            "kinds": ["dict"],
+            "kinds": [
+              "dict"
+            ],
             "why": "Path-dependent reference URI. Restricted to the dict row so the inputs beside it stay raw."
           }
         ]
@@ -373,12 +458,16 @@
     },
     {
       "id": "samformatconverter",
-      "tools": ["SamFormatConverter"],
+      "tools": [
+        "SamFormatConverter"
+      ],
       "title": "SamFormatConverter",
       "status": "oracle-backed",
       "harness": "tools/samformatconverter-conformance",
       "why": "The BAM is written with the JDK deflater in the harness (USE_JDK_DEFLATER=true), so its BGZF blocks come from zlib and are reproducible here; input and output rows are compared raw in both directions.",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "SfcDump",
@@ -392,11 +481,15 @@
     },
     {
       "id": "sortsam-bam",
-      "tools": ["SortSam"],
+      "tools": [
+        "SortSam"
+      ],
       "title": "SortSam SAM->BAM",
       "status": "oracle-backed",
       "harness": "tools/sortsam-bam-conformance",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "SortSamBamDump",
@@ -406,11 +499,15 @@
     },
     {
       "id": "setnmmduq",
-      "tools": ["SetNmMdAndUqTags"],
+      "tools": [
+        "SetNmMdAndUqTags"
+      ],
       "title": "SetNmMdAndUqTags",
       "status": "oracle-backed",
       "harness": "tools/setnmmduq-conformance",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "NmDump",
@@ -420,11 +517,15 @@
     },
     {
       "id": "addoatag-bam",
-      "tools": ["AddOATag"],
+      "tools": [
+        "AddOATag"
+      ],
       "title": "AddOATag SAM->BAM",
       "status": "oracle-backed",
       "harness": "tools/addoatag-bam-conformance",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "AddOaBamDump",
@@ -434,12 +535,16 @@
     },
     {
       "id": "validatesam",
-      "tools": ["ValidateSamFile"],
+      "tools": [
+        "ValidateSamFile"
+      ],
       "title": "ValidateSamFile",
       "status": "oracle-backed",
       "harness": "tools/validatesam-conformance",
       "why": "The report rows are deterministic text, so every case is compared raw.",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "VsfDump",
@@ -469,12 +574,16 @@
     },
     {
       "id": "comparesams",
-      "tools": ["CompareSAMs"],
+      "tools": [
+        "CompareSAMs"
+      ],
       "title": "CompareSAMs",
       "status": "oracle-backed",
       "harness": "tools/comparesams-conformance",
       "why": "CmpCorpus.java already strips the banner on the Java side, so the committed rows carry no timestamp and are compared raw.",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "CmpCorpus",
@@ -496,12 +605,17 @@
     },
     {
       "id": "split",
-      "tools": ["SplitSamByNumberOfReads", "SplitSamByLibrary"],
+      "tools": [
+        "SplitSamByNumberOfReads",
+        "SplitSamByLibrary"
+      ],
       "title": "SplitSamByNumberOfReads and SplitSamByLibrary",
       "status": "oracle-backed",
       "harness": "tools/split-conformance",
       "why": "The corpus has several `shard` (respectively `file:<base>`) rows per case, so the full line sequence is compared rather than a (kind, case) key, which would collapse the shards.",
-      "compare": { "mode": "lines" },
+      "compare": {
+        "mode": "lines"
+      },
       "cases": [
         {
           "dump": "SplitDump",
@@ -515,11 +629,15 @@
     },
     {
       "id": "bamindexstats",
-      "tools": ["BamIndexStats"],
+      "tools": [
+        "BamIndexStats"
+      ],
       "title": "BamIndexStats",
       "status": "oracle-backed",
       "harness": "tools/bamindexstats-conformance",
-      "compare": { "mode": "keyed" },
+      "compare": {
+        "mode": "keyed"
+      },
       "cases": [
         {
           "dump": "BamIndexStatsDump",
@@ -529,12 +647,16 @@
     },
     {
       "id": "merge",
-      "tools": ["MergeSamFiles"],
+      "tools": [
+        "MergeSamFiles"
+      ],
       "title": "MergeSamFiles",
       "status": "oracle-backed",
       "harness": "tools/merge-conformance",
       "why": "Several `input` rows per case, so the full line sequence is compared.",
-      "compare": { "mode": "lines" },
+      "compare": {
+        "mode": "lines"
+      },
       "cases": [
         {
           "dump": "MergeDump",
@@ -542,15 +664,20 @@
         }
       ]
     },
-
     {
       "id": "rejections",
       "title": "Rows the reference refuses",
       "status": "golden-pending",
       "harness": "tools/rejection-conformance",
-      "tools": ["CollectQualityYieldMetrics", "CollectAlignmentSummaryMetrics"],
+      "tools": [
+        "CollectQualityYieldMetrics",
+        "CollectAlignmentSummaryMetrics"
+      ],
       "why": "The covering arrays are generated over combinations the tool accepts, so the rejections they used to spend rows on are no longer exercised anywhere (decision 0009). A port that processes what Picard refuses is not byte-identical, so the exit path and the message are recorded here. The fixture directory is a per-run temporary path and the harness replaces it with <FIXTURES>: the message is behaviour, the path is not.",
-      "compare": { "mode": "keyed", "skip_comment_lines": true },
+      "compare": {
+        "mode": "keyed",
+        "skip_comment_lines": true
+      },
       "needs_fixtures": true,
       "expect_rows": 4,
       "expect_contains": [
@@ -569,7 +696,9 @@
     },
     {
       "id": "qualityscoredistribution",
-      "tools": ["QualityScoreDistribution"],
+      "tools": [
+        "QualityScoreDistribution"
+      ],
       "title": "QualityScoreDistribution",
       "status": "unchecked",
       "harness": "tools/metrics-conformance",
@@ -577,11 +706,17 @@
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
-        "skip_kinds": ["bam", "fasta"],
+        "skip_kinds": [
+          "bam",
+          "fasta"
+        ],
         "rules": [
           {
             "rule": "strip_line_prefixes",
-            "prefixes": ["# QualityScoreDistribution ", "# Started on:"],
+            "prefixes": [
+              "# QualityScoreDistribution ",
+              "# Started on:"
+            ],
             "why": "Command line (temp paths) and start time, the same two lines the Rust test canonicalizes."
           }
         ]
@@ -595,18 +730,26 @@
     },
     {
       "id": "gcbias",
-      "tools": ["CollectGcBiasMetrics"],
+      "tools": [
+        "CollectGcBiasMetrics"
+      ],
       "title": "CollectGcBiasMetrics",
       "status": "unchecked",
       "harness": "tools/gcbias-conformance",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
-        "skip_kinds": ["bam", "fasta"],
+        "skip_kinds": [
+          "bam",
+          "fasta"
+        ],
         "rules": [
           {
             "rule": "strip_line_prefixes",
-            "prefixes": ["# CollectGcBiasMetrics ", "# Started on:"],
+            "prefixes": [
+              "# CollectGcBiasMetrics ",
+              "# Started on:"
+            ],
             "why": "Command line (temp paths) and start time, the same two lines the Rust test canonicalizes."
           }
         ]
@@ -620,12 +763,17 @@
     },
     {
       "id": "accumulatequalityyield",
-      "tools": ["AccumulateQualityYieldMetrics"],
+      "tools": [
+        "AccumulateQualityYieldMetrics"
+      ],
       "title": "AccumulateQualityYieldMetrics",
       "status": "unchecked",
       "harness": "tools/accumulatequalityyield-conformance",
       "why": "The tool writes a bare MetricsFile with no command-line or start-time header comments, so the whole file is compared raw with no canonicalization.",
-      "compare": { "mode": "keyed", "skip_comment_lines": false },
+      "compare": {
+        "mode": "keyed",
+        "skip_comment_lines": false
+      },
       "cases": [
         {
           "dump": "AccumulateQualityYieldDump",
@@ -635,7 +783,9 @@
     },
     {
       "id": "bedtointervallist",
-      "tools": ["BedToIntervalList"],
+      "tools": [
+        "BedToIntervalList"
+      ],
       "title": "BedToIntervalList",
       "status": "unchecked",
       "harness": "tools/bedtointervallist-conformance",
@@ -659,7 +809,9 @@
     },
     {
       "id": "intervallisttobed",
-      "tools": ["IntervalListToBed"],
+      "tools": [
+        "IntervalListToBed"
+      ],
       "title": "IntervalListToBed",
       "status": "unchecked",
       "harness": "tools/intervallisttobed-conformance",
@@ -683,7 +835,9 @@
     },
     {
       "id": "intervallisttools",
-      "tools": ["IntervalListTools"],
+      "tools": [
+        "IntervalListTools"
+      ],
       "title": "IntervalListTools",
       "status": "unchecked",
       "harness": "tools/intervallisttools-conformance",
@@ -719,7 +873,9 @@
     },
     {
       "id": "intervallisttoolspadbreak",
-      "tools": ["IntervalListTools"],
+      "tools": [
+        "IntervalListTools"
+      ],
       "title": "IntervalListTools PADDING and BREAK_BANDS_AT_MULTIPLES_OF",
       "status": "oracle-backed",
       "harness": "tools/intervallisttools-conformance",
@@ -728,8 +884,14 @@
         "mode": "keyed",
         "skip_comment_lines": false,
         "rules": [
-          { "rule": "strip_pg", "why": "@PG CL: is the command line, with the run's temp paths." },
-          { "rule": "strip_ur", "why": "Per-run temp path in the sequence dictionary the harness builds." }
+          {
+            "rule": "strip_pg",
+            "why": "@PG CL: is the command line, with the run's temp paths."
+          },
+          {
+            "rule": "strip_ur",
+            "why": "Per-run temp path in the sequence dictionary the harness builds."
+          }
         ]
       },
       "expect_rows": 8,
@@ -748,7 +910,9 @@
     },
     {
       "id": "liftoverintervallist",
-      "tools": ["LiftOverIntervalList"],
+      "tools": [
+        "LiftOverIntervalList"
+      ],
       "title": "LiftOverIntervalList",
       "status": "unchecked",
       "harness": "tools/liftoverintervallist-conformance",
@@ -771,7 +935,9 @@
     },
     {
       "id": "extractsequences",
-      "tools": ["ExtractSequences"],
+      "tools": [
+        "ExtractSequences"
+      ],
       "title": "ExtractSequences",
       "status": "unchecked",
       "harness": "tools/extractsequences-conformance",
@@ -795,7 +961,9 @@
     },
     {
       "id": "scatterintervalsbyns",
-      "tools": ["ScatterIntervalsByNs"],
+      "tools": [
+        "ScatterIntervalsByNs"
+      ],
       "title": "ScatterIntervalsByNs",
       "status": "unchecked",
       "harness": "tools/scatterintervalsbyns-conformance",
@@ -818,12 +986,17 @@
     },
     {
       "id": "nonnfastasize",
-      "tools": ["NonNFastaSize"],
+      "tools": [
+        "NonNFastaSize"
+      ],
       "title": "NonNFastaSize",
       "status": "unchecked",
       "harness": "tools/nonnfastasize-conformance",
       "why": "The output is a count and a newline; nothing in it is machine-dependent.",
-      "compare": { "mode": "keyed", "skip_comment_lines": false },
+      "compare": {
+        "mode": "keyed",
+        "skip_comment_lines": false
+      },
       "cases": [
         {
           "dump": "NonNFastaSizeDump",
@@ -833,12 +1006,17 @@
     },
     {
       "id": "normalizefasta",
-      "tools": ["NormalizeFasta"],
+      "tools": [
+        "NormalizeFasta"
+      ],
       "title": "NormalizeFasta",
       "status": "unchecked",
       "harness": "tools/normalizefasta-conformance",
       "why": "Plain text in, plain text out; compared raw.",
-      "compare": { "mode": "keyed", "skip_comment_lines": false },
+      "compare": {
+        "mode": "keyed",
+        "skip_comment_lines": false
+      },
       "cases": [
         {
           "dump": "NormalizeFastaDump",
@@ -848,7 +1026,9 @@
     },
     {
       "id": "samtofastqwithtags",
-      "tools": ["SamToFastqWithTags"],
+      "tools": [
+        "SamToFastqWithTags"
+      ],
       "title": "SamToFastqWithTags",
       "status": "unchecked",
       "harness": "tools/samtofastqwithtags-conformance",
@@ -872,12 +1052,17 @@
     },
     {
       "id": "mergebamalignment",
-      "tools": ["MergeBamAlignment"],
+      "tools": [
+        "MergeBamAlignment"
+      ],
       "title": "MergeBamAlignment",
       "status": "unchecked",
       "harness": "tools/mergebamalignment-conformance",
       "why": "The record corpus has several data-line rows under one (kind, case) key, so the full line sequence is compared; a keyed comparison would silently keep only the last row of each case.",
-      "compare": { "mode": "lines", "skip_comment_lines": false },
+      "compare": {
+        "mode": "lines",
+        "skip_comment_lines": false
+      },
       "cases": [
         {
           "dump": "MergeBamAlignmentDump",
@@ -887,7 +1072,9 @@
     },
     {
       "id": "mergebamalignment-full",
-      "tools": ["MergeBamAlignment"],
+      "tools": [
+        "MergeBamAlignment"
+      ],
       "title": "MergeBamAlignment, whole file",
       "status": "unchecked",
       "harness": "tools/mergebamalignment-conformance",
