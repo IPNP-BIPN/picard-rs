@@ -16,7 +16,7 @@ jmath.workspace = true
 # byte-identical to the serial one; this is where the port beats single-threaded Picard/GATK.
 rayon = "1"
 # The sequence-dictionary M5 is an MD5 of the uppercased contig bases (SequenceUtil.calculateMD5).
-md-5 = "0.10"
+md-5 = "0.11"
 
 [dev-dependencies]
 flate2 = { version = "1", default-features = false, features = ["zlib"] }
