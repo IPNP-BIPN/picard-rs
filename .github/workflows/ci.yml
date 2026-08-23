@@ -11,7 +11,7 @@ jobs:
     name: Repository invariants
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: LICENSE and README state the same licence
         # picard-rs is MIT because Picard is MIT. gatk-rs is Apache 2.0. Getting these crossed
@@ -52,7 +52,7 @@ jobs:
     name: "Determinism: same input, different environment"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -98,7 +98,7 @@ jobs:
     name: "Coverage-guided fuzzing of the reference"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -127,7 +127,7 @@ jobs:
         # differs. They are published rather than committed, because a finding produced anywhere
         # other than real x86-64 CI cannot be quoted (decision 0008).
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-findings
           path: tools/fuzz/findings/
@@ -137,7 +137,7 @@ jobs:
     name: "Argument coverage: the covering array against both sides"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -189,7 +189,7 @@ jobs:
 
       - name: Publish the corpus and the measurement
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: covering-corpus
           path: |
@@ -201,7 +201,7 @@ jobs:
     name: Test on real x86-64
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -239,13 +239,13 @@ jobs:
     name: Build the pinned oracle image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Record the host CPU
         run: grep -m1 'model name' /proc/cpuinfo; grep -m1 'vendor_id' /proc/cpuinfo
 
       - id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: /tmp/oracle-image.tar
           key: picard-rs-oracle-${{ hashFiles('tools/oracle/**') }}
@@ -300,9 +300,9 @@ jobs:
             index: "1/1"
             suites: "rejections"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: /tmp/oracle-image.tar
           key: picard-rs-oracle-${{ hashFiles('tools/oracle/**') }}
@@ -322,7 +322,7 @@ jobs:
         # from a developer machine (decision 0008). The job publishes what the pinned container
         # produced on real x86-64; committing that artefact is what makes the suite oracle-backed.
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: candidate-goldens-${{ matrix.group }}-${{ strategy.job-index }}
           path: tools/conformance/pending/
@@ -338,9 +338,9 @@ jobs:
         include:
           - probe: rnaseq-overlap-order
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: /tmp/oracle-image.tar
           key: picard-rs-oracle-${{ hashFiles('tools/oracle/**') }}
@@ -361,7 +361,7 @@ jobs:
     name: "Throughput against Picard, on real x86-64"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@master
         with:
