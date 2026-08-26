@@ -740,8 +740,7 @@
         "mode": "keyed",
         "skip_comment_lines": false,
         "skip_kinds": [
-          "bam",
-          "fasta"
+          "bam"
         ],
         "rules": [
           {
@@ -759,7 +758,8 @@
           "dump": "GcBiasDump",
           "golden": "crates/picard-analysis/tests/data/gc_bias.txt.gz"
         }
-      ]
+      ],
+      "why": "The `bam` line is the hex of the input BAM, and that BAM's header carries a @SQ UR: pointing at a per-run temporary FASTA, so its bytes cannot match across runs. Everything else is compared raw: the reference bases the harness generated from a seeded Random, the detail metrics and the summary metrics, minus the two lines Picard stamps with its own command line and start time."
     },
     {
       "id": "accumulatequalityyield",
@@ -931,7 +931,8 @@
           "dump": "LiftOverIntervalListDump",
           "golden": "crates/picard-analysis/tests/data/liftover_interval_list.txt.gz"
         }
-      ]
+      ],
+      "why": "The harness writes its fixtures under a temporary directory, so the target dictionary's UR: field is a fresh path on every run and LiftOverIntervalList copies it verbatim into its output. That one field is stripped; the @SQ order, the lifted intervals and their names are compared raw."
     },
     {
       "id": "extractsequences",
@@ -982,7 +983,8 @@
           "dump": "ScatterIntervalsByNsDump",
           "golden": "crates/picard-analysis/tests/data/scatter_intervals_by_ns.txt.gz"
         }
-      ]
+      ],
+      "why": "The harness writes its reference under a temporary directory, so the dictionary's UR: field is a fresh path on every run and ScatterIntervalsByNs copies it into every output interval list. That one field is stripped; the scatter boundaries, the ACGT and N interval types and the @SQ order are compared raw."
     },
     {
       "id": "nonnfastasize",
