@@ -667,13 +667,13 @@
     {
       "id": "rejections",
       "title": "Rows the reference refuses",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "harness": "tools/rejection-conformance",
       "tools": [
         "CollectQualityYieldMetrics",
         "CollectAlignmentSummaryMetrics"
       ],
-      "why": "The covering arrays are generated over combinations the tool accepts, so the rejections they used to spend rows on are no longer exercised anywhere (decision 0009). A port that processes what Picard refuses is not byte-identical, so the exit path and the message are recorded here. The fixture directory is a per-run temporary path and the harness replaces it with <FIXTURES>: the message is behaviour, the path is not.",
+      "why": "The covering arrays are generated over combinations the tool accepts, so the rejections they used to spend rows on are no longer exercised anywhere (decision 0009). A port that processes what Picard refuses is not byte-identical, so the exit path and the message are recorded here. The fixture directory is a per-run temporary path and the harness replaces it with <FIXTURES>: the message is behaviour, the path is not. From the pinned container on a real x86-64 runner, published as the candidate-goldens artefact of the main run 33015632980, and byte for byte what this laptop produced.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": true
@@ -689,7 +689,7 @@
       "cases": [
         {
           "dump": "RejectionDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/rejections.txt.gz",
           "why": "No golden yet, and none may be committed from here: the bit-identity contract accepts goldens produced on real x86-64 CI, and this harness has so far only run in an emulated container. The generated job runs it and uploads the dump; committing that artefact is what turns this suite oracle-backed. Decision 0008 is what a golden of unknown provenance costs."
         }
       ]
