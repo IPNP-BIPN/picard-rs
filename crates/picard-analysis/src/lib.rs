@@ -50,6 +50,7 @@ pub mod scatter_intervals_by_ns;
 pub mod set_nm_md_and_uq_tags;
 pub mod single_pass_rejections;
 pub mod snvq;
+pub mod sort_gff;
 pub mod sort_sam;
 pub mod split_sam_by_library;
 pub mod split_sam_by_number_of_reads;
