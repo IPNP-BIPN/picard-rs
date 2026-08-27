@@ -1187,6 +1187,26 @@
           "golden": null
         }
       ]
+    },
+    {
+      "id": "vcfsamplenamemap",
+      "status": "golden-pending",
+      "title": "the map from VCF path to sample name, and the order its lines come out in",
+      "harness": "tools/vcfsamplenamemap-conformance",
+      "tools": [
+        "MakeVcfSampleNameMap"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "MakeVcfSampleNameMapDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
