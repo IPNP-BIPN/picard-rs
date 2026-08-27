@@ -1115,6 +1115,24 @@
           "golden": "crates/picard-analysis/tests/data/jumping_library.txt.gz"
         }
       ]
+    },
+    {
+      "id": "comparemetrics",
+      "tools": [
+        "CompareMetrics"
+      ],
+      "title": "CompareMetrics",
+      "status": "golden-pending",
+      "harness": "tools/comparemetrics-conformance",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CompareMetricsDump",
+          "golden": null
+        }
+      ]
     }
   ],
   "probes": [
