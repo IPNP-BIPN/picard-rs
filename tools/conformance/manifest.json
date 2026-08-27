@@ -1169,6 +1169,24 @@
           "golden": null
         }
       ]
+    },
+    {
+      "id": "qualityyieldflow",
+      "tools": [
+        "CollectQualityYieldMetricsFlow"
+      ],
+      "title": "CollectQualityYieldMetricsFlow",
+      "status": "golden-pending",
+      "harness": "tools/qualityyieldflow-conformance",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "QualityYieldFlowDump",
+          "golden": null
+        }
+      ]
     }
   ],
   "probes": [
