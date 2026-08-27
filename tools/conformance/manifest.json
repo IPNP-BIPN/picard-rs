@@ -1229,6 +1229,26 @@
           "why": "PENDING: written once the measurement is read."
         }
       ]
+    },
+    {
+      "id": "liftoverhaplotypemap",
+      "status": "golden-pending",
+      "title": "a haplotype database moved onto another reference, and what is rewritten on the way",
+      "harness": "tools/liftoverhaplotypemap-conformance",
+      "tools": [
+        "LiftOverHaplotypeMap"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "LiftOverHaplotypeMapDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
