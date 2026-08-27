@@ -1178,7 +1178,7 @@
         "CollectQualityYieldMetricsFlow"
       ],
       "title": "CollectQualityYieldMetricsFlow",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "harness": "tools/qualityyieldflow-conformance",
       "compare": {
         "mode": "keyed"
@@ -1186,9 +1186,11 @@
       "cases": [
         {
           "dump": "QualityYieldFlowDump",
-          "golden": null
+          "golden": "crates/picard-analysis/tests/data/quality_yield_flow.txt.gz",
+          "why": "Thirteen cases: one read, homopolymers beside singles, two quality levels, a quality between the two thresholds, a vendor-failed read, secondary and supplementary reads in and out, one included while the other is not, the histogram, a read with no flow matrix, and an empty file."
         }
-      ]
+      ],
+      "why": "A skipped secondary or supplementary read is counted NOWHERE, TOTAL_READS included, which is not what happens to a vendor-failed one: that is counted in TOTAL_READS and left out of PF_READS. PF_Q20_EQUIVALENT_YIELD is the SUM of the flow qualities divided by twenty, so four flows at quality 40 yield 8 and eight flows at quality 25 yield 10. And PF_Q20_FLOWS counts every flow at 20 or over, the 30s included, so it is never smaller than PF_Q30_FLOWS."
     },
     {
       "id": "vcfsamplenamemap",
