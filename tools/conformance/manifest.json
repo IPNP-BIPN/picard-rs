@@ -1133,6 +1133,24 @@
           "golden": "crates/picard-analysis/tests/data/compare_metrics.txt.gz"
         }
       ]
+    },
+    {
+      "id": "sortgff",
+      "tools": [
+        "SortGff"
+      ],
+      "title": "SortGff",
+      "status": "golden-pending",
+      "harness": "tools/sortgff-conformance",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "SortGffDump",
+          "golden": null
+        }
+      ]
     }
   ],
   "probes": [
