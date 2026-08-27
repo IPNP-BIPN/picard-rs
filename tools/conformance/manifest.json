@@ -1158,7 +1158,7 @@
         "CheckDuplicateMarking"
       ],
       "title": "CheckDuplicateMarking",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "harness": "tools/checkdupmarking-conformance",
       "compare": {
         "mode": "keyed"
@@ -1166,9 +1166,11 @@
       "cases": [
         {
           "dump": "CheckDuplicateMarkingDump",
-          "golden": null
+          "golden": "crates/picard-analysis/tests/data/check_duplicate_marking.txt.gz",
+          "why": "Fifteen cases: every name agreeing, one disagreement, two on one name, a name appearing once, a coordinate-sorted file, a secondary and a supplementary disagreement under ALL and under PRIMARY_ONLY, an unmapped one under PRIMARY_ONLY and PRIMARY_MAPPED_ONLY, an improper pair under PRIMARY_MAPPED_ONLY and PRIMARY_PROPER_PAIR_ONLY, a secondary record the sort puts last, and a run with no output file."
         }
-      ]
+      ],
+      "why": "The comparison is against the FIRST record of each name and not against the record before it, so a name whose flags go true, false, false reports two bad records and writes its name twice. The mode's skip happens BEFORE the tally, so a skipped record is neither compared nor remembered and the same file is clean under PRIMARY_ONLY and bad under ALL."
     },
     {
       "id": "qualityyieldflow",
