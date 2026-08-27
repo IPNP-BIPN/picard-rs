@@ -301,7 +301,7 @@ jobs:
             suites: "normalizefasta samtofastqwithtags mergebamalignment mergebamalignment-full"
           - group: golden-pending
             index: "1/1"
-            suites: "qualityyieldflow vcfsamplenamemap haplotypedbtovcf"
+            suites: "qualityyieldflow vcfsamplenamemap haplotypedbtovcf liftoverhaplotypemap"
     steps:
       - uses: actions/checkout@v7
 
