@@ -21,8 +21,8 @@
  *   - --MODE PRIMARY_MAPPED_ONLY SKIPS THE UNMAPPED ONES TOO;
  *   - --MODE PRIMARY_PROPER_PAIR_ONLY SKIPS EVERYTHING THAT IS NOT A PROPER PAIR, which includes
  *     every unpaired read;
- *   - THE MODE'S SKIP HAPPENS BEFORE THE TALLY, so a skipped record does not become the name's
- *     first record either: the comparison is against the first record the mode KEPT;
+ *   - THE MODE'S SKIP HAPPENS BEFORE THE TALLY, so a skipped record is neither compared nor
+ *     remembered: the same file is clean under PRIMARY_ONLY and bad under ALL;
  *   - AND --OUTPUT IS OPTIONAL, the verdict being the same without it.
  *
  * Output:
@@ -201,7 +201,8 @@ public class CheckDuplicateMarkingDump {
         run("improper-disagrees-proper-only", improper, SAMFileHeader.SortOrder.queryname,
                 "MODE=PRIMARY_PROPER_PAIR_ONLY");
 
-        // A skipped FIRST record: the comparison is against the first record the mode kept.
+        // A secondary record that disagrees with the name's primaries. The writer sorts by
+        // query name, which puts it LAST, so this shows the skip and not the first-record rule.
         run("skipped-first-record", List.of(
                 new Rec("a", 100, true, true, false, false, true),
                 plain("a", 200, false), plain("a", 300, false)),
