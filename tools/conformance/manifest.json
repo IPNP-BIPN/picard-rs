@@ -1140,7 +1140,7 @@
         "SortGff"
       ],
       "title": "SortGff",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "harness": "tools/sortgff-conformance",
       "compare": {
         "mode": "keyed"
@@ -1148,7 +1148,7 @@
       "cases": [
         {
           "dump": "SortGffDump",
-          "golden": null
+          "golden": "crates/picard-analysis/tests/data/sort_gff.txt.gz"
         }
       ]
     },
