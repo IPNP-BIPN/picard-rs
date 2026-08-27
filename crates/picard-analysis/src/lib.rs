@@ -38,6 +38,7 @@ pub mod non_n_fasta_size;
 pub mod normalize_fasta;
 pub mod quality_score_distribution;
 pub mod quality_yield;
+pub mod quality_yield_flow;
 pub mod refflat;
 pub mod reorder_sam;
 pub mod replace_sam_header;
