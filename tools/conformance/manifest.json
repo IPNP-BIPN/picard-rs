@@ -1207,6 +1207,26 @@
           "why": "PENDING: written once the measurement is read."
         }
       ]
+    },
+    {
+      "id": "haplotypedbtovcf",
+      "status": "golden-pending",
+      "title": "the haplotype database read against the reference, which is what decides REF",
+      "harness": "tools/haplotypedbtovcf-conformance",
+      "tools": [
+        "ConvertHaplotypeDatabaseToVcf"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "ConvertHaplotypeDatabaseToVcfDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
