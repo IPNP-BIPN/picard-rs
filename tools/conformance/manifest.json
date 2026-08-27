@@ -1122,7 +1122,7 @@
         "CompareMetrics"
       ],
       "title": "CompareMetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "harness": "tools/comparemetrics-conformance",
       "compare": {
         "mode": "keyed"
@@ -1130,7 +1130,7 @@
       "cases": [
         {
           "dump": "CompareMetricsDump",
-          "golden": null
+          "golden": "crates/picard-analysis/tests/data/compare_metrics.txt.gz"
         }
       ]
     }
