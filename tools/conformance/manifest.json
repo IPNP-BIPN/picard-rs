@@ -1151,6 +1151,24 @@
           "golden": null
         }
       ]
+    },
+    {
+      "id": "checkdupmarking",
+      "tools": [
+        "CheckDuplicateMarking"
+      ],
+      "title": "CheckDuplicateMarking",
+      "status": "golden-pending",
+      "harness": "tools/checkdupmarking-conformance",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CheckDuplicateMarkingDump",
+          "golden": null
+        }
+      ]
     }
   ],
   "probes": [

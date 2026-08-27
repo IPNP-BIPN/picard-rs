@@ -301,7 +301,7 @@ jobs:
             suites: "normalizefasta samtofastqwithtags mergebamalignment mergebamalignment-full"
           - group: golden-pending
             index: "1/1"
-            suites: "sortgff"
+            suites: "sortgff checkdupmarking"
     steps:
       - uses: actions/checkout@v7
 
