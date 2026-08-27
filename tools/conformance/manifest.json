@@ -1097,6 +1097,24 @@
           "golden": "crates/picard-analysis/tests/data/merge_bam_alignment_full.txt.gz"
         }
       ]
+    },
+    {
+      "id": "jumpinglibrary",
+      "tools": [
+        "CollectJumpingLibraryMetrics"
+      ],
+      "title": "CollectJumpingLibraryMetrics",
+      "status": "golden-pending",
+      "harness": "tools/jumpinglibrary-conformance",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "JumpingLibraryMetricsDump",
+          "golden": null
+        }
+      ]
     }
   ],
   "probes": [
