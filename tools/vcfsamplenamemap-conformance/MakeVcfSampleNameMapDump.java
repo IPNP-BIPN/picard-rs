@@ -9,9 +9,11 @@
  *   - THE LINE IS THE PATH FIRST AND THE NAME SECOND, which is the opposite way round from the
  *     tool's name;
  *   - THE PATH ON THE LINE IS THE STRING AS GIVEN, never normalised or canonicalised, so a
- *     `<dir>/./a.vcf` argument comes back with its dot in it;
+ *     `./a.vcf` argument comes back with its dot in it;
  *   - THE LINES ARE NOT IN INPUT ORDER: they come out of a HashMap keyed by the path string, so
- *     the order is that map's, which is the paths' hashes and not the argument list;
+ *     the order is that map's, which is the paths' hashes and not the argument list. Three inputs
+ *     named forwards and backwards produce the same file, and `a.vcf` beside `d.vcf` comes out
+ *     with `d.vcf` first;
  *   - THE SAME PATH GIVEN TWICE IS ONE LINE, because that map is keyed by the path;
  *   - TWO PATHS THAT NAME THE SAME SAMPLE ARE BOTH KEPT, with only a warning, so the file may
  *     hold the same sample name twice;
@@ -72,8 +74,8 @@ public class MakeVcfSampleNameMapDump {
     }
 
     /** Runs the tool over the inputs, which are named RELATIVE to the working directory. */
-    static void run(final Path dir, final String name, final List<String> inputs) {
-        final Path out = dir.resolve("out-" + name + ".sample_map");
+    static void run(final String name, final List<String> inputs) {
+        final Path out = Path.of("out-" + name + ".sample_map");
         final List<String> argv = new ArrayList<>();
         for (final String input : inputs) {
             argv.add("I=" + input);
@@ -91,73 +93,55 @@ public class MakeVcfSampleNameMapDump {
             while (cause.getCause() != null) {
                 cause = cause.getCause();
             }
-            emit("error", name, cause.getClass().getName() + ":"
-                    + String.valueOf(cause.getMessage()).replace(dir.toString(), "<dir>"));
+            emit("error", name, cause.getClass().getName() + ":" + String.valueOf(cause.getMessage()));
             return;
         }
         try {
-            emit("out", name, Files.readString(out).replace(dir.toString(), "<dir>"));
+            emit("out", name, Files.readString(out));
         } catch (final Exception e) {
             emit("error", name, "unreadable output");
         }
     }
 
-    static Path write(final Path dir, final String name, final String content) throws Exception {
-        final Path path = dir.resolve(name);
-        Files.writeString(path, content, StandardCharsets.UTF_8);
-        return path;
+    static void write(final String name, final String content) throws Exception {
+        Files.writeString(Path.of(name), content, StandardCharsets.UTF_8);
     }
 
     public static void main(final String[] args) throws Exception {
         BlockCompressedOutputStream.setDefaultDeflaterFactory(new DeflaterFactory());
-        final Path dir = Files.createTempDirectory("vcfsamplenamemap");
 
-        // Four single-sample VCFs whose file names are short enough to read in the output and
-        // whose hashes do not order the way the argument list does.
+        // The inputs are written into the WORKING directory and named relative to it, so the map
+        // is keyed by "a.vcf" and not by a path holding a temporary directory's random name. The
+        // line order is that map's, so it is only reproducible when the keys are.
         final String one = vcf(List.of("SAMPLE_ONE"));
         final String two = vcf(List.of("SAMPLE_TWO"));
         final String three = vcf(List.of("SAMPLE_THREE"));
-        final String alsoOne = vcf(List.of("SAMPLE_ONE"));
         emit("vcf", "one", one);
         emit("vcf", "none", vcf(List.of()));
         emit("vcf", "two-samples", vcf(List.of("SAMPLE_ONE", "SAMPLE_TWO")));
-        write(dir, "a.vcf", one);
-        write(dir, "b.vcf", two);
-        write(dir, "c.vcf", three);
-        write(dir, "d.vcf", alsoOne);
-        write(dir, "empty.vcf", vcf(List.of()));
-        write(dir, "pair.vcf", vcf(List.of("SAMPLE_ONE", "SAMPLE_TWO")));
-        write(dir, "not-a-vcf.vcf", "this is not a VCF at all\n");
+        write("a.vcf", one);
+        write("b.vcf", two);
+        write("c.vcf", three);
+        write("d.vcf", vcf(List.of("SAMPLE_ONE")));
+        write("empty.vcf", vcf(List.of()));
+        write("pair.vcf", vcf(List.of("SAMPLE_ONE", "SAMPLE_TWO")));
+        write("not-a-vcf.vcf", "this is not a VCF at all\n");
 
-        run(dir, "one-input", List.of(dir.resolve("a.vcf").toString()));
-        run(dir, "three-inputs", List.of(
-                dir.resolve("a.vcf").toString(),
-                dir.resolve("b.vcf").toString(),
-                dir.resolve("c.vcf").toString()));
+        run("one-input", List.of("a.vcf"));
+        run("three-inputs", List.of("a.vcf", "b.vcf", "c.vcf"));
         // The same three, named in the opposite order: the output order does not follow.
-        run(dir, "three-inputs-reversed", List.of(
-                dir.resolve("c.vcf").toString(),
-                dir.resolve("b.vcf").toString(),
-                dir.resolve("a.vcf").toString()));
-        run(dir, "same-path-twice", List.of(
-                dir.resolve("a.vcf").toString(),
-                dir.resolve("a.vcf").toString()));
-        run(dir, "same-sample-two-paths", List.of(
-                dir.resolve("a.vcf").toString(),
-                dir.resolve("d.vcf").toString()));
-        run(dir, "no-sample", List.of(dir.resolve("empty.vcf").toString()));
-        run(dir, "two-samples", List.of(dir.resolve("pair.vcf").toString()));
-        run(dir, "not-a-vcf", List.of(dir.resolve("not-a-vcf.vcf").toString()));
+        run("three-inputs-reversed", List.of("c.vcf", "b.vcf", "a.vcf"));
+        run("same-path-twice", List.of("a.vcf", "a.vcf"));
+        run("same-sample-two-paths", List.of("a.vcf", "d.vcf"));
+        run("no-sample", List.of("empty.vcf"));
+        run("two-samples", List.of("pair.vcf"));
+        run("not-a-vcf", List.of("not-a-vcf.vcf"));
         // A good input beside a bad one: the run stops on the bad one and writes nothing.
-        run(dir, "good-then-bad", List.of(
-                dir.resolve("a.vcf").toString(),
-                dir.resolve("pair.vcf").toString()));
-        run(dir, "missing-input", List.of(dir.resolve("gone.vcf").toString()));
+        run("good-then-bad", List.of("a.vcf", "pair.vcf"));
+        run("missing-input", List.of("gone.vcf"));
         // The same file named twice, once plainly and once with a dot in the middle: the map is
         // keyed by the STRING, so these are two entries pointing at one file.
-        run(dir, "unnormalised-path", List.of(
-                dir.resolve("a.vcf").toString(),
-                dir.resolve(".").resolve("a.vcf").toString()));
+        run("unnormalised-path", List.of("a.vcf", "./a.vcf"));
 
         System.out.print(buf);
     }
