@@ -20,6 +20,7 @@ pub mod clean_sam;
 pub mod cluster_crosscheck_metrics;
 pub mod collect_duplicate_metrics;
 pub mod collect_hs_metrics;
+pub mod collect_independent_replicate_metrics;
 pub mod collect_multiple_metrics;
 pub mod collect_oxo_g_metrics;
 pub mod collect_rrbs_metrics;
