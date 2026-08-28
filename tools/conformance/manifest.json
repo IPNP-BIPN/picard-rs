@@ -1583,12 +1583,12 @@
       "compare": {
         "mode": "keyed"
       },
-      "why": "A pre-adapter artifact is one whose direction follows the READ and a bait-bias one is one whose direction follows the REFERENCE STRAND, which is what the same substitution in read one and in read two tells apart. The output argument is a prefix for five files, the detail ones holding a row per substitution per context, and the summary ones the worst context per substitution. --CONTEXTS_TO_PRINT cuts the detail files and the error summary and not the counting: the twelve summary rows are the same whether it is given or not.",
+      "why": "A pre-adapter artifact is one whose direction follows the READ and a bait-bias one is one whose direction follows the REFERENCE STRAND, which is what the same substitution in read one and in read two tells apart. The output argument is a prefix for five files, the detail ones holding a row per substitution per context, and the summary ones the worst context per substitution. --CONTEXTS_TO_PRINT cuts the detail files and the error summary and not the counting: the twelve summary rows are the same whether it is given or not. --TANDEM_READS swaps read two's half of every sum, which is invisible on a pair whose ends are on opposite strands and plain on a substitution carried by read two on the forward strand: PRO_ALT and CON_ALT trade places and the Q goes from a hundred to eleven.",
       "cases": [
         {
           "dump": "CollectSequencingArtifactMetricsDump",
           "golden": null,
-          "why": "Twenty-one cases: a clean pair, the same substitution in each end and on each strand, tandem reads, context size nought, a restricted context set, a file extension, the base-quality floor with the OQ tag honoured and ignored, and each whole-read filter with the two that can be turned off shown both ways."
+          "why": "Twenty-two cases: a clean pair, the same substitution in each end and on each strand, tandem reads on a pair whose ends are on opposite strands and on one carried by read two on the forward strand, context size nought, a restricted context set, a file extension, the base-quality floor with the OQ tag honoured and ignored, and each whole-read filter with the three that can be turned off shown both ways."
         }
       ]
     }

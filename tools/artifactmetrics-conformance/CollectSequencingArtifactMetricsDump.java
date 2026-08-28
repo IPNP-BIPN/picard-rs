@@ -27,7 +27,9 @@
  *     EACH DROP A WHOLE READ, and --INCLUDE_DUPLICATES and --INCLUDE_UNPAIRED put two of them back;
  *   - AN UNPAIRED READ IS DROPPED BY THE INSERT-SIZE FILTER RATHER THAN BY A RULE OF ITS OWN,
  *     which is why --INCLUDE_UNPAIRED is what admits it;
- *   - --TANDEM_READS SWAPS WHICH END COUNTS AS WHICH, so the same file answers differently;
+ *   - --TANDEM_READS SWAPS READ TWO'S HALF OF EVERY SUM, which is invisible on a pair whose ends
+ *     are on opposite strands (both conventions put such a pair on one side) and plain on a
+ *     substitution carried by read two on the forward strand;
  *   - --DB_SNP AND --INTERVALS EACH REMOVE SITES BEFORE ANY COUNTING;
  *   - AND THE FIFTH FILE, THE ERROR SUMMARY, IS WRITTEN WHATEVER ELSE HAPPENS.
  *
@@ -185,6 +187,10 @@ public class CollectSequencingArtifactMetricsDump {
         run("alt-read-two-forward", pair(at(22, 'T'), false, false));
         run("alt-read-one-reverse", pair(at(22, 'T'), true, true));
         run("tandem-reads", pair(at(22, 'T'), true, false), "TANDEM_READS=true");
+        // A pair whose ends are on OPPOSITE strands lands on the same side under either
+        // convention, so the swap only shows when the substitution is in read two on the forward
+        // strand: that end changes side and the other does not.
+        run("tandem-read-two-forward", pair(at(22, 'T'), false, false), "TANDEM_READS=true");
 
         // The detail files' size, and what cuts it.
         run("context-size-zero", pair(at(22, 'T'), true, false), "CONTEXT_SIZE=0");
