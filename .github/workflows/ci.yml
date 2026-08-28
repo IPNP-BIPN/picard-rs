@@ -310,10 +310,10 @@ jobs:
             suites: "clustercrosscheck extractfingerprint identifycontaminant mergepedintovcf accumulatevcm"
           - group: oracle-backed
             index: "14/14"
-            suites: "variantcallingmetrics"
+            suites: "variantcallingmetrics nonzerowgs"
           - group: golden-pending
             index: "1/1"
-            suites: "nonzerowgs oxog"
+            suites: "oxog"
     steps:
       - uses: actions/checkout@v7
 
