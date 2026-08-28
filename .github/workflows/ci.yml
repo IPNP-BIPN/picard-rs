@@ -311,6 +311,9 @@ jobs:
           - group: oracle-backed
             index: "14/14"
             suites: "variantcallingmetrics"
+          - group: golden-pending
+            index: "1/1"
+            suites: "nonzerowgs"
     steps:
       - uses: actions/checkout@v7
 
