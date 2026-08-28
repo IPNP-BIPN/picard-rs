@@ -1691,6 +1691,26 @@
           "why": "Eighteen cases: the default set and the same set twice over, a set named by the run, an empty set, an extension, the two programs that need a reference and the one that needs a refflat, an argument reaching one program, an argument for a program that is not running, a malformed one, an unknown program, an argument the pass owns, a truncated pass, a second accumulation level, and the same fixture through one program on its own."
         }
       ]
+    },
+    {
+      "id": "rrbsmetrics",
+      "status": "golden-pending",
+      "title": "which cytosines an RRBS run counts, and which of them are CpG",
+      "harness": "tools/rrbsmetrics-conformance",
+      "tools": [
+        "CollectRrbsMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "A CpG is looked for in the REFERENCE and not in the read, so a read that reads TG over a reference CG is a converted site rather than a mismatch. The rules around that do not compose the way the code reads: the last base of a block is never a CpG, the two quality thresholds are different numbers, and the non-CpG branch reads its quality off the whole read with the block's own index where the CpG branch reads the block's.",
+      "cases": [
+        {
+          "dump": "CollectRrbsMetricsDump",
+          "golden": null,
+          "why": "Twenty-three cases: an unconverted read and a converted one, a CpG at and one before the last base, the two quality thresholds on each side, a negative strand, a soft-clipped read where the two quality readings diverge, the length and mismatch filters with the rounding boundary, a read with no CpG, the sequence filter on both sides, a second accumulation level, a prefix with and without its dot, a queryname-sorted file on both paths, and an empty file."
+        }
+      ]
     }
   ],
   "probes": [
