@@ -270,41 +270,44 @@ jobs:
       matrix:
         include:
           - group: oracle-backed
-            index: "1/11"
+            index: "1/12"
             suites: "metrics rnaseq snvq samtofastq fastqtosam"
           - group: oracle-backed
-            index: "2/11"
+            index: "2/12"
             suites: "sortsam addreplacerg cleansam fixmate addoatag"
           - group: oracle-backed
-            index: "3/11"
+            index: "3/12"
             suites: "reordersam replacesamheader revertsam revertorigmatecigar viewsam"
           - group: oracle-backed
-            index: "4/11"
+            index: "4/12"
             suites: "rgchecksum downsamplesam filtersamreads createdict samformatconverter"
           - group: oracle-backed
-            index: "5/11"
+            index: "5/12"
             suites: "sortsam-bam setnmmduq addoatag-bam validatesam comparesams"
           - group: oracle-backed
-            index: "6/11"
+            index: "6/12"
             suites: "split bamindexstats merge rejections qualityscoredistribution"
           - group: oracle-backed
-            index: "7/11"
+            index: "7/12"
             suites: "gcbias accumulatequalityyield bedtointervallist intervallisttobed intervallisttools"
           - group: oracle-backed
-            index: "8/11"
+            index: "8/12"
             suites: "intervallisttoolspadbreak liftoverintervallist extractsequences scatterintervalsbyns nonnfastasize"
           - group: oracle-backed
-            index: "9/11"
+            index: "9/12"
             suites: "normalizefasta samtofastqwithtags mergebamalignment mergebamalignment-full jumpinglibrary"
           - group: oracle-backed
-            index: "10/11"
+            index: "10/12"
             suites: "comparemetrics sortgff checkdupmarking qualityyieldflow vcfsamplenamemap"
           - group: oracle-backed
-            index: "11/11"
+            index: "11/12"
             suites: "haplotypedbtovcf liftoverhaplotypemap positiondownsample duplicatemetrics verifyidintensity"
+          - group: oracle-backed
+            index: "12/12"
+            suites: "bafregress"
           - group: golden-pending
             index: "1/1"
-            suites: "bafregress wgsmetrics"
+            suites: "wgsmetrics"
     steps:
       - uses: actions/checkout@v7
 
