@@ -280,6 +280,19 @@ fn the_cap_is_out_of_reach() {
         base_fate(b'A', 40, false, 10, &raw_arguments()),
         Fate::Counted
     );
+    // The default cap is a hundred thousand, which the one case that leaves it alone shows in the
+    // trailer counting the bins past the deepest one anything reached: 99,990 of them against the
+    // 240 the same reads leave under a cap of two hundred and fifty, which every other case names
+    // to keep the reference from writing a hundred thousand histogram lines apiece.
+    let histogram =
+        |case: &str| field(&text, "histogram", case).unwrap_or_else(|| panic!("histogram/{case}"));
+    assert!(histogram("default-coverage-cap").contains("# 99990 further bins"));
+    assert!(histogram("deep").contains("# 240 further bins"));
+    // The two runs are the same reads, so their counted bins agree up to where the cap cuts.
+    assert_eq!(
+        value(&text, "default-coverage-cap", "MEAN_COVERAGE"),
+        value(&text, "deep", "MEAN_COVERAGE")
+    );
 }
 
 /// The duplicate, unpaired and overlap rules are untouched.

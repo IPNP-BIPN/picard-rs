@@ -304,16 +304,13 @@ jobs:
             suites: "haplotypedbtovcf liftoverhaplotypemap positiondownsample duplicatemetrics verifyidintensity"
           - group: oracle-backed
             index: "12/14"
-            suites: "bafregress wgsmetrics umiprevalence artifacttooxog clustercrosscheck"
+            suites: "bafregress wgsmetrics rawwgsmetrics umiprevalence artifacttooxog"
           - group: oracle-backed
             index: "13/14"
-            suites: "extractfingerprint identifycontaminant mergepedintovcf accumulatevcm variantcallingmetrics"
+            suites: "clustercrosscheck extractfingerprint identifycontaminant mergepedintovcf accumulatevcm"
           - group: oracle-backed
             index: "14/14"
-            suites: "nonzerowgs oxog"
-          - group: golden-pending
-            index: "1/1"
-            suites: "rawwgsmetrics"
+            suites: "variantcallingmetrics nonzerowgs oxog"
     steps:
       - uses: actions/checkout@v7
 
