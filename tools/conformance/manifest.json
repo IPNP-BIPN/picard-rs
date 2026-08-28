@@ -1571,6 +1571,26 @@
           "why": "Twenty-two cases: the reference alone, the alternate at a G site in each end and on each strand, at a C site in each end, the base-quality floor, the OQ tag honoured and ignored, the mapping-quality floor, both ends of the insert-size window, a duplicate, a secondary alignment, the first base of the contig, context size zero, a restricted context set, two contexts the validation refuses, two libraries, the debugging stop, a known site, an interval list, and a file with no read group."
         }
       ]
+    },
+    {
+      "id": "artifactmetrics",
+      "status": "golden-pending",
+      "title": "which read reaches which artifact counter, and what the five files carry",
+      "harness": "tools/artifactmetrics-conformance",
+      "tools": [
+        "CollectSequencingArtifactMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "A pre-adapter artifact is one whose direction follows the READ and a bait-bias one is one whose direction follows the REFERENCE STRAND, which is what the same substitution in read one and in read two tells apart. The output argument is a prefix for five files, the detail ones holding a row per substitution per context, and the summary ones the worst context per substitution. --CONTEXTS_TO_PRINT cuts the detail files and the error summary and not the counting: the twelve summary rows are the same whether it is given or not.",
+      "cases": [
+        {
+          "dump": "CollectSequencingArtifactMetricsDump",
+          "golden": null,
+          "why": "Twenty-one cases: a clean pair, the same substitution in each end and on each strand, tandem reads, context size nought, a restricted context set, a file extension, the base-quality floor with the OQ tag honoured and ignored, and each whole-read filter with the two that can be turned off shown both ways."
+        }
+      ]
     }
   ],
   "probes": [
