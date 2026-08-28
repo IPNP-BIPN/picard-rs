@@ -1671,6 +1671,26 @@
           "why": "Twelve cases: a plain run, every row kept, the two floors, filters ignored, a missing site read as missing, the hom-ref flag refused without an interval list and accepted with one, an interval list on its own, a no-call, and a second sample named out of a two-sample file."
         }
       ]
+    },
+    {
+      "id": "multiplemetrics",
+      "status": "golden-pending",
+      "title": "which programs one pass runs, and which files they land on",
+      "harness": "tools/multiplemetrics-conformance",
+      "tools": [
+        "CollectMultipleMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The tool is a dispatcher and not an arithmetic: it builds one instance per PROGRAM and hands every one of them the same records. The default set is five of the eight programs the enum declares, an extension lands on the metrics file and not on the chart, and the charts are R's output, which two runs of one fixture do not agree on byte for byte.",
+      "cases": [
+        {
+          "dump": "CollectMultipleMetricsDump",
+          "golden": null,
+          "why": "Eighteen cases: the default set and the same set twice over, a set named by the run, an empty set, an extension, the two programs that need a reference and the one that needs a refflat, an argument reaching one program, an argument for a program that is not running, a malformed one, an unknown program, an argument the pass owns, a truncated pass, a second accumulation level, and the same fixture through one program on its own."
+        }
+      ]
     }
   ],
   "probes": [
