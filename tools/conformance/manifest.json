@@ -1594,7 +1594,7 @@
     },
     {
       "id": "hsmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "a hybrid-selection experiment counted against its baits and its targets",
       "harness": "tools/hsmetrics-conformance",
       "tools": [
@@ -1607,7 +1607,7 @@
       "cases": [
         {
           "dump": "CollectHsMetricsDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/collect_hs_metrics.txt.gz",
           "why": "Twelve cases: a plain run, the per-target and per-base files, a near distance of nought, a named bait set, a mapping-quality floor above every read and a base-quality floor above every base, an overlapping pair with and without clipping, a file with no reads, and a pair at mapping quality nought that the default floor of one already excludes."
         }
       ]
