@@ -1654,7 +1654,7 @@
     },
     {
       "id": "genotypeconcordance",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which pair of genotype states a site is filed under, and the three files it reaches",
       "harness": "tools/genotypeconcordance-conformance",
       "tools": [
@@ -1667,7 +1667,7 @@
       "cases": [
         {
           "dump": "GenotypeConcordanceDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/genotype_concordance.txt.gz",
           "why": "Twelve cases: a plain run, every row kept, the two floors, filters ignored, a missing site read as missing, the hom-ref flag refused without an interval list and accepted with one, an interval list on its own, a no-call, and a second sample named out of a two-sample file."
         }
       ]
