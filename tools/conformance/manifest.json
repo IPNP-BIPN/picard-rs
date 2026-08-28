@@ -1411,6 +1411,26 @@
           "why": "Eight cases: one context, the oxidation floor, the bait-bias floor and its reverse, two libraries by two contexts, an output basename, the file named outright, and neither named at all."
         }
       ]
+    },
+    {
+      "id": "clustercrosscheck",
+      "status": "golden-pending",
+      "title": "the connected components of a crosscheck table, and which rows come back inside them",
+      "harness": "tools/clustercrosscheck-conformance",
+      "tools": [
+        "ClusterCrosscheckMetrics"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "ClusterCrosscheckMetricsDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
