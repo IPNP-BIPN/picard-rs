@@ -1594,7 +1594,7 @@
     },
     {
       "id": "hsmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "a hybrid-selection experiment counted against its baits and its targets",
       "harness": "tools/hsmetrics-conformance",
       "tools": [
@@ -1603,7 +1603,7 @@
       "compare": {
         "mode": "keyed"
       },
-      "why": "The baits and the targets are counted separately and a read may be on one and not the other: the same file reports sixty on-bait bases and a hundred on-target ones, because one target lies outside every bait. --NEAR_DISTANCE moves the window the middle column counts, and at nought its hundred and twenty bases become off-bait ones. CLIP_OVERLAPPING_READS is already true here: the shared argument defaults to false and this tool's own constructor sets it, which is why passing `true` changes nothing and passing `false` takes the on-target bases from a hundred to a hundred and twenty. The golden here is the PREVIOUS one, kept declared so the Rust comparison keeps building until the follow-up PR replaces it.",
+      "why": "The baits and the targets are counted separately and a read may be on one and not the other: the same file reports sixty on-bait bases and a hundred on-target ones, because one target lies outside every bait. --NEAR_DISTANCE moves the window the middle column counts, and at nought its hundred and twenty bases become off-bait ones. CLIP_OVERLAPPING_READS is already true here: the shared argument defaults to false and this tool's own constructor sets it, which is why passing `true` changes nothing and passing `false` takes the on-target bases from a hundred to a hundred and twenty.",
       "cases": [
         {
           "dump": "CollectHsMetricsDump",
@@ -1614,7 +1614,7 @@
     },
     {
       "id": "pcrmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the same collector under the amplicon column names",
       "harness": "tools/pcrmetrics-conformance",
       "tools": [
@@ -1627,7 +1627,7 @@
       "cases": [
         {
           "dump": "CollectTargetedPcrMetricsDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/collect_targeted_pcr_metrics.txt.gz",
           "why": "Eleven cases: a plain run, the per-target and per-base files, a near distance of nought, a named amplicon set, a mapping-quality floor above every read and a base-quality floor above every base, an overlapping pair with and without clipping, no reads at all, and a pair at mapping quality nought."
         }
       ]
