@@ -3,6 +3,7 @@
 //! Ported from Picard 3.4.0, symbol by symbol, from the pinned clone in `picard/`.
 
 pub mod accumulate_quality_yield_metrics;
+pub mod accumulate_variant_calling_metrics;
 pub mod adapter;
 pub mod add_comments_to_bam;
 pub mod add_oa_tag;
