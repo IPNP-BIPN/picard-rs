@@ -1491,6 +1491,26 @@
           "why": "Nine cases in a fixed order, the last depending on it: agreeing and disagreeing PEDs, thresholds for one SNP, for all three and as NA, one NA of a pair, an A allele that is the reference, an allele of two characters, a two-sample VCF, a VCF of nothing but GT, and the static map's leak."
         }
       ]
+    },
+    {
+      "id": "accumulatevcm",
+      "status": "golden-pending",
+      "title": "several metrics tables merged into one, and what the round trip loses",
+      "harness": "tools/accumulatevcm-conformance",
+      "tools": [
+        "AccumulateVariantCallingMetrics"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "AccumulateVariantCallingMetricsDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
