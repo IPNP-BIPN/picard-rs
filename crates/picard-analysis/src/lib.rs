@@ -19,6 +19,7 @@ pub mod check_terminator_block;
 pub mod clean_sam;
 pub mod cluster_crosscheck_metrics;
 pub mod collect_duplicate_metrics;
+pub mod collect_oxo_g_metrics;
 pub mod collect_umi_prevalence_metrics;
 pub mod collect_variant_calling_metrics;
 pub mod collect_wgs_metrics;
