@@ -129,6 +129,16 @@ pub fn contamination_to_use(contamination: f64, extract_contamination: bool) -> 
     }
 }
 
+/// `IdentifyContaminant.doWork`, which is the whole of that tool: it sets the other's
+/// `EXTRACT_CONTAMINATION` from the NEGATION of its own `EXTRACT_CONTAMINATED` and delegates.
+///
+/// So its default is the opposite one. `EXTRACT_CONTAMINATED` is false by default, which makes
+/// `EXTRACT_CONTAMINATION` true, and a default run reports the contaminant where
+/// `ExtractFingerprint`'s default reports the contaminated sample.
+pub fn extract_contamination_for_identify(extract_contaminated: bool) -> bool {
+    !extract_contaminated
+}
+
 /// `getSampleToUse`: the sample column's name.
 ///
 /// Without an alias the header's sample name gets `-contaminant` appended, and only when the
