@@ -308,6 +308,9 @@ jobs:
           - group: oracle-backed
             index: "13/13"
             suites: "clustercrosscheck extractfingerprint identifycontaminant mergepedintovcf"
+          - group: golden-pending
+            index: "1/1"
+            suites: "accumulatevcm"
     steps:
       - uses: actions/checkout@v7
 
