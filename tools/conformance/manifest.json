@@ -1331,6 +1331,26 @@
           "why": "PENDING: written once the measurement is read."
         }
       ]
+    },
+    {
+      "id": "wgsmetrics",
+      "status": "golden-pending",
+      "title": "which base reaches the depth histogram and which counter takes the rest",
+      "harness": "tools/wgsmetrics-conformance",
+      "tools": [
+        "CollectWgsMetrics"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CollectWgsMetricsDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
