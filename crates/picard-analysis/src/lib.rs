@@ -21,6 +21,7 @@ pub mod collect_umi_prevalence_metrics;
 pub mod collect_wgs_metrics;
 pub mod compare_metrics;
 pub mod compare_sams;
+pub mod convert_artifact_to_oxog;
 pub mod create_baf_regress_metrics;
 pub mod create_sequence_dictionary;
 pub mod create_verify_id_intensity_metrics;
