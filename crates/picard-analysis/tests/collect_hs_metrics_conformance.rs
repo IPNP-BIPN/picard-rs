@@ -135,6 +135,7 @@ fn the_derived_columns_follow_from_the_counts() {
         on_target: number(&row, "ON_TARGET_BASES") as i64,
         bait_territory: number(&row, "BAIT_TERRITORY") as i64,
         target_territory: number(&row, "TARGET_TERRITORY") as i64,
+        genome_size: number(&row, "GENOME_SIZE") as i64,
     });
     let close = |ours: f64, name: &str| {
         let theirs = number(&row, name);
@@ -149,6 +150,12 @@ fn the_derived_columns_follow_from_the_counts() {
     close(ours.mean_bait_coverage, "MEAN_BAIT_COVERAGE");
     close(ours.mean_target_coverage, "MEAN_TARGET_COVERAGE");
     close(ours.pct_usable_bases_on_bait, "PCT_USABLE_BASES_ON_BAIT");
+    // The enrichment divides by the same three-column denominator and compares the bait territory
+    // against the whole genome: a fifth of a thousand bases baited, a quarter of the aligned bases
+    // on bait, 1.25.
+    close(ours.fold_enrichment, "FOLD_ENRICHMENT");
+    assert_eq!(number(&row, "FOLD_ENRICHMENT"), 1.25);
+    assert_eq!(number(&row, "GENOME_SIZE"), 1000.0);
     // The selected fraction counts the near bases, so it is not the on-bait fraction: 0.75 against
     // a third of that again.
     assert_eq!(number(&row, "PCT_SELECTED_BASES"), 0.75);

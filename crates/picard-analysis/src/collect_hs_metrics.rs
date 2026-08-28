@@ -70,6 +70,8 @@ pub struct Counts {
     pub on_target: i64,
     pub bait_territory: i64,
     pub target_territory: i64,
+    /// The reference's own length, which only the enrichment column reads.
+    pub genome_size: i64,
 }
 
 /// `TargetMetricsCollector.calculateDerivedMetrics`, on the counts a traversal produced.
@@ -86,9 +88,11 @@ pub fn derived(counts: &Counts) -> Derived {
         on_bait_vs_selected: counts.on_bait as f64 / selected as f64,
         mean_bait_coverage: counts.on_bait as f64 / counts.bait_territory as f64,
         mean_target_coverage: counts.on_target as f64 / counts.target_territory as f64,
-        fold_enrichment: (counts.on_bait as f64 / counts.pf_bases_aligned as f64)
-            / (counts.bait_territory as f64
-                / (counts.bait_territory as f64 + counts.off_bait as f64)),
+        // `FOLD_ENRICHMENT` divides by the three-column denominator and not by PF_BASES_ALIGNED,
+        // and its second half is the bait territory over the whole GENOME: a fifth of a thousand
+        // bases baited, a quarter of the aligned bases on bait, and the answer is 1.25.
+        fold_enrichment: (counts.on_bait as f64 / aligned as f64)
+            / (counts.bait_territory as f64 / counts.genome_size as f64),
         pct_usable_bases_on_bait: counts.on_bait as f64 / counts.pf_bases as f64,
     }
 }

@@ -117,6 +117,7 @@ fn the_amplicon_numbers_are_the_bait_numbers() {
         on_target: number(&ours, "ON_TARGET_BASES") as i64,
         bait_territory: number(&ours, "AMPLICON_TERRITORY") as i64,
         target_territory: number(&ours, "TARGET_TERRITORY") as i64,
+        genome_size: number(&ours, "GENOME_SIZE") as i64,
     };
     let computed = derived(&counts);
     assert!((computed.pct_selected_bases - number(&ours, "PCT_AMPLIFIED_BASES")).abs() < 1e-6);
