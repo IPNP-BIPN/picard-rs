@@ -1214,21 +1214,21 @@
     },
     {
       "id": "haplotypedbtovcf",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the haplotype database read against the reference, which is what decides REF",
       "harness": "tools/haplotypedbtovcf-conformance",
       "tools": [
         "ConvertHaplotypeDatabaseToVcf"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "REF is the allele that DISAGREES with the reference. The code asks which allele matches the reference base and then writes THAT one as ALT, so a row whose major allele is the reference base and a row whose minor allele is come out with the same REF and ALT and only the frequency tells them apart. The phase set is the position of the block's FIRST SNP and not of the row named as the anchor.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "ConvertHaplotypeDatabaseToVcfDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/convert_haplotype_database_to_vcf.txt.gz",
+          "why": "Nine cases: a row whose major allele is the reference base and one whose minor allele is, a phased block of three whose anchor is named second, three rows out of order over two contigs, a row neither of whose alleles matches, a table with no header, a short row, an anchor naming no row, and a table with no rows at all."
         }
       ]
     },
