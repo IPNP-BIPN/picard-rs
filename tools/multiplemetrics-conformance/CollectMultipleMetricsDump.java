@@ -250,14 +250,20 @@ public class CollectMultipleMetricsDump {
         // The same fixture again, to ask whether the charts are bytes a golden could hold.
         final Path again = run("default-programs-again", true);
         if (plain != null && again != null) {
+            // `listFiles` returns the directory's own order, which is the filesystem's and not a
+            // sorted one: the same dump on two machines emitted these five lines in two orders.
+            final List<String> charts = new ArrayList<>();
             for (final File file : listed(plain.toFile().listFiles())) {
-                if (!file.getName().endsWith(".pdf")) {
-                    continue;
+                if (file.getName().endsWith(".pdf")) {
+                    charts.add(file.getName());
                 }
-                final byte[] first = Files.readAllBytes(file.toPath());
-                final byte[] second = Files.readAllBytes(again.resolve(file.getName()));
+            }
+            Collections.sort(charts);
+            for (final String chart : charts) {
+                final byte[] first = Files.readAllBytes(plain.resolve(chart));
+                final byte[] second = Files.readAllBytes(again.resolve(chart));
                 emit("chart-stability", "default-programs",
-                        file.getName() + "=" + (Arrays.equals(first, second) ? "same" : "differs"));
+                        chart + "=" + (Arrays.equals(first, second) ? "same" : "differs"));
             }
         }
 
