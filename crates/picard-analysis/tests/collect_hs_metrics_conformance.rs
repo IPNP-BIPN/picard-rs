@@ -9,7 +9,7 @@
 //!  * **the three bait columns partitioning the aligned bases**;
 //!  * **`--NEAR_DISTANCE` moving the middle one**;
 //!  * **the two quality floors emptying the coverage and not the bait counts**;
-//!  * **`--CLIP_OVERLAPPING_READS` changing nothing, because the coverage is per locus**;
+//!  * **`--CLIP_OVERLAPPING_READS true` changing nothing, the tool having already set it**;
 //!  * **the per-target file's own columns**;
 //!  * **the per-base file being a row per target base**;
 //!  * **and the derived columns following from the counts.**
@@ -181,9 +181,14 @@ fn the_quality_floors_empty_the_coverage_alone() {
     assert_eq!(DEFAULT_MINIMUM_BASE_QUALITY, 0);
 }
 
-/// The clipping argument changes nothing, because the coverage is counted per locus.
+/// Passing the clipping argument changes nothing, because this tool has already set it.
+///
+/// `CollectTargetedMetrics` declares `CLIP_OVERLAPPING_READS = false` and `CollectHsMetrics`'s own
+/// constructor sets it to true, so `--CLIP_OVERLAPPING_READS true` is a no-op. The cases that show
+/// the flag doing something pass `false`, and they arrive with the golden this PR's follow-up
+/// freezes.
 #[test]
-fn clipping_the_overlap_changes_nothing() {
+fn passing_the_clipping_argument_changes_nothing() {
     let text = corpus();
     assert_eq!(
         field(&text, "metrics", "overlapping-pair"),
@@ -194,7 +199,7 @@ fn clipping_the_overlap_changes_nothing() {
         field(&text, "per-target", "overlapping-pair-clipped")
     );
     // The pair's two ends span thirty-five bases of target between them, and that is what is
-    // counted: not the sixty their two lengths would give.
+    // counted with the clipping on: their two lengths would give sixty.
     let row = metrics(&text, "overlapping-pair");
     assert_eq!(number(&row, "ON_TARGET_BASES"), 35.0);
     assert_eq!(number(&row, "PF_BASES_ALIGNED"), 60.0);

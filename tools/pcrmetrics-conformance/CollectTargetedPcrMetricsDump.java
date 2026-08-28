@@ -1,40 +1,32 @@
 /*
- * CollectHsMetrics' three files, taken from the reference.
+ * CollectTargetedPcrMetrics' three files, taken from the reference.
  *
- * The tool counts a hybrid-selection experiment against two interval lists: the BAITS that were
- * fished with and the TARGETS that were wanted. What is measured is which read reaches which
- * counter, what the per-target and per-base files carry, and which arguments move any of it.
+ * The tool is CollectHsMetrics' collector under another set of column names: the baits are
+ * AMPLICONS and the metrics say so, while the arithmetic underneath is the same. What is measured
+ * is which columns the two tools differ in, and that the numbers agree wherever they do not.
  *
- * Twelve behaviours this is built to catch.
+ * Nine behaviours this is built to catch.
  *
- *   - THE BAITS AND THE TARGETS ARE COUNTED SEPARATELY, and a read may be on one and not the
- *     other: ON_BAIT_BASES and ON_TARGET_BASES are different numbers on the same file;
- *   - NEAR_BAIT_BASES IS A WINDOW AROUND THE BAITS and --NEAR_DISTANCE moves it, so the same read
- *     is near bait at the default and off bait at nought;
- *   - THE THREE BAIT COLUMNS PARTITION THE ALIGNED BASES, so ON plus NEAR plus OFF is
- *     PF_BASES_ALIGNED;
- *   - --MINIMUM_MAPPING_QUALITY DROPS WHOLE READS FROM COVERAGE while leaving them in the bait
- *     counts: a floor of sixty-one takes ON_TARGET_BASES from a hundred to nought and leaves
- *     ON_BAIT_BASES at sixty. Its default is ONE, so a read at mapping quality nought is already
- *     out of the coverage before any argument is given;
- *   - --MINIMUM_BASE_QUALITY DROPS SINGLE BASES the same way, a floor of forty-one emptying the
- *     target coverage of reads whose qualities are all forty, and its default is NOUGHT, which is
- *     what makes this tool count bases CollectWgsMetrics would not;
- *   - --CLIP_OVERLAPPING_READS IS ALREADY TRUE HERE, which is why passing `true` changes nothing:
- *     the shared argument defaults to FALSE and this tool's own constructor sets it to true. The
- *     case that shows it is `false`, which counts the overlap of a pair TWICE and takes the
- *     on-target bases from a hundred to a hundred and twenty;
- *   - --PER_TARGET_COVERAGE WRITES A ROW PER TARGET with its own mean and its GC, and the rows are
- *     the target list's own order;
- *   - --PER_BASE_COVERAGE WRITES A ROW PER TARGET BASE, so a fifty-base target is fifty rows;
- *   - THE BAIT SET NAME IS THE BAIT FILE'S NAME WITHOUT ITS EXTENSION unless --BAIT_SET_NAME says
- *     otherwise;
- *   - A TARGET WITH NO READ OVER IT IS STILL A ROW, at zero, and it still counts towards
- *     TARGET_TERRITORY and the ZERO_CVG columns;
- *   - A TARGET FILE ROW CARRIES ITS OWN GC AND ITS NORMALISED COVERAGE, so the two covered
- *     targets read 0.833333 and 1.5 while the uncovered one reads nought and a `pct_0x` of one;
- *   - AND THE TWO INTERVAL LISTS MAY OVERLAP OR NOT: a target outside every bait is counted in the
- *     target columns and in none of the bait ones.
+ *   - THE COLUMNS ARE AMPLICON'S AND NOT BAIT'S: ON_AMPLICON_BASES, NEAR_AMPLICON_BASES,
+ *     OFF_AMPLICON_BASES, PCT_AMPLIFIED_BASES and ON_AMPLICON_VS_SELECTED, with no BAIT column at
+ *     all;
+ *   - THE AMPLICON ARITHMETIC IS THE SAME: the three amplicon columns partition the aligned bases
+ *     exactly as the bait ones do, and the same fixture answers the same sixty, hundred and twenty
+ *     and sixty under the other names;
+ *   - AND THE TARGET ARITHMETIC IS NOT, because of one line in a constructor: CollectHsMetrics
+ *     sets CLIP_OVERLAPPING_READS to true and this tool leaves the shared default of false, so on
+ *     the same fixture the overlap of a pair is counted twice here and once there: a hundred and
+ *     twenty on-target bases against a hundred, and a per-target mean of one against 0.833333;
+ *   - --AMPLICON_INTERVALS AND --TARGET_INTERVALS ARE COUNTED SEPARATELY, so a target outside every
+ *     amplicon is counted in the target columns and in none of the amplicon ones;
+ *   - --NEAR_DISTANCE MOVES THE WINDOW, and at nought the near bases become off-amplicon ones;
+ *   - --CUSTOM_AMPLICON_SET_NAME NAMES THE SET, and without it the name is the file's;
+ *   - --MINIMUM_MAPPING_QUALITY AND --MINIMUM_BASE_QUALITY EMPTY THE COVERAGE and leave the
+ *     amplicon counts alone;
+ *   - --PER_TARGET_COVERAGE AND --PER_BASE_COVERAGE WRITE THE SAME TWO FILES the other tool writes;
+ *   - A FILE WITH NO READS STILL REPORTS ITS TERRITORIES;
+ *   - AND THE MAPPING-QUALITY DEFAULT IS ONE HERE TOO, so a pair at quality nought is out of the
+ *     coverage before any argument is given.
  *
  * Output:
  *
@@ -58,7 +50,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class CollectHsMetricsDump {
+public class CollectTargetedPcrMetricsDump {
 
     static final StringBuilder buf = new StringBuilder();
 
@@ -167,7 +159,7 @@ public class CollectHsMetricsDump {
         final String targets = intervals(
                 List.of(new int[]{121, 180}, new int[]{321, 380}, new int[]{701, 760}),
                 List.of("target-a", "target-b", "target-orphan"));
-        emit("intervals", "baits", baits);
+        emit("intervals", "amplicons", baits);
         emit("intervals", "targets", targets);
 
         // A pair over the first target, a pair over the orphan, and a pair over neither.
@@ -182,22 +174,16 @@ public class CollectHsMetricsDump {
         run("per-target", baits, targets, reads, true, false);
         run("per-base", baits, targets, reads, false, true);
         run("near-distance-zero", baits, targets, reads, false, false, "NEAR_DISTANCE=0");
-        run("bait-set-name", baits, targets, reads, false, false, "N=my-bait-set");
+        run("amplicon-set-name", baits, targets, reads, false, false, "N=my-amplicon-set");
         run("mapping-quality-floor", baits, targets, reads, false, false, "MQ=61");
         run("base-quality-floor", baits, targets, reads, false, false, "Q=41");
-        run("clip-overlapping", baits, targets, reads, true, false,
-                "CLIP_OVERLAPPING_READS=true");
-        // The argument the tool's own constructor already set: turning it OFF is what moves.
-        run("clip-overlapping-off", baits, targets, reads, true, false,
-                "CLIP_OVERLAPPING_READS=false");
+        
 
         // A pair whose two ends overlap entirely, which is what the clipping argument is for.
         final List<Read> overlapping = new ArrayList<>(pair("overlap", 130, 135, 30));
         run("overlapping-pair", baits, targets, overlapping, true, false);
         run("overlapping-pair-clipped", baits, targets, overlapping, true, false,
                 "CLIP_OVERLAPPING_READS=true");
-        run("overlapping-pair-unclipped", baits, targets, overlapping, true, false,
-                "CLIP_OVERLAPPING_READS=false");
 
         // No reads at all, and a read below the mapping-quality default of one.
         run("no-reads", baits, targets, List.of(), true, false);
@@ -217,7 +203,7 @@ public class CollectHsMetricsDump {
         new picard.sam.CreateSequenceDictionary()
                 .instanceMain(new String[]{"R=" + reference, "O=" + dir.resolve("ref.dict")});
         FastaSequenceIndexCreator.create(reference, true);
-        final Path baitPath = dir.resolve("baits.interval_list");
+        final Path baitPath = dir.resolve("amplicons.interval_list");
         final Path targetPath = dir.resolve("targets.interval_list");
         Files.writeString(baitPath, baits, StandardCharsets.UTF_8);
         Files.writeString(targetPath, targets, StandardCharsets.UTF_8);
@@ -236,7 +222,7 @@ public class CollectHsMetricsDump {
         final Path baseCoverage = dir.resolve("per-base.txt");
         final List<String> argv = new ArrayList<>(List.of(
                 "I=" + in, "O=" + metrics, "R=" + reference,
-                "BI=" + baitPath, "TI=" + targetPath));
+                "AI=" + baitPath, "TI=" + targetPath));
         if (perTarget) {
             argv.add("PER_TARGET_COVERAGE=" + targetCoverage);
         }
@@ -245,7 +231,7 @@ public class CollectHsMetricsDump {
         }
         argv.addAll(Arrays.asList(extra));
         try {
-            final int code = new picard.analysis.directed.CollectHsMetrics()
+            final int code = new picard.analysis.directed.CollectTargetedPcrMetrics()
                     .instanceMain(argv.toArray(new String[0]));
             if (code != 0) {
                 emit("error", name, "exit " + code);
