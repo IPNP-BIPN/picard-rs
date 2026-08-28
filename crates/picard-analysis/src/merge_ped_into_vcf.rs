@@ -136,8 +136,8 @@ pub fn zcall_alleles(
 ) -> Result<[Option<String>; 2], MergeError> {
     let mut out: [Option<String>; 2] = [None, None];
     for (i, allele) in pair.chars().take(2).enumerate() {
-        let translated = translate_allele(allele, allele_a, allele_b)
-            .map_err(|message| MergeError::AlleleNotInContext(message))?;
+        let translated =
+            translate_allele(allele, allele_a, allele_b).map_err(MergeError::AlleleNotInContext)?;
         if let Some(base) = &translated {
             // Built as non-reference: naming the reference base is what the context refuses.
             if base == reference {
