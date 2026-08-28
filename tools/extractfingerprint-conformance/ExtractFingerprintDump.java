@@ -11,9 +11,10 @@
  *   - THE PLS ARE THE CONTAMINATOR'S AND NOT THE SAMPLE'S by default, which is what the tool is
  *     for: a run of reads that are all one allele reports the OTHER allele's genotype as the
  *     likeliest contaminant;
- *   - --EXTRACT_CONTAMINATION FLIPS THE CONTAMINATION ARGUMENT rather than the output: the tool
- *     computes `1 - CONTAMINATION` when it is not set, so the same number means opposite things
- *     under the two settings;
+ *   - --EXTRACT_CONTAMINATION IS FALSE BY DEFAULT AND FLIPS THE ARGUMENT rather than the output:
+ *     the tool computes `1 - CONTAMINATION` when it is NOT set, so the default run of a file with
+ *     a contamination of 0.5 is asking about the contaminated sample and the same number means
+ *     opposite things under the two settings;
  *   - A CONTAMINATION OF NOUGHT AND ONE ARE THE TWO EXTREMES, and their PLs are each other's;
  *   - A BASE MATCHING NEITHER ALLELE IS COUNTED AND IGNORED, reaching neither the likelihoods nor
  *     the depth the model uses;
@@ -22,9 +23,11 @@
  *   - --LOCUS_MAX_READS CAPS THE EVIDENCE, and the cap is not simply per site: forty reads under
  *     a cap of ten report a depth of SIXTEEN at the block of two SNPs and of ten at the block of
  *     one, so what the cap bounds is the block and not the record;
- *   - THE SAMPLE NAME GETS `-contaminant` APPENDED by default, and --SAMPLE_ALIAS replaces it
+ *   - THE SAMPLE NAME GETS `-contaminant` APPENDED ONLY UNDER --EXTRACT_CONTAMINATION, so the
+ *     default run names the sample as the header does, and --SAMPLE_ALIAS replaces the name
  *     outright rather than adding to it;
- *   - --EXTRACT_CONTAMINATED DROPS THAT SUFFIX, naming the sample as the header does;
+ *   - --EXTRACT_CONTAMINATED IS NOT THIS TOOL'S ARGUMENT AT ALL, being IdentifyContaminant's, and
+ *     naming it here is an exit code of one;
  *   - THE VCF CARRIES ONE RECORD PER REPRESENTATIVE SNP, so a block of three SNPs is one record;
  *   - --EXTRACT_NON_REPRESENTATIVES_TOO WRITES EVERY SNP OF EVERY BLOCK instead;
  *   - A FILE NAMING MORE THAN ONE SAMPLE IS REFUSED, by a message counting the fingerprints;
@@ -250,8 +253,10 @@ public class ExtractFingerprintDump {
         run("contamination-nought", one, major, "C=0.0");
         run("contamination-one", one, major, "C=1.0");
         // The same number under the other setting, which flips it.
-        run("extract-contaminated", one, major, "C=0.5", "EXTRACT_CONTAMINATED=true");
-        run("extract-contaminated-nought", one, major, "C=0.0", "EXTRACT_CONTAMINATED=true");
+        run("extract-contamination", one, major, "C=0.5", "EXTRACT_CONTAMINATION=true");
+        run("extract-contamination-nought", one, major, "C=0.0", "EXTRACT_CONTAMINATION=true");
+        // The argument IdentifyContaminant carries, which this tool does not know.
+        run("unknown-argument", one, major, "C=0.5", "EXTRACT_CONTAMINATED=true");
 
         // A base matching neither allele.
         run("neither-allele", one, pileup(10, 'G', 'I'), "C=0.5");

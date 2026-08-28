@@ -1440,7 +1440,7 @@
       "tools": [
         "ExtractFingerprint"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "PENDING a fresh candidate: two cases named --EXTRACT_CONTAMINATED, which is IdentifyContaminant's argument and not this tool's, so they measured an unknown argument rather than the setting they meant. The tool's own argument is --EXTRACT_CONTAMINATION and it is false by default.",
       "compare": {
         "mode": "keyed"
       },
@@ -1448,7 +1448,7 @@
         {
           "dump": "ExtractFingerprintDump",
           "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "why": "Fourteen cases: the major and minor pileups at half contamination, contamination of nought and one, the contaminated setting twice, a base matching neither allele, two base qualities, a deep pileup capped and not, a sample alias, every SNP rather than the representatives, no reads, and two samples in one file."
         }
       ]
     }
