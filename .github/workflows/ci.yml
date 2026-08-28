@@ -301,10 +301,10 @@ jobs:
             suites: "comparemetrics sortgff checkdupmarking qualityyieldflow vcfsamplenamemap"
           - group: oracle-backed
             index: "11/11"
-            suites: "haplotypedbtovcf liftoverhaplotypemap"
+            suites: "haplotypedbtovcf liftoverhaplotypemap positiondownsample"
           - group: golden-pending
             index: "1/1"
-            suites: "positiondownsample duplicatemetrics"
+            suites: "duplicatemetrics"
     steps:
       - uses: actions/checkout@v7
 

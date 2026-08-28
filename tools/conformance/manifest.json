@@ -1254,21 +1254,21 @@
     },
     {
       "id": "positiondownsample",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which reads a positional mask keeps, which has no randomness in it at all",
       "harness": "tools/positiondownsample-conformance",
       "tools": [
         "PositionBasedDownsampleSam"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "There is no randomness in the selection at all: the same file downsampled twice keeps exactly the same reads. What decides is the tile's own extent, taken from the reads themselves and then widened by its span over the read count, so the same coordinates are kept on one tile and dropped on another. A fraction over a half does not grow the circle: it builds one for 1-FRACTION and keeps the reads INSIDE it.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "PositionBasedDownsampleSamDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/position_based_downsample_sam.txt.gz",
+          "why": "Sixteen cases: five fractions, the same run twice, two tiles of different extents, the duplicate flag cleared and kept, STOP_AFTER, an unparseable read name, two fractions out of range, and a second run refused and then allowed."
         }
       ]
     },
