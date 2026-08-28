@@ -1431,6 +1431,26 @@
           "why": "Twelve cases: a transitive chain, a threshold that splits it, a LOD exactly at the threshold and just above, two clusters, an orphan group, a self-comparison, a duplicated row, the default threshold, nothing above the threshold, and an empty file."
         }
       ]
+    },
+    {
+      "id": "extractfingerprint",
+      "status": "golden-pending",
+      "title": "the contaminating sample's genotype likelihoods at the haplotype map's sites",
+      "harness": "tools/extractfingerprint-conformance",
+      "tools": [
+        "ExtractFingerprint"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "ExtractFingerprintDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
