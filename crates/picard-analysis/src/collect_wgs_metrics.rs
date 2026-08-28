@@ -72,6 +72,26 @@ impl Default for Arguments {
     }
 }
 
+/// `CollectRawWgsMetrics`' four defaults, which are the whole of that tool.
+///
+/// It is `CollectWgsMetrics` with the mapping-quality floor dropped to nothing, the base-quality
+/// floor dropped to three, and the two caps raised past anything a real file reaches. Every other
+/// rule is the same one, which is why one port serves both.
+pub const RAW_MINIMUM_MAPPING_QUALITY: i32 = 0;
+pub const RAW_MINIMUM_BASE_QUALITY: i32 = 3;
+pub const RAW_COVERAGE_CAP: i32 = 100_000;
+pub const RAW_LOCUS_ACCUMULATION_CAP: i32 = 200_000;
+
+/// `CollectRawWgsMetrics`' arguments, which differ from the default in four values.
+pub fn raw_arguments() -> Arguments {
+    Arguments {
+        minimum_mapping_quality: RAW_MINIMUM_MAPPING_QUALITY,
+        minimum_base_quality: RAW_MINIMUM_BASE_QUALITY,
+        coverage_cap: RAW_COVERAGE_CAP,
+        count_unpaired: false,
+    }
+}
+
 /// The tests that take a WHOLE read, in the order the tool applies them.
 pub fn read_fate(read: &Read, arguments: &Arguments) -> Option<Fate> {
     if read.adapter {

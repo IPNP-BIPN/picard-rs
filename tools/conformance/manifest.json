@@ -1354,21 +1354,21 @@
     },
     {
       "id": "rawwgsmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "CollectWgsMetrics with four defaults changed, and what those four change",
       "harness": "tools/rawwgsmetrics-conformance",
       "tools": [
         "CollectRawWgsMetrics"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "The tool is CollectWgsMetrics with four defaults changed and nothing else, so the same fixture goes through both and the difference between the two files is the difference between the two sets of defaults. The mapping-quality floor is ZERO, so a read at quality five is counted here and excluded whole there; the base-quality floor is THREE, which the pair of cases at quality two and quality five straddles; and an N base is still excluded, quality zero being under three as it is under twenty.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "CollectRawWgsMetricsDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/collect_raw_wgs_metrics.txt.gz",
+          "why": "Eleven cases: a read under the other tool's mapping-quality floor, bases at quality two and five, N bases, an unpaired read counted and not, a duplicate, an overlapping pair and a disjoint one, ten reads, and a file with no reads."
         }
       ]
     }
