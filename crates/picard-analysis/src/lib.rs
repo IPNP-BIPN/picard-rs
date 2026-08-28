@@ -32,6 +32,7 @@ pub mod interval_list_to_bed;
 pub mod interval_list_tools;
 pub mod jumping_library;
 pub mod lift_over_interval_list;
+pub mod make_vcf_sample_name_map;
 pub mod merge_bam_alignment;
 pub mod merge_sam_files;
 pub mod non_n_fasta_size;
