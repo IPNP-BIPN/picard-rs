@@ -1451,6 +1451,26 @@
           "why": "Fifteen cases: the major and minor pileups at half contamination, contamination of nought and one, --EXTRACT_CONTAMINATION twice, another tool's argument named here, a base matching neither allele, two base qualities, a deep pileup capped and not, a sample alias, every SNP rather than the representatives, no reads, and two samples in one file."
         }
       ]
+    },
+    {
+      "id": "identifycontaminant",
+      "status": "golden-pending",
+      "title": "ExtractFingerprint with one argument negated, and what that negation changes",
+      "harness": "tools/identifycontaminant-conformance",
+      "tools": [
+        "IdentifyContaminant"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "IdentifyContaminantDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
