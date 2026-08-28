@@ -9,7 +9,7 @@
 //!  * **the three bait columns partitioning the aligned bases**;
 //!  * **`--NEAR_DISTANCE` moving the middle one**;
 //!  * **the two quality floors emptying the coverage and not the bait counts**;
-//!  * **`--CLIP_OVERLAPPING_READS true` changing nothing, the tool having already set it**;
+//!  * **the clipping default being the tool's own, so `true` is a no-op and `false` moves**;
 //!  * **the per-target file's own columns**;
 //!  * **the per-base file being a row per target base**;
 //!  * **and the derived columns following from the counts.**
@@ -181,15 +181,16 @@ fn the_quality_floors_empty_the_coverage_alone() {
     assert_eq!(DEFAULT_MINIMUM_BASE_QUALITY, 0);
 }
 
-/// Passing the clipping argument changes nothing, because this tool has already set it.
+/// The clipping default is the tool's, not the collector's.
 ///
 /// `CollectTargetedMetrics` declares `CLIP_OVERLAPPING_READS = false` and `CollectHsMetrics`'s own
-/// constructor sets it to true, so `--CLIP_OVERLAPPING_READS true` is a no-op. The cases that show
-/// the flag doing something pass `false`, and they arrive with the golden this PR's follow-up
-/// freezes.
+/// constructor sets it to true, so passing `true` is a no-op and passing `false` is what moves.
+/// `CollectTargetedPcrMetrics` leaves the shared default alone, which is why the two tools answer
+/// differently on one fixture.
 #[test]
-fn passing_the_clipping_argument_changes_nothing() {
+fn the_clipping_default_is_the_tools_own() {
     let text = corpus();
+    // Passing what the constructor already set changes neither file.
     assert_eq!(
         field(&text, "metrics", "overlapping-pair"),
         field(&text, "metrics", "overlapping-pair-clipped")
@@ -198,11 +199,25 @@ fn passing_the_clipping_argument_changes_nothing() {
         field(&text, "per-target", "overlapping-pair"),
         field(&text, "per-target", "overlapping-pair-clipped")
     );
-    // The pair's two ends span thirty-five bases of target between them, and that is what is
-    // counted with the clipping on: their two lengths would give sixty.
-    let row = metrics(&text, "overlapping-pair");
-    assert_eq!(number(&row, "ON_TARGET_BASES"), 35.0);
-    assert_eq!(number(&row, "PF_BASES_ALIGNED"), 60.0);
+    // Turning it off counts the overlap twice: thirty-five bases become sixty, and a hundred
+    // on-target bases become a hundred and twenty.
+    let clipped = metrics(&text, "overlapping-pair");
+    let unclipped = metrics(&text, "overlapping-pair-unclipped");
+    assert_eq!(number(&clipped, "ON_TARGET_BASES"), 35.0);
+    assert_eq!(number(&unclipped, "ON_TARGET_BASES"), 60.0);
+    assert_eq!(number(&clipped, "PF_BASES_ALIGNED"), 60.0);
+    assert_eq!(
+        number(&clipped, "PF_BASES_ALIGNED"),
+        number(&unclipped, "PF_BASES_ALIGNED")
+    );
+    let plain = metrics(&text, "plain");
+    let off = metrics(&text, "clip-overlapping-off");
+    assert_eq!(number(&plain, "ON_TARGET_BASES"), 100.0);
+    assert_eq!(number(&off, "ON_TARGET_BASES"), 120.0);
+    // The bait columns do not move: the clipping is a coverage rule and not a selection one.
+    for column in ["ON_BAIT_BASES", "NEAR_BAIT_BASES", "OFF_BAIT_BASES"] {
+        assert_eq!(plain[column], off[column], "{column}");
+    }
 }
 
 /// The per-target file's columns, and the port's own row for the same coverage.
