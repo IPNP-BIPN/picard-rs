@@ -87,7 +87,8 @@ python3 tools/conformance/run_suite.py --suites metrics
 A suite's `status` is part of the claim it supports: **oracle-backed** means CI regenerates the
 golden in the pinned container and compares it on every run; **unchecked** means the golden is
 committed and read by the Rust tests but has never been re-derived. Decision 0008 records how
-sixteen goldens came to be in the second category.
+sixteen goldens came to be in the second category, and decision 0011 records the answer it left
+open: those sixteen came back green, so every suite is oracle-backed today.
 
 ## Argument coverage
 
