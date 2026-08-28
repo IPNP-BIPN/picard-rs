@@ -302,6 +302,9 @@ jobs:
           - group: oracle-backed
             index: "11/11"
             suites: "haplotypedbtovcf liftoverhaplotypemap"
+          - group: golden-pending
+            index: "1/1"
+            suites: "positiondownsample"
     steps:
       - uses: actions/checkout@v7
 

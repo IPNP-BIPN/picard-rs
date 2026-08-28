@@ -1251,6 +1251,26 @@
           "why": "Eight cases: a block that lifts whole, one SNP past the end of the chain, a whole block that fails, a negative-strand chain, a block spanning two contigs, a dictionary missing a contig the chain lifts to, a contig the chain does not cover, and a database whose every SNP fails."
         }
       ]
+    },
+    {
+      "id": "positiondownsample",
+      "status": "golden-pending",
+      "title": "which reads a positional mask keeps, which has no randomness in it at all",
+      "harness": "tools/positiondownsample-conformance",
+      "tools": [
+        "PositionBasedDownsampleSam"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "PositionBasedDownsampleSamDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
