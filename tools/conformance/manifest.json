@@ -700,9 +700,9 @@
         "QualityScoreDistribution"
       ],
       "title": "QualityScoreDistribution",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/metrics-conformance",
-      "why": "A metrics file like the others in tools/metrics-conformance, but its dump was never wired into CI: the golden has only ever been compared against itself by the Rust test.",
+      "why": "A metrics file like the others in tools/metrics-conformance, but its dump was never wired into CI: the golden has only ever been compared against itself by the Rust test. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -734,7 +734,7 @@
         "CollectGcBiasMetrics"
       ],
       "title": "CollectGcBiasMetrics",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/gcbias-conformance",
       "compare": {
         "mode": "keyed",
@@ -759,7 +759,7 @@
           "golden": "crates/picard-analysis/tests/data/gc_bias.txt.gz"
         }
       ],
-      "why": "The `bam` line is the hex of the input BAM, and that BAM's header carries a @SQ UR: pointing at a per-run temporary FASTA, so its bytes cannot match across runs. Everything else is compared raw: the reference bases the harness generated from a seeded Random, the detail metrics and the summary metrics, minus the two lines Picard stamps with its own command line and start time."
+      "why": "The `bam` line is the hex of the input BAM, and that BAM's header carries a @SQ UR: pointing at a per-run temporary FASTA, so its bytes cannot match across runs. Everything else is compared raw: the reference bases the harness generated from a seeded Random, the detail metrics and the summary metrics, minus the two lines Picard stamps with its own command line and start time. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite."
     },
     {
       "id": "accumulatequalityyield",
@@ -767,9 +767,9 @@
         "AccumulateQualityYieldMetrics"
       ],
       "title": "AccumulateQualityYieldMetrics",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/accumulatequalityyield-conformance",
-      "why": "The tool writes a bare MetricsFile with no command-line or start-time header comments, so the whole file is compared raw with no canonicalization.",
+      "why": "The tool writes a bare MetricsFile with no command-line or start-time header comments, so the whole file is compared raw with no canonicalization. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false
@@ -787,9 +787,9 @@
         "BedToIntervalList"
       ],
       "title": "BedToIntervalList",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/bedtointervallist-conformance",
-      "why": "The harness writes its fixtures under Files.createTempDirectory, so the @SQ UR: field is a fresh path on every run and cannot be compared across machines. Everything else, the @SQ order and the intervals, is compared raw.",
+      "why": "The harness writes its fixtures under Files.createTempDirectory, so the @SQ UR: field is a fresh path on every run and cannot be compared across machines. Everything else, the @SQ order and the intervals, is compared raw. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -813,9 +813,9 @@
         "IntervalListToBed"
       ],
       "title": "IntervalListToBed",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/intervallisttobed-conformance",
-      "why": "Same per-run UR: path as BedToIntervalList; the BED output itself carries no path.",
+      "why": "Same per-run UR: path as BedToIntervalList; the BED output itself carries no path. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -839,9 +839,9 @@
         "IntervalListTools"
       ],
       "title": "IntervalListTools",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/intervallisttools-conformance",
-      "why": "IntervalListTools writes an @PG whose CL is the command line (temp paths), which the Rust test already strips, and the interval lists carry the per-run UR: path.",
+      "why": "IntervalListTools writes an @PG whose CL is the command line (temp paths), which the Rust test already strips, and the interval lists carry the per-run UR: path. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -914,7 +914,7 @@
         "LiftOverIntervalList"
       ],
       "title": "LiftOverIntervalList",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/liftoverintervallist-conformance",
       "compare": {
         "mode": "keyed",
@@ -932,7 +932,7 @@
           "golden": "crates/picard-analysis/tests/data/liftover_interval_list.txt.gz"
         }
       ],
-      "why": "The harness writes its fixtures under a temporary directory, so the target dictionary's UR: field is a fresh path on every run and LiftOverIntervalList copies it verbatim into its output. That one field is stripped; the @SQ order, the lifted intervals and their names are compared raw."
+      "why": "The harness writes its fixtures under a temporary directory, so the target dictionary's UR: field is a fresh path on every run and LiftOverIntervalList copies it verbatim into its output. That one field is stripped; the @SQ order, the lifted intervals and their names are compared raw. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite."
     },
     {
       "id": "extractsequences",
@@ -940,9 +940,9 @@
         "ExtractSequences"
       ],
       "title": "ExtractSequences",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/extractsequences-conformance",
-      "why": "The extracted FASTA carries no path; the interval-list input row does, through its @SQ header.",
+      "why": "The extracted FASTA carries no path; the interval-list input row does, through its @SQ header. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -966,7 +966,7 @@
         "ScatterIntervalsByNs"
       ],
       "title": "ScatterIntervalsByNs",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/scatterintervalsbyns-conformance",
       "compare": {
         "mode": "keyed",
@@ -984,7 +984,7 @@
           "golden": "crates/picard-analysis/tests/data/scatter_intervals_by_ns.txt.gz"
         }
       ],
-      "why": "The harness writes its reference under a temporary directory, so the dictionary's UR: field is a fresh path on every run and ScatterIntervalsByNs copies it into every output interval list. That one field is stripped; the scatter boundaries, the ACGT and N interval types and the @SQ order are compared raw."
+      "why": "The harness writes its reference under a temporary directory, so the dictionary's UR: field is a fresh path on every run and ScatterIntervalsByNs copies it into every output interval list. That one field is stripped; the scatter boundaries, the ACGT and N interval types and the @SQ order are compared raw. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite."
     },
     {
       "id": "nonnfastasize",
@@ -992,9 +992,9 @@
         "NonNFastaSize"
       ],
       "title": "NonNFastaSize",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/nonnfastasize-conformance",
-      "why": "The output is a count and a newline; nothing in it is machine-dependent.",
+      "why": "The output is a count and a newline; nothing in it is machine-dependent. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false
@@ -1012,9 +1012,9 @@
         "NormalizeFasta"
       ],
       "title": "NormalizeFasta",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/normalizefasta-conformance",
-      "why": "Plain text in, plain text out; compared raw.",
+      "why": "Plain text in, plain text out; compared raw. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false
@@ -1032,9 +1032,9 @@
         "SamToFastqWithTags"
       ],
       "title": "SamToFastqWithTags",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/samtofastqwithtags-conformance",
-      "why": "FASTQ has no header, so each file is compared raw; the input SAM row carries the per-run UR: path.",
+      "why": "FASTQ has no header, so each file is compared raw; the input SAM row carries the per-run UR: path. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -1058,9 +1058,9 @@
         "MergeBamAlignment"
       ],
       "title": "MergeBamAlignment",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/mergebamalignment-conformance",
-      "why": "The record corpus has several data-line rows under one (kind, case) key, so the full line sequence is compared; a keyed comparison would silently keep only the last row of each case.",
+      "why": "The record corpus has several data-line rows under one (kind, case) key, so the full line sequence is compared; a keyed comparison would silently keep only the last row of each case. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "lines",
         "skip_comment_lines": false
@@ -1078,9 +1078,9 @@
         "MergeBamAlignment"
       ],
       "title": "MergeBamAlignment, whole file",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/mergebamalignment-conformance",
-      "why": "The whole output SAM, header included. The @SQ UR: is the harness's per-run temp path, so it is stripped; the @PG records are compared raw, because MergeBamAlignment's PG linkage is exactly what this suite exists to check.",
+      "why": "The whole output SAM, header included. The @SQ UR: is the harness's per-run temp path, so it is stripped; the @PG records are compared raw, because MergeBamAlignment's PG linkage is exactly what this suite exists to check. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
