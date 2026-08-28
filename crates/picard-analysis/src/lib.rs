@@ -44,6 +44,7 @@ pub mod lift_over_haplotype_map;
 pub mod lift_over_interval_list;
 pub mod make_vcf_sample_name_map;
 pub mod merge_bam_alignment;
+pub mod merge_ped_into_vcf;
 pub mod merge_sam_files;
 pub mod non_n_fasta_size;
 pub mod normalize_fasta;
