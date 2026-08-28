@@ -270,35 +270,50 @@ jobs:
       matrix:
         include:
           - group: oracle-backed
-            index: "1/6"
+            index: "1/14"
             suites: "metrics rnaseq snvq samtofastq fastqtosam"
           - group: oracle-backed
-            index: "2/6"
+            index: "2/14"
             suites: "sortsam addreplacerg cleansam fixmate addoatag"
           - group: oracle-backed
-            index: "3/6"
+            index: "3/14"
             suites: "reordersam replacesamheader revertsam revertorigmatecigar viewsam"
           - group: oracle-backed
-            index: "4/6"
+            index: "4/14"
             suites: "rgchecksum downsamplesam filtersamreads createdict samformatconverter"
           - group: oracle-backed
-            index: "5/6"
+            index: "5/14"
             suites: "sortsam-bam setnmmduq addoatag-bam validatesam comparesams"
           - group: oracle-backed
-            index: "6/6"
-            suites: "split bamindexstats merge intervallisttoolspadbreak"
-          - group: unchecked
-            index: "1/3"
-            suites: "qualityscoredistribution gcbias accumulatequalityyield bedtointervallist intervallisttobed"
-          - group: unchecked
-            index: "2/3"
-            suites: "intervallisttools liftoverintervallist extractsequences scatterintervalsbyns nonnfastasize"
-          - group: unchecked
-            index: "3/3"
-            suites: "normalizefasta samtofastqwithtags mergebamalignment mergebamalignment-full"
+            index: "6/14"
+            suites: "split bamindexstats merge rejections qualityscoredistribution"
+          - group: oracle-backed
+            index: "7/14"
+            suites: "gcbias accumulatequalityyield bedtointervallist intervallisttobed intervallisttools"
+          - group: oracle-backed
+            index: "8/14"
+            suites: "intervallisttoolspadbreak liftoverintervallist extractsequences scatterintervalsbyns nonnfastasize"
+          - group: oracle-backed
+            index: "9/14"
+            suites: "normalizefasta samtofastqwithtags mergebamalignment mergebamalignment-full jumpinglibrary"
+          - group: oracle-backed
+            index: "10/14"
+            suites: "comparemetrics sortgff checkdupmarking qualityyieldflow vcfsamplenamemap"
+          - group: oracle-backed
+            index: "11/14"
+            suites: "haplotypedbtovcf liftoverhaplotypemap positiondownsample duplicatemetrics verifyidintensity"
+          - group: oracle-backed
+            index: "12/14"
+            suites: "bafregress wgsmetrics rawwgsmetrics umiprevalence artifacttooxog"
+          - group: oracle-backed
+            index: "13/14"
+            suites: "clustercrosscheck extractfingerprint identifycontaminant mergepedintovcf accumulatevcm"
+          - group: oracle-backed
+            index: "14/14"
+            suites: "variantcallingmetrics nonzerowgs oxog"
           - group: golden-pending
             index: "1/1"
-            suites: "rejections"
+            suites: "artifactmetrics"
     steps:
       - uses: actions/checkout@v7
 

@@ -667,13 +667,13 @@
     {
       "id": "rejections",
       "title": "Rows the reference refuses",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "harness": "tools/rejection-conformance",
       "tools": [
         "CollectQualityYieldMetrics",
         "CollectAlignmentSummaryMetrics"
       ],
-      "why": "The covering arrays are generated over combinations the tool accepts, so the rejections they used to spend rows on are no longer exercised anywhere (decision 0009). A port that processes what Picard refuses is not byte-identical, so the exit path and the message are recorded here. The fixture directory is a per-run temporary path and the harness replaces it with <FIXTURES>: the message is behaviour, the path is not.",
+      "why": "The covering arrays are generated over combinations the tool accepts, so the rejections they used to spend rows on are no longer exercised anywhere (decision 0009). A port that processes what Picard refuses is not byte-identical, so the exit path and the message are recorded here. The fixture directory is a per-run temporary path and the harness replaces it with <FIXTURES>: the message is behaviour, the path is not. From the pinned container on a real x86-64 runner, published as the candidate-goldens artefact of the main run 33015632980, and byte for byte what this laptop produced.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": true
@@ -689,7 +689,7 @@
       "cases": [
         {
           "dump": "RejectionDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/rejections.txt.gz",
           "why": "No golden yet, and none may be committed from here: the bit-identity contract accepts goldens produced on real x86-64 CI, and this harness has so far only run in an emulated container. The generated job runs it and uploads the dump; committing that artefact is what turns this suite oracle-backed. Decision 0008 is what a golden of unknown provenance costs."
         }
       ]
@@ -700,9 +700,9 @@
         "QualityScoreDistribution"
       ],
       "title": "QualityScoreDistribution",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/metrics-conformance",
-      "why": "A metrics file like the others in tools/metrics-conformance, but its dump was never wired into CI: the golden has only ever been compared against itself by the Rust test.",
+      "why": "A metrics file like the others in tools/metrics-conformance, but its dump was never wired into CI: the golden has only ever been compared against itself by the Rust test. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -734,14 +734,13 @@
         "CollectGcBiasMetrics"
       ],
       "title": "CollectGcBiasMetrics",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/gcbias-conformance",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
         "skip_kinds": [
-          "bam",
-          "fasta"
+          "bam"
         ],
         "rules": [
           {
@@ -759,7 +758,8 @@
           "dump": "GcBiasDump",
           "golden": "crates/picard-analysis/tests/data/gc_bias.txt.gz"
         }
-      ]
+      ],
+      "why": "The `bam` line is the hex of the input BAM, and that BAM's header carries a @SQ UR: pointing at a per-run temporary FASTA, so its bytes cannot match across runs. Everything else is compared raw: the reference bases the harness generated from a seeded Random, the detail metrics and the summary metrics, minus the two lines Picard stamps with its own command line and start time. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite."
     },
     {
       "id": "accumulatequalityyield",
@@ -767,9 +767,9 @@
         "AccumulateQualityYieldMetrics"
       ],
       "title": "AccumulateQualityYieldMetrics",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/accumulatequalityyield-conformance",
-      "why": "The tool writes a bare MetricsFile with no command-line or start-time header comments, so the whole file is compared raw with no canonicalization.",
+      "why": "The tool writes a bare MetricsFile with no command-line or start-time header comments, so the whole file is compared raw with no canonicalization. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false
@@ -787,9 +787,9 @@
         "BedToIntervalList"
       ],
       "title": "BedToIntervalList",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/bedtointervallist-conformance",
-      "why": "The harness writes its fixtures under Files.createTempDirectory, so the @SQ UR: field is a fresh path on every run and cannot be compared across machines. Everything else, the @SQ order and the intervals, is compared raw.",
+      "why": "The harness writes its fixtures under Files.createTempDirectory, so the @SQ UR: field is a fresh path on every run and cannot be compared across machines. Everything else, the @SQ order and the intervals, is compared raw. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -813,9 +813,9 @@
         "IntervalListToBed"
       ],
       "title": "IntervalListToBed",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/intervallisttobed-conformance",
-      "why": "Same per-run UR: path as BedToIntervalList; the BED output itself carries no path.",
+      "why": "Same per-run UR: path as BedToIntervalList; the BED output itself carries no path. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -839,9 +839,9 @@
         "IntervalListTools"
       ],
       "title": "IntervalListTools",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/intervallisttools-conformance",
-      "why": "IntervalListTools writes an @PG whose CL is the command line (temp paths), which the Rust test already strips, and the interval lists carry the per-run UR: path.",
+      "why": "IntervalListTools writes an @PG whose CL is the command line (temp paths), which the Rust test already strips, and the interval lists carry the per-run UR: path. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -914,7 +914,7 @@
         "LiftOverIntervalList"
       ],
       "title": "LiftOverIntervalList",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/liftoverintervallist-conformance",
       "compare": {
         "mode": "keyed",
@@ -931,7 +931,8 @@
           "dump": "LiftOverIntervalListDump",
           "golden": "crates/picard-analysis/tests/data/liftover_interval_list.txt.gz"
         }
-      ]
+      ],
+      "why": "The harness writes its fixtures under a temporary directory, so the target dictionary's UR: field is a fresh path on every run and LiftOverIntervalList copies it verbatim into its output. That one field is stripped; the @SQ order, the lifted intervals and their names are compared raw. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite."
     },
     {
       "id": "extractsequences",
@@ -939,9 +940,9 @@
         "ExtractSequences"
       ],
       "title": "ExtractSequences",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/extractsequences-conformance",
-      "why": "The extracted FASTA carries no path; the interval-list input row does, through its @SQ header.",
+      "why": "The extracted FASTA carries no path; the interval-list input row does, through its @SQ header. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -965,7 +966,7 @@
         "ScatterIntervalsByNs"
       ],
       "title": "ScatterIntervalsByNs",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/scatterintervalsbyns-conformance",
       "compare": {
         "mode": "keyed",
@@ -982,7 +983,8 @@
           "dump": "ScatterIntervalsByNsDump",
           "golden": "crates/picard-analysis/tests/data/scatter_intervals_by_ns.txt.gz"
         }
-      ]
+      ],
+      "why": "The harness writes its reference under a temporary directory, so the dictionary's UR: field is a fresh path on every run and ScatterIntervalsByNs copies it into every output interval list. That one field is stripped; the scatter boundaries, the ACGT and N interval types and the @SQ order are compared raw. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite."
     },
     {
       "id": "nonnfastasize",
@@ -990,9 +992,9 @@
         "NonNFastaSize"
       ],
       "title": "NonNFastaSize",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/nonnfastasize-conformance",
-      "why": "The output is a count and a newline; nothing in it is machine-dependent.",
+      "why": "The output is a count and a newline; nothing in it is machine-dependent. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false
@@ -1010,9 +1012,9 @@
         "NormalizeFasta"
       ],
       "title": "NormalizeFasta",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/normalizefasta-conformance",
-      "why": "Plain text in, plain text out; compared raw.",
+      "why": "Plain text in, plain text out; compared raw. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false
@@ -1030,9 +1032,9 @@
         "SamToFastqWithTags"
       ],
       "title": "SamToFastqWithTags",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/samtofastqwithtags-conformance",
-      "why": "FASTQ has no header, so each file is compared raw; the input SAM row carries the per-run UR: path.",
+      "why": "FASTQ has no header, so each file is compared raw; the input SAM row carries the per-run UR: path. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -1056,9 +1058,9 @@
         "MergeBamAlignment"
       ],
       "title": "MergeBamAlignment",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/mergebamalignment-conformance",
-      "why": "The record corpus has several data-line rows under one (kind, case) key, so the full line sequence is compared; a keyed comparison would silently keep only the last row of each case.",
+      "why": "The record corpus has several data-line rows under one (kind, case) key, so the full line sequence is compared; a keyed comparison would silently keep only the last row of each case. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "lines",
         "skip_comment_lines": false
@@ -1076,9 +1078,9 @@
         "MergeBamAlignment"
       ],
       "title": "MergeBamAlignment, whole file",
-      "status": "unchecked",
+      "status": "oracle-backed",
       "harness": "tools/mergebamalignment-conformance",
-      "why": "The whole output SAM, header included. The @SQ UR: is the harness's per-run temp path, so it is stripped; the @PG records are compared raw, because MergeBamAlignment's PG linkage is exactly what this suite exists to check.",
+      "why": "The whole output SAM, header included. The @SQ UR: is the harness's per-run temp path, so it is stripped; the @PG records are compared raw, because MergeBamAlignment's PG linkage is exactly what this suite exists to check. Promoted from `unchecked` by decision 0011: the suite has regenerated this golden in the pinned container on real x86-64 CI and compared it, green, since decision 0008 gave it a suite.",
       "compare": {
         "mode": "keyed",
         "skip_comment_lines": false,
@@ -1093,6 +1095,500 @@
         {
           "dump": "MergeBamAlignmentFullDump",
           "golden": "crates/picard-analysis/tests/data/merge_bam_alignment_full.txt.gz"
+        }
+      ]
+    },
+    {
+      "id": "jumpinglibrary",
+      "tools": [
+        "CollectJumpingLibraryMetrics"
+      ],
+      "title": "CollectJumpingLibraryMetrics",
+      "status": "oracle-backed",
+      "harness": "tools/jumpinglibrary-conformance",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "JumpingLibraryMetricsDump",
+          "golden": "crates/picard-analysis/tests/data/jumping_library.txt.gz"
+        }
+      ]
+    },
+    {
+      "id": "comparemetrics",
+      "tools": [
+        "CompareMetrics"
+      ],
+      "title": "CompareMetrics",
+      "status": "oracle-backed",
+      "harness": "tools/comparemetrics-conformance",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CompareMetricsDump",
+          "golden": "crates/picard-analysis/tests/data/compare_metrics.txt.gz"
+        }
+      ]
+    },
+    {
+      "id": "sortgff",
+      "tools": [
+        "SortGff"
+      ],
+      "title": "SortGff",
+      "status": "oracle-backed",
+      "harness": "tools/sortgff-conformance",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "SortGffDump",
+          "golden": "crates/picard-analysis/tests/data/sort_gff.txt.gz"
+        }
+      ]
+    },
+    {
+      "id": "checkdupmarking",
+      "tools": [
+        "CheckDuplicateMarking"
+      ],
+      "title": "CheckDuplicateMarking",
+      "status": "oracle-backed",
+      "harness": "tools/checkdupmarking-conformance",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CheckDuplicateMarkingDump",
+          "golden": "crates/picard-analysis/tests/data/check_duplicate_marking.txt.gz",
+          "why": "Fifteen cases: every name agreeing, one disagreement, two on one name, a name appearing once, a coordinate-sorted file, a secondary and a supplementary disagreement under ALL and under PRIMARY_ONLY, an unmapped one under PRIMARY_ONLY and PRIMARY_MAPPED_ONLY, an improper pair under PRIMARY_MAPPED_ONLY and PRIMARY_PROPER_PAIR_ONLY, a secondary record the sort puts last, and a run with no output file."
+        }
+      ],
+      "why": "The comparison is against the FIRST record of each name and not against the record before it, so a name whose flags go true, false, false reports two bad records and writes its name twice. The mode's skip happens BEFORE the tally, so a skipped record is neither compared nor remembered and the same file is clean under PRIMARY_ONLY and bad under ALL."
+    },
+    {
+      "id": "qualityyieldflow",
+      "tools": [
+        "CollectQualityYieldMetricsFlow"
+      ],
+      "title": "CollectQualityYieldMetricsFlow",
+      "status": "oracle-backed",
+      "harness": "tools/qualityyieldflow-conformance",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "QualityYieldFlowDump",
+          "golden": "crates/picard-analysis/tests/data/quality_yield_flow.txt.gz",
+          "why": "Thirteen cases: one read, homopolymers beside singles, two quality levels, a quality between the two thresholds, a vendor-failed read, secondary and supplementary reads in and out, one included while the other is not, the histogram, a read with no flow matrix, and an empty file."
+        }
+      ],
+      "why": "A skipped secondary or supplementary read is counted NOWHERE, TOTAL_READS included, which is not what happens to a vendor-failed one: that is counted in TOTAL_READS and left out of PF_READS. PF_Q20_EQUIVALENT_YIELD is the SUM of the flow qualities divided by twenty, so four flows at quality 40 yield 8 and eight flows at quality 25 yield 10. And PF_Q20_FLOWS counts every flow at 20 or over, the 30s included, so it is never smaller than PF_Q30_FLOWS."
+    },
+    {
+      "id": "vcfsamplenamemap",
+      "status": "oracle-backed",
+      "title": "the map from VCF path to sample name, and the order its lines come out in",
+      "harness": "tools/vcfsamplenamemap-conformance",
+      "tools": [
+        "MakeVcfSampleNameMap"
+      ],
+      "why": "The line is the PATH first and the name second, which is the opposite way round from the tool's name. The lines come out of a HashMap keyed by the path STRING, so the order is neither the arguments' nor sorted, the same file named once plainly and once with a dot in the middle is two lines, and the same string twice is one.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "MakeVcfSampleNameMapDump",
+          "golden": "crates/picard-analysis/tests/data/make_vcf_sample_name_map.txt.gz",
+          "why": "Eleven cases: one input, three inputs and the same three reversed, the same path twice, one path with a dot in it, two paths naming the same sample, no sample, two samples, a file that is not a VCF, a good input before a bad one, and an input that is not there."
+        }
+      ]
+    },
+    {
+      "id": "haplotypedbtovcf",
+      "status": "oracle-backed",
+      "title": "the haplotype database read against the reference, which is what decides REF",
+      "harness": "tools/haplotypedbtovcf-conformance",
+      "tools": [
+        "ConvertHaplotypeDatabaseToVcf"
+      ],
+      "why": "REF is the allele that DISAGREES with the reference. The code asks which allele matches the reference base and then writes THAT one as ALT, so a row whose major allele is the reference base and a row whose minor allele is come out with the same REF and ALT and only the frequency tells them apart. The phase set is the position of the block's FIRST SNP and not of the row named as the anchor.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "ConvertHaplotypeDatabaseToVcfDump",
+          "golden": "crates/picard-analysis/tests/data/convert_haplotype_database_to_vcf.txt.gz",
+          "why": "Nine cases: a row whose major allele is the reference base and one whose minor allele is, a phased block of three whose anchor is named second, three rows out of order over two contigs, a row neither of whose alleles matches, a table with no header, a short row, an anchor naming no row, and a table with no rows at all."
+        }
+      ]
+    },
+    {
+      "id": "liftoverhaplotypemap",
+      "status": "oracle-backed",
+      "title": "a haplotype database moved onto another reference, and what is rewritten on the way",
+      "harness": "tools/liftoverhaplotypemap-conformance",
+      "tools": [
+        "LiftOverHaplotypeMap"
+      ],
+      "why": "The exit code for a failed liftover is 101 and not 1, and the file is still written: a database whose every SNP fails leaves a file holding its header and its column line alone. The alleles are never complemented across a negative-strand chain, so chr2:50 A/C becomes chrB:851 A/C, and the anchor column is rewritten rather than carried.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "LiftOverHaplotypeMapDump",
+          "golden": "crates/picard-analysis/tests/data/lift_over_haplotype_map.txt.gz",
+          "why": "Eight cases: a block that lifts whole, one SNP past the end of the chain, a whole block that fails, a negative-strand chain, a block spanning two contigs, a dictionary missing a contig the chain lifts to, a contig the chain does not cover, and a database whose every SNP fails."
+        }
+      ]
+    },
+    {
+      "id": "positiondownsample",
+      "status": "oracle-backed",
+      "title": "which reads a positional mask keeps, which has no randomness in it at all",
+      "harness": "tools/positiondownsample-conformance",
+      "tools": [
+        "PositionBasedDownsampleSam"
+      ],
+      "why": "There is no randomness in the selection at all: the same file downsampled twice keeps exactly the same reads. What decides is the tile's own extent, taken from the reads themselves and then widened by its span over the read count, so the same coordinates are kept on one tile and dropped on another. A fraction over a half does not grow the circle: it builds one for 1-FRACTION and keeps the reads INSIDE it.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "PositionBasedDownsampleSamDump",
+          "golden": "crates/picard-analysis/tests/data/position_based_downsample_sam.txt.gz",
+          "why": "Sixteen cases: five fractions, the same run twice, two tiles of different extents, the duplicate flag cleared and kept, STOP_AFTER, an unparseable read name, two fractions out of range, and a second run refused and then allowed."
+        }
+      ]
+    },
+    {
+      "id": "duplicatemetrics",
+      "status": "oracle-backed",
+      "title": "the marks a duplicate-marked file already carries, tallied",
+      "harness": "tools/duplicatemetrics-conformance",
+      "tools": [
+        "CollectDuplicateMetrics"
+      ],
+      "why": "There is one row per library NAMED IN THE HEADER whether a read ever used it or not, so a file with no reads at all still writes a row of zeros. The halving of the paired counts is an integer division, so a lone paired read reports no pairs examined. And an estimated library size of zero makes every histogram bin NaN, which the writer renders as `?`.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CollectDuplicateMetricsDump",
+          "golden": "crates/picard-analysis/tests/data/collect_duplicate_metrics.txt.gz",
+          "why": "Eleven cases: two pairs with one duplicate, an odd number of paired reads, an unpaired pair, a half-mapped pair, an unmapped duplicate, a secondary and a supplementary duplicate, two libraries, a read group with no library, every pair a duplicate, only unmapped reads, and a file with no reads."
+        }
+      ]
+    },
+    {
+      "id": "verifyidintensity",
+      "status": "oracle-backed",
+      "title": "what the three regexes accept, and what they do with everything else",
+      "harness": "tools/verifyidintensity-conformance",
+      "tools": [
+        "CreateVerifyIDIntensityContaminationMetricsFile"
+      ],
+      "why": "A file that ends early is a NullPointerException and not a PicardException: the reader answers null and the matcher is handed it without a guard. A file of only a header and dashes writes a metrics file with no table at all, not even the column line. And the three patterns are strict where it matters and loose where it does not: the dashes are not counted, the columns split on runs of whitespace, and the fraction may open on a dot but may not be negative.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CreateVerifyIDIntensityContaminationMetricsFileDump",
+          "golden": "crates/picard-analysis/tests/data/create_verify_id_intensity_metrics.txt.gz",
+          "why": "Thirteen cases: one row and three, spaces instead of tabs, a single dash, a fraction opening on a dot, a positive likelihood, a negative fraction and a negative id, a short row, a wrong header, a file of only a header and dashes, a file of only a header, and an empty file."
+        }
+      ]
+    },
+    {
+      "id": "bafregress",
+      "status": "oracle-backed",
+      "title": "bafRegress' stdout parsed, and the one column the tool derives",
+      "harness": "tools/bafregress-conformance",
+      "tools": [
+        "CreateBafRegressMetricsFile"
+      ],
+      "why": "Three failures with three different classes: a header that is not the header is a PicardException quoting it in single quotes, a row with the wrong number of columns is an IOException counting the columns it found, and a fractional Nhom is a NumberFormatException that escapes the wrapper entirely. An empty file is a fourth, a NullPointerException on String.equals. LOG10_PVAL is derived and not read, so a p-value of zero gives an infinity the writer renders as `-?`.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CreateBafRegressMetricsFileDump",
+          "golden": "crates/picard-analysis/tests/data/create_baf_regress_metrics.txt.gz",
+          "why": "Thirteen cases: one row and three, spaces in the row and in the header, a wrong header, a zero p-value, a negative estimate, exponent notation, a fractional Nhom, a short row and a long one, a file of only a header, and an empty file."
+        }
+      ]
+    },
+    {
+      "id": "wgsmetrics",
+      "status": "oracle-backed",
+      "title": "which base reaches the depth histogram and which counter takes the rest",
+      "harness": "tools/wgsmetrics-conformance",
+      "tools": [
+        "CollectWgsMetrics"
+      ],
+      "why": "The seven exclusion counters are a partition of the bases that did not count, and the fixture puts one base in each. GENOME_TERRITORY is the NON-N bases of the reference and not the covered ones, so it is 190 of 200. A wholly overlapping pair covers its span at depth ONE, the second end's bases going to PCT_EXC_OVERLAP. An N base is excluded by QUALITY whatever its quality says. And --INCLUDE_BQ_HISTOGRAM adds a third COLUMN rather than a second table.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CollectWgsMetricsDump",
+          "golden": "crates/picard-analysis/tests/data/collect_wgs_metrics.txt.gz",
+          "why": "Thirteen cases: an unpaired read counted and not, a disjoint pair and a wholly overlapping one, a read under the mapping-quality floor, one half under the base-quality floor, one with N bases, a duplicate, a pair with one end unmapped, ten reads capped and not, the histogram, and a file with no reads."
+        }
+      ]
+    },
+    {
+      "id": "rawwgsmetrics",
+      "status": "oracle-backed",
+      "title": "CollectWgsMetrics with four defaults changed, and what those four change",
+      "harness": "tools/rawwgsmetrics-conformance",
+      "tools": [
+        "CollectRawWgsMetrics"
+      ],
+      "why": "The tool is CollectWgsMetrics with four defaults changed and nothing else, so the same fixture goes through both and the difference between the two files is the difference between the two sets of defaults. The mapping-quality floor is ZERO, so a read at quality five is counted here and excluded whole there; the base-quality floor is THREE, which the pair of cases at quality two and quality five straddles; and an N base is still excluded, quality zero being under three as it is under twenty. The histogram is trimmed past its last non-zero bin: the cap of a hundred thousand writes a hundred thousand and one bins, and keeping them cost two and a half megabytes and the slowest shard in CI.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CollectRawWgsMetricsDump",
+          "golden": "crates/picard-analysis/tests/data/collect_raw_wgs_metrics.txt.gz",
+          "why": "Eleven cases: a read under the other tool's mapping-quality floor, bases at quality two and five, N bases, an unpaired read counted and not, a duplicate, an overlapping pair and a disjoint one, ten reads, and a file with no reads. Only the `default-coverage-cap` case leaves the cap alone: the reference writes one histogram line per bin, and a hundred thousand of them per case was most of what this suite cost to run."
+        }
+      ]
+    },
+    {
+      "id": "umiprevalence",
+      "status": "oracle-backed",
+      "title": "how many distinct UMIs each duplicate set holds, and which reads reach a set",
+      "harness": "tools/umiprevalence-conformance",
+      "tools": [
+        "CollectUmiPrevalenceMetrics"
+      ],
+      "why": "The barcode-quality filter is INVERTED: `BarcodeQualityFilter.filterOut` returns `!badQuality`, so it drops the reads whose barcode is entirely above the floor and keeps the ones with a base under it. A file of well-formed barcodes reports nothing at all, and lowering the floor makes the tool report less rather than more. Every read of the fixture carries one bad barcode base so the other nine behaviours can be seen past it.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CollectUmiPrevalenceMetricsDump",
+          "golden": "crates/picard-analysis/tests/data/collect_umi_prevalence_metrics.txt.gz",
+          "why": "Sixteen cases: three sets of one UMI, one set of three and one of two, a read with no UMI tag, the barcode-quality filter three ways, an unaligned read, one under the mapping-quality floor, a secondary one, an unpaired read filtered and kept, the tags named by argument, a lowered barcode floor, every read filtered, and no reads at all."
+        }
+      ]
+    },
+    {
+      "id": "artifacttooxog",
+      "status": "oracle-backed",
+      "title": "two artifact tables rewritten as the older OxoG one, which is arithmetic and no reads",
+      "harness": "tools/artifacttooxog-conformance",
+      "tools": [
+        "ConvertSequencingArtifactToOxoG"
+      ],
+      "why": "The conversion is not a copy: an output row for `ACA` takes its pre-adapter figures from the input's `TGT`, the reverse complement, while its bait-bias figures come from `ACA` itself, so one output row draws on two different input rows. The two floors differ: the oxidation rate is floored at ONE BASE and the two bait-bias rates at 1e-10, which reads as a Q of exactly 100. The rows come out of two HashSets, so the dump sorts them: the order is a hash and not a behaviour.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "ConvertSequencingArtifactToOxoGDump",
+          "golden": "crates/picard-analysis/tests/data/convert_artifact_to_oxog.txt.gz",
+          "why": "Eight cases: one context, the oxidation floor, the bait-bias floor and its reverse, two libraries by two contexts, an output basename, the file named outright, and neither named at all."
+        }
+      ]
+    },
+    {
+      "id": "clustercrosscheck",
+      "status": "oracle-backed",
+      "title": "the connected components of a crosscheck table, and which rows come back inside them",
+      "harness": "tools/clustercrosscheck-conformance",
+      "tools": [
+        "ClusterCrosscheckMetrics"
+      ],
+      "why": "The output carries every comparison whose BOTH sides are in one cluster whatever its own LOD, so a row at -5 comes back inside the cluster its neighbours built. A group in no edge at all reaches no cluster and its comparisons vanish entirely rather than forming a cluster of one. And the cluster identifier is a node INDEX and not a counter, so two clusters of two are numbered 0 and 2. The order of the output is a hash order, which is why the dump sorts before emitting.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "ClusterCrosscheckMetricsDump",
+          "golden": "crates/picard-analysis/tests/data/cluster_crosscheck_metrics.txt.gz",
+          "why": "Twelve cases: a transitive chain, a threshold that splits it, a LOD exactly at the threshold and just above, two clusters, an orphan group, a self-comparison, a duplicated row, the default threshold, nothing above the threshold, and an empty file."
+        }
+      ]
+    },
+    {
+      "id": "extractfingerprint",
+      "status": "oracle-backed",
+      "title": "the contaminating sample's genotype likelihoods at the haplotype map's sites",
+      "harness": "tools/extractfingerprint-conformance",
+      "tools": [
+        "ExtractFingerprint"
+      ],
+      "why": "A read is evidence for one haplotype BLOCK and not for every site it overlaps, which is why the fixture gives each block its own reads. The block's minor-allele frequency is the prior, so the same pileup at a middling quality reports 0,13,30 where the frequency is 0.4 and 0,12,30 where it is 0.3. --EXTRACT_CONTAMINATION is FALSE by default and flips the argument rather than the output, so a default run given 0.5 is asking about the contaminated sample. And --LOCUS_MAX_READS bounds the block rather than the record: forty reads under a cap of ten give a depth of sixteen at the block of two SNPs.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "ExtractFingerprintDump",
+          "golden": "crates/picard-analysis/tests/data/extract_fingerprint.txt.gz",
+          "why": "Fifteen cases: the major and minor pileups at half contamination, contamination of nought and one, --EXTRACT_CONTAMINATION twice, another tool's argument named here, a base matching neither allele, two base qualities, a deep pileup capped and not, a sample alias, every SNP rather than the representatives, no reads, and two samples in one file."
+        }
+      ]
+    },
+    {
+      "id": "identifycontaminant",
+      "status": "oracle-backed",
+      "title": "ExtractFingerprint with one argument negated, and what that negation changes",
+      "harness": "tools/identifycontaminant-conformance",
+      "tools": [
+        "IdentifyContaminant"
+      ],
+      "why": "The tool is ExtractFingerprint with EXTRACT_CONTAMINATION set from the negation of its own EXTRACT_CONTAMINATED, so its DEFAULT is the other tool's opposite: it reports the contaminant and names the sample `-contaminant`. At a contamination of 0.5 the flip is numerically a no-op and only the name tells the two apart; at nought and one the PLs are each other's. LOCUS_MAX_READS defaults to two hundred rather than fifty.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "IdentifyContaminantDump",
+          "golden": "crates/picard-analysis/tests/data/identify_contaminant.txt.gz",
+          "why": "Eleven cases: the major and minor pileups by default, the other tool's default restored, contamination of nought and one, a hundred reads capped and not, a sample alias, a base matching neither allele, no reads, and two samples in one file."
+        }
+      ]
+    },
+    {
+      "id": "mergepedintovcf",
+      "status": "oracle-backed",
+      "title": "the zCall genotype merged into a genotyping-array VCF, and what the tool swallows",
+      "harness": "tools/mergepedintovcf-conformance",
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "why": "Every failure is SWALLOWED: doWork catches Exception, prints the stack trace and returns ZERO. There are two kinds. A failure before the writer opens leaves no file at all; one inside the record loop leaves a file holding its header and not one record, the writer having already opened it. The thresholds map is STATIC, so every run after the first holds every earlier run's thresholds and writes them onto records its own file never named. And a VCF whose genotypes carry nothing but GT cannot be processed, the map getExtendedAttributes answers being immutable when there are none.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "MergePedIntoVcfDump",
+          "golden": "crates/picard-analysis/tests/data/merge_ped_into_vcf.txt.gz",
+          "why": "Nine cases in a fixed order, the last depending on it: agreeing and disagreeing PEDs, thresholds for one SNP, for all three and as NA, one NA of a pair, an A allele that is the reference, an allele of two characters, a two-sample VCF, a VCF of nothing but GT, and the static map's leak."
+        }
+      ]
+    },
+    {
+      "id": "accumulatevcm",
+      "status": "oracle-backed",
+      "title": "several metrics tables merged into one, and what the round trip loses",
+      "harness": "tools/accumulatevcm-conformance",
+      "tools": [
+        "AccumulateVariantCallingMetrics"
+      ],
+      "why": "The merge is LOSSY and one input is enough to show it: the ratios are reconstructed from the printed columns by invertFromRatio, which rounds, and recomputed afterwards, so a single file of 301 SNPs at a TI/TV of 2.0 comes back at 2.01 having been merged with nothing at all. A ratio of NaN reconstructs as nought and comes back as nought. And the summary's reference bias is reconstructed against the DETAIL file beside it, the total het depth being summed over that file's detail rows.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "AccumulateVariantCallingMetricsDump",
+          "golden": "crates/picard-analysis/tests/data/accumulate_variant_calling_metrics.txt.gz",
+          "why": "Nine cases: a round trip that divides evenly and one that does not, two inputs of one sample, two inputs of two samples, one input naming two samples, a NaN ratio, a summary of two rows, and a prefix whose files are not there."
+        }
+      ]
+    },
+    {
+      "id": "variantcallingmetrics",
+      "status": "oracle-backed",
+      "title": "which variants are counted where, and what the derived columns make of the counts",
+      "harness": "tools/variantcallingmetrics-conformance",
+      "tools": [
+        "CollectVariantCallingMetrics"
+      ],
+      "why": "The known and the novel variants are counted apart in every column, and the fixture is built so the two TI/TV ratios differ rather than coinciding: 2 against 0.5. The summary is NOT the detail rows' sum, a two-sample file where one sample is hom-ref at half the sites reporting four SNPs in the summary, four for the first sample and two for the second. And an empty VCF still writes both files, PCT_DBSNP coming out `?` while the TI/TV columns come out `0`.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CollectVariantCallingMetricsDump",
+          "golden": "crates/picard-analysis/tests/data/collect_variant_calling_metrics.txt.gz",
+          "why": "Ten cases: known and novel mixed, nothing known, everything known, a filtered variant, indels, a multiallelic SNP, two samples, a target interval list, and an empty VCF."
+        }
+      ]
+    },
+    {
+      "id": "nonzerowgs",
+      "status": "oracle-backed",
+      "title": "the same traversal reported twice, once over the whole territory and once over the covered part",
+      "harness": "tools/nonzerowgs-conformance",
+      "tools": [
+        "CollectWgsMetricsWithNonZeroCoverage"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The tool is CollectWgsMetrics with a second row, and the second row is a recomputation over the same counts with the depth-zero bin dropped rather than a second traversal. A fully covered reference therefore makes the two rows identical, an uncovered half halves the second row's territory, and a file whose reads are all excluded divides by nought.",
+      "cases": [
+        {
+          "dump": "CollectWgsMetricsWithNonZeroCoverageDump",
+          "golden": "crates/picard-analysis/tests/data/collect_wgs_metrics_with_non_zero_coverage.txt.gz",
+          "why": "Eleven cases: a pair covering part of the reference, reads covering all of it, an unpaired read excluded and counted, no reads at all, ten pairs uncapped and capped, the base-quality histogram, every read a duplicate, and the chart argument left out."
+        }
+      ]
+    },
+    {
+      "id": "oxog",
+      "status": "oracle-backed",
+      "title": "which read reaches which of the eight oxidation counters, and what the rates make of them",
+      "harness": "tools/oxog-conformance",
+      "tools": [
+        "CollectOxoGMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The counters turn on which END of the pair carries the alternate and on which strand it was read, which is the whole of the 8-oxo-G argument: `G>T` in read one and `C>A` in read two are the oxidised state, and the same substitutions in the other end are the control. The row order is a HashMap's over the context strings, so it reaches the file unsorted, and a G site is folded into the reverse complement of its context rather than getting a row of its own.",
+      "cases": [
+        {
+          "dump": "CollectOxoGMetricsDump",
+          "golden": "crates/picard-analysis/tests/data/collect_oxo_g_metrics.txt.gz",
+          "why": "Twenty-two cases: the reference alone, the alternate at a G site in each end and on each strand, at a C site in each end, the base-quality floor, the OQ tag honoured and ignored, the mapping-quality floor, both ends of the insert-size window, a duplicate, a secondary alignment, the first base of the contig, context size zero, a restricted context set, two contexts the validation refuses, two libraries, the debugging stop, a known site, an interval list, and a file with no read group."
+        }
+      ]
+    },
+    {
+      "id": "artifactmetrics",
+      "status": "golden-pending",
+      "title": "which read reaches which artifact counter, and what the five files carry",
+      "harness": "tools/artifactmetrics-conformance",
+      "tools": [
+        "CollectSequencingArtifactMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "A pre-adapter artifact is one whose direction follows the READ and a bait-bias one is one whose direction follows the REFERENCE STRAND, which is what the same substitution in read one and in read two tells apart. The output argument is a prefix for five files, the detail ones holding a row per substitution per context, and the summary ones the worst context per substitution. --CONTEXTS_TO_PRINT cuts the detail files and the error summary and not the counting: the twelve summary rows are the same whether it is given or not. --TANDEM_READS swaps read two's half of every sum, which is invisible on a pair whose ends are on opposite strands and plain on a substitution carried by read two on the forward strand: PRO_ALT and CON_ALT trade places and the Q goes from a hundred to eleven.",
+      "cases": [
+        {
+          "dump": "CollectSequencingArtifactMetricsDump",
+          "golden": null,
+          "why": "Twenty-two cases: a clean pair, the same substitution in each end and on each strand, tandem reads on a pair whose ends are on opposite strands and on one carried by read two on the forward strand, context size nought, a restricted context set, a file extension, the base-quality floor with the OQ tag honoured and ignored, and each whole-read filter with the three that can be turned off shown both ways."
         }
       ]
     }
