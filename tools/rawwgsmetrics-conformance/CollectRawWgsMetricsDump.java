@@ -122,6 +122,14 @@ public class CollectRawWgsMetricsDump {
         }
     }
 
+    /**
+     * The metrics table and the histogram, the histogram TRIMMED past its last non-zero bin.
+     *
+     * The coverage cap here is a hundred thousand, so the tool writes a hundred thousand and one
+     * bins of which a handful are non-zero. Keeping them all made a golden of two and a half
+     * megabytes and the slowest shard in CI, and every bin past the last non-zero one is zero by
+     * construction: the cap itself is still visible in the metrics table.
+     */
     static String[] split(final String text) {
         final List<String> table = new ArrayList<>();
         final List<String> histogram = new ArrayList<>();
@@ -136,7 +144,22 @@ public class CollectRawWgsMetricsDump {
             }
             (inHistogram ? histogram : table).add(line);
         }
-        return new String[]{String.join("\n", table), String.join("\n", histogram)};
+        int last = 0;
+        for (int i = 1; i < histogram.size(); i++) {
+            final String[] columns = histogram.get(i).split("\t");
+            boolean nonZero = false;
+            for (int c = 1; c < columns.length; c++) {
+                if (!columns[c].equals("0")) {
+                    nonZero = true;
+                }
+            }
+            if (nonZero) {
+                last = i;
+            }
+        }
+        final List<String> trimmed = new ArrayList<>(histogram.subList(0, last + 1));
+        trimmed.add("# " + (histogram.size() - 1 - last) + " further bins, every one of them zero");
+        return new String[]{String.join("\n", table), String.join("\n", trimmed)};
     }
 
     static void run(final String name, final List<Read> reads, final String... extra)
