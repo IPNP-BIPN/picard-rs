@@ -43,6 +43,7 @@ pub mod filter_sam_reads;
 pub mod fix_mate_information;
 pub mod gather_bam_files;
 pub mod gc;
+pub mod genotype_concordance;
 pub mod haplotype_map;
 pub mod insert_size;
 pub mod interval_list_to_bed;
