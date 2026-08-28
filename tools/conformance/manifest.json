@@ -1234,21 +1234,21 @@
     },
     {
       "id": "liftoverhaplotypemap",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "a haplotype database moved onto another reference, and what is rewritten on the way",
       "harness": "tools/liftoverhaplotypemap-conformance",
       "tools": [
         "LiftOverHaplotypeMap"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "The exit code for a failed liftover is 101 and not 1, and the file is still written: a database whose every SNP fails leaves a file holding its header and its column line alone. The alleles are never complemented across a negative-strand chain, so chr2:50 A/C becomes chrB:851 A/C, and the anchor column is rewritten rather than carried.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "LiftOverHaplotypeMapDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/lift_over_haplotype_map.txt.gz",
+          "why": "Eight cases: a block that lifts whole, one SNP past the end of the chain, a whole block that fails, a negative-strand chain, a block spanning two contigs, a dictionary missing a contig the chain lifts to, a contig the chain does not cover, and a database whose every SNP fails."
         }
       ]
     }
