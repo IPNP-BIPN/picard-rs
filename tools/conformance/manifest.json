@@ -1631,6 +1631,26 @@
           "why": "Eleven cases: a plain run, the per-target and per-base files, a near distance of nought, a named amplicon set, a mapping-quality floor above every read and a base-quality floor above every base, an overlapping pair with and without clipping, no reads at all, and a pair at mapping quality nought."
         }
       ]
+    },
+    {
+      "id": "libcomplexity",
+      "status": "golden-pending",
+      "title": "which pairs a group calls duplicates, and the estimate the histogram gives",
+      "harness": "tools/libcomplexity-conformance",
+      "tools": [
+        "EstimateLibraryComplexity"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The grouping is on the first MIN_IDENTICAL_BASES of BOTH ends and the comparison then SKIPS that prefix, so a difference inside it is not an error: it is what put two pairs in different groups. The rate is over both reads' compared length and floored, and the quality floor is an integer division, so a mean of 19.9 is dropped at twenty. A bin holding fewer than MIN_GROUP_COUNT groups is dropped from the metrics and kept in the histogram, the default being two, and an optical duplicate is subtracted before the Lander-Waterman estimate runs.",
+      "cases": [
+        {
+          "dump": "EstimateLibraryComplexityDump",
+          "golden": null,
+          "why": "Nineteen cases: two and three identical pairs, a difference at the sixth base under two seeds, a difference inside the seed, two diff rates, a low mean quality with the floor at its default and lowered, an N in the seed, a read shorter than the seed, the group-count floor both ways, two duplicate groups, a fixture deep enough to estimate from, two optical duplicates, two libraries, no duplicate at all, and a difference on each side of --MAX_READ_LENGTH."
+        }
+      ]
     }
   ],
   "probes": [
