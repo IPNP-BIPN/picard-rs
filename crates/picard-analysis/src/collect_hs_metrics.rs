@@ -59,32 +59,37 @@ pub struct Derived {
     pub pct_usable_bases_on_bait: f64,
 }
 
+/// The counts one run produced, which the derived columns are read off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Counts {
+    pub pf_bases: i64,
+    pub pf_bases_aligned: i64,
+    pub on_bait: i64,
+    pub near_bait: i64,
+    pub off_bait: i64,
+    pub on_target: i64,
+    pub bait_territory: i64,
+    pub target_territory: i64,
+}
+
 /// `TargetMetricsCollector.calculateDerivedMetrics`, on the counts a traversal produced.
 ///
 /// `PCT_SELECTED_BASES` counts the NEAR bases as selected, so it is not `ON_BAIT / ALIGNED`, and
 /// `ON_BAIT_VS_SELECTED` is the ratio of the two: a file whose reads are mostly near rather than on
 /// its baits reads 0.75 and 0.333333 on the same run.
-pub fn derived(
-    pf_bases: i64,
-    pf_bases_aligned: i64,
-    on_bait: i64,
-    near_bait: i64,
-    off_bait: i64,
-    on_target: i64,
-    bait_territory: i64,
-    target_territory: i64,
-) -> Derived {
-    let selected = on_bait + near_bait;
-    let pct_selected = selected as f64 / (on_bait + near_bait + off_bait) as f64;
+pub fn derived(counts: &Counts) -> Derived {
+    let selected = counts.on_bait + counts.near_bait;
+    let aligned = counts.on_bait + counts.near_bait + counts.off_bait;
     Derived {
-        pct_selected_bases: pct_selected,
-        pct_off_bait: off_bait as f64 / (on_bait + near_bait + off_bait) as f64,
-        on_bait_vs_selected: on_bait as f64 / selected as f64,
-        mean_bait_coverage: on_bait as f64 / bait_territory as f64,
-        mean_target_coverage: on_target as f64 / target_territory as f64,
-        fold_enrichment: (on_bait as f64 / pf_bases_aligned as f64)
-            / (bait_territory as f64 / (bait_territory as f64 + off_bait as f64)),
-        pct_usable_bases_on_bait: on_bait as f64 / pf_bases as f64,
+        pct_selected_bases: selected as f64 / aligned as f64,
+        pct_off_bait: counts.off_bait as f64 / aligned as f64,
+        on_bait_vs_selected: counts.on_bait as f64 / selected as f64,
+        mean_bait_coverage: counts.on_bait as f64 / counts.bait_territory as f64,
+        mean_target_coverage: counts.on_target as f64 / counts.target_territory as f64,
+        fold_enrichment: (counts.on_bait as f64 / counts.pf_bases_aligned as f64)
+            / (counts.bait_territory as f64
+                / (counts.bait_territory as f64 + counts.off_bait as f64)),
+        pct_usable_bases_on_bait: counts.on_bait as f64 / counts.pf_bases as f64,
     }
 }
 

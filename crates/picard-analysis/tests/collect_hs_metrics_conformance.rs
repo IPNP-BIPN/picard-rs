@@ -17,7 +17,7 @@
 use std::io::Read;
 
 use picard_analysis::collect_hs_metrics::{
-    derived, placement, target_row, BaitPlacement, DEFAULT_MINIMUM_BASE_QUALITY,
+    derived, placement, target_row, BaitPlacement, Counts, DEFAULT_MINIMUM_BASE_QUALITY,
     DEFAULT_MINIMUM_MAPPING_QUALITY,
 };
 
@@ -126,16 +126,16 @@ fn the_three_bait_columns_partition_the_aligned_bases() {
 fn the_derived_columns_follow_from_the_counts() {
     let text = corpus();
     let row = metrics(&text, "plain");
-    let ours = derived(
-        number(&row, "PF_BASES") as i64,
-        number(&row, "PF_BASES_ALIGNED") as i64,
-        number(&row, "ON_BAIT_BASES") as i64,
-        number(&row, "NEAR_BAIT_BASES") as i64,
-        number(&row, "OFF_BAIT_BASES") as i64,
-        number(&row, "ON_TARGET_BASES") as i64,
-        number(&row, "BAIT_TERRITORY") as i64,
-        number(&row, "TARGET_TERRITORY") as i64,
-    );
+    let ours = derived(&Counts {
+        pf_bases: number(&row, "PF_BASES") as i64,
+        pf_bases_aligned: number(&row, "PF_BASES_ALIGNED") as i64,
+        on_bait: number(&row, "ON_BAIT_BASES") as i64,
+        near_bait: number(&row, "NEAR_BAIT_BASES") as i64,
+        off_bait: number(&row, "OFF_BAIT_BASES") as i64,
+        on_target: number(&row, "ON_TARGET_BASES") as i64,
+        bait_territory: number(&row, "BAIT_TERRITORY") as i64,
+        target_territory: number(&row, "TARGET_TERRITORY") as i64,
+    });
     let close = |ours: f64, name: &str| {
         let theirs = number(&row, name);
         assert!(
@@ -219,7 +219,7 @@ fn the_per_target_file_is_a_row_per_target() {
     assert_eq!(covered["read_count"], "2");
     // The port's row over the same sixty bases: ten covered once, fifty not.
     let mut coverage = vec![0i64; 60];
-    for depth in coverage.iter_mut().take(50).skip(0) {
+    for depth in coverage.iter_mut().take(50) {
         *depth = 1;
     }
     let bases: Vec<u8> = (0..60).map(|i| b"ACGTGGCCATAT"[(i + 120) % 12]).collect();
