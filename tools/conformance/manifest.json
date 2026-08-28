@@ -1194,21 +1194,21 @@
     },
     {
       "id": "vcfsamplenamemap",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the map from VCF path to sample name, and the order its lines come out in",
       "harness": "tools/vcfsamplenamemap-conformance",
       "tools": [
         "MakeVcfSampleNameMap"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "The line is the PATH first and the name second, which is the opposite way round from the tool's name. The lines come out of a HashMap keyed by the path STRING, so the order is neither the arguments' nor sorted, the same file named once plainly and once with a dot in the middle is two lines, and the same string twice is one.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "MakeVcfSampleNameMapDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/make_vcf_sample_name_map.txt.gz",
+          "why": "Eleven cases: one input, three inputs and the same three reversed, the same path twice, one path with a dot in it, two paths naming the same sample, no sample, two samples, a file that is not a VCF, a good input before a bad one, and an input that is not there."
         }
       ]
     },
