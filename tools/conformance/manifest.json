@@ -1494,21 +1494,21 @@
     },
     {
       "id": "accumulatevcm",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "several metrics tables merged into one, and what the round trip loses",
       "harness": "tools/accumulatevcm-conformance",
       "tools": [
         "AccumulateVariantCallingMetrics"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "The merge is LOSSY and one input is enough to show it: the ratios are reconstructed from the printed columns by invertFromRatio, which rounds, and recomputed afterwards, so a single file of 301 SNPs at a TI/TV of 2.0 comes back at 2.01 having been merged with nothing at all. A ratio of NaN reconstructs as nought and comes back as nought. And the summary's reference bias is reconstructed against the DETAIL file beside it, the total het depth being summed over that file's detail rows.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "AccumulateVariantCallingMetricsDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/accumulate_variant_calling_metrics.txt.gz",
+          "why": "Nine cases: a round trip that divides evenly and one that does not, two inputs of one sample, two inputs of two samples, one input naming two samples, a NaN ratio, a summary of two rows, and a prefix whose files are not there."
         }
       ]
     }
