@@ -1274,21 +1274,21 @@
     },
     {
       "id": "duplicatemetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the marks a duplicate-marked file already carries, tallied",
       "harness": "tools/duplicatemetrics-conformance",
       "tools": [
         "CollectDuplicateMetrics"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "There is one row per library NAMED IN THE HEADER whether a read ever used it or not, so a file with no reads at all still writes a row of zeros. The halving of the paired counts is an integer division, so a lone paired read reports no pairs examined. And an estimated library size of zero makes every histogram bin NaN, which the writer renders as `?`.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "CollectDuplicateMetricsDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/collect_duplicate_metrics.txt.gz",
+          "why": "Eleven cases: two pairs with one duplicate, an odd number of paired reads, an unpaired pair, a half-mapped pair, an unmapped duplicate, a secondary and a supplementary duplicate, two libraries, a read group with no library, every pair a duplicate, only unmapped reads, and a file with no reads."
         }
       ]
     }
