@@ -22,6 +22,7 @@ pub mod collect_duplicate_metrics;
 pub mod collect_hs_metrics;
 pub mod collect_multiple_metrics;
 pub mod collect_oxo_g_metrics;
+pub mod collect_rrbs_metrics;
 pub mod collect_sequencing_artifact_metrics;
 pub mod collect_targeted_pcr_metrics;
 pub mod collect_umi_prevalence_metrics;
