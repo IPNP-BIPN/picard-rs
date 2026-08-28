@@ -1314,21 +1314,21 @@
     },
     {
       "id": "bafregress",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "bafRegress' stdout parsed, and the one column the tool derives",
       "harness": "tools/bafregress-conformance",
       "tools": [
         "CreateBafRegressMetricsFile"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "Three failures with three different classes: a header that is not the header is a PicardException quoting it in single quotes, a row with the wrong number of columns is an IOException counting the columns it found, and a fractional Nhom is a NumberFormatException that escapes the wrapper entirely. An empty file is a fourth, a NullPointerException on String.equals. LOG10_PVAL is derived and not read, so a p-value of zero gives an infinity the writer renders as `-?`.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "CreateBafRegressMetricsFileDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/create_baf_regress_metrics.txt.gz",
+          "why": "Thirteen cases: one row and three, spaces in the row and in the header, a wrong header, a zero p-value, a negative estimate, exponent notation, a fractional Nhom, a short row and a long one, a file of only a header, and an empty file."
         }
       ]
     },
