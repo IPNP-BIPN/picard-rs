@@ -1674,7 +1674,7 @@
     },
     {
       "id": "multiplemetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which programs one pass runs, and which files they land on",
       "harness": "tools/multiplemetrics-conformance",
       "tools": [
@@ -1687,7 +1687,7 @@
       "cases": [
         {
           "dump": "CollectMultipleMetricsDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/collect_multiple_metrics.txt.gz",
           "why": "Eighteen cases: the default set and the same set twice over, a set named by the run, an empty set, an extension, the two programs that need a reference and the one that needs a refflat, an argument reaching one program, an argument for a program that is not running, a malformed one, an unknown program, an argument the pass owns, a truncated pass, a second accumulation level, and the same fixture through one program on its own."
         }
       ]
