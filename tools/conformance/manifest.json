@@ -1531,6 +1531,26 @@
           "why": "Ten cases: known and novel mixed, nothing known, everything known, a filtered variant, indels, a multiallelic SNP, two samples, a target interval list, and an empty VCF."
         }
       ]
+    },
+    {
+      "id": "nonzerowgs",
+      "status": "golden-pending",
+      "title": "the same traversal reported twice, once over the whole territory and once over the covered part",
+      "harness": "tools/nonzerowgs-conformance",
+      "tools": [
+        "CollectWgsMetricsWithNonZeroCoverage"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The tool is CollectWgsMetrics with a second row, and the second row is a recomputation over the same counts with the depth-zero bin dropped rather than a second traversal. A fully covered reference therefore makes the two rows identical, an uncovered half halves the second row's territory, and a file whose reads are all excluded divides by nought.",
+      "cases": [
+        {
+          "dump": "CollectWgsMetricsWithNonZeroCoverageDump",
+          "golden": null,
+          "why": "Eleven cases: a pair covering part of the reference, reads covering all of it, an unpaired read excluded and counted, no reads at all, ten pairs uncapped and capped, the base-quality histogram, every read a duplicate, and the chart argument left out."
+        }
+      ]
     }
   ],
   "probes": [
