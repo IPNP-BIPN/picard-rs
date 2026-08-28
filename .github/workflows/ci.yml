@@ -314,6 +314,9 @@ jobs:
           - group: oracle-backed
             index: "15/15"
             suites: "pcrmetrics libcomplexity"
+          - group: golden-pending
+            index: "1/1"
+            suites: "genotypeconcordance"
     steps:
       - uses: actions/checkout@v7
 

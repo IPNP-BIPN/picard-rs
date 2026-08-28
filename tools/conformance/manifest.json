@@ -1651,6 +1651,26 @@
           "why": "Nineteen cases: two and three identical pairs, a difference at the sixth base under two seeds, a difference inside the seed, two diff rates, a low mean quality with the floor at its default and lowered, an N in the seed, a read shorter than the seed, the group-count floor both ways, two duplicate groups, a fixture deep enough to estimate from, two optical duplicates, two libraries, no duplicate at all, and a difference on each side of --MAX_READ_LENGTH."
         }
       ]
+    },
+    {
+      "id": "genotypeconcordance",
+      "status": "golden-pending",
+      "title": "which pair of genotype states a site is filed under, and the three files it reaches",
+      "harness": "tools/genotypeconcordance-conformance",
+      "tools": [
+        "GenotypeConcordance"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "A low quality, a low depth, a filter and a missing site are STATES here and not exclusions: the site is still counted, under another name, which is why --MIN_GQ moves a row rather than dropping one. The three files are one basename's, and the contingency table is the same data as four counters a state pair may contribute to more than once.",
+      "cases": [
+        {
+          "dump": "GenotypeConcordanceDump",
+          "golden": null,
+          "why": "Twelve cases: a plain run, every row kept, the two floors, filters ignored, a missing site read as missing, the hom-ref flag refused without an interval list and accepted with one, an interval list on its own, a no-call, and a second sample named out of a two-sample file."
+        }
+      ]
     }
   ],
   "probes": [
