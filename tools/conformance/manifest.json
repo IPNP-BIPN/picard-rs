@@ -1354,13 +1354,13 @@
     },
     {
       "id": "rawwgsmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "CollectWgsMetrics with four defaults changed, and what those four change",
       "harness": "tools/rawwgsmetrics-conformance",
       "tools": [
         "CollectRawWgsMetrics"
       ],
-      "why": "PENDING a fresh candidate: the histogram is now trimmed past its last non-zero bin. The cap of a hundred thousand made the tool write a hundred thousand and one bins, a golden of two and a half megabytes and the slowest shard in CI, of which a handful carried anything. The committed golden is the untrimmed one and is left in place only so the Rust comparison keeps building.",
+      "why": "The tool is CollectWgsMetrics with four defaults changed and nothing else, so the same fixture goes through both and the difference between the two files is the difference between the two sets of defaults. The mapping-quality floor is ZERO, so a read at quality five is counted here and excluded whole there; the base-quality floor is THREE, which the pair of cases at quality two and quality five straddles; and an N base is still excluded, quality zero being under three as it is under twenty. The histogram is trimmed past its last non-zero bin: the cap of a hundred thousand writes a hundred thousand and one bins, and keeping them cost two and a half megabytes and the slowest shard in CI.",
       "compare": {
         "mode": "keyed"
       },
@@ -1394,21 +1394,21 @@
     },
     {
       "id": "artifacttooxog",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "two artifact tables rewritten as the older OxoG one, which is arithmetic and no reads",
       "harness": "tools/artifacttooxog-conformance",
       "tools": [
         "ConvertSequencingArtifactToOxoG"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "The conversion is not a copy: an output row for `ACA` takes its pre-adapter figures from the input's `TGT`, the reverse complement, while its bait-bias figures come from `ACA` itself, so one output row draws on two different input rows. The two floors differ: the oxidation rate is floored at ONE BASE and the two bait-bias rates at 1e-10, which reads as a Q of exactly 100. The rows come out of two HashSets, so the dump sorts them: the order is a hash and not a behaviour.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "ConvertSequencingArtifactToOxoGDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/convert_artifact_to_oxog.txt.gz",
+          "why": "Eight cases: one context, the oxidation floor, the bait-bias floor and its reverse, two libraries by two contexts, an output basename, the file named outright, and neither named at all."
         }
       ]
     }

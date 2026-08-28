@@ -304,10 +304,7 @@ jobs:
             suites: "haplotypedbtovcf liftoverhaplotypemap positiondownsample duplicatemetrics verifyidintensity"
           - group: oracle-backed
             index: "12/12"
-            suites: "bafregress wgsmetrics umiprevalence"
-          - group: golden-pending
-            index: "1/1"
-            suites: "rawwgsmetrics artifacttooxog"
+            suites: "bafregress wgsmetrics rawwgsmetrics umiprevalence artifacttooxog"
     steps:
       - uses: actions/checkout@v7
 
