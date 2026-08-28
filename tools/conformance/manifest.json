@@ -1371,6 +1371,26 @@
           "why": "Eleven cases: a read under the other tool's mapping-quality floor, bases at quality two and five, N bases, an unpaired read counted and not, a duplicate, an overlapping pair and a disjoint one, ten reads, and a file with no reads."
         }
       ]
+    },
+    {
+      "id": "umiprevalence",
+      "status": "golden-pending",
+      "title": "how many distinct UMIs each duplicate set holds, and which reads reach a set",
+      "harness": "tools/umiprevalence-conformance",
+      "tools": [
+        "CollectUmiPrevalenceMetrics"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CollectUmiPrevalenceMetricsDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
