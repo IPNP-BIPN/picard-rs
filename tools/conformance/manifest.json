@@ -1574,7 +1574,7 @@
     },
     {
       "id": "artifactmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which read reaches which artifact counter, and what the five files carry",
       "harness": "tools/artifactmetrics-conformance",
       "tools": [
@@ -1587,7 +1587,7 @@
       "cases": [
         {
           "dump": "CollectSequencingArtifactMetricsDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/collect_sequencing_artifact_metrics.txt.gz",
           "why": "Twenty-two cases: a clean pair, the same substitution in each end and on each strand, tandem reads on a pair whose ends are on opposite strands and on one carried by read two on the forward strand, context size nought, a restricted context set, a file extension, the base-quality floor with the OQ tag honoured and ignored, and each whole-read filter with the three that can be turned off shown both ways."
         }
       ]
