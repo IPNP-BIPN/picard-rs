@@ -12,7 +12,11 @@
  *   - THE BASE-QUALITY FLOOR IS THREE AND NOT TWENTY, so bases at quality two are still excluded
  *     and bases at quality five are not;
  *   - AN `N` BASE IS STILL EXCLUDED, quality zero being under three as it is under twenty;
- *   - THE COVERAGE CAP IS A HUNDRED THOUSAND, so nothing this fixture can reach is capped;
+ *   - THE COVERAGE CAP IS A HUNDRED THOUSAND, so nothing this fixture can reach is capped. Only
+ *     the `default-coverage-cap` case leaves the cap alone, and its histogram trailer counts the
+ *     zero bins the default leaves behind; every other case names a cap of two hundred and fifty,
+ *     because the reference writes one line per bin and a hundred thousand of them per case was
+ *     most of what this suite cost to run;
  *   - THE DUPLICATE AND UNPAIRED RULES ARE UNCHANGED, so a duplicate is still excluded whole and
  *     an unpaired read still needs --COUNT_UNPAIRED;
  *   - THE OVERLAP RULE IS UNCHANGED, a pair's overlap still counting once;
@@ -183,7 +187,19 @@ public class CollectRawWgsMetricsDump {
         final Path metrics = dir.resolve("out.txt");
         final List<String> argv = new ArrayList<>(List.of(
                 "I=" + in, "O=" + metrics, "R=" + reference));
-        argv.addAll(Arrays.asList(extra));
+        // The default cap is a hundred thousand, and the reference writes a histogram line for
+        // every bin up to it: a hundred thousand lines per case, which is most of what this suite
+        // costs. One case leaves the cap alone, so the golden still holds the default in its
+        // trailer of zero bins; the rest name a cap of two hundred and fifty, which changes no
+        // number here because nothing this fixture can reach is capped either way.
+        if (!Arrays.asList(extra).contains("DEFAULT_CAP")) {
+            argv.add("COVERAGE_CAP=250");
+        }
+        for (final String value : extra) {
+            if (!value.equals("DEFAULT_CAP")) {
+                argv.add(value);
+            }
+        }
         try {
             final int code = new picard.analysis.CollectRawWgsMetrics()
                     .instanceMain(argv.toArray(new String[0]));
@@ -247,6 +263,8 @@ public class CollectRawWgsMetricsDump {
             deep.add(new Read("d" + i, 1, 20, 0, 60, null, 0, null));
         }
         run("deep", deep, "COUNT_UNPAIRED=true");
+        // The same reads with the cap left alone, which is what shows the default.
+        run("default-coverage-cap", deep, "COUNT_UNPAIRED=true", "DEFAULT_CAP");
 
         // A file with no reads at all.
         run("empty", List.of());
