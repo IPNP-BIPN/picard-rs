@@ -1471,6 +1471,26 @@
           "why": "Eleven cases: the major and minor pileups by default, the other tool's default restored, contamination of nought and one, a hundred reads capped and not, a sample alias, a base matching neither allele, no reads, and two samples in one file."
         }
       ]
+    },
+    {
+      "id": "mergepedintovcf",
+      "status": "golden-pending",
+      "title": "the zCall genotype merged into a genotyping-array VCF, and what the tool swallows",
+      "harness": "tools/mergepedintovcf-conformance",
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "MergePedIntoVcfDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
