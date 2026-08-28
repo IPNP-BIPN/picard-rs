@@ -1291,6 +1291,26 @@
           "why": "Eleven cases: two pairs with one duplicate, an odd number of paired reads, an unpaired pair, a half-mapped pair, an unmapped duplicate, a secondary and a supplementary duplicate, two libraries, a read group with no library, every pair a duplicate, only unmapped reads, and a file with no reads."
         }
       ]
+    },
+    {
+      "id": "verifyidintensity",
+      "status": "golden-pending",
+      "title": "what the three regexes accept, and what they do with everything else",
+      "harness": "tools/verifyidintensity-conformance",
+      "tools": [
+        "CreateVerifyIDIntensityContaminationMetricsFile"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CreateVerifyIDIntensityContaminationMetricsFileDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
