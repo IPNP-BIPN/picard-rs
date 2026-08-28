@@ -1374,21 +1374,21 @@
     },
     {
       "id": "umiprevalence",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "how many distinct UMIs each duplicate set holds, and which reads reach a set",
       "harness": "tools/umiprevalence-conformance",
       "tools": [
         "CollectUmiPrevalenceMetrics"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "The barcode-quality filter is INVERTED: `BarcodeQualityFilter.filterOut` returns `!badQuality`, so it drops the reads whose barcode is entirely above the floor and keeps the ones with a base under it. A file of well-formed barcodes reports nothing at all, and lowering the floor makes the tool report less rather than more. Every read of the fixture carries one bad barcode base so the other nine behaviours can be seen past it.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "CollectUmiPrevalenceMetricsDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/collect_umi_prevalence_metrics.txt.gz",
+          "why": "Sixteen cases: three sets of one UMI, one set of three and one of two, a read with no UMI tag, the barcode-quality filter three ways, an unaligned read, one under the mapping-quality floor, a secondary one, an unpaired read filtered and kept, the tags named by argument, a lowered barcode floor, every read filtered, and no reads at all."
         }
       ]
     }
