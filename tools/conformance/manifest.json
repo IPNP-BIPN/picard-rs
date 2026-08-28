@@ -1534,7 +1534,7 @@
     },
     {
       "id": "nonzerowgs",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the same traversal reported twice, once over the whole territory and once over the covered part",
       "harness": "tools/nonzerowgs-conformance",
       "tools": [
@@ -1547,7 +1547,7 @@
       "cases": [
         {
           "dump": "CollectWgsMetricsWithNonZeroCoverageDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/collect_wgs_metrics_with_non_zero_coverage.txt.gz",
           "why": "Eleven cases: a pair covering part of the reference, reads covering all of it, an unpaired read excluded and counted, no reads at all, ten pairs uncapped and capped, the base-quality histogram, every read a duplicate, and the chart argument left out."
         }
       ]

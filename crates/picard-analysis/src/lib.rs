@@ -22,6 +22,7 @@ pub mod collect_duplicate_metrics;
 pub mod collect_umi_prevalence_metrics;
 pub mod collect_variant_calling_metrics;
 pub mod collect_wgs_metrics;
+pub mod collect_wgs_metrics_with_non_zero_coverage;
 pub mod compare_metrics;
 pub mod compare_sams;
 pub mod convert_artifact_to_oxog;
