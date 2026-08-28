@@ -1714,7 +1714,7 @@
     },
     {
       "id": "replicatemetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which duplicate sets count as independent replicates, and what takes a site out",
       "harness": "tools/replicatemetrics-conformance",
       "tools": [
@@ -1727,7 +1727,7 @@
       "cases": [
         {
           "dump": "CollectIndependentReplicateMetricsDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/collect_independent_replicate_metrics.txt.gz",
           "why": "Twenty-two cases: a doubleton that disagrees and two that agree, one that shares a UMI, a tripleton, a set of four, a third allele, a homozygous and a low-quality site on both sides of the floor, a low mapping quality, a low base quality on both sides, unpaired reads on both sides, a low-quality barcode, another barcode tag, the optional matrix file, the three sample rules, and a stop after one set."
         }
       ]
