@@ -1454,21 +1454,21 @@
     },
     {
       "id": "identifycontaminant",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "ExtractFingerprint with one argument negated, and what that negation changes",
       "harness": "tools/identifycontaminant-conformance",
       "tools": [
         "IdentifyContaminant"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "The tool is ExtractFingerprint with EXTRACT_CONTAMINATION set from the negation of its own EXTRACT_CONTAMINATED, so its DEFAULT is the other tool's opposite: it reports the contaminant and names the sample `-contaminant`. At a contamination of 0.5 the flip is numerically a no-op and only the name tells the two apart; at nought and one the PLs are each other's. LOCUS_MAX_READS defaults to two hundred rather than fifty.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "IdentifyContaminantDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/identify_contaminant.txt.gz",
+          "why": "Eleven cases: the major and minor pileups by default, the other tool's default restored, contamination of nought and one, a hundred reads capped and not, a sample alias, a base matching neither allele, no reads, and two samples in one file."
         }
       ]
     }
