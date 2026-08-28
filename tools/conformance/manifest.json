@@ -1311,6 +1311,26 @@
           "why": "Thirteen cases: one row and three, spaces instead of tabs, a single dash, a fraction opening on a dot, a positive likelihood, a negative fraction and a negative id, a short row, a wrong header, a file of only a header and dashes, a file of only a header, and an empty file."
         }
       ]
+    },
+    {
+      "id": "bafregress",
+      "status": "golden-pending",
+      "title": "bafRegress' stdout parsed, and the one column the tool derives",
+      "harness": "tools/bafregress-conformance",
+      "tools": [
+        "CreateBafRegressMetricsFile"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CreateBafRegressMetricsFileDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
