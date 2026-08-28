@@ -1711,6 +1711,26 @@
           "why": "Twenty-three cases: an unconverted read and a converted one, a CpG at and one before the last base, the two quality thresholds on each side, a negative strand, a soft-clipped read where the two quality readings diverge, the length and mismatch filters with the rounding boundary, a read with no CpG, the sequence filter on both sides, a second accumulation level, a prefix with and without its dot, a queryname-sorted file on both paths, and an empty file."
         }
       ]
+    },
+    {
+      "id": "replicatemetrics",
+      "status": "golden-pending",
+      "title": "which duplicate sets count as independent replicates, and what takes a site out",
+      "harness": "tools/replicatemetrics-conformance",
+      "tools": [
+        "CollectIndependentReplicateMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "A duplicate set whose reads disagree on the allele at a heterozygous site cannot have come from one molecule, which is the whole estimate. The filters around that sit at four different levels: the SITE (its genotype and its quality), the READ (its mapping quality and its pairing), the BASE (its quality) and the BARCODE (its own quality), and only the first is a property of the VCF.",
+      "cases": [
+        {
+          "dump": "CollectIndependentReplicateMetricsDump",
+          "golden": null,
+          "why": "Twenty-two cases: a doubleton that disagrees and two that agree, one that shares a UMI, a tripleton, a set of four, a third allele, a homozygous and a low-quality site on both sides of the floor, a low mapping quality, a low base quality on both sides, unpaired reads on both sides, a low-quality barcode, another barcode tag, the optional matrix file, the three sample rules, and a stop after one set."
+        }
+      ]
     }
   ],
   "probes": [
