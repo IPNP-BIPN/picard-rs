@@ -1354,13 +1354,13 @@
     },
     {
       "id": "rawwgsmetrics",
-      "status": "oracle-backed",
+      "status": "golden-pending",
       "title": "CollectWgsMetrics with four defaults changed, and what those four change",
       "harness": "tools/rawwgsmetrics-conformance",
       "tools": [
         "CollectRawWgsMetrics"
       ],
-      "why": "The tool is CollectWgsMetrics with four defaults changed and nothing else, so the same fixture goes through both and the difference between the two files is the difference between the two sets of defaults. The mapping-quality floor is ZERO, so a read at quality five is counted here and excluded whole there; the base-quality floor is THREE, which the pair of cases at quality two and quality five straddles; and an N base is still excluded, quality zero being under three as it is under twenty. The histogram is trimmed past its last non-zero bin: the cap of a hundred thousand writes a hundred thousand and one bins, and keeping them cost two and a half megabytes and the slowest shard in CI.",
+      "why": "The tool is CollectWgsMetrics with four defaults changed and nothing else, so the same fixture goes through both and the difference between the two files is the difference between the two sets of defaults. The mapping-quality floor is ZERO, so a read at quality five is counted here and excluded whole there; the base-quality floor is THREE, which the pair of cases at quality two and quality five straddles; and an N base is still excluded, quality zero being under three as it is under twenty. The histogram is trimmed past its last non-zero bin: the cap of a hundred thousand writes a hundred thousand and one bins, and keeping them cost two and a half megabytes and the slowest shard in CI. The golden here is the PREVIOUS one: the fixture below it has changed, so the file this suite regenerates no longer matches it. It stays declared and committed only so the Rust comparison keeps building; the follow-up PR replaces it with the candidate this run produces.",
       "compare": {
         "mode": "keyed"
       },
@@ -1368,7 +1368,7 @@
         {
           "dump": "CollectRawWgsMetricsDump",
           "golden": "crates/picard-analysis/tests/data/collect_raw_wgs_metrics.txt.gz",
-          "why": "Eleven cases: a read under the other tool's mapping-quality floor, bases at quality two and five, N bases, an unpaired read counted and not, a duplicate, an overlapping pair and a disjoint one, ten reads, and a file with no reads."
+          "why": "Eleven cases: a read under the other tool's mapping-quality floor, bases at quality two and five, N bases, an unpaired read counted and not, a duplicate, an overlapping pair and a disjoint one, ten reads, and a file with no reads. Only the `default-coverage-cap` case leaves the cap alone: the reference writes one histogram line per bin, and a hundred thousand of them per case was most of what this suite cost to run."
         }
       ]
     },
