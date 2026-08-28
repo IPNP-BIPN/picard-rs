@@ -1434,21 +1434,21 @@
     },
     {
       "id": "extractfingerprint",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the contaminating sample's genotype likelihoods at the haplotype map's sites",
       "harness": "tools/extractfingerprint-conformance",
       "tools": [
         "ExtractFingerprint"
       ],
-      "why": "PENDING a fresh candidate: two cases named --EXTRACT_CONTAMINATED, which is IdentifyContaminant's argument and not this tool's, so they measured an unknown argument rather than the setting they meant. The tool's own argument is --EXTRACT_CONTAMINATION and it is false by default.",
+      "why": "A read is evidence for one haplotype BLOCK and not for every site it overlaps, which is why the fixture gives each block its own reads. The block's minor-allele frequency is the prior, so the same pileup at a middling quality reports 0,13,30 where the frequency is 0.4 and 0,12,30 where it is 0.3. --EXTRACT_CONTAMINATION is FALSE by default and flips the argument rather than the output, so a default run given 0.5 is asking about the contaminated sample. And --LOCUS_MAX_READS bounds the block rather than the record: forty reads under a cap of ten give a depth of sixteen at the block of two SNPs.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "ExtractFingerprintDump",
-          "golden": null,
-          "why": "Fourteen cases: the major and minor pileups at half contamination, contamination of nought and one, the contaminated setting twice, a base matching neither allele, two base qualities, a deep pileup capped and not, a sample alias, every SNP rather than the representatives, no reads, and two samples in one file."
+          "golden": "crates/picard-analysis/tests/data/extract_fingerprint.txt.gz",
+          "why": "Fifteen cases: the major and minor pileups at half contamination, contamination of nought and one, --EXTRACT_CONTAMINATION twice, another tool's argument named here, a base matching neither allele, two base qualities, a deep pileup capped and not, a sample alias, every SNP rather than the representatives, no reads, and two samples in one file."
         }
       ]
     }
