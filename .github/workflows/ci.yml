@@ -313,7 +313,7 @@ jobs:
             suites: "variantcallingmetrics"
           - group: golden-pending
             index: "1/1"
-            suites: "nonzerowgs"
+            suites: "nonzerowgs oxog"
     steps:
       - uses: actions/checkout@v7
 
