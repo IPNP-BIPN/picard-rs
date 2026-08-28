@@ -1474,21 +1474,21 @@
     },
     {
       "id": "mergepedintovcf",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the zCall genotype merged into a genotyping-array VCF, and what the tool swallows",
       "harness": "tools/mergepedintovcf-conformance",
       "tools": [
         "MergePedIntoVcf"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "Every failure is SWALLOWED: doWork catches Exception, prints the stack trace and returns ZERO. There are two kinds. A failure before the writer opens leaves no file at all; one inside the record loop leaves a file holding its header and not one record, the writer having already opened it. The thresholds map is STATIC, so every run after the first holds every earlier run's thresholds and writes them onto records its own file never named. And a VCF whose genotypes carry nothing but GT cannot be processed, the map getExtendedAttributes answers being immutable when there are none.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "MergePedIntoVcfDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/merge_ped_into_vcf.txt.gz",
+          "why": "Nine cases in a fixed order, the last depending on it: agreeing and disagreeing PEDs, thresholds for one SNP, for all three and as NA, one NA of a pair, an A allele that is the reference, an allele of two characters, a two-sample VCF, a VCF of nothing but GT, and the static map's leak."
         }
       ]
     }
