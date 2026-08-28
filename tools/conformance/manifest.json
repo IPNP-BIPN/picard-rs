@@ -1594,7 +1594,7 @@
     },
     {
       "id": "hsmetrics",
-      "status": "oracle-backed",
+      "status": "golden-pending",
       "title": "a hybrid-selection experiment counted against its baits and its targets",
       "harness": "tools/hsmetrics-conformance",
       "tools": [
@@ -1603,12 +1603,32 @@
       "compare": {
         "mode": "keyed"
       },
-      "why": "The baits and the targets are counted separately and a read may be on one and not the other: the same file reports sixty on-bait bases and a hundred on-target ones, because one target lies outside every bait. --NEAR_DISTANCE moves the window the middle column counts, and at nought its hundred and twenty bases become off-bait ones. The coverage is counted per LOCUS, so an overlapping pair is counted once and --CLIP_OVERLAPPING_READS changes nothing.",
+      "why": "The baits and the targets are counted separately and a read may be on one and not the other: the same file reports sixty on-bait bases and a hundred on-target ones, because one target lies outside every bait. --NEAR_DISTANCE moves the window the middle column counts, and at nought its hundred and twenty bases become off-bait ones. CLIP_OVERLAPPING_READS is already true here: the shared argument defaults to false and this tool's own constructor sets it, which is why passing `true` changes nothing and passing `false` takes the on-target bases from a hundred to a hundred and twenty. The golden here is the PREVIOUS one, kept declared so the Rust comparison keeps building until the follow-up PR replaces it.",
       "cases": [
         {
           "dump": "CollectHsMetricsDump",
           "golden": "crates/picard-analysis/tests/data/collect_hs_metrics.txt.gz",
-          "why": "Twelve cases: a plain run, the per-target and per-base files, a near distance of nought, a named bait set, a mapping-quality floor above every read and a base-quality floor above every base, an overlapping pair with and without clipping, a file with no reads, and a pair at mapping quality nought that the default floor of one already excludes."
+          "why": "Fourteen cases: a plain run, the per-target and per-base files, a near distance of nought, a named bait set, a mapping-quality floor above every read and a base-quality floor above every base, the clipping argument turned on and off, an overlapping pair three ways, a file with no reads, and a pair at mapping quality nought."
+        }
+      ]
+    },
+    {
+      "id": "pcrmetrics",
+      "status": "golden-pending",
+      "title": "the same collector under the amplicon column names",
+      "harness": "tools/pcrmetrics-conformance",
+      "tools": [
+        "CollectTargetedPcrMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The tool is CollectHsMetrics' collector with the baits called amplicons, so what the golden is for is the column names and the places the two tools do NOT agree. The arithmetic is the same: the three amplicon columns partition the aligned bases as the bait ones do, and the same fixture answers the same numbers under the other names.",
+      "cases": [
+        {
+          "dump": "CollectTargetedPcrMetricsDump",
+          "golden": null,
+          "why": "Eleven cases: a plain run, the per-target and per-base files, a near distance of nought, a named amplicon set, a mapping-quality floor above every read and a base-quality floor above every base, an overlapping pair with and without clipping, no reads at all, and a pair at mapping quality nought."
         }
       ]
     }
