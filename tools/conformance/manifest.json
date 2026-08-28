@@ -1294,21 +1294,21 @@
     },
     {
       "id": "verifyidintensity",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "what the three regexes accept, and what they do with everything else",
       "harness": "tools/verifyidintensity-conformance",
       "tools": [
         "CreateVerifyIDIntensityContaminationMetricsFile"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "A file that ends early is a NullPointerException and not a PicardException: the reader answers null and the matcher is handed it without a guard. A file of only a header and dashes writes a metrics file with no table at all, not even the column line. And the three patterns are strict where it matters and loose where it does not: the dashes are not counted, the columns split on runs of whitespace, and the fraction may open on a dot but may not be negative.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "CreateVerifyIDIntensityContaminationMetricsFileDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/create_verify_id_intensity_metrics.txt.gz",
+          "why": "Thirteen cases: one row and three, spaces instead of tabs, a single dash, a fraction opening on a dot, a positive likelihood, a negative fraction and a negative id, a short row, a wrong header, a file of only a header and dashes, a file of only a header, and an empty file."
         }
       ]
     }
