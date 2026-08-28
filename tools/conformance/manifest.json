@@ -1511,6 +1511,26 @@
           "why": "Nine cases: a round trip that divides evenly and one that does not, two inputs of one sample, two inputs of two samples, one input naming two samples, a NaN ratio, a summary of two rows, and a prefix whose files are not there."
         }
       ]
+    },
+    {
+      "id": "variantcallingmetrics",
+      "status": "golden-pending",
+      "title": "which variants are counted where, and what the derived columns make of the counts",
+      "harness": "tools/variantcallingmetrics-conformance",
+      "tools": [
+        "CollectVariantCallingMetrics"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CollectVariantCallingMetricsDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
