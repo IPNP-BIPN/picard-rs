@@ -1334,21 +1334,21 @@
     },
     {
       "id": "wgsmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which base reaches the depth histogram and which counter takes the rest",
       "harness": "tools/wgsmetrics-conformance",
       "tools": [
         "CollectWgsMetrics"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "The seven exclusion counters are a partition of the bases that did not count, and the fixture puts one base in each. GENOME_TERRITORY is the NON-N bases of the reference and not the covered ones, so it is 190 of 200. A wholly overlapping pair covers its span at depth ONE, the second end's bases going to PCT_EXC_OVERLAP. An N base is excluded by QUALITY whatever its quality says. And --INCLUDE_BQ_HISTOGRAM adds a third COLUMN rather than a second table.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "CollectWgsMetricsDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/collect_wgs_metrics.txt.gz",
+          "why": "Thirteen cases: an unpaired read counted and not, a disjoint pair and a wholly overlapping one, a read under the mapping-quality floor, one half under the base-quality floor, one with N bases, a duplicate, a pair with one end unmapped, ten reads capped and not, the histogram, and a file with no reads."
         }
       ]
     }
