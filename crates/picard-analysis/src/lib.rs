@@ -35,6 +35,7 @@ pub mod create_sequence_dictionary;
 pub mod create_verify_id_intensity_metrics;
 pub mod cycle;
 pub mod downsample_sam;
+pub mod estimate_library_complexity;
 pub mod extract_fingerprint;
 pub mod extract_sequences;
 pub mod fastq_to_sam;

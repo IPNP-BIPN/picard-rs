@@ -1634,7 +1634,7 @@
     },
     {
       "id": "libcomplexity",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which pairs a group calls duplicates, and the estimate the histogram gives",
       "harness": "tools/libcomplexity-conformance",
       "tools": [
@@ -1647,7 +1647,7 @@
       "cases": [
         {
           "dump": "EstimateLibraryComplexityDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/estimate_library_complexity.txt.gz",
           "why": "Nineteen cases: two and three identical pairs, a difference at the sixth base under two seeds, a difference inside the seed, two diff rates, a low mean quality with the floor at its default and lowered, an N in the seed, a read shorter than the seed, the group-count floor both ways, two duplicate groups, a fixture deep enough to estimate from, two optical duplicates, two libraries, no duplicate at all, and a difference on each side of --MAX_READ_LENGTH."
         }
       ]
