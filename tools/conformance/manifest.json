@@ -1271,6 +1271,26 @@
           "why": "PENDING: written once the measurement is read."
         }
       ]
+    },
+    {
+      "id": "duplicatemetrics",
+      "status": "golden-pending",
+      "title": "the marks a duplicate-marked file already carries, tallied",
+      "harness": "tools/duplicatemetrics-conformance",
+      "tools": [
+        "CollectDuplicateMetrics"
+      ],
+      "why": "PENDING: written once the measurement is read.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "CollectDuplicateMetricsDump",
+          "golden": null,
+          "why": "PENDING: written once the measurement is read."
+        }
+      ]
     }
   ],
   "probes": [
