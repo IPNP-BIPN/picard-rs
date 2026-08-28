@@ -313,10 +313,7 @@ jobs:
             suites: "variantcallingmetrics nonzerowgs oxog artifactmetrics hsmetrics"
           - group: oracle-backed
             index: "15/15"
-            suites: "pcrmetrics libcomplexity genotypeconcordance multiplemetrics"
-          - group: golden-pending
-            index: "1/1"
-            suites: "rrbsmetrics"
+            suites: "pcrmetrics libcomplexity genotypeconcordance multiplemetrics rrbsmetrics"
     steps:
       - uses: actions/checkout@v7
 

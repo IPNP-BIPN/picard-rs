@@ -1694,7 +1694,7 @@
     },
     {
       "id": "rrbsmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which cytosines an RRBS run counts, and which of them are CpG",
       "harness": "tools/rrbsmetrics-conformance",
       "tools": [
@@ -1707,7 +1707,7 @@
       "cases": [
         {
           "dump": "CollectRrbsMetricsDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/collect_rrbs_metrics.txt.gz",
           "why": "Twenty-three cases: an unconverted read and a converted one, a CpG at and one before the last base, the two quality thresholds on each side, a negative strand, a soft-clipped read where the two quality readings diverge, the length and mismatch filters with the rounding boundary, a read with no CpG, the sequence filter on both sides, a second accumulation level, a prefix with and without its dot, a queryname-sorted file on both paths, and an empty file."
         }
       ]
