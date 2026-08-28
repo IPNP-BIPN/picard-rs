@@ -1554,7 +1554,7 @@
     },
     {
       "id": "oxog",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which read reaches which of the eight oxidation counters, and what the rates make of them",
       "harness": "tools/oxog-conformance",
       "tools": [
@@ -1567,7 +1567,7 @@
       "cases": [
         {
           "dump": "CollectOxoGMetricsDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/collect_oxo_g_metrics.txt.gz",
           "why": "Twenty-two cases: the reference alone, the alternate at a G site in each end and on each strand, at a C site in each end, the base-quality floor, the OQ tag honoured and ignored, the mapping-quality floor, both ends of the insert-size window, a duplicate, a secondary alignment, the first base of the contig, context size zero, a restricted context set, two contexts the validation refuses, two libraries, the debugging stop, a known site, an interval list, and a file with no read group."
         }
       ]
