@@ -1514,21 +1514,21 @@
     },
     {
       "id": "variantcallingmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which variants are counted where, and what the derived columns make of the counts",
       "harness": "tools/variantcallingmetrics-conformance",
       "tools": [
         "CollectVariantCallingMetrics"
       ],
-      "why": "PENDING: written once the measurement is read.",
+      "why": "The known and the novel variants are counted apart in every column, and the fixture is built so the two TI/TV ratios differ rather than coinciding: 2 against 0.5. The summary is NOT the detail rows' sum, a two-sample file where one sample is hom-ref at half the sites reporting four SNPs in the summary, four for the first sample and two for the second. And an empty VCF still writes both files, PCT_DBSNP coming out `?` while the TI/TV columns come out `0`.",
       "compare": {
         "mode": "keyed"
       },
       "cases": [
         {
           "dump": "CollectVariantCallingMetricsDump",
-          "golden": null,
-          "why": "PENDING: written once the measurement is read."
+          "golden": "crates/picard-analysis/tests/data/collect_variant_calling_metrics.txt.gz",
+          "why": "Ten cases: known and novel mixed, nothing known, everything known, a filtered variant, indels, a multiallelic SNP, two samples, a target interval list, and an empty VCF."
         }
       ]
     }
