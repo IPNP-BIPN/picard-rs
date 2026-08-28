@@ -1551,6 +1551,26 @@
           "why": "Eleven cases: a pair covering part of the reference, reads covering all of it, an unpaired read excluded and counted, no reads at all, ten pairs uncapped and capped, the base-quality histogram, every read a duplicate, and the chart argument left out."
         }
       ]
+    },
+    {
+      "id": "oxog",
+      "status": "golden-pending",
+      "title": "which read reaches which of the eight oxidation counters, and what the rates make of them",
+      "harness": "tools/oxog-conformance",
+      "tools": [
+        "CollectOxoGMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The counters turn on which END of the pair carries the alternate and on which strand it was read, which is the whole of the 8-oxo-G argument: `G>T` in read one and `C>A` in read two are the oxidised state, and the same substitutions in the other end are the control. The row order is a HashMap's over the context strings, so it reaches the file unsorted, and a G site is folded into the reverse complement of its context rather than getting a row of its own.",
+      "cases": [
+        {
+          "dump": "CollectOxoGMetricsDump",
+          "golden": null,
+          "why": "Twenty-two cases: the reference alone, the alternate at a G site in each end and on each strand, at a C site in each end, the base-quality floor, the OQ tag honoured and ignored, the mapping-quality floor, both ends of the insert-size window, a duplicate, a secondary alignment, the first base of the contig, context size zero, a restricted context set, two contexts the validation refuses, two libraries, the debugging stop, a known site, an interval list, and a file with no read group."
+        }
+      ]
     }
   ],
   "probes": [
