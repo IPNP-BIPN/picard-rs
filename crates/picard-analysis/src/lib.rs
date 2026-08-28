@@ -20,6 +20,7 @@ pub mod collect_duplicate_metrics;
 pub mod compare_metrics;
 pub mod compare_sams;
 pub mod create_sequence_dictionary;
+pub mod create_verify_id_intensity_metrics;
 pub mod cycle;
 pub mod downsample_sam;
 pub mod extract_sequences;
