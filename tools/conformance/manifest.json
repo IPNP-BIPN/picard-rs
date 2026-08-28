@@ -1591,6 +1591,26 @@
           "why": "Twenty-two cases: a clean pair, the same substitution in each end and on each strand, tandem reads on a pair whose ends are on opposite strands and on one carried by read two on the forward strand, context size nought, a restricted context set, a file extension, the base-quality floor with the OQ tag honoured and ignored, and each whole-read filter with the three that can be turned off shown both ways."
         }
       ]
+    },
+    {
+      "id": "hsmetrics",
+      "status": "golden-pending",
+      "title": "a hybrid-selection experiment counted against its baits and its targets",
+      "harness": "tools/hsmetrics-conformance",
+      "tools": [
+        "CollectHsMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The baits and the targets are counted separately and a read may be on one and not the other: the same file reports sixty on-bait bases and a hundred on-target ones, because one target lies outside every bait. --NEAR_DISTANCE moves the window the middle column counts, and at nought its hundred and twenty bases become off-bait ones. The coverage is counted per LOCUS, so an overlapping pair is counted once and --CLIP_OVERLAPPING_READS changes nothing.",
+      "cases": [
+        {
+          "dump": "CollectHsMetricsDump",
+          "golden": null,
+          "why": "Twelve cases: a plain run, the per-target and per-base files, a near distance of nought, a named bait set, a mapping-quality floor above every read and a base-quality floor above every base, an overlapping pair with and without clipping, a file with no reads, and a pair at mapping quality nought that the default floor of one already excludes."
+        }
+      ]
     }
   ],
   "probes": [
