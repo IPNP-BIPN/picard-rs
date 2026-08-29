@@ -1851,6 +1851,26 @@
           "why": "Eleven cases: reads agreeing and disagreeing with the genotypes, heterozygous and homozygous-alternate calls, a one-read pileup, a file covering one block, no reads at all, a sample the genotypes do not have with and without the expected alias, and a two-sample genotype file with each of the two named."
         }
       ]
+    },
+    {
+      "id": "markduplicates",
+      "status": "golden-pending",
+      "title": "which record of a duplicate set keeps the bit clear, and what the metrics count",
+      "harness": "tools/markduplicates-conformance",
+      "tools": [
+        "MarkDuplicates"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "Duplicates are decided by the 5' position and the orientation and not by the bases, so soft clipping moves the position a read is compared at. Which record of a set keeps the bit clear is the scoring strategy's answer, and optical duplicates are a subset told apart by the tile coordinates in the read NAME rather than by anything in the alignment.",
+      "cases": [
+        {
+          "dump": "MarkDuplicatesDump",
+          "golden": null,
+          "why": "Eighteen cases: two pairs at one position, the same two close enough to be optical with the regex off and the distance narrowed, pairs of different lengths under both scoring strategies, three singles, a soft-clipped read, an unmapped and a secondary one, removal of all duplicates and of the optical ones only, two tagging policies, an incoming DT tag with and without CLEAR_DT, and a barcode that splits one position into two sets."
+        }
+      ]
     }
   ],
   "probes": [
