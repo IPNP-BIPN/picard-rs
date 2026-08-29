@@ -252,11 +252,7 @@ pub fn accumulate(site: &Site, trio: &Trio, options: &Options, metrics: &mut Met
     if site.alleles.len() < 2 {
         return Outcome::Skipped;
     }
-    if options
-        .skip_chroms
-        .iter()
-        .any(|chrom| *chrom == site.contig)
-    {
+    if options.skip_chroms.contains(&site.contig) {
         return Outcome::Skipped;
     }
 
@@ -319,16 +315,14 @@ pub fn accumulate(site: &Site, trio: &Trio, options: &Options, metrics: &mut Met
     // Whether the child is haploid here, and if it is, which parent can have donated.
     let mut haploid = false;
     let mut haploid_parent: Option<&Genotype> = None;
-    if options.female_chroms.contains(&site.contig) && trio.offspring_sex != Sex::Unknown {
-        if trio.offspring_sex == Sex::Female {
-            haploid = false;
-        } else if is_in_pseudo_autosomal_region(&options.par_intervals, &site.contig, site.position)
-        {
-            haploid = false;
-        } else {
-            haploid = true;
-            haploid_parent = Some(mother);
-        }
+    // A male child's X is haploid, and only outside the pseudo-autosomal regions: inside one he is
+    // diploid like his sister, and so is a child whose sex the pedigree does not give.
+    if options.female_chroms.contains(&site.contig)
+        && trio.offspring_sex == Sex::Male
+        && !is_in_pseudo_autosomal_region(&options.par_intervals, &site.contig, site.position)
+    {
+        haploid = true;
+        haploid_parent = Some(mother);
     }
     if options.male_chroms.contains(&site.contig) {
         if trio.offspring_sex == Sex::Male {
