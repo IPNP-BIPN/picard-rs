@@ -331,7 +331,7 @@ jobs:
             suites: "basecallstofastq basecallingmetrics basecallstosam pffailmetrics fifobuffer"
           - group: golden-pending
             index: "3/3"
-            suites: "liftovervcf mendelianviolations baitdesigner"
+            suites: "liftovervcf mendelianviolations baitdesigner bpmtocsv comparegtc"
     steps:
       - uses: actions/checkout@v7
 
