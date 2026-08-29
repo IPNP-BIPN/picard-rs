@@ -1731,6 +1731,26 @@
           "why": "Twenty-two cases: a doubleton that disagrees and two that agree, one that shares a UMI, a tripleton, a set of four, a third allele, a homozygous and a low-quality site on both sides of the floor, a low mapping quality, a low base quality on both sides, unpaired reads on both sides, a low-quality barcode, another barcode tag, the optional matrix file, the three sample rules, and a stop after one set."
         }
       ]
+    },
+    {
+      "id": "arraysmetrics",
+      "status": "golden-pending",
+      "title": "what an array's calling metrics take from the VCF header and what they take from its variants",
+      "harness": "tools/arraysmetrics-conformance",
+      "tools": [
+        "CollectArraysVariantCallingMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "Almost everything the tool reports comes out of the VCF's HEADER and not out of its variants: the chip, the sample, the two genders, the call rate the genotyping software reported, the dates, the cluster file and the twenty-three control codes. Which of those header lines are required and which are optional is not guessable, and a missing one is a refusal naming the line.",
+      "cases": [
+        {
+          "dump": "CollectArraysVariantCallingMetricsDump",
+          "golden": null,
+          "why": "Eighteen cases: a plain run and one whose dbSNP knows nothing, a filtered assay and the two filters that are not the same fate, the GTA attribute on both sides, an indel, seven headers each missing one line, the call-rate threshold on each side, and two processors against one."
+        }
+      ]
     }
   ],
   "probes": [
