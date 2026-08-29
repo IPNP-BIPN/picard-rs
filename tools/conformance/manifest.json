@@ -2033,6 +2033,46 @@
           "why": "Eleven runs over the shared four-cluster fixture read as `2T2B`: two barcodes, one, one nobody carries, a barcode one base away with the mismatch allowance each side of its cut, two EQUIDISTANT barcodes with and without a delta, a quality floor below and above the fixture's bases, a barcode of the wrong length (which crashes rather than refusing), and the argument that names barcodes without a file."
         }
       ]
+    },
+    {
+      "id": "basecallstofastq",
+      "status": "golden-pending",
+      "title": "the FASTQ a basecalls directory becomes, and what the read structure leaves out of it",
+      "harness": "tools/illumina-conformance",
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "This is the tool the Illumina family exists for. The read structure cuts the same cycles into different reads, and a barcode or a skip segment is not written at all, so four cycles are one read of four bases or two of two or one of two. The read name carries the run, the lane, the tile and the cluster's coordinates, which is where the .locs floats end up, and MULTIPLEX_PARAMS splits the output by the barcode ExtractIlluminaBarcodes would have found.",
+      "cases": [
+        {
+          "dump": "BasecallsToFastqDump",
+          "golden": null,
+          "why": "Ten runs over the shared four-cluster fixture: the cycles as one read, as two, with a barcode segment and with a skip; the filtered cluster in and out; the two read name formats; and four multiplexed runs, including a barcode the params do not declare with and without the argument that ignores it."
+        }
+      ]
+    },
+    {
+      "id": "basecallingmetrics",
+      "status": "golden-pending",
+      "title": "a lane's clusters counted per barcode",
+      "harness": "tools/illumina-conformance",
+      "tools": [
+        "CollectIlluminaBasecallingMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The summary a run gets once ExtractIlluminaBarcodes has decided which barcode each cluster is: the counts are per barcode with a row for the clusters that matched none, the PF columns come from the filter file rather than from the basecalls, and the read structure decides how many cycles count as bases at all.",
+      "cases": [
+        {
+          "dump": "BasecallingMetricsDump",
+          "golden": null,
+          "why": "Five runs over the shared four-cluster fixture: the whole lane as one row, the lane split by barcode after an extraction, a barcode segment with no barcodes given, a skipped segment, and a lane the run does not have."
+        }
+      ]
     }
   ],
   "probes": [
