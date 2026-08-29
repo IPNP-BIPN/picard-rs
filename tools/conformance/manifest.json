@@ -2113,6 +2113,26 @@
           "why": "Five runs over the shared four-cluster fixture: the lane as it is, two cycles to judge by, more cycles than the run carries, the sampled second file, and a lane the run does not have."
         }
       ]
+    },
+    {
+      "id": "fifobuffer",
+      "status": "golden-pending",
+      "title": "the bytes a buffer passes through, and the shape it refuses",
+      "harness": "tools/fifobuffer-conformance",
+      "tools": [
+        "FifoBuffer"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The smallest tool in Picard: it copies its input to its output through a CIRCULAR buffer so a pipeline can decouple a slow writer from a slow reader. What there is to measure is that the bytes come out unchanged whatever the buffer's shape, including the bytes a text tool would mangle, and what it does when the shape is impossible.",
+      "cases": [
+        {
+          "dump": "FifoBufferDump",
+          "golden": null,
+          "why": "Eight runs: a line of text, nothing at all, a buffer smaller than the input and one of a single byte, an IO size above the buffer, six bytes that are not text, and a hundred thousand bytes through the default buffer and through a small one."
+        }
+      ]
     }
   ],
   "probes": [
