@@ -1831,6 +1831,26 @@
           "why": "Fifteen cases: an adapter at the first base and one halfway, no adapter, eleven and twelve bases of it with the minimum moved, one and two mismatches with the rate moved, a pair whose reads agree and one whose reads do not, a single named adapter, a custom pair, and a read that already carries a tag with and without an adapter."
         }
       ]
+    },
+    {
+      "id": "checkfingerprint",
+      "status": "golden-pending",
+      "title": "whether a file's sample is the sample its genotypes claim, and by how much",
+      "harness": "tools/checkfingerprint-conformance",
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The answer is a LOD score per haplotype block, positive for agreement and negative for disagreement, and the fixture is the extractfingerprint suite's own: three sites, two of them in one block, so a file that covers one block is fewer rows and not a row of zeros. A sample the genotypes do not carry is a RETURN CODE and not an exception.",
+      "cases": [
+        {
+          "dump": "CheckFingerprintDump",
+          "golden": null,
+          "why": "Eleven cases: reads agreeing and disagreeing with the genotypes, heterozygous and homozygous-alternate calls, a one-read pileup, a file covering one block, no reads at all, a sample the genotypes do not have with and without the expected alias, and a two-sample genotype file with each of the two named."
+        }
+      ]
     }
   ],
   "probes": [
