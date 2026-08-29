@@ -135,6 +135,24 @@ public class MakeGtc {
         return out.toByteArray();
     }
 
+    /** A B allele frequency per locus, which a homozygous call puts at nought or one. */
+    static List<Float> bAlleleFreqs(final Sample sample) {
+        final List<Float> values = new java.util.ArrayList<>();
+        for (final int call : sample.genotypes()) {
+            values.add(call == 1 ? 0.0f : call == 2 ? 0.5f : call == 3 ? 1.0f : Float.NaN);
+        }
+        return values;
+    }
+
+    /** A log R ratio per locus, which says how much signal there was. */
+    static List<Float> logRRatios(final Sample sample) {
+        final List<Float> values = new java.util.ArrayList<>();
+        for (int index = 0; index < sample.genotypes().size(); index++) {
+            values.add(0.1f * index);
+        }
+        return values;
+    }
+
     static byte[] callRate(final float rate) {
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         writeFloat(out, rate);
@@ -154,6 +172,10 @@ public class MakeGtc {
         payloads.put(100, string(clusterFile));
         payloads.put(101, string(manifest));
         payloads.put(400, transformations(normalizations));
+        // The control intensities: `GtcToVcf` reads their length unconditionally, so a file
+        // without them makes it throw rather than report.
+        payloads.put(500, unsignedShorts(List.of(10, 20, 30)));
+        payloads.put(501, unsignedShorts(List.of(11, 21, 31)));
         payloads.put(1000, unsignedShorts(sample.rawX()));
         payloads.put(1001, unsignedShorts(sample.rawY()));
         payloads.put(1002, genotypes(sample.genotypes()));
@@ -162,6 +184,9 @@ public class MakeGtc {
         payloads.put(1006, callRate(sample.callRate()));
         // The intensity percentiles are three unsigned shorts apiece, and the comparison reads
         // them unconditionally: a file without them makes the tool throw rather than report.
+        // The per-locus arrays a VCF's FORMAT fields are built from.
+        payloads.put(1012, floats(bAlleleFreqs(sample)));
+        payloads.put(1013, floats(logRRatios(sample)));
         payloads.put(1014, shorts(List.of(100, 500, 900)));
         payloads.put(1015, shorts(List.of(110, 510, 910)));
 
