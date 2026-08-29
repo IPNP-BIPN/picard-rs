@@ -298,43 +298,40 @@ jobs:
             suites: "normalizefasta samtofastqwithtags mergebamalignment mergebamalignment-full mergebamalignment-header"
           - group: oracle-backed
             index: "10/21"
-            suites: "jumpinglibrary comparemetrics sortgff checkdupmarking qualityyieldflow"
+            suites: "mergebamalignment-pair jumpinglibrary comparemetrics sortgff checkdupmarking"
           - group: oracle-backed
             index: "11/21"
-            suites: "vcfsamplenamemap haplotypedbtovcf liftoverhaplotypemap positiondownsample duplicatemetrics"
+            suites: "qualityyieldflow vcfsamplenamemap haplotypedbtovcf liftoverhaplotypemap positiondownsample"
           - group: oracle-backed
             index: "12/21"
-            suites: "verifyidintensity bafregress wgsmetrics rawwgsmetrics umiprevalence"
+            suites: "duplicatemetrics verifyidintensity bafregress wgsmetrics rawwgsmetrics"
           - group: oracle-backed
             index: "13/21"
-            suites: "artifacttooxog clustercrosscheck extractfingerprint identifycontaminant mergepedintovcf"
+            suites: "umiprevalence artifacttooxog clustercrosscheck extractfingerprint identifycontaminant"
           - group: oracle-backed
             index: "14/21"
-            suites: "accumulatevcm variantcallingmetrics nonzerowgs oxog artifactmetrics"
+            suites: "mergepedintovcf accumulatevcm variantcallingmetrics nonzerowgs oxog"
           - group: oracle-backed
             index: "15/21"
-            suites: "hsmetrics pcrmetrics libcomplexity genotypeconcordance multiplemetrics"
+            suites: "artifactmetrics hsmetrics pcrmetrics libcomplexity genotypeconcordance"
           - group: oracle-backed
             index: "16/21"
-            suites: "rrbsmetrics replicatemetrics arraysmetrics combinearrays bamtobfq"
+            suites: "multiplemetrics rrbsmetrics replicatemetrics arraysmetrics combinearrays"
           - group: oracle-backed
             index: "17/21"
-            suites: "vcftoadpc markadapters checkfingerprint markduplicates matecigarduplicates"
+            suites: "bamtobfq vcftoadpc markadapters checkfingerprint markduplicates"
           - group: oracle-backed
             index: "18/21"
-            suites: "umiduplicates crosscheckfingerprints fingerprintmetrics samerrormetrics checkilluminadirectory"
+            suites: "matecigarduplicates umiduplicates crosscheckfingerprints fingerprintmetrics samerrormetrics"
           - group: oracle-backed
             index: "19/21"
-            suites: "illuminalanemetrics extractilluminabarcodes basecallstofastq basecallingmetrics basecallstosam"
+            suites: "checkilluminadirectory illuminalanemetrics extractilluminabarcodes basecallstofastq basecallingmetrics"
           - group: oracle-backed
             index: "20/21"
-            suites: "pffailmetrics fifobuffer liftovervcf mendelianviolations baitdesigner"
+            suites: "basecallstosam pffailmetrics fifobuffer liftovervcf mendelianviolations"
           - group: oracle-backed
             index: "21/21"
-            suites: "bpmtocsv comparegtc gtctovcf createextendedmanifest"
-          - group: golden-pending
-            index: "1/1"
-            suites: "mergebamalignment-pair"
+            suites: "baitdesigner bpmtocsv comparegtc gtctovcf createextendedmanifest"
     steps:
       - uses: actions/checkout@v7
 
