@@ -1912,6 +1912,26 @@
           "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added this suite, and identical to the local smoke run. Eleven runs with the marked output, the duplication metrics and the UMI metrics table."
         }
       ]
+    },
+    {
+      "id": "crosscheckfingerprints",
+      "status": "golden-pending",
+      "title": "every pair of fingerprints against every other, and the verdict on each",
+      "harness": "tools/checkfingerprint-conformance",
+      "tools": [
+        "CrosscheckFingerprints"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "CheckFingerprint asks whether one file's sample is the sample a set of genotypes says it is. This one asks the question of every PAIR of inputs with nothing to compare against but each other, so what is expected comes from the sample NAMES rather than from a set of genotypes: two read groups of one sample are expected to match, and a match between two samples is unexpected however good the LOD is.",
+      "cases": [
+        {
+          "dump": "CrosscheckFingerprintsDump",
+          "golden": null,
+          "why": "Thirteen runs over the same three-site fixture CheckFingerprint uses: one sample agreeing and disagreeing, two samples under both crosscheck modes, one file of two read groups under the three CROSSCHECK_BY values, a second input, errors only, the matrix shape, EXPECT_ALL_GROUPS_TO_MATCH with the default code and a named one, and a LOD threshold."
+        }
+      ]
     }
   ],
   "probes": [
