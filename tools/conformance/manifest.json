@@ -1794,7 +1794,7 @@
     },
     {
       "id": "vcftoadpc",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the adpc.bin an array VCF becomes, field by field",
       "harness": "tools/vcftoadpc-conformance",
       "tools": [
@@ -1807,7 +1807,7 @@
       "cases": [
         {
           "dump": "VcfToAdpcDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/vcf_to_adpc.txt.gz",
           "why": "Fourteen cases: the three called genotypes and the no-call, the allele fields reversed and one carrying a star, an intensity at and over the limit of an unsigned short, a missing normalized intensity, two loci, two samples, two VCFs agreeing and disagreeing on their length, and a VCF with no records."
         }
       ]
