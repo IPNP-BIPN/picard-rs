@@ -2153,6 +2153,26 @@
           "why": "Ten runs over a chain with one forward block offset by twelve and one reversed block: a variant inside a block, between the blocks, inside the reversed one, a reference mismatch with no recovery available, a swapped reference and alternate with and without the argument that recovers it, the two arguments that record where a variant came from, and three variants at once to see the order the output is written in."
         }
       ]
+    },
+    {
+      "id": "mendelianviolations",
+      "status": "golden-pending",
+      "title": "a trio's impossible genotypes, and the calls the checker declines to look at",
+      "harness": "tools/mendelian-conformance",
+      "tools": [
+        "FindMendelianViolations"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "A child's alleles come one from each parent, so a call that cannot be explained that way is a violation. What makes the tool more than that arithmetic is everything it declines to count: a call below a genotype quality or a depth, a heterozygous call whose allele depths do not look heterozygous, a contig on the skip list, and the sex chromosomes, where a male child's X is haploid and a het call is its own kind of violation.",
+      "cases": [
+        {
+          "dump": "MendelianViolationsDump",
+          "golden": null,
+          "why": "Twelve runs over a trio VCF written record by record: a possible child, two violations counted to different parents, a low-quality call with the floor each side of it, a shallow call, a lopsided heterozygote, the X for a male and a female child, the mitochondrion, a run that asks for the offending records to be written (which the reference refuses with a duplicate-sample-name error), and a tab report."
+        }
+      ]
     }
   ],
   "probes": [
