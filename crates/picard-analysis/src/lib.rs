@@ -81,6 +81,7 @@ pub mod mark_illumina_adapters;
 pub mod mate_cigar_duplicates;
 pub mod math3;
 pub mod merge_bam_alignment;
+pub mod merge_bam_alignment_header;
 pub mod merge_ped_into_vcf;
 pub mod merge_sam_files;
 pub mod non_n_fasta_size;
