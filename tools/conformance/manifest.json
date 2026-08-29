@@ -1100,7 +1100,7 @@
     },
     {
       "id": "mergebamalignment-header",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the header MergeBamAlignment builds from three files",
       "harness": "tools/mergebamalignment-conformance",
       "tools": [
@@ -1114,7 +1114,7 @@
       "cases": [
         {
           "dump": "MergeBamAlignmentHeaderDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/merge_bam_alignment_header.txt.gz",
           "why": "Twelve runs: the whole header; the reference named the long way round, through a directory and back out of it, which says whether the UR is canonicalised; a read group the aligner rewrote and an unmapped bam with none; a chain of two programs; two aligned files whose program ids collide; a whole program record from the command line and half of one, which is refused; comments in both inputs; queryname and unsorted output; and two aligned headers that disagree with the dictionary, by length and by name."
         }
       ]
