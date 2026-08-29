@@ -83,6 +83,7 @@ pub mod math3;
 pub mod merge_bam_alignment;
 pub mod merge_bam_alignment_clip;
 pub mod merge_bam_alignment_header;
+pub mod merge_bam_alignment_hits;
 pub mod merge_bam_alignment_pair;
 pub mod merge_ped_into_vcf;
 pub mod merge_sam_files;
