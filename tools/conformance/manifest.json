@@ -1099,6 +1099,27 @@
       ]
     },
     {
+      "id": "mergebamalignment-header",
+      "status": "golden-pending",
+      "title": "the header MergeBamAlignment builds from three files",
+      "harness": "tools/mergebamalignment-conformance",
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "why": "The records are measured by `mergebamalignment`; this is the header they arrive under, and it is built from three files rather than one: the sequences from the reference dictionary, the read groups from the UNMAPPED bam, the programs from the ALIGNED one. The temp directory is canonicalised to `<dir>`, because the `UR` and the tool's own command line both carry it; what is compared is which lines are there and what they hold.",
+      "compare": {
+        "mode": "keyed",
+        "skip_comment_lines": false
+      },
+      "cases": [
+        {
+          "dump": "MergeBamAlignmentHeaderDump",
+          "golden": null,
+          "why": "Twelve runs: the whole header; the reference named the long way round, through a directory and back out of it, which says whether the UR is canonicalised; a read group the aligner rewrote and an unmapped bam with none; a chain of two programs; two aligned files whose program ids collide; a whole program record from the command line and half of one, which is refused; comments in both inputs; queryname and unsorted output; and two aligned headers that disagree with the dictionary, by length and by name."
+        }
+      ]
+    },
+    {
       "id": "jumpinglibrary",
       "tools": [
         "CollectJumpingLibraryMetrics"

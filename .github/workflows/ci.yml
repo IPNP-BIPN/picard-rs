@@ -332,6 +332,9 @@ jobs:
           - group: oracle-backed
             index: "21/21"
             suites: "comparegtc gtctovcf createextendedmanifest"
+          - group: golden-pending
+            index: "1/1"
+            suites: "mergebamalignment-header"
     steps:
       - uses: actions/checkout@v7
 
