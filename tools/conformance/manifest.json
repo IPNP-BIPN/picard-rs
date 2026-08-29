@@ -1141,6 +1141,27 @@
       ]
     },
     {
+      "id": "mergebamalignment-clip",
+      "status": "golden-pending",
+      "title": "what MergeBamAlignment clips, and what it unmaps",
+      "harness": "tools/mergebamalignment-conformance",
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "why": "Three things shorten or remove an alignment on the way through: the contig it runs off the end of, the adapter the unmapped bam marked in it, and the contamination filter that decides an alignment is too short to believe. Several data-line rows share one (kind, case) key, so the full line sequence is compared.",
+      "compare": {
+        "mode": "lines",
+        "skip_comment_lines": false
+      },
+      "cases": [
+        {
+          "dump": "MergeBamAlignmentClipDump",
+          "golden": null,
+          "why": "Eleven runs: an alignment ten bases off the end of its contig, the same one already ending in a soft clip, and one that fits; an adapter marked by XT, clipped and left alone; a short alignment kept, unmapped as a contaminant, and kept again under a lower MIN_UNCLIPPED_BASES; the same shortness clipped at one end only, which is not a contaminant at all; and the three unmapped-read strategies over the same contaminant."
+        }
+      ]
+    },
+    {
       "id": "jumpinglibrary",
       "tools": [
         "CollectJumpingLibraryMetrics"
