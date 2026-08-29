@@ -1953,6 +1953,26 @@
           "why": "Eleven runs: six of CalculateFingerprintMetrics over one and two read groups, the three CALCULATE_BY values, two samples and the other allele; and five of CrosscheckReadGroupFingerprints, its two roll-ups and its two refusals."
         }
       ]
+    },
+    {
+      "id": "samerrormetrics",
+      "status": "golden-pending",
+      "title": "how often a base disagrees with the reference, and everything the tool refuses to count",
+      "harness": "tools/samerrormetrics-conformance",
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The empirical quality is Bayesian rather than a ratio: PRIOR_Q is a pseudo-count in phred space, so a file with no errors reports a finite number. What makes the tool more than a mismatch counter is what it declines to count: a site the VCF says the sample is polymorphic at, a base below a quality, a read below a mapping quality, and the second observation of a pair that overlaps itself.",
+      "cases": [
+        {
+          "dump": "SamErrorMetricsDump",
+          "golden": null,
+          "why": "Fifteen runs: two mismatches and none, the prior moved, three stratifiers, two metrics in one run, a known site, the two thresholds each side of their cut, an overlapping pair, a deletion, a cap on the loci, and the collection argument that is appended to rather than replaced."
+        }
+      ]
     }
   ],
   "probes": [
