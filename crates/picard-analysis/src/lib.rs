@@ -56,6 +56,7 @@ pub mod gather_bam_files;
 pub mod gc;
 pub mod genotype_concordance;
 pub mod haplotype_map;
+pub mod illumina_arrays;
 pub mod illumina_basecalls;
 pub mod illumina_files;
 pub mod illumina_lane_metrics;
