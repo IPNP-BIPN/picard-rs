@@ -125,6 +125,9 @@ pub struct Record {
     /// The `MC` tag, which is what the mate-cigar markers read instead of waiting for the mate.
     /// `MarkDuplicates` itself does not look at it.
     pub mate_cigar: Option<Cigar>,
+    /// The mate's alignment start, one-based, which the molecular identifier of a forward read is
+    /// built from. `MarkDuplicates` reads the mate's position off the mate's own record instead.
+    pub mate_alignment_start: i32,
 }
 
 impl Record {
@@ -705,6 +708,31 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
     marking.optical_sets = optical_sets;
     marking.non_optical_sets = non_optical_sets;
     marking
+}
+
+/// The records at one position, grouped the way a set is cut: by library, barcode, reference,
+/// 5' coordinate and orientation, over the FRAGMENT list, which is one entry per record.
+///
+/// `MarkDuplicates` itself never needs this list; `UmiAwareMarkDuplicatesWithMateCigar` does,
+/// because it splits each set by UMI before anything is marked.
+pub fn sets_by_position(records: &[Record], options: &Options) -> Vec<Vec<usize>> {
+    let mut keys: Vec<Key> = Vec::new();
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    for (index, record) in records.iter().enumerate() {
+        if record.unmapped() || record.secondary_or_supplementary() {
+            continue;
+        }
+        let ends = build_read_ends(record, index, options);
+        let this = key(&ends, false);
+        match keys.iter().position(|other| *other == this) {
+            Some(position) => groups[position].push(index),
+            None => {
+                keys.push(this);
+                groups.push(vec![index]);
+            }
+        }
+    }
+    groups
 }
 
 /// The chunks `generateDuplicateIndexes` cuts, which are the runs of an equal key.

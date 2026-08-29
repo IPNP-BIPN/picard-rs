@@ -67,6 +67,7 @@ fn record(line: &str) -> Record {
         barcode: None,
         existing_dt: None,
         mate_cigar: tag("MC").map(|text| parse_cigar(&text).expect("the mate cigar")),
+        mate_alignment_start: columns[7].parse().unwrap_or(0),
     }
 }
 
