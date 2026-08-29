@@ -1935,7 +1935,7 @@
     },
     {
       "id": "fingerprintmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "how good a fingerprint is on its own, and the deprecated crosscheck wrapper",
       "harness": "tools/checkfingerprint-conformance",
       "tools": [
@@ -1949,14 +1949,14 @@
       "cases": [
         {
           "dump": "FingerprintMetricsDump",
-          "golden": null,
-          "why": "Eleven runs: six of CalculateFingerprintMetrics over one and two read groups, the three CALCULATE_BY values, two samples and the other allele; and five of CrosscheckReadGroupFingerprints, its two roll-ups and its two refusals."
+          "golden": "crates/picard-analysis/tests/data/fingerprint_metrics.txt.gz",
+          "why": "Eleven runs: six of CalculateFingerprintMetrics over one and two read groups, the three CALCULATE_BY values, two samples and the other allele; and five of CrosscheckReadGroupFingerprints, its two roll-ups and its two refusals. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "samerrormetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "how often a base disagrees with the reference, and everything the tool refuses to count",
       "harness": "tools/samerrormetrics-conformance",
       "tools": [
@@ -1969,14 +1969,14 @@
       "cases": [
         {
           "dump": "SamErrorMetricsDump",
-          "golden": null,
-          "why": "Fifteen runs: two mismatches and none, the prior moved, three stratifiers, two metrics in one run, a known site, the two thresholds each side of their cut, an overlapping pair, a deletion, a cap on the loci, and the collection argument that is appended to rather than replaced."
+          "golden": "crates/picard-analysis/tests/data/sam_error_metrics.txt.gz",
+          "why": "Fifteen runs: two mismatches and none, the prior moved, three stratifiers, two metrics in one run, a known site, the two thresholds each side of their cut, an overlapping pair, a deletion, a cap on the loci, and the collection argument that is appended to rather than replaced. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "checkilluminadirectory",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "whether a basecalls directory has the files a run would need",
       "harness": "tools/illumina-conformance",
       "tools": [
@@ -1989,14 +1989,14 @@
       "cases": [
         {
           "dump": "CheckIlluminaDirectoryDump",
-          "golden": null,
-          "why": "Twelve runs over a four-cycle, one-tile, four-cluster run directory written byte by byte: complete, a cycle removed and the same one not asked for, more cycles than there are, the filter removed, the per-tile positions removed (which the default data types do not ask for), the lane's `s.locs` removed with and without the positions asked for, a tile that is there and one that is not, and the argument that writes what is missing instead of refusing."
+          "golden": "crates/picard-analysis/tests/data/check_illumina_directory.txt.gz",
+          "why": "Twelve runs over a four-cycle, one-tile, four-cluster run directory written byte by byte: complete, a cycle removed and the same one not asked for, more cycles than there are, the filter removed, the per-tile positions removed (which the default data types do not ask for), the lane's `s.locs` removed with and without the positions asked for, a tile that is there and one that is not, and the argument that writes what is missing instead of refusing. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "illuminalanemetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "what a lane's tile metrics say, and what the tool does with a file that is missing half of them",
       "harness": "tools/illumina-conformance",
       "tools": [
@@ -2009,14 +2009,14 @@
       "cases": [
         {
           "dump": "IlluminaLaneMetricsDump",
-          "golden": null,
-          "why": "Nine runs over tile metrics files written record by record: one tile, two tiles summed into a lane, two lanes as two rows, counts without densities and densities without counts, a code nobody reads, a named output prefix, no read structure at all, and a longer one."
+          "golden": "crates/picard-analysis/tests/data/illumina_lane_metrics.txt.gz",
+          "why": "Nine runs over tile metrics files written record by record: one tile, two tiles summed into a lane, two lanes as two rows, counts without densities and densities without counts, a code nobody reads, a named output prefix, no read structure at all, and a longer one. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "extractilluminabarcodes",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which declared barcode a cluster is, and when it is none of them",
       "harness": "tools/illumina-conformance",
       "tools": [
@@ -2029,14 +2029,14 @@
       "cases": [
         {
           "dump": "ExtractIlluminaBarcodesDump",
-          "golden": null,
-          "why": "Eleven runs over the shared four-cluster fixture read as `2T2B`: two barcodes, one, one nobody carries, a barcode one base away with the mismatch allowance each side of its cut, two EQUIDISTANT barcodes with and without a delta, a quality floor below and above the fixture's bases, a barcode of the wrong length (which crashes rather than refusing), and the argument that names barcodes without a file."
+          "golden": "crates/picard-analysis/tests/data/extract_illumina_barcodes.txt.gz",
+          "why": "Eleven runs over the shared four-cluster fixture read as `2T2B`: two barcodes, one, one nobody carries, a barcode one base away with the mismatch allowance each side of its cut, two EQUIDISTANT barcodes with and without a delta, a quality floor below and above the fixture's bases, a barcode of the wrong length (which crashes rather than refusing), and the argument that names barcodes without a file. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "basecallstofastq",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the FASTQ a basecalls directory becomes, and what the read structure leaves out of it",
       "harness": "tools/illumina-conformance",
       "tools": [
@@ -2049,14 +2049,14 @@
       "cases": [
         {
           "dump": "BasecallsToFastqDump",
-          "golden": null,
-          "why": "Ten runs over the shared four-cluster fixture: the cycles as one read, as two, with a barcode segment and with a skip; the filtered cluster in and out; the two read name formats; and four multiplexed runs, including a barcode the params do not declare with and without the argument that ignores it."
+          "golden": "crates/picard-analysis/tests/data/basecalls_to_fastq.txt.gz",
+          "why": "Ten runs over the shared four-cluster fixture: the cycles as one read, as two, with a barcode segment and with a skip; the filtered cluster in and out; the two read name formats; and four multiplexed runs, including a barcode the params do not declare with and without the argument that ignores it. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "basecallingmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "a lane's clusters counted per barcode",
       "harness": "tools/illumina-conformance",
       "tools": [
@@ -2069,14 +2069,14 @@
       "cases": [
         {
           "dump": "BasecallingMetricsDump",
-          "golden": null,
-          "why": "Five runs over the shared four-cluster fixture: the whole lane as one row, the lane split by barcode after an extraction, a barcode segment with no barcodes given, a skipped segment, and a lane the run does not have."
+          "golden": "crates/picard-analysis/tests/data/basecalling_metrics.txt.gz",
+          "why": "Five runs over the shared four-cluster fixture: the whole lane as one row, the lane split by barcode after an extraction, a barcode segment with no barcodes given, a skipped segment, and a lane the run does not have. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "basecallstosam",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the unaligned BAM a basecalls directory becomes",
       "harness": "tools/illumina-conformance",
       "tools": [
@@ -2089,14 +2089,14 @@
       "cases": [
         {
           "dump": "BasecallsToSamDump",
-          "golden": null,
-          "why": "Nine runs over the shared four-cluster fixture: one record a cluster and two that are a pair, a barcode segment and a skip, the failing cluster flagged and then dropped, the barcode in the read group's identifier, and three multiplexed runs including a barcode the params do not declare with and without the argument that ignores it."
+          "golden": "crates/picard-analysis/tests/data/basecalls_to_sam.txt.gz",
+          "why": "Nine runs over the shared four-cluster fixture: one record a cluster and two that are a pair, a barcode segment and a skip, the failing cluster flagged and then dropped, the barcode in the read group's identifier, and three multiplexed runs including a barcode the params do not declare with and without the argument that ignores it. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "pffailmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "why a cluster failed the filter, classified per tile",
       "harness": "tools/illumina-conformance",
       "tools": [
@@ -2109,14 +2109,14 @@
       "cases": [
         {
           "dump": "PfFailMetricsDump",
-          "golden": null,
-          "why": "Five runs over the shared four-cluster fixture: the lane as it is, two cycles to judge by, more cycles than the run carries, the sampled second file, and a lane the run does not have."
+          "golden": "crates/picard-analysis/tests/data/pf_fail_metrics.txt.gz",
+          "why": "Five runs over the shared four-cluster fixture: the lane as it is, two cycles to judge by, more cycles than the run carries, the sampled second file, and a lane the run does not have. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "fifobuffer",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the bytes a buffer passes through, and the shape it refuses",
       "harness": "tools/fifobuffer-conformance",
       "tools": [
@@ -2129,14 +2129,14 @@
       "cases": [
         {
           "dump": "FifoBufferDump",
-          "golden": null,
-          "why": "Eight runs: a line of text, nothing at all, a buffer smaller than the input and one of a single byte, an IO size above the buffer, six bytes that are not text, and a hundred thousand bytes through the default buffer and through a small one."
+          "golden": "crates/picard-analysis/tests/data/fifo_buffer.txt.gz",
+          "why": "Eight runs: a line of text, nothing at all, a buffer smaller than the input and one of a single byte, an IO size above the buffer, six bytes that are not text, and a hundred thousand bytes through the default buffer and through a small one. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "liftovervcf",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "a variant moved to another reference, and the three ways that fails",
       "harness": "tools/liftovervcf-conformance",
       "tools": [
@@ -2149,14 +2149,14 @@
       "cases": [
         {
           "dump": "LiftoverVcfDump",
-          "golden": null,
-          "why": "Ten runs over a chain with one forward block offset by twelve and one reversed block: a variant inside a block, between the blocks, inside the reversed one, a reference mismatch with no recovery available, a swapped reference and alternate with and without the argument that recovers it, the two arguments that record where a variant came from, and three variants at once to see the order the output is written in."
+          "golden": "crates/picard-analysis/tests/data/liftover_vcf.txt.gz",
+          "why": "Ten runs over a chain with one forward block offset by twelve and one reversed block: a variant inside a block, between the blocks, inside the reversed one, a reference mismatch with no recovery available, a swapped reference and alternate with and without the argument that recovers it, the two arguments that record where a variant came from, and three variants at once to see the order the output is written in. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "mendelianviolations",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "a trio's impossible genotypes, and the calls the checker declines to look at",
       "harness": "tools/mendelian-conformance",
       "tools": [
@@ -2169,14 +2169,14 @@
       "cases": [
         {
           "dump": "MendelianViolationsDump",
-          "golden": null,
-          "why": "Twelve runs over a trio VCF written record by record: a possible child, two violations counted to different parents, a low-quality call with the floor each side of it, a shallow call, a lopsided heterozygote, the X for a male and a female child, the mitochondrion, a run that asks for the offending records to be written (which the reference refuses with a duplicate-sample-name error), and a tab report."
+          "golden": "crates/picard-analysis/tests/data/mendelian_violations.txt.gz",
+          "why": "Twelve runs over a trio VCF written record by record: a possible child, two violations counted to different parents, a low-quality call with the floor each side of it, a shallow call, a lopsided heterozygote, the X for a male and a female child, the mitochondrion, a run that asks for the offending records to be written (which the reference refuses with a duplicate-sample-name error), and a tab report. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "baitdesigner",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the baits a target list becomes, and what happens to a target too small to tile",
       "harness": "tools/baitdesigner-conformance",
       "tools": [
@@ -2189,14 +2189,14 @@
       "cases": [
         {
           "dump": "BaitDesignerDump",
-          "golden": null,
-          "why": "Eleven runs over a synthetic reference: a target longer than a bait and one shorter, the minimum lowered, the three strategies, a smaller bait, a wider offset, padding, and two nearby targets merged and unmerged. The parameters file is skipped: it is the tool's own usage text rather than anything the design decided."
+          "golden": "crates/picard-analysis/tests/data/bait_designer.txt.gz",
+          "why": "Eleven runs over a synthetic reference: a target longer than a bait and one shorter, the minimum lowered, the three strategies, a smaller bait, a wider offset, padding, and two nearby targets merged and unmerged. The parameters file is skipped: it is the tool's own usage text rather than anything the design decided. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "bpmtocsv",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "Illumina's binary bead pool manifest, read and written out as a normalization CSV",
       "harness": "tools/arrays-conformance",
       "tools": [
@@ -2209,14 +2209,14 @@
       "cases": [
         {
           "dump": "BpmToCsvDump",
-          "golden": null,
-          "why": "Six runs over manifests written record by record: four loci of two assay types, one locus of each type alone, an assay type disagreeing with its B address each way round, and a normalization id above the hundred the parser allows."
+          "golden": "crates/picard-analysis/tests/data/bpm_to_csv.txt.gz",
+          "why": "Six runs over manifests written record by record: four loci of two assay types, one locus of each type alone, an assay type disagreeing with its B address each way round, and a normalization id above the hundred the parser allows. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "comparegtc",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "two genotype call files compared field by field",
       "harness": "tools/arrays-conformance",
       "tools": [
@@ -2229,14 +2229,14 @@
       "cases": [
         {
           "dump": "CompareGtcDump",
-          "golden": null,
-          "why": "Seven runs over GTC files written record by record: two identical files, a different sample name (which is excluded from the comparison rather than reported), one and two different genotypes, different intensities, a different call rate, and a file with one locus fewer. What is recorded is the STATUS: the differences themselves go through log4j, which holds the stream it was initialised with, so an in-process dump cannot capture them."
+          "golden": "crates/picard-analysis/tests/data/compare_gtc.txt.gz",
+          "why": "Seven runs over GTC files written record by record: two identical files, a different sample name (which is excluded from the comparison rather than reported), one and two different genotypes, different intensities, a different call rate, and a file with one locus fewer. What is recorded is the STATUS: the differences themselves go through log4j, which holds the stream it was initialised with, so an in-process dump cannot capture them. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "gtctovcf",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "a chip's genotype calls turned into a VCF",
       "harness": "tools/arrays-conformance",
       "tools": [
@@ -2249,14 +2249,14 @@
       "cases": [
         {
           "dump": "GtcToVcfDump",
-          "golden": null,
-          "why": "Six runs over fixtures written record by record: four loci on two contigs called AA, AB, BB and no-call, one of which comes out TRIALLELIC because the build's reference base is neither of the chip's alleles; every call homozygous reference; every call a no-call; a locus flagged ILLUMINA_FLAGGED and one flagged DUPE, each of which is dropped rather than filtered; and a sample the command line declares male."
+          "golden": "crates/picard-analysis/tests/data/gtc_to_vcf.txt.gz",
+          "why": "Six runs over fixtures written record by record: four loci on two contigs called AA, AB, BB and no-call, one of which comes out TRIALLELIC because the build's reference base is neither of the chip's alleles; every call homozygous reference; every call a no-call; a locus flagged ILLUMINA_FLAGGED and one flagged DUPE, each of which is dropped rather than filtered; and a sample the command line declares male. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     },
     {
       "id": "createextendedmanifest",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the extended manifest GtcToVcf reads, and the loci it flags rather than drops",
       "harness": "tools/arrays-conformance",
       "tools": [
@@ -2269,8 +2269,8 @@
       "cases": [
         {
           "dump": "CreateExtendedManifestDump",
-          "golden": null,
-          "why": "Four runs over manifests written record by record: four loci the reference carries, the same with an empty dbSNP, a locus on a contig the reference does not have, and a locus past the end of its contig."
+          "golden": "crates/picard-analysis/tests/data/create_extended_manifest.txt.gz",
+          "why": "Four runs over manifests written record by record: four loci the reference carries, the same with an empty dbSNP, a locus on a contig the reference does not have, and a locus past the end of its contig. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
     }
