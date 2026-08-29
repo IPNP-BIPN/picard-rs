@@ -1162,6 +1162,27 @@
       ]
     },
     {
+      "id": "mergebamalignment-hits",
+      "status": "golden-pending",
+      "title": "which alignment MergeBamAlignment calls primary",
+      "harness": "tools/mergebamalignment-conformance",
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "why": "An aligner may report a read several times, and the merger has to choose which of those alignments is primary, mark the rest as secondary, and decide whether to carry them at all. Four strategies make that choice and they do not agree. Several data-line rows share one (kind, case) key, so the full line sequence is compared.",
+      "compare": {
+        "mode": "lines",
+        "skip_comment_lines": false
+      },
+      "cases": [
+        {
+          "dump": "MergeBamAlignmentHitsDump",
+          "golden": null,
+          "why": "Ten runs: three alignments of one read under each of the four strategies and with the secondaries dropped; the same three with the aligner naming one primary, under two strategies; and a pair with two alignments each under the default, under MostDistant, and under the strategy that will not read a pair at all."
+        }
+      ]
+    },
+    {
       "id": "jumpinglibrary",
       "tools": [
         "CollectJumpingLibraryMetrics"

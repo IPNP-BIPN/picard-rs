@@ -334,7 +334,7 @@ jobs:
             suites: "baitdesigner bpmtocsv comparegtc gtctovcf createextendedmanifest"
           - group: golden-pending
             index: "1/1"
-            suites: "mergebamalignment-clip"
+            suites: "mergebamalignment-clip mergebamalignment-hits"
     steps:
       - uses: actions/checkout@v7
 
