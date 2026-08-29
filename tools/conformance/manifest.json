@@ -1932,6 +1932,27 @@
           "why": "Thirteen runs over the same three-site fixture CheckFingerprint uses: one sample agreeing and disagreeing, two samples under both crosscheck modes, one file of two read groups under the three CROSSCHECK_BY values, a second input, errors only, the matrix shape, EXPECT_ALL_GROUPS_TO_MATCH with the default code and a named one, and a LOD threshold."
         }
       ]
+    },
+    {
+      "id": "fingerprintmetrics",
+      "status": "golden-pending",
+      "title": "how good a fingerprint is on its own, and the deprecated crosscheck wrapper",
+      "harness": "tools/checkfingerprint-conformance",
+      "tools": [
+        "CalculateFingerprintMetrics",
+        "CrosscheckReadGroupFingerprints"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "CalculateFingerprintMetrics asks how good a fingerprint is with nothing to compare it against: it samples the haplotype blocks and reports how far the observed genotypes are from what the panel's allele frequencies predict. CrosscheckReadGroupFingerprints is CrosscheckFingerprints with its defaults moved, deprecated in the reference, and it REFUSES combinations its parent accepts, which is behaviour a port has to reproduce rather than inherit.",
+      "cases": [
+        {
+          "dump": "FingerprintMetricsDump",
+          "golden": null,
+          "why": "Eleven runs: six of CalculateFingerprintMetrics over one and two read groups, the three CALCULATE_BY values, two samples and the other allele; and five of CrosscheckReadGroupFingerprints, its two roll-ups and its two refusals."
+        }
+      ]
     }
   ],
   "probes": [
