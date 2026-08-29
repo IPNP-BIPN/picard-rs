@@ -1834,7 +1834,7 @@
     },
     {
       "id": "checkfingerprint",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "whether a file's sample is the sample its genotypes claim, and by how much",
       "harness": "tools/checkfingerprint-conformance",
       "tools": [
@@ -1847,7 +1847,7 @@
       "cases": [
         {
           "dump": "CheckFingerprintDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/check_fingerprint.txt.gz",
           "why": "Eleven cases: reads agreeing and disagreeing with the genotypes, heterozygous and homozygous-alternate calls, a one-read pileup, a file covering one block, no reads at all, a sample the genotypes do not have with and without the expected alias, and a two-sample genotype file with each of the two named."
         }
       ]
