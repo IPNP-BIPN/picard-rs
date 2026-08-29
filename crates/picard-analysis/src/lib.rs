@@ -68,6 +68,7 @@ pub mod interval_list_tools;
 pub mod jumping_library;
 pub mod lift_over_haplotype_map;
 pub mod lift_over_interval_list;
+pub mod liftover_vcf;
 pub mod make_vcf_sample_name_map;
 pub mod mark_duplicates;
 pub mod mark_illumina_adapters;
