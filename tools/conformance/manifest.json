@@ -1771,6 +1771,26 @@
           "why": "Sixteen cases: two, three and one sample, a repeated sample, the same loci in another order, a different count, locus, id, reference allele, alternate allele and alternate count, an attribute present in one file only, one that disagrees, an exempt one that disagrees, two depths that are summed, and two filters that are unioned."
         }
       ]
+    },
+    {
+      "id": "bamtobfq",
+      "status": "golden-pending",
+      "title": "Maq's binary fastq: one byte per base, and which reads reach it",
+      "harness": "tools/bamtobfq-conformance",
+      "tools": [
+        "BamToBfq"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "One byte carries the base in its top two bits and the quality in its bottom six, so the file is byte-comparable and the questions are which reads reach it and what each byte says. An N is written as an A whose quality is not the read's, and clipping an adapter rewrites the tail rather than shortening the record.",
+      "cases": [
+        {
+          "dump": "BamToBfqDump",
+          "golden": null,
+          "why": "Nineteen cases: a pair, every base in both cases, an N inside and outside the seed region, an unknown base, a low quality, two pairs plain, chunked and truncated, a single-end run, the two length arguments, a vendor-failed read on both sides, the name prefix matching and not, and the two ways of naming the output given apart and together."
+        }
+      ]
     }
   ],
   "probes": [
