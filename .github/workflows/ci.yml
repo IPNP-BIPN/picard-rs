@@ -334,7 +334,7 @@ jobs:
             suites: "liftovervcf mendelianviolations baitdesigner bpmtocsv comparegtc"
           - group: golden-pending
             index: "4/4"
-            suites: "gtctovcf"
+            suites: "gtctovcf createextendedmanifest"
     steps:
       - uses: actions/checkout@v7
 
