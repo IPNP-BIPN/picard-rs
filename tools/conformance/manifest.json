@@ -1754,7 +1754,7 @@
     },
     {
       "id": "combinearrays",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the lockstep an array VCF merge walks in, and everything it refuses",
       "harness": "tools/combinearrays-conformance",
       "tools": [
@@ -1767,7 +1767,7 @@
       "cases": [
         {
           "dump": "CombineGenotypingArrayVcfsDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/combine_genotyping_array_vcfs.txt.gz",
           "why": "Sixteen cases: two, three and one sample, a repeated sample, the same loci in another order, a different count, locus, id, reference allele, alternate allele and alternate count, an attribute present in one file only, one that disagrees, an exempt one that disagrees, two depths that are summed, and two filters that are unioned."
         }
       ]
