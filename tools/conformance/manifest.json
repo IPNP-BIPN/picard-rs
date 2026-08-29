@@ -2013,6 +2013,26 @@
           "why": "Nine runs over tile metrics files written record by record: one tile, two tiles summed into a lane, two lanes as two rows, counts without densities and densities without counts, a code nobody reads, a named output prefix, no read structure at all, and a longer one."
         }
       ]
+    },
+    {
+      "id": "extractilluminabarcodes",
+      "status": "golden-pending",
+      "title": "which declared barcode a cluster is, and when it is none of them",
+      "harness": "tools/illumina-conformance",
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The match is by edit distance rather than equality, and it is TWO tests: a cluster within MAX_MISMATCHES of a declared barcode is that barcode only if the next best is further away by MIN_MISMATCH_DELTA, so two barcodes a single base apart leave every cluster unmatched. A cluster that matches nothing is still written, and the metrics count the clusters that passed the filter apart from the rest.",
+      "cases": [
+        {
+          "dump": "ExtractIlluminaBarcodesDump",
+          "golden": null,
+          "why": "Eleven runs over the shared four-cluster fixture read as `2T2B`: two barcodes, one, one nobody carries, a barcode one base away with the mismatch allowance each side of its cut, two EQUIDISTANT barcodes with and without a delta, a quality floor below and above the fixture's bases, a barcode of the wrong length (which crashes rather than refusing), and the argument that names barcodes without a file."
+        }
+      ]
     }
   ],
   "probes": [
