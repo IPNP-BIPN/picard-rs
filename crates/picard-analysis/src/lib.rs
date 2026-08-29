@@ -60,6 +60,7 @@ pub mod fix_mate_information;
 pub mod gather_bam_files;
 pub mod gc;
 pub mod genotype_concordance;
+pub mod gtc_to_vcf;
 pub mod haplotype_map;
 pub mod illumina_arrays;
 pub mod illumina_basecalls;
