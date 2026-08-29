@@ -1120,6 +1120,27 @@
       ]
     },
     {
+      "id": "mergebamalignment-pair",
+      "status": "golden-pending",
+      "title": "what MergeBamAlignment does to a pair",
+      "harness": "tools/mergebamalignment-conformance",
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "why": "A pair is not two records merged twice: the mate fields of each end are written from the other end's alignment, the insert size is computed from both, the proper-pair flag is decided by the merger rather than copied from the aligner, and overlapping ends are clipped so the same base is not counted twice. Several data-line rows share one (kind, case) key, so the full line sequence is compared.",
+      "compare": {
+        "mode": "lines",
+        "skip_comment_lines": false
+      },
+      "cases": [
+        {
+          "dump": "MergeBamAlignmentPairDump",
+          "golden": null,
+          "why": "Eleven runs: the mate fields the aligner wrote, which are wrong on purpose, replaced by the ones the other end implies; the same pair with the ends swapped, which signs the insert size; a pair the aligner called proper across two contigs, with and without ALIGNER_PROPER_PAIR_FLAGS; a run without ADD_MATE_CIGAR; overlapping ends soft-clipped, unclipped and hard-clipped; one end with no alignment; a soft-clipped end, which says what the insert size is measured between; and the deprecated PAIRED_RUN."
+        }
+      ]
+    },
+    {
       "id": "jumpinglibrary",
       "tools": [
         "CollectJumpingLibraryMetrics"
