@@ -237,6 +237,46 @@ public class CrosscheckFingerprintsDump {
         return String.join("\n", kept);
     }
 
+    /**
+     * The matrix file, with its COLUMNS sorted as well as its rows.
+     *
+     * The matrix is the same hash-ordered walk as the metrics table, in two dimensions: the header
+     * is the column order and each row's values follow it, so two runs of one input write the same
+     * numbers under different headings. Sorting the rows alone left the columns moving, which is
+     * what the first candidate showed.
+     */
+    static String matrixTable(final Path file, final Path dir) throws Exception {
+        final List<String> lines = new ArrayList<>();
+        for (final String line : Files.readString(file, StandardCharsets.UTF_8).split("\n", -1)) {
+            if (line.startsWith("#") || line.isEmpty()) {
+                continue;
+            }
+            lines.add(line.replace(dir.toString(), "<dir>"));
+        }
+        if (lines.size() < 2) {
+            return String.join("\n", lines);
+        }
+        final String[] header = lines.get(0).split("\t");
+        // The header is the label and then one column per fingerprint; the order the columns are
+        // put back in is the sorted one, and every row is permuted the same way.
+        final List<String> columns = new ArrayList<>(List.of(header).subList(1, header.length));
+        final List<String> sorted = new ArrayList<>(columns);
+        java.util.Collections.sort(sorted);
+        final List<String> out = new ArrayList<>();
+        out.add(header[0] + "\t" + String.join("\t", sorted));
+        final List<String> rows = new ArrayList<>(lines.subList(1, lines.size()));
+        java.util.Collections.sort(rows);
+        for (final String row : rows) {
+            final String[] values = row.split("\t");
+            final StringBuilder rebuilt = new StringBuilder(values[0]);
+            for (final String column : sorted) {
+                rebuilt.append('\t').append(values[columns.indexOf(column) + 1]);
+            }
+            out.add(rebuilt.toString());
+        }
+        return String.join("\n", out);
+    }
+
     /** One input file: its samples, and the allele its reads carry. */
     record Input(List<String> samples, String allele) {}
 
@@ -311,7 +351,7 @@ public class CrosscheckFingerprintsDump {
             emit("metrics", name, table(out, dir));
         }
         if (Files.exists(matrix)) {
-            emit("matrix", name, table(matrix, dir));
+            emit("matrix", name, matrixTable(matrix, dir));
         }
     }
 
