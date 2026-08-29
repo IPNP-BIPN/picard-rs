@@ -122,6 +122,9 @@ pub struct Record {
     pub barcode: Option<String>,
     /// An incoming `DT`, which `CLEAR_DT` decides the fate of.
     pub existing_dt: Option<String>,
+    /// The `MC` tag, which is what the mate-cigar markers read instead of waiting for the mate.
+    /// `MarkDuplicates` itself does not look at it.
+    pub mate_cigar: Option<Cigar>,
 }
 
 impl Record {

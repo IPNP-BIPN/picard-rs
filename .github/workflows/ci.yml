@@ -319,10 +319,7 @@ jobs:
             suites: "replicatemetrics arraysmetrics combinearrays bamtobfq vcftoadpc"
           - group: oracle-backed
             index: "17/17"
-            suites: "markadapters checkfingerprint markduplicates"
-          - group: golden-pending
-            index: "1/1"
-            suites: "matecigarduplicates"
+            suites: "markadapters checkfingerprint markduplicates matecigarduplicates"
     steps:
       - uses: actions/checkout@v7
 

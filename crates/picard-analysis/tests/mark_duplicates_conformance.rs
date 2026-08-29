@@ -77,6 +77,9 @@ fn record(line: &str) -> Record {
         read_group: 0,
         barcode: tag("RX"),
         existing_dt: tag("DT"),
+        // `MarkDuplicates` does not read the mate's cigar; the two tools that do have their own
+        // suite, and this fixture carries the tag only where they need it.
+        mate_cigar: tag("MC").map(|text| parse_cigar(&text).expect("the mate cigar")),
     }
 }
 
