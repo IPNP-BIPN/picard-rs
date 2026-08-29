@@ -1734,7 +1734,7 @@
     },
     {
       "id": "arraysmetrics",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "what an array's calling metrics take from the VCF header and what they take from its variants",
       "harness": "tools/arraysmetrics-conformance",
       "tools": [
@@ -1747,7 +1747,7 @@
       "cases": [
         {
           "dump": "CollectArraysVariantCallingMetricsDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/collect_arrays_variant_calling_metrics.txt.gz",
           "why": "Eighteen cases: a plain run and one whose dbSNP knows nothing, a filtered assay and the two filters that are not the same fate, the GTA attribute on both sides, an indel, seven headers each missing one line, the call-rate threshold on each side, and two processors against one."
         }
       ]
