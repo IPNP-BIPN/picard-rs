@@ -1,7 +1,7 @@
 /*
  * VcfToAdpc's binary output, taken from the reference.
  *
- * An `adpc.bin` is a sixteen-byte header and then one fixed-width record per sample per locus:
+ * An `adpc.bin` is a sixteen-byte header and then one EIGHTEEN-byte record per sample per locus:
  * two unsigned shorts of raw intensity, three floats, and one more unsigned short for the
  * genotype. Everything is little-endian and nothing is compressed, so the file is byte-comparable
  * and what is interesting is which value each field takes.
@@ -10,8 +10,8 @@
  *
  *   - THE HEADER IS THE SIXTEEN CHARACTERS `1234567890123456`, which is a literal in the writer
  *     and not a magic number;
- *   - A RECORD IS TWENTY BYTES: two unsigned shorts, three floats, one unsigned short, in that
- *     order, and the floats are IEEE-754 little-endian;
+ *   - A RECORD IS EIGHTEEN BYTES: two unsigned shorts, three floats, one unsigned short, in
+ *     that order, and the floats are IEEE-754 little-endian;
  *   - THE GENOTYPE IS AN ILLUMINA ONE AND NOT THE VCF'S: AA, AB, BB and NN are 0, 1, 2 and 3, and
  *     which of them a call maps to is decided by the ALLELE_A and ALLELE_B header fields rather
  *     than by the reference and alternate alleles;
