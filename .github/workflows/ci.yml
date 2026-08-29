@@ -328,7 +328,7 @@ jobs:
             suites: "fingerprintmetrics samerrormetrics checkilluminadirectory illuminalanemetrics extractilluminabarcodes"
           - group: golden-pending
             index: "2/2"
-            suites: "basecallstofastq basecallingmetrics basecallstosam"
+            suites: "basecallstofastq basecallingmetrics basecallstosam pffailmetrics"
     steps:
       - uses: actions/checkout@v7
 

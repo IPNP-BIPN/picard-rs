@@ -2093,6 +2093,26 @@
           "why": "Nine runs over the shared four-cluster fixture: one record a cluster and two that are a pair, a barcode segment and a skip, the failing cluster flagged and then dropped, the barcode in the read group's identifier, and three multiplexed runs including a barcode the params do not declare with and without the argument that ignores it."
         }
       ]
+    },
+    {
+      "id": "pffailmetrics",
+      "status": "golden-pending",
+      "title": "why a cluster failed the filter, classified per tile",
+      "harness": "tools/illumina-conformance",
+      "tools": [
+        "CollectHiSeqXPfFailMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The filter file says a cluster failed; this tool says why, by looking at the first cycles of the read. A cluster whose bases are missing is one kind of failure, one whose bases are poor is another, and one that looks fine is a third, so the classes are a partition of the count the filter file gives rather than an independent measurement.",
+      "cases": [
+        {
+          "dump": "PfFailMetricsDump",
+          "golden": null,
+          "why": "Five runs over the shared four-cluster fixture: the lane as it is, two cycles to judge by, more cycles than the run carries, the sampled second file, and a lane the run does not have."
+        }
+      ]
     }
   ],
   "probes": [
