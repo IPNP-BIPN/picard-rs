@@ -2073,6 +2073,26 @@
           "why": "Five runs over the shared four-cluster fixture: the whole lane as one row, the lane split by barcode after an extraction, a barcode segment with no barcodes given, a skipped segment, and a lane the run does not have."
         }
       ]
+    },
+    {
+      "id": "basecallstosam",
+      "status": "golden-pending",
+      "title": "the unaligned BAM a basecalls directory becomes",
+      "harness": "tools/illumina-conformance",
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The same walk as IlluminaBasecallsToFastq with a different destination, and the difference is what a BAM can say that a FASTQ cannot: two template reads become a PAIR with the flags to prove it, the filter file becomes the vendor-check flag on a record that is still there rather than a record that is gone, the barcode becomes a tag, and the run's identity is written once in a read group instead of into every read name.",
+      "cases": [
+        {
+          "dump": "BasecallsToSamDump",
+          "golden": null,
+          "why": "Nine runs over the shared four-cluster fixture: one record a cluster and two that are a pair, a barcode segment and a skip, the failing cluster flagged and then dropped, the barcode in the read group's identifier, and three multiplexed runs including a barcode the params do not declare with and without the argument that ignores it."
+        }
+      ]
     }
   ],
   "probes": [
