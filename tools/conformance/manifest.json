@@ -1814,7 +1814,7 @@
     },
     {
       "id": "markadapters",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "where an adapter starts, as the XT tag counts it",
       "harness": "tools/markadapters-conformance",
       "tools": [
@@ -1827,7 +1827,7 @@
       "cases": [
         {
           "dump": "MarkIlluminaAdaptersDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/mark_illumina_adapters.txt.gz",
           "why": "Fifteen cases: an adapter at the first base and one halfway, no adapter, eleven and twelve bases of it with the minimum moved, one and two mismatches with the rate moved, a pair whose reads agree and one whose reads do not, a single named adapter, a custom pair, and a read that already carries a tag with and without an adapter."
         }
       ]
