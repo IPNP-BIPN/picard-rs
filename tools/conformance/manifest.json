@@ -1791,6 +1791,26 @@
           "why": "Nineteen cases: a pair, every base in both cases, an N inside and outside the seed region, an unknown base, a low quality, two pairs plain, chunked and truncated, a single-end run, the two length arguments, a vendor-failed read on both sides, the name prefix matching and not, and the two ways of naming the output given apart and together."
         }
       ]
+    },
+    {
+      "id": "vcftoadpc",
+      "status": "golden-pending",
+      "title": "the adpc.bin an array VCF becomes, field by field",
+      "harness": "tools/vcftoadpc-conformance",
+      "tools": [
+        "VcfToAdpc"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "A record is twenty bytes, little-endian and uncompressed, so the file is byte-comparable. The genotype in it is an ILLUMINA one decided by the ALLELE_A and ALLELE_B header fields rather than by the reference and alternate alleles, and an allele that is the reference carries a trailing star those fields are stripped of before matching.",
+      "cases": [
+        {
+          "dump": "VcfToAdpcDump",
+          "golden": null,
+          "why": "Fourteen cases: the three called genotypes and the no-call, the allele fields reversed and one carrying a star, an intensity at and over the limit of an unsigned short, a missing normalized intensity, two loci, two samples, two VCFs agreeing and disagreeing on their length, and a VCF with no records."
+        }
+      ]
     }
   ],
   "probes": [
