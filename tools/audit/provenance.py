@@ -22,6 +22,8 @@ ALLOWED = {
     "htsjdk": "htsjdk, MIT",
     "picard": "Picard, MIT",
     "org.broadinstitute.hellbender": "GATK, Apache 2.0",
+    # Picard's own dependency, and the source of the statistics the fingerprint metrics report.
+    "org.apache.commons.math3": "Commons Math 3.5, Apache 2.0",
 }
 
 # Anything matching these is GPL2 and must not be transcribed. Listed explicitly rather than
