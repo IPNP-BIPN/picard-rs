@@ -80,6 +80,7 @@ fn record(line: &str) -> Record {
         // `MarkDuplicates` does not read the mate's cigar; the two tools that do have their own
         // suite, and this fixture carries the tag only where they need it.
         mate_cigar: tag("MC").map(|text| parse_cigar(&text).expect("the mate cigar")),
+        mate_alignment_start: columns[7].parse().unwrap_or(0),
     }
 }
 

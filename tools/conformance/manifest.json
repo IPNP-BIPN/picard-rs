@@ -1895,7 +1895,7 @@
     },
     {
       "id": "umiduplicates",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the UMI-aware duplicate marker, and the second metrics table it writes",
       "harness": "tools/matecigardup-conformance",
       "tools": [
@@ -1908,8 +1908,8 @@
       "cases": [
         {
           "dump": "UmiDuplicatesDump",
-          "golden": null,
-          "why": "Eleven runs: two UMIs four bases apart and one base apart, the joining distance moved either way, the same UMI twice with and without an assigned-identifier tag, a UMI with an N, a file with no UMIs with and without ALLOW_MISSING_UMIS, a named tag, and a command line with no UMI metrics file."
+          "golden": "crates/picard-analysis/tests/data/umi_duplicates.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added this suite, and identical to the local smoke run. Eleven runs with the marked output, the duplication metrics and the UMI metrics table."
         }
       ]
     }
