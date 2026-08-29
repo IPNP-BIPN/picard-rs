@@ -2233,6 +2233,26 @@
           "why": "Seven runs over GTC files written record by record: two identical files, a different sample name (which is excluded from the comparison rather than reported), one and two different genotypes, different intensities, a different call rate, and a file with one locus fewer. What is recorded is the STATUS: the differences themselves go through log4j, which holds the stream it was initialised with, so an in-process dump cannot capture them."
         }
       ]
+    },
+    {
+      "id": "gtctovcf",
+      "status": "golden-pending",
+      "title": "a chip's genotype calls turned into a VCF",
+      "harness": "tools/arrays-conformance",
+      "tools": [
+        "GtcToVcf"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The tool reads four files to write one: the calls, the bead pool manifest that says what a locus is, the cluster file that says how the call was made, and the extended manifest that says where the locus sits on the target build and which alleles it has there. The genotype is written against the BUILD's alleles rather than the chip's A and B, and a no-call is written rather than dropped.",
+      "cases": [
+        {
+          "dump": "GtcToVcfDump",
+          "golden": null,
+          "why": "Six runs over fixtures written record by record: four loci on two contigs called AA, AB, BB and no-call, one of which comes out TRIALLELIC because the build's reference base is neither of the chip's alleles; every call homozygous reference; every call a no-call; a locus flagged ILLUMINA_FLAGGED and one flagged DUPE, each of which is dropped rather than filtered; and a sample the command line declares male."
+        }
+      ]
     }
   ],
   "probes": [
