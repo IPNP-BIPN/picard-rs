@@ -18,6 +18,7 @@ pub mod check_duplicate_marking;
 pub mod check_terminator_block;
 pub mod clean_sam;
 pub mod cluster_crosscheck_metrics;
+pub mod collect_arrays_variant_calling_metrics;
 pub mod collect_duplicate_metrics;
 pub mod collect_hs_metrics;
 pub mod collect_independent_replicate_metrics;
