@@ -2193,6 +2193,46 @@
           "why": "Eleven runs over a synthetic reference: a target longer than a bait and one shorter, the minimum lowered, the three strategies, a smaller bait, a wider offset, padding, and two nearby targets merged and unmerged. The parameters file is skipped: it is the tool's own usage text rather than anything the design decided."
         }
       ]
+    },
+    {
+      "id": "bpmtocsv",
+      "status": "golden-pending",
+      "title": "Illumina's binary bead pool manifest, read and written out as a normalization CSV",
+      "harness": "tools/arrays-conformance",
+      "tools": [
+        "BpmToNormalizationManifestCsv"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The genotyping-array tools read Illumina's binary manifests, and the reference's own test data is not in the pinned clone, so the fixture is written byte by byte from the format the parser documents by reading it. This is the smallest of those tools and the one that says whether a manifest parses at all: the normalization id it reports is not the one in the file but that id plus a hundred times the assay type, and the two fields the parser cross-checks are refused by name when they disagree.",
+      "cases": [
+        {
+          "dump": "BpmToCsvDump",
+          "golden": null,
+          "why": "Six runs over manifests written record by record: four loci of two assay types, one locus of each type alone, an assay type disagreeing with its B address each way round, and a normalization id above the hundred the parser allows."
+        }
+      ]
+    },
+    {
+      "id": "comparegtc",
+      "status": "golden-pending",
+      "title": "two genotype call files compared field by field",
+      "harness": "tools/arrays-conformance",
+      "tools": [
+        "CompareGtcFiles"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "A GTC is not a stream but a TABLE OF CONTENTS: an id and an absolute offset per kind of data, and the reader seeks. The fixture writer lays the payloads out and writes the table over the top, which is what makes measuring this family possible at all. The tool compares every getter by reflection, so what it reports names Java methods, and the fields expected to differ between two runs of one chip are excluded by name rather than compared and forgiven.",
+      "cases": [
+        {
+          "dump": "CompareGtcDump",
+          "golden": null,
+          "why": "Seven runs over GTC files written record by record: two identical files, a different sample name (which is excluded from the comparison rather than reported), one and two different genotypes, different intensities, a different call rate, and a file with one locus fewer. What is recorded is the STATUS: the differences themselves go through log4j, which holds the stream it was initialised with, so an in-process dump cannot capture them."
+        }
+      ]
     }
   ],
   "probes": [
