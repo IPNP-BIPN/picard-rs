@@ -1993,6 +1993,26 @@
           "why": "Twelve runs over a four-cycle, one-tile, four-cluster run directory written byte by byte: complete, a cycle removed and the same one not asked for, more cycles than there are, the filter removed, the per-tile positions removed (which the default data types do not ask for), the lane's `s.locs` removed with and without the positions asked for, a tile that is there and one that is not, and the argument that writes what is missing instead of refusing."
         }
       ]
+    },
+    {
+      "id": "illuminalanemetrics",
+      "status": "golden-pending",
+      "title": "what a lane's tile metrics say, and what the tool does with a file that is missing half of them",
+      "harness": "tools/illumina-conformance",
+      "tools": [
+        "CollectIlluminaLaneMetrics"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The tool reads one binary file and nothing else: the metrics come off the METRIC CODES in InterOp/TileMetricsOut.bin rather than off any basecall. 100 is the cluster count, 101 the count that passed the filter, 102 and 103 their densities, and a file carrying only some of them reports the rest as zero rather than refusing.",
+      "cases": [
+        {
+          "dump": "IlluminaLaneMetricsDump",
+          "golden": null,
+          "why": "Nine runs over tile metrics files written record by record: one tile, two tiles summed into a lane, two lanes as two rows, counts without densities and densities without counts, a code nobody reads, a named output prefix, no read structure at all, and a longer one."
+        }
+      ]
     }
   ],
   "probes": [

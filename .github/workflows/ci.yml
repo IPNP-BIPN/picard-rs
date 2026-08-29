@@ -325,7 +325,7 @@ jobs:
             suites: "crosscheckfingerprints"
           - group: golden-pending
             index: "1/1"
-            suites: "fingerprintmetrics samerrormetrics checkilluminadirectory"
+            suites: "fingerprintmetrics samerrormetrics checkilluminadirectory illuminalanemetrics"
     steps:
       - uses: actions/checkout@v7
 
