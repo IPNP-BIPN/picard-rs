@@ -2133,6 +2133,26 @@
           "why": "Eight runs: a line of text, nothing at all, a buffer smaller than the input and one of a single byte, an IO size above the buffer, six bytes that are not text, and a hundred thousand bytes through the default buffer and through a small one."
         }
       ]
+    },
+    {
+      "id": "liftovervcf",
+      "status": "golden-pending",
+      "title": "a variant moved to another reference, and the three ways that fails",
+      "harness": "tools/liftovervcf-conformance",
+      "tools": [
+        "LiftoverVcf"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "Moving a variant through a chain file is arithmetic; what makes the tool interesting is what happens when the target reference disagrees with the source. A variant outside every block, one whose reference allele the target does not carry, and one on a reversed block are three different answers, and the reject file carries a filter naming which.",
+      "cases": [
+        {
+          "dump": "LiftoverVcfDump",
+          "golden": null,
+          "why": "Ten runs over a chain with one forward block offset by twelve and one reversed block: a variant inside a block, between the blocks, inside the reversed one, a reference mismatch with no recovery available, a swapped reference and alternate with and without the argument that recovers it, the two arguments that record where a variant came from, and three variants at once to see the order the output is written in."
+        }
+      ]
     }
   ],
   "probes": [
