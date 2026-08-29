@@ -1871,6 +1871,27 @@
           "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added this suite, and identical to the local smoke run. 18 cases: the input and the marked output as SAM text plus the metrics table and its histogram, so what is compared is which record keeps 0x400 clear and what the counters say."
         }
       ]
+    },
+    {
+      "id": "matecigarduplicates",
+      "status": "golden-pending",
+      "title": "the two mate-cigar duplicate markers, beside MarkDuplicates on the same inputs",
+      "harness": "tools/matecigardup-conformance",
+      "tools": [
+        "MarkDuplicatesWithMateCigar",
+        "SimpleMarkDuplicatesWithMateCigar"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "MarkDuplicates decides a pair's position from the two ends it has seen and so holds every unpaired end until its mate arrives. These two decide it from the MC tag instead, which makes one pass over a coordinate-sorted file enough and changes what they can see: a pair whose mate is soft-clipped is keyed on the mate's unclipped end. They also break ties differently from MarkDuplicates, which is why every case records all three tools' output.",
+      "cases": [
+        {
+          "dump": "MateCigarDuplicatesDump",
+          "golden": null,
+          "why": "Eleven inputs through three tools: two pairs all three agree about, a soft-clipped mate and a soft-clipped first end, a pair with no MC with the skip on and off, a distant mate at the default window and a wide one, three singles, optical duplicates, removal, and a queryname-sorted file."
+        }
+      ]
     }
   ],
   "probes": [
