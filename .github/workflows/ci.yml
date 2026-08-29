@@ -334,7 +334,7 @@ jobs:
             suites: "comparegtc gtctovcf createextendedmanifest"
           - group: golden-pending
             index: "1/1"
-            suites: "mergebamalignment-header"
+            suites: "mergebamalignment-header mergebamalignment-pair"
     steps:
       - uses: actions/checkout@v7
 
