@@ -22,8 +22,10 @@
  *     two by appending its own suffixes;
  *   - THE SUFFIXES ARE `.fingerprinting_summary_metrics` AND `.fingerprinting_detail_metrics`;
  *   - THE DETAIL FILE IS ONE ROW PER HAPLOTYPE BLOCK, so the fixture's three sites are two rows;
- *   - A SITE WITH NO READS CONTRIBUTES NOTHING rather than a zero, which is what makes a run over
- *     a file that covers one block shorter than one that covers both;
+ *   - A BLOCK THE READS DO NOT COVER STILL GETS A ROW AND STILL COUNTS: its observed likelihoods
+ *     are the population priors, so it contributes a small positive term rather than nothing, and
+ *     the detail file has the same number of rows whether the file covers one block or two. What
+ *     changes is the numbers, not the shape;
  *   - THE GENOTYPES MAY BE A VCF WITH SEVERAL SAMPLES, and `--EXPECTED_SAMPLE_ALIAS` names which;
  *   - THE INPUT MAY ITSELF BE A VCF, in which case `--OBSERVED_SAMPLE_ALIAS` names the sample;
  *   - AND THE DICTIONARIES MUST AGREE, a mismatch between the input's and the genotypes' being

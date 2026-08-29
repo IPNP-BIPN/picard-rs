@@ -16,6 +16,7 @@ pub mod bed_to_interval_list;
 pub mod build_bam_index;
 pub mod calculate_read_group_checksum;
 pub mod check_duplicate_marking;
+pub mod check_fingerprint;
 pub mod check_terminator_block;
 pub mod clean_sam;
 pub mod cluster_crosscheck_metrics;
