@@ -270,59 +270,62 @@ jobs:
       matrix:
         include:
           - group: oracle-backed
-            index: "1/17"
+            index: "1/18"
             suites: "metrics rnaseq snvq samtofastq fastqtosam"
           - group: oracle-backed
-            index: "2/17"
+            index: "2/18"
             suites: "sortsam addreplacerg cleansam fixmate addoatag"
           - group: oracle-backed
-            index: "3/17"
+            index: "3/18"
             suites: "reordersam replacesamheader revertsam revertorigmatecigar viewsam"
           - group: oracle-backed
-            index: "4/17"
+            index: "4/18"
             suites: "rgchecksum downsamplesam filtersamreads createdict samformatconverter"
           - group: oracle-backed
-            index: "5/17"
+            index: "5/18"
             suites: "sortsam-bam setnmmduq addoatag-bam validatesam comparesams"
           - group: oracle-backed
-            index: "6/17"
+            index: "6/18"
             suites: "split bamindexstats merge rejections qualityscoredistribution"
           - group: oracle-backed
-            index: "7/17"
+            index: "7/18"
             suites: "gcbias accumulatequalityyield bedtointervallist intervallisttobed intervallisttools"
           - group: oracle-backed
-            index: "8/17"
+            index: "8/18"
             suites: "intervallisttoolspadbreak liftoverintervallist extractsequences scatterintervalsbyns nonnfastasize"
           - group: oracle-backed
-            index: "9/17"
+            index: "9/18"
             suites: "normalizefasta samtofastqwithtags mergebamalignment mergebamalignment-full jumpinglibrary"
           - group: oracle-backed
-            index: "10/17"
+            index: "10/18"
             suites: "comparemetrics sortgff checkdupmarking qualityyieldflow vcfsamplenamemap"
           - group: oracle-backed
-            index: "11/17"
+            index: "11/18"
             suites: "haplotypedbtovcf liftoverhaplotypemap positiondownsample duplicatemetrics verifyidintensity"
           - group: oracle-backed
-            index: "12/17"
+            index: "12/18"
             suites: "bafregress wgsmetrics rawwgsmetrics umiprevalence artifacttooxog"
           - group: oracle-backed
-            index: "13/17"
+            index: "13/18"
             suites: "clustercrosscheck extractfingerprint identifycontaminant mergepedintovcf accumulatevcm"
           - group: oracle-backed
-            index: "14/17"
+            index: "14/18"
             suites: "variantcallingmetrics nonzerowgs oxog artifactmetrics hsmetrics"
           - group: oracle-backed
-            index: "15/17"
+            index: "15/18"
             suites: "pcrmetrics libcomplexity genotypeconcordance multiplemetrics rrbsmetrics"
           - group: oracle-backed
-            index: "16/17"
+            index: "16/18"
             suites: "replicatemetrics arraysmetrics combinearrays bamtobfq vcftoadpc"
           - group: oracle-backed
-            index: "17/17"
+            index: "17/18"
             suites: "markadapters checkfingerprint markduplicates matecigarduplicates umiduplicates"
+          - group: oracle-backed
+            index: "18/18"
+            suites: "crosscheckfingerprints"
           - group: golden-pending
             index: "1/1"
-            suites: "crosscheckfingerprints fingerprintmetrics samerrormetrics"
+            suites: "fingerprintmetrics samerrormetrics"
     steps:
       - uses: actions/checkout@v7
 
