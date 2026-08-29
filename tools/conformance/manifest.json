@@ -1163,7 +1163,7 @@
     },
     {
       "id": "mergebamalignment-hits",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which alignment MergeBamAlignment calls primary",
       "harness": "tools/mergebamalignment-conformance",
       "tools": [
@@ -1177,7 +1177,7 @@
       "cases": [
         {
           "dump": "MergeBamAlignmentHitsDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/merge_bam_alignment_hits.txt.gz",
           "why": "Ten runs: three alignments of one read under each of the four strategies and with the secondaries dropped; the same three with the aligner naming one primary, under two strategies; and a pair with two alignments each under the default, under MostDistant, and under the strategy that will not read a pair at all."
         }
       ]
