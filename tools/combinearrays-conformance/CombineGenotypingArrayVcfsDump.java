@@ -29,8 +29,12 @@
  *   - THE SAMPLE-SPECIFIC HEADER LINES ARE DROPPED, so the merged header carries no
  *     `chipWellBarcode` and no `autocallDate`, which belonged to one sample each;
  *   - THE FILTERS OF EVERY INPUT ARE UNIONED onto the merged variant;
- *   - AND THE OUTPUT IS INDEXED ONLY IF A SEQUENCE DICTIONARY IS REACHABLE, the refusal naming
- *     the dictionary rather than the index.
+ *   - AN ATTRIBUTE IN THE FIRST FILE ONLY IS KEPT WITHOUT COMMENT, where one in a later file is
+ *     refused: the loop runs over the other files' attributes and looks each up in the first's,
+ *     so the direction decides whether there is a refusal at all;
+ *   - AND THE OUTPUT IS INDEXED WHETHER OR NOT `CREATE_INDEX` ASKED FOR IT, the writer's builder
+ *     indexing any file it has a sequence dictionary for. The argument only adds an option the
+ *     builder already had.
  *
  * Output:
  *
@@ -86,6 +90,7 @@ public class CombineGenotypingArrayVcfsDump {
         text.append("##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">\n");
         text.append("##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Allele number\">\n");
         text.append("##INFO=<ID=BEADSET,Number=1,Type=Integer,Description=\"Bead set\">\n");
+        text.append("##INFO=<ID=EXTRA,Number=1,Type=Integer,Description=\"An extra key\">\n");
         text.append("##FILTER=<ID=LOW,Description=\"Low quality\">\n");
         // Two of the sample-specific header lines, which the merge is supposed to drop.
         text.append("##chipWellBarcode=barcode-").append(input.sample()).append('\n');
@@ -229,10 +234,17 @@ public class CombineGenotypingArrayVcfsDump {
                         variant(200, "0/1")))));
 
         // The attributes: one missing, one disagreeing, one exempt, and the one that is summed.
-        run("an-attribute-in-one-file-only", List.of(
+        // The loop runs over the OTHER files' attributes and looks each up in the FIRST file's,
+        // so which file carries the extra key decides whether it is a refusal at all: one only the
+        // first file has is kept without comment, and one a later file has is refused.
+        run("an-attribute-in-the-first-file-only", List.of(
                 new Input("sampleA", List.of(
-                        new Variant(100, "rs100", "A", "C", "BEADSET=7;AC=1", "PASS", "0/0"))),
+                        new Variant(100, "rs100", "A", "C", "BEADSET=7;EXTRA=1", "PASS", "0/0"))),
                 new Input("sampleB", List.of(variant(100, "0/1")))));
+        run("an-attribute-in-a-later-file-only", List.of(
+                new Input("sampleA", List.of(variant(100, "0/0"))),
+                new Input("sampleB", List.of(
+                        new Variant(100, "rs100", "A", "C", "BEADSET=7;EXTRA=1", "PASS", "0/1")))));
         run("an-attribute-that-disagrees", List.of(
                 new Input("sampleA", List.of(
                         new Variant(100, "rs100", "A", "C", "BEADSET=7", "PASS", "0/0"))),
@@ -263,7 +275,9 @@ public class CombineGenotypingArrayVcfsDump {
                         new Variant(100, "rs100", "A", "C", "DP=10", "PASS", "0/0"))),
                 new Input("sampleB", List.of(variant(100, "0/1")))));
 
-        // The index, which needs a sequence dictionary the inputs' contig lines provide.
+        // The index is written either way: `VariantContextWriterBuilder` indexes a file it has a
+        // dictionary for, and `CREATE_INDEX` only adds the option the builder already had. Both
+        // cases are here because the argument reads as if it decided something.
         run("an-index", List.of(
                 new Input("sampleA", first), new Input("sampleB", second)),
                 "CREATE_INDEX=true");
