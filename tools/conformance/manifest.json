@@ -1854,7 +1854,7 @@
     },
     {
       "id": "markduplicates",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which record of a duplicate set keeps the bit clear, and what the metrics count",
       "harness": "tools/markduplicates-conformance",
       "tools": [
@@ -1867,8 +1867,8 @@
       "cases": [
         {
           "dump": "MarkDuplicatesDump",
-          "golden": null,
-          "why": "Eighteen cases: two pairs at one position, the same two close enough to be optical with the regex off and the distance narrowed, pairs of different lengths under both scoring strategies, three singles, a soft-clipped read, an unmapped and a secondary one, removal of all duplicates and of the optical ones only, two tagging policies, an incoming DT tag with and without CLEAR_DT, and a barcode that splits one position into two sets."
+          "golden": "crates/picard-analysis/tests/data/mark_duplicates.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added this suite, and identical to the local smoke run. 18 cases: the input and the marked output as SAM text plus the metrics table and its histogram, so what is compared is which record keeps 0x400 clear and what the counters say."
         }
       ]
     }
