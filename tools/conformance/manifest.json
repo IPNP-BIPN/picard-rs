@@ -1811,6 +1811,26 @@
           "why": "Fourteen cases: the three called genotypes and the no-call, the allele fields reversed and one carrying a star, an intensity at and over the limit of an unsigned short, a missing normalized intensity, two loci, two samples, two VCFs agreeing and disagreeing on their length, and a VCF with no records."
         }
       ]
+    },
+    {
+      "id": "markadapters",
+      "status": "golden-pending",
+      "title": "where an adapter starts, as the XT tag counts it",
+      "harness": "tools/markadapters-conformance",
+      "tools": [
+        "MarkIlluminaAdapters"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The tool marks rather than clips: the XT tag is the ONE-BASED position the adapter starts at, found by a search that runs from the end of the read towards its front and takes the last start that matches. The error allowance is truncated from the OVERLAP's length rather than the adapter's, so a match near the end of a read allows fewer mismatches than one further in.",
+      "cases": [
+        {
+          "dump": "MarkIlluminaAdaptersDump",
+          "golden": null,
+          "why": "Fifteen cases: an adapter at the first base and one halfway, no adapter, eleven and twelve bases of it with the minimum moved, one and two mismatches with the rate moved, a pair whose reads agree and one whose reads do not, a single named adapter, a custom pair, and a read that already carries a tag with and without an adapter."
+        }
+      ]
     }
   ],
   "probes": [
