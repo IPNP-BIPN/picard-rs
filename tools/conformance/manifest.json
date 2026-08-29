@@ -1915,7 +1915,7 @@
     },
     {
       "id": "crosscheckfingerprints",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "every pair of fingerprints against every other, and the verdict on each",
       "harness": "tools/checkfingerprint-conformance",
       "tools": [
@@ -1928,8 +1928,8 @@
       "cases": [
         {
           "dump": "CrosscheckFingerprintsDump",
-          "golden": null,
-          "why": "Thirteen runs over the same three-site fixture CheckFingerprint uses: one sample agreeing and disagreeing, two samples under both crosscheck modes, one file of two read groups under the three CROSSCHECK_BY values, a second input, errors only, the matrix shape, EXPECT_ALL_GROUPS_TO_MATCH with the default code and a named one, and a LOD threshold."
+          "golden": "crates/picard-analysis/tests/data/crosscheck_fingerprints.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that sorted the matrix's columns, and identical to the local smoke run. Thirteen runs, all four verdicts, three shapes of row and three exit codes."
         }
       ]
     },
