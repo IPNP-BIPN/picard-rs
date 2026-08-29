@@ -61,6 +61,7 @@ pub mod lift_over_interval_list;
 pub mod make_vcf_sample_name_map;
 pub mod mark_duplicates;
 pub mod mark_illumina_adapters;
+pub mod mate_cigar_duplicates;
 pub mod merge_bam_alignment;
 pub mod merge_ped_into_vcf;
 pub mod merge_sam_files;

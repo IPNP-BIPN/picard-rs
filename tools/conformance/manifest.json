@@ -1874,7 +1874,7 @@
     },
     {
       "id": "matecigarduplicates",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "the two mate-cigar duplicate markers, beside MarkDuplicates on the same inputs",
       "harness": "tools/matecigardup-conformance",
       "tools": [
@@ -1888,8 +1888,8 @@
       "cases": [
         {
           "dump": "MateCigarDuplicatesDump",
-          "golden": null,
-          "why": "Eleven inputs through three tools: two pairs all three agree about, a soft-clipped mate and a soft-clipped first end, a pair with no MC with the skip on and off, a distant mate at the default window and a wide one, three singles, optical duplicates, removal, and a queryname-sorted file."
+          "golden": "crates/picard-analysis/tests/data/mate_cigar_duplicates.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added this suite, and identical to the local smoke run. Eleven inputs through three tools: seven cases where all three agree, and four where the mate-cigar pair does not, each by name."
         }
       ]
     }
