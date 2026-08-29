@@ -121,16 +121,29 @@ public class MakeIlluminaFixtures {
      * Four cycles, one lane, one tile, four clusters.
      */
     static Path write(final Path run) throws IOException {
+        return write(run, CYCLES.length);
+    }
+
+    /**
+     * The same directory with a chosen number of CYCLES, for a tool that needs more than four.
+     *
+     * `CollectHiSeqXPfFailMetrics` builds its read structure from `N_CYCLES` in a field
+     * initialiser, which runs before the parser assigns the argument, so it always asks for
+     * twenty-four cycles whatever the command line says. A fixture for it has to have them.
+     */
+    static Path write(final Path run, final int cycles) throws IOException {
         final Path intensities = run.resolve("Data").resolve("Intensities");
         final Path root = intensities.resolve("BaseCalls");
         writeTileMetrics(run.resolve("InterOp").resolve("TileMetricsOut.bin"), LANE,
                 new int[]{TILE});
         writeLocs(intensities.resolve("s.locs"), CLUSTERS);
         final Path lane = root.resolve(String.format("L%03d", LANE));
-        for (int cycle = 1; cycle <= CYCLES.length; cycle++) {
+        for (int cycle = 1; cycle <= cycles; cycle++) {
+            // Past the fourth cycle the four patterns repeat, so a longer run carries the same
+            // four clusters and nothing new to reason about.
             writeBcl(lane.resolve("C" + cycle + ".1")
                             .resolve(String.format("s_%d_%d.bcl", LANE, TILE)),
-                    CYCLES[cycle - 1], 30);
+                    CYCLES[(cycle - 1) % CYCLES.length], 30);
         }
         // Three of the four clusters pass the filter, which is what makes a `PF` count worth
         // reading: a tool that ignored the filter would report four.
