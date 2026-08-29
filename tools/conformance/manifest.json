@@ -1892,6 +1892,26 @@
           "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added this suite, and identical to the local smoke run. Eleven inputs through three tools: seven cases where all three agree, and four where the mate-cigar pair does not, each by name."
         }
       ]
+    },
+    {
+      "id": "umiduplicates",
+      "status": "golden-pending",
+      "title": "the UMI-aware duplicate marker, and the second metrics table it writes",
+      "harness": "tools/matecigardup-conformance",
+      "tools": [
+        "UmiAwareMarkDuplicatesWithMateCigar"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "A UMI is a barcode on the molecule rather than on the library, so two reads at one position carrying different UMIs are not duplicates of each other. This tool is SimpleMarkDuplicatesWithMateCigar with that split applied inside each duplicate set, and the split has a threshold: MAX_EDIT_DISTANCE_TO_JOIN is one by default, so two UMIs a single base apart are still one molecule.",
+      "cases": [
+        {
+          "dump": "UmiDuplicatesDump",
+          "golden": null,
+          "why": "Eleven runs: two UMIs four bases apart and one base apart, the joining distance moved either way, the same UMI twice with and without an assigned-identifier tag, a UMI with an N, a file with no UMIs with and without ALLOW_MISSING_UMIS, a named tag, and a command line with no UMI metrics file."
+        }
+      ]
     }
   ],
   "probes": [
