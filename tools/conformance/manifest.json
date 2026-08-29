@@ -1973,6 +1973,26 @@
           "why": "Fifteen runs: two mismatches and none, the prior moved, three stratifiers, two metrics in one run, a known site, the two thresholds each side of their cut, an overlapping pair, a deletion, a cap on the loci, and the collection argument that is appended to rather than replaced."
         }
       ]
+    },
+    {
+      "id": "checkilluminadirectory",
+      "status": "golden-pending",
+      "title": "whether a basecalls directory has the files a run would need",
+      "harness": "tools/illumina-conformance",
+      "tools": [
+        "CheckIlluminaDirectory"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "Picard's Illumina tools read a DIRECTORY rather than a file, and the reference's own test data is not in the pinned clone, so the fixture is written byte by byte from the formats the readers document. This is the cheapest of those tools and the one that says what the others will refuse: which files are missing, for which tile and which cycle, and what the read structure asks for.",
+      "cases": [
+        {
+          "dump": "CheckIlluminaDirectoryDump",
+          "golden": null,
+          "why": "Twelve runs over a four-cycle, one-tile, four-cluster run directory written byte by byte: complete, a cycle removed and the same one not asked for, more cycles than there are, the filter removed, the per-tile positions removed (which the default data types do not ask for), the lane's `s.locs` removed with and without the positions asked for, a tile that is there and one that is not, and the argument that writes what is missing instead of refusing."
+        }
+      ]
     }
   ],
   "probes": [

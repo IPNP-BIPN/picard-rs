@@ -33,10 +33,16 @@ def container_command(cls, props):
     """The in-container script: compile the harness against the pinned jar, then run it.
 
     `2>/dev/null` drops htsjdk's chatter on stderr; the dump itself goes to stdout.
+
+    The WHOLE harness directory is copied and `-sourcepath .` is passed, not just the one class.
+    Copying a single file means a dump can share nothing with its neighbours, and the Illumina
+    tools need a shared one: their fixture is a DIRECTORY written byte by byte, and seven dumps
+    building it seven times would be seven chances for two of them to disagree about what a
+    basecalls directory is.
     """
     prop_str = (" ".join(props) + " ") if props else ""
     return (
-        f'cp /harness/{cls}.java . && javac -cp "$ORACLE_CP" -d . {cls}.java '
+        f'cp /harness/*.java . && javac -cp "$ORACLE_CP" -sourcepath . -d . {cls}.java '
         f'&& java {prop_str}-cp ".:$ORACLE_CP" {cls} 2>/dev/null'
     )
 
