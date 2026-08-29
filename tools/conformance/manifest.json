@@ -2253,6 +2253,26 @@
           "why": "Six runs over fixtures written record by record: four loci on two contigs called AA, AB, BB and no-call, one of which comes out TRIALLELIC because the build's reference base is neither of the chip's alleles; every call homozygous reference; every call a no-call; a locus flagged ILLUMINA_FLAGGED and one flagged DUPE, each of which is dropped rather than filtered; and a sample the command line declares male."
         }
       ]
+    },
+    {
+      "id": "createextendedmanifest",
+      "status": "golden-pending",
+      "title": "the extended manifest GtcToVcf reads, and the loci it flags rather than drops",
+      "harness": "tools/arrays-conformance",
+      "tools": [
+        "CreateExtendedIlluminaManifest"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The tool works out, per locus, where it sits on the target build and which alleles it has there, which is the file GtcToVcf reads. The answer is not a copy of the input: a locus whose position is not on the build is FLAGGED rather than dropped, and the flag is what the downstream tool acts on, so the two suites meet at that column.",
+      "cases": [
+        {
+          "dump": "CreateExtendedManifestDump",
+          "golden": null,
+          "why": "Four runs over manifests written record by record: four loci the reference carries, the same with an empty dbSNP, a locus on a contig the reference does not have, and a locus past the end of its contig."
+        }
+      ]
     }
   ],
   "probes": [

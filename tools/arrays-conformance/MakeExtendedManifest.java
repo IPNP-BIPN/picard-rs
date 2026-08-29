@@ -47,6 +47,33 @@ public class MakeExtendedManifest {
         return String.join(",", values);
     }
 
+    /** The plain manifest: the same rows without the seven columns the extension adds. */
+    static String plainText(final List<Row> rows) {
+        final int columns = COLUMNS.size() - 7;
+        final StringBuilder out = new StringBuilder();
+        out.append("Illumina, Inc.\n");
+        out.append("[Heading]\n");
+        out.append("Descriptor File Name,fixture.bpm\n");
+        out.append("Assay Format,Infinium HTS\n");
+        out.append("Date Manufactured,1/1/2020\n");
+        out.append("Loci Count ,").append(rows.size()).append('\n');
+        out.append("[Assay]\n");
+        out.append(String.join(",", COLUMNS.subList(0, columns))).append('\n');
+        for (final Row row : rows) {
+            final String[] values = row(row).split(",", -1);
+            out.append(String.join(",", java.util.Arrays.asList(values).subList(0, columns)))
+                    .append('\n');
+        }
+        out.append("[Controls]\n");
+        return out.toString();
+    }
+
+    static Path writePlain(final Path file, final List<Row> rows) throws IOException {
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, plainText(rows), StandardCharsets.UTF_8);
+        return file;
+    }
+
     static String text(final List<Row> rows) {
         final StringBuilder out = new StringBuilder();
         out.append("Illumina, Inc.\n");
