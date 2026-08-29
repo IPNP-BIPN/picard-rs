@@ -2173,6 +2173,26 @@
           "why": "Twelve runs over a trio VCF written record by record: a possible child, two violations counted to different parents, a low-quality call with the floor each side of it, a shallow call, a lopsided heterozygote, the X for a male and a female child, the mitochondrion, a run that asks for the offending records to be written (which the reference refuses with a duplicate-sample-name error), and a tab report."
         }
       ]
+    },
+    {
+      "id": "baitdesigner",
+      "status": "golden-pending",
+      "title": "the baits a target list becomes, and what happens to a target too small to tile",
+      "harness": "tools/baitdesigner-conformance",
+      "tools": [
+        "BaitDesigner"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The tool lays fixed-length probes along each target, and the answer is decided by the strategy, the bait's size and offset, and what it does with a target shorter than a bait: it still gets MINIMUM_BAITS_PER_TARGET of them, which means baits running off both ends. The four strategies lay the same target four different ways, which is what makes the argument worth measuring rather than describing.",
+      "cases": [
+        {
+          "dump": "BaitDesignerDump",
+          "golden": null,
+          "why": "Eleven runs over a synthetic reference: a target longer than a bait and one shorter, the minimum lowered, the three strategies, a smaller bait, a wider offset, padding, and two nearby targets merged and unmerged. The parameters file is skipped: it is the tool's own usage text rather than anything the design decided."
+        }
+      ]
     }
   ],
   "probes": [
