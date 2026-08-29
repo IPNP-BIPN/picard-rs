@@ -1751,6 +1751,26 @@
           "why": "Eighteen cases: a plain run and one whose dbSNP knows nothing, a filtered assay and the two filters that are not the same fate, the GTA attribute on both sides, an indel, seven headers each missing one line, the call-rate threshold on each side, and two processors against one."
         }
       ]
+    },
+    {
+      "id": "combinearrays",
+      "status": "golden-pending",
+      "title": "the lockstep an array VCF merge walks in, and everything it refuses",
+      "harness": "tools/combinearrays-conformance",
+      "tools": [
+        "CombineGenotypingArrayVcfs"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "The merge is not by position: the nth variant of each file is merged with the nth of every other, so two files holding the same loci in a different order are a refusal rather than a reordering. Seven attributes are exempt from the agreement check, DP is summed rather than compared, and the sample-specific header lines are dropped from the merged header.",
+      "cases": [
+        {
+          "dump": "CombineGenotypingArrayVcfsDump",
+          "golden": null,
+          "why": "Sixteen cases: two, three and one sample, a repeated sample, the same loci in another order, a different count, locus, id, reference allele, alternate allele and alternate count, an attribute present in one file only, one that disagrees, an exempt one that disagrees, two depths that are summed, and two filters that are unioned."
+        }
+      ]
     }
   ],
   "probes": [
