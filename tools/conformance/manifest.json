@@ -1121,7 +1121,7 @@
     },
     {
       "id": "mergebamalignment-pair",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "what MergeBamAlignment does to a pair",
       "harness": "tools/mergebamalignment-conformance",
       "tools": [
@@ -1135,7 +1135,7 @@
       "cases": [
         {
           "dump": "MergeBamAlignmentPairDump",
-          "golden": null,
+          "golden": "crates/picard-analysis/tests/data/merge_bam_alignment_pair.txt.gz",
           "why": "Eleven runs: the mate fields the aligner wrote, which are wrong on purpose, replaced by the ones the other end implies; the same pair with the ends swapped, which signs the insert size; a pair the aligner called proper across two contigs, with and without ALIGNER_PROPER_PAIR_FLAGS; a run without ADD_MATE_CIGAR; overlapping ends soft-clipped, unclipped and hard-clipped; one end with no alignment; a soft-clipped end, which says what the insert size is measured between; and the deprecated PAIRED_RUN."
         }
       ]
