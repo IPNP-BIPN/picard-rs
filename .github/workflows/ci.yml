@@ -148,7 +148,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
 
-      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics
+      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam
 
       - name: Run the arrays, and record what the port covers
         # The arrays have existed since the harness landed and have only ever seeded the fuzzer,
@@ -169,8 +169,10 @@ jobs:
             --port target/release/collect-alignment-summary-metrics | tee /tmp/casm.log
           python3 tools/coverage/run_array.py --tool CollectQualityYieldMetrics \
             --port target/release/collect-quality-yield-metrics | tee /tmp/cqym.log
+          python3 tools/coverage/run_array.py --tool SortSam \
+            --port target/release/sort-sam | tee /tmp/sortsam.log
           python3 tools/coverage/measure.py --log /tmp/addoatag.log --log /tmp/casm.log \
-            --log /tmp/cqym.log --out tools/coverage/measured.json
+            --log /tmp/cqym.log --log /tmp/sortsam.log --out tools/coverage/measured.json
 
       - name: The committed measurement still holds
         # The corpus and the measurement are goldens like any other: produced here, committed, and
@@ -180,7 +182,8 @@ jobs:
           dirty=$(git status --porcelain tools/coverage/measured.json \
             tools/coverage/corpus/AddOATag.t2.txt \
             tools/coverage/corpus/CollectAlignmentSummaryMetrics.t2.txt \
-            tools/coverage/corpus/CollectQualityYieldMetrics.t2.txt)
+            tools/coverage/corpus/CollectQualityYieldMetrics.t2.txt \
+            tools/coverage/corpus/SortSam.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
