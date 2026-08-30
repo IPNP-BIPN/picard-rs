@@ -26,9 +26,9 @@
       "rejected": 0,
       "distinct_outputs": 11,
       "distinct_rejections": 0,
-      "matched": 0,
+      "matched": 16,
       "t": 2,
-      "share": 0.0
+      "share": 1.0
     }
   }
 }
