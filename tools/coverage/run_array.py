@@ -32,6 +32,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zlib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "conformance"))
@@ -136,6 +137,12 @@ def read_output(out_dir):
     sides produced the same bytes, and for a binary output the digest answers that exactly. It is
     a weaker artefact than the text corpus, because a divergence shows as two digests rather than
     as a diff, so the corpus says which it is.
+
+    A BGZF file is hashed DECOMPRESSED. The reference deflates through Intel's GKL by default and
+    the port deflates through zlib, so the framed bytes differ for a reason that is not the tool's
+    logic -- the same reason `--COMPRESSION_LEVEL` is excluded from every array, and the same pin
+    htsjdk-rs asserts in a suite of its own (decisions 0001 and 0029). What is left after the
+    decompression is the header and the records, which is what this array is measuring.
     """
     produced = out_dir / "output.txt"
     if not produced.exists():
@@ -144,7 +151,25 @@ def read_output(out_dir):
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
-        return f"BINARY sha256={hashlib.sha256(raw).hexdigest()} bytes={len(raw)}"
+        pass
+    payload, kind = decompressed(raw)
+    return f"{kind} sha256={hashlib.sha256(payload).hexdigest()} bytes={len(payload)}"
+
+
+def decompressed(raw):
+    """A BGZF file's own bytes, and what the digest is therefore of."""
+    if not raw.startswith(b"\x1f\x8b"):
+        return raw, "BINARY"
+    plain = bytearray()
+    position = 0
+    while position < len(raw):
+        stream = zlib.decompressobj(31)
+        plain += stream.decompress(raw[position:])
+        remaining = len(stream.unused_data)
+        if remaining == 0:
+            break
+        position = len(raw) - remaining
+    return bytes(plain), "BGZF-CONTENT"
 
 
 def first_error(text):
@@ -191,7 +216,7 @@ def outcome(code, text, error, tool):
         return ""
     # A digest is already canonical, and running it through the metrics stripper would only put a
     # header prefix through a hash that has none.
-    if text.startswith("BINARY sha256="):
+    if text.startswith("BINARY sha256=") or text.startswith("BGZF-CONTENT sha256="):
         return text
     return canonical(text, tool)
 
