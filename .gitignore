@@ -17,6 +17,7 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/AddOATag.t2.txt
 !tools/coverage/corpus/CollectAlignmentSummaryMetrics.t2.txt
 !tools/coverage/corpus/CollectQualityYieldMetrics.t2.txt
+!tools/coverage/corpus/SortSam.t2.txt
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real
 # x86-64 run; a copy produced locally must not be committed (decision 0008).

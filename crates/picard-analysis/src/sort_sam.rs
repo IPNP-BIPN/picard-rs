@@ -10,8 +10,11 @@
 //! `queryname`. Both comparators treat records that agree on every field as equal, so the sort must
 //! be **stable** to be byte-identical (decision 0021); Rust's `sort_by` is.
 //!
-//! This ports the `coordinate` and `queryname` orders. The `unsorted` and `duplicate` orders are
-//! separate surfaces.
+//! This ports the `coordinate` and `queryname` orders, and the precondition the `duplicate` order
+//! is refused on. A duplicate sort compares records by, among other things, their MATE's unclipped
+//! coordinate, which it reads out of the `MC` tag; a file whose records do not carry one cannot be
+//! sorted that way at all, and the reference says so before it writes a single record. The
+//! ordering itself is a separate surface, and unreachable from a corpus without mate cigars.
 
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
@@ -23,6 +26,127 @@ use htsjdk_bam::{coordinate, query_name};
 pub enum SortOrder {
     Coordinate,
     Queryname,
+}
+
+/// What `--SORT_ORDER` may name.
+///
+/// Two of the three are sorts this port performs. The third is the duplicate order, which is
+/// refused on any file whose paired records carry no mate cigar, and that is every file this
+/// corpus has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequestedOrder {
+    Coordinate,
+    Queryname,
+    Duplicate,
+}
+
+impl RequestedOrder {
+    pub fn parse(name: &str) -> Option<RequestedOrder> {
+        match name {
+            "coordinate" => Some(RequestedOrder::Coordinate),
+            "queryname" => Some(RequestedOrder::Queryname),
+            "duplicate" => Some(RequestedOrder::Duplicate),
+            _ => None,
+        }
+    }
+
+    /// The `@HD SO` the output header carries.
+    pub fn name(self) -> &'static str {
+        match self {
+            RequestedOrder::Coordinate => "coordinate",
+            RequestedOrder::Queryname => "queryname",
+            RequestedOrder::Duplicate => "duplicate",
+        }
+    }
+
+    /// The sort this port performs for it, where it performs one.
+    pub fn sort_order(self) -> Option<SortOrder> {
+        match self {
+            RequestedOrder::Coordinate => Some(SortOrder::Coordinate),
+            RequestedOrder::Queryname => Some(SortOrder::Queryname),
+            RequestedOrder::Duplicate => None,
+        }
+    }
+}
+
+/// One record, as much of it as the mate-cigar precondition looks at.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MateCigarCheck {
+    pub read_name: String,
+    pub paired: bool,
+    pub first_of_pair: bool,
+    pub unmapped: bool,
+    pub mate_unmapped: bool,
+    pub read_length: usize,
+    pub reference: Option<String>,
+    pub start: i32,
+    pub end: i32,
+    pub mate_cigar: Option<String>,
+}
+
+impl MateCigarCheck {
+    /// `SAMRecord.toString()`, which is what the refusal names the record with.
+    pub fn description(&self) -> String {
+        let mut text = self.read_name.clone();
+        if self.paired {
+            text.push_str(if self.first_of_pair { " 1/2" } else { " 2/2" });
+        }
+        text.push(' ');
+        text.push_str(&format!("{}b", self.read_length));
+        if self.unmapped {
+            text.push_str(" unmapped read.");
+        } else {
+            text.push_str(&format!(
+                " aligned to {}:{}-{}.",
+                self.reference.clone().unwrap_or_default(),
+                self.start,
+                self.end
+            ));
+        }
+        text
+    }
+
+    /// Whether sorting by duplicate order would ask this record for its mate's coordinate.
+    pub fn needs_mate_cigar(&self) -> bool {
+        self.paired && !self.unmapped && !self.mate_unmapped
+    }
+}
+
+/// The order the comparator touches the records in, which is what decides WHICH record a refusal
+/// names.
+///
+/// The sort compares the second record against the first before anything else, so the second is
+/// the first one asked for its mate's coordinate; after that each record is touched as it is
+/// inserted, in file order.
+pub fn touch_order(count: usize) -> Vec<usize> {
+    match count {
+        0 => Vec::new(),
+        1 => vec![0],
+        _ => {
+            let mut order = vec![1, 0];
+            order.extend(2..count);
+            order
+        }
+    }
+}
+
+/// The refusal a duplicate sort answers a file with no mate cigars with.
+///
+/// `SAMUtils.getMateUnclippedStart` throws on the first record that needs a mate cigar and has
+/// none, and the message carries the record as `SAMRecord.toString()` writes it. The space after
+/// the colon is the unclipped-coordinate methods'; the mate-alignment-end method next to them
+/// writes the same sentence WITHOUT it, which is a difference a reader would not invent.
+pub fn mate_cigar_refusal(records: &[MateCigarCheck]) -> Option<String> {
+    for index in touch_order(records.len()) {
+        let record = &records[index];
+        if record.needs_mate_cigar() && record.mate_cigar.is_none() {
+            return Some(format!(
+                "Mate CIGAR (Tag MC) not found: {}",
+                record.description()
+            ));
+        }
+    }
+    None
 }
 
 impl SortOrder {
