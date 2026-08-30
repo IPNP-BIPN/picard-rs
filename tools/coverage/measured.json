@@ -39,6 +39,16 @@
       "matched": 10,
       "t": 2,
       "share": 1.0
+    },
+    "SortSam": {
+      "rows": 10,
+      "accepted": 7,
+      "rejected": 3,
+      "distinct_outputs": 2,
+      "distinct_rejections": 2,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
     }
   }
 }
