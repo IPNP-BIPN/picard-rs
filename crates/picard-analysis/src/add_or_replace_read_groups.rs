@@ -56,20 +56,29 @@ fn replace_read_groups(header: &mut SamHeader, opts: &Options) {
     header.read_groups = vec![build_read_group(opts)];
 }
 
+/// The reheader and the `RG` stamp, over records that are already in memory.
+///
+/// The SAM entry points below read their records first and then call this; the runnable binary
+/// calls it directly, because its input is a BAM as often as it is a SAM.
+///
+/// Stamping the `RG` tag is per-record and independent; `par_iter_mut` keeps the order, so the
+/// bytes match the serial loop (decision 0006).
+pub fn replace_and_stamp(header: &mut SamHeader, records: &mut [BamRecord], opts: &Options) {
+    use rayon::prelude::*;
+    replace_read_groups(header, opts);
+    records.par_iter_mut().for_each(|rec| {
+        rec.tags
+            .insert(Tag::new(b"RG"), TagValue::Str(opts.rgid.clone()));
+    });
+}
+
 /// `AddOrReplaceReadGroups.doWork` up to the write: the reheadered records with the new `RG` tag.
 fn apply(
     input_sam: &str,
     opts: &Options,
 ) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
-    use rayon::prelude::*;
     let (mut header, mut records) = read_sam(input_sam)?;
-    replace_read_groups(&mut header, opts);
-    // Stamping the RG tag is per-record and independent; par_iter_mut keeps the order, so the bytes
-    // match the serial loop (decision 0006).
-    records.par_iter_mut().for_each(|rec| {
-        rec.tags
-            .insert(Tag::new(b"RG"), TagValue::Str(opts.rgid.clone()));
-    });
+    replace_and_stamp(&mut header, &mut records, opts);
     Ok((header, records))
 }
 
