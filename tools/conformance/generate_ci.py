@@ -30,6 +30,10 @@ REPO = HERE.parents[1]
 TEMPLATE = HERE / "ci.template.yml"
 WORKFLOW = REPO / ".github" / "workflows" / "ci.yml"
 MARKER = "# {{ORACLE_JOBS}}"
+COVERAGE_MARKER = "# {{COVERAGE_JOB}}"
+GITIGNORE = REPO / ".gitignore"
+CORPUS_BEGIN = "# {{BEGIN coverage corpora}}"
+CORPUS_END = "# {{END coverage corpora}}"
 
 CACHE_KEY = "picard-rs-oracle-${{ hashFiles('tools/oracle/**') }}"
 IMAGE_TAR = "/tmp/oracle-image.tar"
@@ -174,6 +178,123 @@ def oracle_jobs(manifest):
     return "\n".join(out)
 
 
+def coverage_job(manifest):
+    """The covering-array job, from the one list of tools in the manifest.
+
+    What it emits: a build of exactly the declared port binaries, one array run per tool, one
+    measurement over all of their logs, and a dirty check over the artefacts the `measured` tools
+    own. How: every step is derived from the same list, so the four places that used to name a
+    tool cannot disagree about which tools are covered. Why not keep the steps hand-written: they
+    had to agree by hand, and this is the job whose output is the programme's coverage claim, so a
+    list that has silently lost a tool is a claim that reads higher than what ran.
+    """
+    coverage = manifest.get("coverage")
+    if not coverage:
+        return ""
+    tools = coverage["tools"]
+    measured = [t for t in tools if t["status"] == "measured"]
+    pending = [t for t in tools if t["status"] == "pending"]
+
+    bins = " ".join(f"--bin {t['port']}" for t in tools)
+    runs = "\n".join(
+        f"          python3 tools/coverage/run_array.py --tool {t['tool']} --t {t['t']} \\\n"
+        f"            --port target/release/{t['port']} \\\n"
+        f"            | tee /tmp/{t['tool']}.log"
+        for t in tools
+    )
+    logs = " \\\n            ".join(f"--log /tmp/{t['tool']}.log" for t in tools)
+    pending_flags = "".join(f" \\\n            --pending {t['tool']}" for t in pending)
+    dirty = " \\\n            ".join(
+        ["dirty=$(git status --porcelain tools/coverage/measured.json"]
+        + [f"tools/coverage/corpus/{t['tool']}.t{t['t']}.txt" for t in measured]
+    )
+
+    return f"""  coverage:
+    name: "Argument coverage: the covering array against both sides"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the pinned oracle image
+        run: docker build --platform {manifest['oracle']['platform']} -t {manifest['oracle']['image']} {manifest['oracle']['context']}
+
+      - run: cargo build --release {bins}
+
+      - name: Run the arrays, and record what the port covers
+        # Every row goes through the reference and through the port, compared under the same
+        # canonicalization the conformance suites use. A rejected row counts as covered when both
+        # sides reject it with the same message, because reproducing a refusal is reproducing the
+        # tool.
+        #
+        # The number that comes out is not a bug count. It is how much of the pairwise argument
+        # surface the port implements, which is the figure the programme had never had until this
+        # job ran: a binary written for one path answers a row that varies another path
+        # differently, and that difference is the measurement, not a failure.
+        run: |
+{runs}
+          python3 tools/coverage/measure.py {logs}{pending_flags} \\
+            --out tools/coverage/measured.json \\
+            --pending-out tools/coverage/pending/measured.json
+
+      - name: The committed measurement still holds
+        # The corpus and the measurement are goldens like any other: produced here, committed, and
+        # re-derived on every run. A port that grows its argument surface makes this fail, which is
+        # the point, and the fix is to commit the new number.
+        #
+        # A `pending` tool is deliberately absent from both lists: its numbers exist only in the
+        # log and the published artefact until someone commits them, exactly as a golden-pending
+        # suite's golden does.
+        run: |
+          {dirty})
+          if [ -n "$dirty" ]; then
+            echo "the measured argument coverage moved:"
+            echo "$dirty"
+            git --no-pager diff -- tools/coverage/measured.json | head -40
+            echo "commit the artefacts this run produced"
+            exit 1
+          fi
+          echo "the committed measurement matches what this run produced"
+
+      - name: Publish the corpus and the measurement
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: covering-corpus
+          path: |
+            tools/coverage/corpus/
+            tools/coverage/measured.json
+            tools/coverage/pending/
+          if-no-files-found: ignore
+"""
+
+
+def corpus_whitelist(manifest):
+    """The .gitignore negations that keep exactly the committed corpora committed.
+
+    Corpora are oracle output, so `tools/coverage/corpus/*` is excluded and each committed file is
+    negated back in. That list is the same list as the `measured` tools, and it lived in a second
+    place where it could fall behind: a corpus whose negation is missing simply stops being
+    committed, and the dirty check above then fails on a file nobody deleted.
+    """
+    measured = [t for t in manifest.get("coverage", {}).get("tools", []) if t["status"] == "measured"]
+    lines = [f"!tools/coverage/corpus/{t['tool']}.t{t['t']}.txt" for t in measured]
+    return "\n".join(lines)
+
+
+def render_gitignore(manifest, current):
+    """The committed .gitignore with its managed corpus block replaced."""
+    begin, end = current.index(CORPUS_BEGIN), current.index(CORPUS_END)
+    head = current[: begin + len(CORPUS_BEGIN)]
+    tail = current[end:]
+    return head + "\n" + corpus_whitelist(manifest) + "\n" + tail
+
+
 # `uses: owner/action@ref`, over the two shapes the workflow writes: a step that is only a `uses`,
 # and one that names itself first.
 USES = re.compile(r"(?P<lead>uses: )(?P<action>[\w.-]+/[\w./-]+)@(?P<ref>\S+)")
@@ -263,7 +384,10 @@ def render(manifest):
         "# tools/conformance/generate_ci.py. Edit the manifest, not this file: the `guard` job\n"
         "# fails if the two disagree.\n"
     )
-    return template.replace(MARKER, banner + oracle_jobs(manifest))
+    if COVERAGE_MARKER not in template:
+        raise SystemExit(f"{TEMPLATE} has lost its {COVERAGE_MARKER} marker")
+    rendered = template.replace(MARKER, banner + oracle_jobs(manifest))
+    return rendered.replace(COVERAGE_MARKER, coverage_job(manifest).rstrip("\n"))
 
 
 def main(argv):
@@ -274,8 +398,16 @@ def main(argv):
     manifest = comparator.load_manifest()
     current = WORKFLOW.read_text() if WORKFLOW.exists() else ""
     rendered = gate_job(repin(render(manifest), current))
+    ignore_current = GITIGNORE.read_text()
+    ignore_rendered = render_gitignore(manifest, ignore_current)
 
     if args.check:
+        if ignore_current != ignore_rendered:
+            print(
+                ".gitignore's corpus whitelist is stale: regenerate with "
+                "tools/conformance/generate_ci.py"
+            )
+            return 1
         if current != rendered:
             print("ci.yml is stale: regenerate with tools/conformance/generate_ci.py")
             import difflib
@@ -289,12 +421,16 @@ def main(argv):
         print(
             f"ci.yml matches the manifest: {len(manifest['suites'])} suites, "
             f"{sum(len(s['cases']) for s in manifest['suites'])} cases, "
-            f"{len(manifest.get('probes', []))} probe(s)"
+            f"{len(manifest.get('probes', []))} probe(s), "
+            f"{len(manifest.get('coverage', {}).get('tools', []))} covering array(s)"
         )
         return 0
 
     WORKFLOW.write_text(rendered)
     print(f"wrote {WORKFLOW} ({rendered.count(chr(10)) + 1} lines)")
+    if ignore_current != ignore_rendered:
+        GITIGNORE.write_text(ignore_rendered)
+        print(f"wrote {GITIGNORE} (corpus whitelist)")
     return 0
 
 

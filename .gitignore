@@ -14,14 +14,21 @@ tools/asm-conformance/out_*.txt
 # The rule is a file glob rather than `tools/coverage/corpus/`: git does not descend into an
 # excluded directory, so a per-file negation under one has no effect.
 tools/coverage/corpus/*
+# {{BEGIN coverage corpora}}
 !tools/coverage/corpus/AddOATag.t2.txt
 !tools/coverage/corpus/CollectAlignmentSummaryMetrics.t2.txt
 !tools/coverage/corpus/CollectQualityYieldMetrics.t2.txt
 !tools/coverage/corpus/SortSam.t2.txt
+# {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real
 # x86-64 run; a copy produced locally must not be committed (decision 0008).
 tools/conformance/pending/
+
+# Candidate coverage measurements for `pending` covering arrays, on the same rule: the
+# number is published by CI from a real x86-64 run, and committing it is what makes the
+# array measured.
+tools/coverage/pending/
 
 # Fuzzer findings are oracle output produced locally, in an emulated container. CI publishes them
 # from a real x86-64 run as an artefact; a local copy must not be committed (decision 0008).

@@ -27,6 +27,31 @@
     "-Duser.country=US",
     "-Dsamjdk.use_libdeflate=false"
   ],
+  "coverage": {
+    "$why": [
+      "The covering-array job used to name its tools in four places in ci.template.yml: the",
+      "`cargo build --bin` line, one `run_array.py` invocation, one `--log` on measure.py, and",
+      "one path in the dirty check. Four lists that had to agree, edited by hand, in the job",
+      "whose whole purpose is to say how much of a tool's argument surface the port reproduces.",
+      "Declaring the tool once and generating the job is what makes the fan-out to the other",
+      "hundred-odd ported tools a one-line change per tool instead of a four-place edit.",
+      "",
+      "`status` carries the same distinction the suites' does. `measured` means the number in",
+      "tools/coverage/measured.json was produced by this job on real x86-64 and is re-derived on",
+      "every run, so a port that grows or loses argument surface fails here. `pending` means the",
+      "array runs and the run publishes the measurement as an artefact, but nothing is committed",
+      "yet: a coverage number produced on a developer machine is the same mistake as a golden",
+      "produced there (decision 0008), and an emulated container is not the pinned platform.",
+      "Committing the published artefact and flipping the status to `measured` is the deliberate",
+      "act that turns the run into a claim."
+    ],
+    "tools": [
+      { "tool": "AddOATag", "port": "add-oa-tag", "t": 2, "status": "measured" },
+      { "tool": "CollectAlignmentSummaryMetrics", "port": "collect-alignment-summary-metrics", "t": 2, "status": "measured" },
+      { "tool": "CollectQualityYieldMetrics", "port": "collect-quality-yield-metrics", "t": 2, "status": "measured" },
+      { "tool": "SortSam", "port": "sort-sam", "t": 2, "status": "measured" }
+    ]
+  },
   "suites": [
     {
       "id": "metrics",
