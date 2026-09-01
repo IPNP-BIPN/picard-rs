@@ -240,20 +240,7 @@ pub fn effective_number_of_bases(counts: &BTreeMap<String, u64>) -> f64 {
 /// reports `-1` in the golden for exactly that reason, so the overflow is the measured behaviour
 /// rather than an accident to be tidied away.
 pub fn phred_from_error_probability(probability: f64) -> i32 {
-    let scaled = -10.0 * probability.log10();
-    if scaled.is_nan() {
-        return 0;
-    }
-    // `Math.round(double)` is floor(x + 0.5) saturated into a `long`.
-    let rounded = (scaled + 0.5).floor();
-    let as_long = if rounded >= i64::MAX as f64 {
-        i64::MAX
-    } else if rounded <= i64::MIN as f64 {
-        i64::MIN
-    } else {
-        rounded as i64
-    };
-    as_long as i32
+    htsjdk_bam::quality_util::phred_score_from_error_probability(probability)
 }
 
 /// What one run decided: the marking, and the UMI metrics beside it.

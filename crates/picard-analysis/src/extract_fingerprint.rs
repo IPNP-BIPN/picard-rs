@@ -23,7 +23,10 @@ pub const GENOTYPES: [usize; 3] = [0, 1, 2];
 
 /// `QualityUtil.getErrorProbabilityFromPhredScore`.
 pub fn error_probability(phred: u8) -> f64 {
-    10f64.powf(-f64::from(phred) / 10.0)
+    // The table htsjdk builds is `1 / pow(10, i / 10)`, a reciprocal of a power rather than a
+    // negative power, and the two are different doubles for most scores.
+    htsjdk_bam::quality_util::error_probability_from_phred_score(i32::from(phred))
+        .expect("a phred score fits the 0..=100 table")
 }
 
 /// `HaplotypeProbabilitiesFromContaminatorSequence`: the nine models kept apart until every read
