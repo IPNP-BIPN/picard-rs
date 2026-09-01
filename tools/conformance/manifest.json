@@ -53,7 +53,8 @@
       { "tool": "CleanSam", "port": "clean-sam", "t": 2, "status": "pending" },
       { "tool": "SamFormatConverter", "port": "sam-format-converter", "t": 2, "status": "pending" },
       { "tool": "BedToIntervalList", "port": "bed-to-interval-list", "t": 2, "status": "pending" },
-      { "tool": "IntervalListToBed", "port": "interval-list-to-bed", "t": 2, "status": "pending" }
+      { "tool": "IntervalListToBed", "port": "interval-list-to-bed", "t": 2, "status": "pending" },
+      { "tool": "NormalizeFasta", "port": "normalize-fasta", "t": 2, "status": "pending" }
     ]
   },
   "suites": [
