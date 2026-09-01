@@ -45,6 +45,15 @@
       "--INPUT": ["/work/fixtures/targets.bed", "/work/fixtures/targets_mixed.bed"],
       "--SEQUENCE_DICTIONARY": ["/work/fixtures/ref.dict"]
     },
+    "ReplaceSamHeader": {
+      "$why": [
+        "HEADER is a required File with no default: the generator gives a path-typed argument no",
+        "domain, so without this the tool could not run at all. The header taken is the SAM",
+        "fixture's, which shares the corpus's dictionary, so the replacement is a real reheader",
+        "rather than a mismatch."
+      ],
+      "--HEADER": ["/work/fixtures/small.sam"]
+    },
     "IntervalListToBed": {
       "--INPUT": [
         "/work/fixtures/targets.interval_list",
