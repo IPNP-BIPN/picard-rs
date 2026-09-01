@@ -29,6 +29,29 @@
     "--UNMAPPED_BAM": ["/work/fixtures/unmapped.bam"],
     "--ALIGNED_BAM": ["/work/fixtures/small.bam"]
   },
+  "per_tool": {
+    "$why": [
+      "`--INPUT` is one argument name over tools that do not read the same kind of file. The",
+      "values above are BAMs and SAMs, which is right for the record transforms and wrong for",
+      "everything else: a covering array that hands BedToIntervalList a BAM is a set of rows the",
+      "reference refuses for one reason, and it measures the fixture rather than the tool. That is",
+      "why the tools below had no array at all.",
+      "",
+      "A tool's own values replace the shared ones for that tool alone (gatk-rs's",
+      "tools/coverage/domains.py). Adding one widens the programme by making a tool measurable; it",
+      "narrows nothing, because the value it replaces was not a value that tool could take."
+    ],
+    "BedToIntervalList": {
+      "--INPUT": ["/work/fixtures/targets.bed"],
+      "--SEQUENCE_DICTIONARY": ["/work/fixtures/ref.dict"]
+    },
+    "IntervalListToBed": {
+      "--INPUT": ["/work/fixtures/targets.interval_list"]
+    },
+    "NormalizeFasta": {
+      "--INPUT": ["/work/fixtures/ref.fasta"]
+    }
+  },
   "constraints": [
     {
       "forbid": { "--FLOW_MODE": "true" },

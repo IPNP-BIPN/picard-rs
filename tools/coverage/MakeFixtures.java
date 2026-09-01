@@ -59,6 +59,8 @@ public class MakeFixtures {
         writeBam(new File(dir, "unmapped.bam"), unmappedHeader, unmapped(unmappedHeader), false);
 
         writeIntervals(new File(dir, "targets.interval_list"));
+        writeBed(new File(dir, "targets.bed"));
+        writeDict(new File(dir, "ref.dict"), chr1, chr2);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
 
@@ -280,6 +282,39 @@ public class MakeFixtures {
             p.println("chr1\t100\t400\t+\ttarget1");
             p.println("chr1\t900\t1200\t+\ttarget2");
             p.println("chr2\t50\t200\t-\ttarget3");
+        }
+    }
+
+    /**
+     * The same three targets as the interval list, in BED coordinates.
+     *
+     * A BED start is 0-based and its end is exclusive, where an interval list is 1-based and
+     * inclusive, so the same target is one lower on the left here. Writing both from one set of
+     * numbers is the point: a tool that converts between them can then be checked against a
+     * fixture that says what the answer is, rather than against its own output.
+     */
+    static void writeBed(File f) throws Exception {
+        try (PrintWriter p = new PrintWriter(f)) {
+            p.println("chr1\t99\t400\ttarget1\t0\t+");
+            p.println("chr1\t899\t1200\ttarget2\t0\t+");
+            p.println("chr2\t49\t200\ttarget3\t0\t-");
+        }
+    }
+
+    /**
+     * The sequence dictionary, as its own file.
+     *
+     * `SAMSequenceDictionaryExtractor` reads a FASTA's dictionary through
+     * `ReferenceSequenceFileFactory`, which does not derive one: it looks for the `.dict` beside
+     * the reference and throws "Could not find dictionary next to reference file" when there is
+     * none. Every tool taking a SEQUENCE_DICTIONARY therefore needed this file before it could be
+     * given an array at all.
+     */
+    static void writeDict(File f, String chr1, String chr2) throws Exception {
+        try (PrintWriter p = new PrintWriter(f)) {
+            p.println("@HD\tVN:1.6\tSO:unsorted");
+            p.printf("@SQ\tSN:chr1\tLN:%d%n", chr1.length());
+            p.printf("@SQ\tSN:chr2\tLN:%d%n", chr2.length());
         }
     }
 
