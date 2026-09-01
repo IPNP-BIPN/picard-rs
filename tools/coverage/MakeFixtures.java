@@ -55,6 +55,12 @@ public class MakeFixtures {
         SAMFileHeader queryname = header(SAMFileHeader.SortOrder.queryname);
         writeBam(new File(dir, "queryname.bam"), queryname, reads(queryname, false), false);
 
+        SAMFileHeader oneGroup = header(SAMFileHeader.SortOrder.coordinate);
+        oneGroup.setReadGroups(java.util.Collections.singletonList(oneGroup.getReadGroup("rg1")));
+        java.util.List<SAMRecord> oneGroupReads = reads(oneGroup, true);
+        for (SAMRecord r : oneGroupReads) r.setAttribute("RG", "rg1");
+        writeBam(new File(dir, "one_read_group.bam"), oneGroup, oneGroupReads, false);
+
         SAMFileHeader unmappedHeader = header(SAMFileHeader.SortOrder.unsorted);
         writeBam(new File(dir, "unmapped.bam"), unmappedHeader, unmapped(unmappedHeader), false);
 
@@ -126,6 +132,14 @@ public class MakeFixtures {
         }
     }
 
+    /**
+     * The same corpus under a single read group.
+     *
+     * Every other fixture carries the same two read groups, so a tool whose whole output is a
+     * function of the header's `@RG` records answers identically on all of them:
+     * CalculateReadGroupChecksum's array was nine rows and one digest, which covers its arguments
+     * without testing them. This file differs in exactly the thing that tool reads.
+     */
     static SAMFileHeader header(SAMFileHeader.SortOrder order) {
         SAMFileHeader h = new SAMFileHeader();
         SAMSequenceDictionary d = new SAMSequenceDictionary();

@@ -57,7 +57,8 @@
       { "tool": "NormalizeFasta", "port": "normalize-fasta", "t": 2, "status": "pending" },
       { "tool": "AddOrReplaceReadGroups", "port": "add-or-replace-read-groups", "t": 2, "status": "pending" },
       { "tool": "MergeSamFiles", "port": "merge-sam-files", "t": 2, "status": "pending" },
-      { "tool": "ReplaceSamHeader", "port": "replace-sam-header", "t": 2, "status": "pending" }
+      { "tool": "ReplaceSamHeader", "port": "replace-sam-header", "t": 2, "status": "pending" },
+      { "tool": "CalculateReadGroupChecksum", "port": "calculate-read-group-checksum", "t": 2, "status": "pending" }
     ]
   },
   "suites": [
