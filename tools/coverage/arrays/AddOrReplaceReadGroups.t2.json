@@ -1,0 +1,465 @@
+{
+  "tool": "AddOrReplaceReadGroups",
+  "origin": "picard",
+  "t": 2,
+  "numeric_policy": "strict",
+  "arguments_total": 31,
+  "arguments_in_array": 4,
+  "arguments_excluded": 27,
+  "excluded": [
+    {
+      "argument": "--arguments_file",
+      "type": "List[File]",
+      "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--COMPRESSION_LEVEL",
+      "type": "int",
+      "reason": "excluded by the repository: changes the deflate level of a written BAM. Varying it would make the output bytes differ for a reason that is not the tool's logic, and the deflate pin is asserted by its own suite (htsjdk-rs decision 0001)",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CREATE_MD5_FILE",
+      "type": "boolean",
+      "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--help",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--MAX_RECORDS_IN_RAM",
+      "type": "Integer",
+      "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--OUTPUT",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/out/output.txt",
+      "source": "fixture"
+    },
+    {
+      "argument": "--QUIET",
+      "type": "Boolean",
+      "reason": "excluded by the repository: suppresses the log on stderr; the compared output is stdout and the output file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--REFERENCE_SEQUENCE",
+      "type": "PicardHtsPath",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/ref.fasta",
+      "source": "fixture"
+    },
+    {
+      "argument": "--RGCN",
+      "type": "String",
+      "reason": "free-form string with no default: a fixture must supply the values",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--RGDS",
+      "type": "String",
+      "reason": "free-form string with no default: a fixture must supply the values",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--RGDT",
+      "type": "Iso8601Date",
+      "reason": "unmodelled type Iso8601Date",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--RGFO",
+      "type": "String",
+      "reason": "free-form string with no default: a fixture must supply the values",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--RGID",
+      "type": "String",
+      "reason": "only one value available (default)",
+      "held_at": "1",
+      "source": "default"
+    },
+    {
+      "argument": "--RGKS",
+      "type": "String",
+      "reason": "free-form string with no default: a fixture must supply the values",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--RGLB",
+      "type": "String",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "lib1",
+      "source": "fixture"
+    },
+    {
+      "argument": "--RGPG",
+      "type": "String",
+      "reason": "free-form string with no default: a fixture must supply the values",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--RGPI",
+      "type": "Integer",
+      "reason": "numeric with no declared bounds and no default: any value would be invented, and an invented value covers nothing",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--RGPL",
+      "type": "String",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "ILLUMINA",
+      "source": "fixture"
+    },
+    {
+      "argument": "--RGPM",
+      "type": "String",
+      "reason": "free-form string with no default: a fixture must supply the values",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--RGPU",
+      "type": "String",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "unit1",
+      "source": "fixture"
+    },
+    {
+      "argument": "--RGSM",
+      "type": "String",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "sample1",
+      "source": "fixture"
+    },
+    {
+      "argument": "--showHidden",
+      "type": "boolean",
+      "reason": "excluded by the repository: changes the usage text only",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--TMP_DIR",
+      "type": "List[File]",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/tmp",
+      "source": "fixture"
+    },
+    {
+      "argument": "--USE_JDK_DEFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract; varying it would compare zlib output against GKL output and call the difference a divergence",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--USE_JDK_INFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--VERBOSITY",
+      "type": "LogLevel",
+      "reason": "excluded by the repository: log level on stderr, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--version",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints the version and exits, same reason",
+      "held_at": null,
+      "source": "none"
+    }
+  ],
+  "rows": 17,
+  "tuples_total": 61,
+  "tuples_covered": 61,
+  "tuples_forbidden": 0,
+  "constraint_notes": [
+    "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
+  ],
+  "coverage": 1.0,
+  "array": [
+    {
+      "row": 0,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "unsorted",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=unsorted",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 1,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "queryname",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=queryname",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 2,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "coordinate",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 3,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "queryname",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=queryname",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 4,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "unsorted",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=unsorted",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 5,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "duplicate",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=duplicate",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "duplicate",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=duplicate",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "unknown",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=unknown",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "coordinate",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "unknown",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=unknown",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "coordinate",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 11,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "duplicate",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=duplicate",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "unsorted",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=unsorted",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 13,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "queryname",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=queryname",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 14,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "unknown",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=unknown",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 15,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "unsorted",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=unsorted",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 16,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "unsorted",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=unsorted",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    }
+  ]
+}
