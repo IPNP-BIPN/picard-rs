@@ -61,6 +61,7 @@ public class MakeFixtures {
         writeIntervals(new File(dir, "targets.interval_list"));
         writeBed(new File(dir, "targets.bed"));
         writeMixedBed(new File(dir, "targets_mixed.bed"));
+        writeMixedIntervals(new File(dir, "targets_mixed.interval_list"));
         writeDict(new File(dir, "ref.dict"), chr1, chr2);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
@@ -299,6 +300,26 @@ public class MakeFixtures {
             p.println("chr1\t99\t400\ttarget1\t0\t+");
             p.println("chr1\t899\t1200\ttarget2\t0\t+");
             p.println("chr2\t49\t200\ttarget3\t0\t-");
+        }
+    }
+
+    /**
+     * An interval list whose order is not the coordinate order.
+     *
+     * targets.interval_list is already sorted, so SORT produces the same file with it on or off
+     * and an array over that argument covers it without testing it. Here chr2 leads, the chr1
+     * entries are out of order, and both strands appear, so sorting moves lines and the
+     * strand-then-name tiebreak of IntervalCoordinateComparator is reachable.
+     */
+    static void writeMixedIntervals(File f) throws Exception {
+        try (PrintWriter p = new PrintWriter(f)) {
+            p.println("@HD\tVN:1.6");
+            p.printf("@SQ\tSN:chr1\tLN:%d%n", CHR1);
+            p.printf("@SQ\tSN:chr2\tLN:%d%n", CHR2);
+            p.println("chr2\t50\t200\t-\ttargetB");
+            p.println("chr1\t300\t500\t+\ttargetC");
+            p.println("chr1\t100\t400\t+\ttargetA");
+            p.println("chr1\t600\t700\t-\ttargetD");
         }
     }
 

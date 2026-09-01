@@ -46,7 +46,10 @@
       "--SEQUENCE_DICTIONARY": ["/work/fixtures/ref.dict"]
     },
     "IntervalListToBed": {
-      "--INPUT": ["/work/fixtures/targets.interval_list"]
+      "--INPUT": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ]
     },
     "NormalizeFasta": {
       "--INPUT": ["/work/fixtures/ref.fasta"]
