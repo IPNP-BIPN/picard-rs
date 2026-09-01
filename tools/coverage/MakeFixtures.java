@@ -59,6 +59,11 @@ public class MakeFixtures {
         writeBam(new File(dir, "unmapped.bam"), unmappedHeader, unmapped(unmappedHeader), false);
 
         writeIntervals(new File(dir, "targets.interval_list"));
+        writeBed(new File(dir, "targets.bed"));
+        writeMixedBed(new File(dir, "targets_mixed.bed"));
+        writeMixedIntervals(new File(dir, "targets_mixed.interval_list"));
+        writeDescribedFasta(new File(dir, "described.fasta"), chr2);
+        writeDict(new File(dir, "ref.dict"), chr1, chr2);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
 
@@ -96,11 +101,25 @@ public class MakeFixtures {
         }
     }
 
+    /**
+     * The FASTA index, whose offsets have to be the file's real ones.
+     *
+     * The byte length of a contig is its bases plus one newline per line, and the last line is
+     * short: `ceil(len / 60) * 61` over-counts it by `60 - (len % 60)`. chr1 is 2000 bases, so the
+     * old arithmetic put chr2's offset 40 bytes past where chr2 begins.
+     *
+     * Nothing noticed until a tool took the indexed path. `ReferenceSequenceFileFactory` opens
+     * `IndexedFastaSequenceFile` only when the caller asks for names truncated at whitespace
+     * ("Using faidx requires truncateNamesAtWhitespace"), so NormalizeFasta read this index only
+     * with TRUNCATE_SEQUENCE_NAMES_AT_WHITESPACE=true, and then sliced chr2 from the wrong byte:
+     * its output carried the file's own line terminators as if they were bases, one of them
+     * producing an empty line. The covering array is what ran that combination.
+     */
     static void writeFai(File f, String chr1, String chr2) throws Exception {
         try (PrintWriter p = new PrintWriter(f)) {
             int lineWidth = 60, lineBytes = 61;
             long offset1 = ">chr1\n".length();
-            long chr1Bytes = (long) Math.ceil(chr1.length() / (double) lineWidth) * lineBytes;
+            long chr1Bytes = bytesOnDisk(chr1.length(), lineWidth);
             long offset2 = offset1 + chr1Bytes + ">chr2\n".length();
             p.printf("chr1\t%d\t%d\t%d\t%d%n", chr1.length(), offset1, lineWidth, lineBytes);
             p.printf("chr2\t%d\t%d\t%d\t%d%n", chr2.length(), offset2, lineWidth, lineBytes);
@@ -281,6 +300,114 @@ public class MakeFixtures {
             p.println("chr1\t900\t1200\t+\ttarget2");
             p.println("chr2\t50\t200\t-\ttarget3");
         }
+    }
+
+    /**
+     * The same three targets as the interval list, in BED coordinates.
+     *
+     * A BED start is 0-based and its end is exclusive, where an interval list is 1-based and
+     * inclusive, so the same target is one lower on the left here. Writing both from one set of
+     * numbers is the point: a tool that converts between them can then be checked against a
+     * fixture that says what the answer is, rather than against its own output.
+     */
+    static void writeBed(File f) throws Exception {
+        try (PrintWriter p = new PrintWriter(f)) {
+            p.println("chr1\t99\t400\ttarget1\t0\t+");
+            p.println("chr1\t899\t1200\ttarget2\t0\t+");
+            p.println("chr2\t49\t200\ttarget3\t0\t-");
+        }
+    }
+
+    /**
+     * A FASTA whose headers carry a description and whose lines are not the output length.
+     *
+     * ref.fasta has bare contig names and is already wrapped at the length NormalizeFasta writes,
+     * so TRUNCATE_SEQUENCE_NAMES_AT_WHITESPACE has nothing to truncate and normalizing is the
+     * identity: the array covers both arguments without observing either. Here each header is
+     * "name description", so truncation changes the header line, and the bases are wrapped at 37
+     * rather than 100, so normalizing rewraps them.
+     *
+     * It deliberately has no .fai beside it. With one, ReferenceSequenceFileFactory opens the
+     * indexed reader, whose index would have to agree with the names; without one it opens
+     * FastaSequenceFile, which is the path this port reproduces.
+     */
+    static void writeDescribedFasta(File f, String chr2) throws Exception {
+        try (PrintWriter p = new PrintWriter(f)) {
+            p.println(">seq1 first sequence, described");
+            for (int i = 0; i < chr2.length(); i += 37) {
+                p.println(chr2.substring(i, Math.min(i + 37, chr2.length())));
+            }
+            p.println(">seq2\ta tab-separated description");
+            for (int i = 0; i < 120; i += 37) {
+                p.println(chr2.substring(i, Math.min(i + 37, 120)));
+            }
+        }
+    }
+
+    /**
+     * An interval list whose order is not the coordinate order.
+     *
+     * targets.interval_list is already sorted, so SORT produces the same file with it on or off
+     * and an array over that argument covers it without testing it. Here chr2 leads, the chr1
+     * entries are out of order, and both strands appear, so sorting moves lines and the
+     * strand-then-name tiebreak of IntervalCoordinateComparator is reachable.
+     */
+    static void writeMixedIntervals(File f) throws Exception {
+        try (PrintWriter p = new PrintWriter(f)) {
+            p.println("@HD\tVN:1.6");
+            p.printf("@SQ\tSN:chr1\tLN:%d%n", CHR1);
+            p.printf("@SQ\tSN:chr2\tLN:%d%n", CHR2);
+            p.println("chr2\t50\t200\t-\ttargetB");
+            p.println("chr1\t300\t500\t+\ttargetC");
+            p.println("chr1\t100\t400\t+\ttargetA");
+            p.println("chr1\t600\t700\t-\ttargetD");
+        }
+    }
+
+    /**
+     * A BED the interval tools' arguments can actually be observed on.
+     *
+     * targets.bed is already sorted, disjoint and length-nonzero, so SORT, UNIQUE and
+     * KEEP_LENGTH_ZERO_INTERVALS all produce the same file on it: the array covers those
+     * arguments without testing them, which the runner says out loud. This one is built so that
+     * each of the three changes the output.
+     *
+     * Out of coordinate order, so SORT moves lines. Two overlapping features and two abutting
+     * ones, so UNIQUE merges and concatenates names. One feature whose BED start equals its end,
+     * which becomes `start == end + 1` and is dropped unless KEEP_LENGTH_ZERO_INTERVALS is set.
+     */
+    static void writeMixedBed(File f) throws Exception {
+        try (PrintWriter p = new PrintWriter(f)) {
+            p.println("chr2\t49\t200\ttargetB\t0\t-");
+            p.println("chr1\t299\t500\ttargetC\t0\t+");
+            p.println("chr1\t99\t400\ttargetA\t0\t+");
+            p.println("chr1\t599\t700\ttargetD\t0\t+");
+            p.println("chr1\t699\t800\ttargetE\t0\t+");
+            p.println("chr1\t900\t900\tzeroLength\t0\t+");
+        }
+    }
+
+    /**
+     * The sequence dictionary, as its own file.
+     *
+     * `SAMSequenceDictionaryExtractor` reads a FASTA's dictionary through
+     * `ReferenceSequenceFileFactory`, which does not derive one: it looks for the `.dict` beside
+     * the reference and throws "Could not find dictionary next to reference file" when there is
+     * none. Every tool taking a SEQUENCE_DICTIONARY therefore needed this file before it could be
+     * given an array at all.
+     */
+    static void writeDict(File f, String chr1, String chr2) throws Exception {
+        try (PrintWriter p = new PrintWriter(f)) {
+            p.println("@HD\tVN:1.6\tSO:unsorted");
+            p.printf("@SQ\tSN:chr1\tLN:%d%n", chr1.length());
+            p.printf("@SQ\tSN:chr2\tLN:%d%n", chr2.length());
+        }
+    }
+
+    /** A contig's bytes in the file: its bases, plus the newline that ends each line. */
+    static long bytesOnDisk(int bases, int lineWidth) {
+        long lines = (bases + lineWidth - 1) / lineWidth;
+        return bases + lines;
     }
 
     static void writeFastq(File f, int end) throws Exception {

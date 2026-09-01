@@ -29,6 +29,45 @@
     "--UNMAPPED_BAM": ["/work/fixtures/unmapped.bam"],
     "--ALIGNED_BAM": ["/work/fixtures/small.bam"]
   },
+  "per_tool": {
+    "$why": [
+      "`--INPUT` is one argument name over tools that do not read the same kind of file. The",
+      "values above are BAMs and SAMs, which is right for the record transforms and wrong for",
+      "everything else: a covering array that hands BedToIntervalList a BAM is a set of rows the",
+      "reference refuses for one reason, and it measures the fixture rather than the tool. That is",
+      "why the tools below had no array at all.",
+      "",
+      "A tool's own values replace the shared ones for that tool alone (gatk-rs's",
+      "tools/coverage/domains.py). Adding one widens the programme by making a tool measurable; it",
+      "narrows nothing, because the value it replaces was not a value that tool could take."
+    ],
+    "BedToIntervalList": {
+      "--INPUT": ["/work/fixtures/targets.bed", "/work/fixtures/targets_mixed.bed"],
+      "--SEQUENCE_DICTIONARY": ["/work/fixtures/ref.dict"]
+    },
+    "IntervalListToBed": {
+      "--INPUT": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ]
+    },
+    "AddOrReplaceReadGroups": {
+      "$why": [
+        "RGLB, RGPL, RGPU and RGSM are required Strings with no default, so the generator can give",
+        "them no domain and the runner cannot pass them: every row of this tool's array was a",
+        "usage error, which measures the argument parser. These four values are what this",
+        "repository is willing to pass; they are held constant, so the array covers the arguments",
+        "that are actually varied and the tool runs at all."
+      ],
+      "--RGLB": ["lib1"],
+      "--RGPL": ["ILLUMINA"],
+      "--RGPU": ["unit1"],
+      "--RGSM": ["sample1"]
+    },
+    "NormalizeFasta": {
+      "--INPUT": ["/work/fixtures/ref.fasta", "/work/fixtures/described.fasta"]
+    }
+  },
   "constraints": [
     {
       "forbid": { "--FLOW_MODE": "true" },
