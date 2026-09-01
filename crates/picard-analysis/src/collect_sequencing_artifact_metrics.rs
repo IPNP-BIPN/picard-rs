@@ -185,7 +185,7 @@ pub fn bait_bias_error_rates(counts: &BaitBiasCounts) -> (f64, f64, f64) {
 /// `QualityUtil.getPhredScoreFromErrorProbability`, whose answer is an INTEGER: the Q columns of
 /// both detail files are rounded, so a rate of 1e-10 reports exactly a hundred.
 pub fn phred_from_error_probability(probability: f64) -> i32 {
-    (-10.0 * probability.log10()).round() as i32
+    htsjdk_bam::quality_util::phred_score_from_error_probability(probability)
 }
 
 /// The transitions a detail file holds a row for: every reference base against every other base.

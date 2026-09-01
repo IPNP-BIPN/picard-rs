@@ -342,8 +342,7 @@ const FIRST_OF_PAIR: u16 = 0x40;
 ///   * the cast to `int` truncates toward zero *after* the rounding, which for a non-negative
 ///     value is a no-op and is kept only so the shape matches.
 pub fn phred_score_from_obs_and_errors(observations: f64, errors: f64) -> i32 {
-    let probability = errors / observations;
-    jmath::math::round(-10.0 * jmath::math::log10(probability)) as i32
+    htsjdk_bam::quality_util::phred_score_from_obs_and_errors(observations, errors)
 }
 
 /// `GcBiasMetricsCollector.GcObject`: one accumulation level's counters.

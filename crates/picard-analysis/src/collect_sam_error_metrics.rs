@@ -28,7 +28,9 @@ pub fn prior_error(prior_q: i32) -> f64 {
 
 /// `QualityUtil.getPhredScoreFromErrorProbability`, rounded the way Java rounds it.
 pub fn phred_from_error_probability(probability: f64) -> i32 {
-    (-10.0 * probability.log10()).round() as i32
+    // htsjdk's own function, not a local copy of its formula: `Math.log10` is correctly rounded and
+    // `Math.round` is half up, and `f64::log10`/`f64::round` are neither.
+    htsjdk_bam::quality_util::phred_score_from_error_probability(probability)
 }
 
 /// The quality of a count of errors out of a count of bases.
