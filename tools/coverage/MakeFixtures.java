@@ -62,6 +62,7 @@ public class MakeFixtures {
         writeBed(new File(dir, "targets.bed"));
         writeMixedBed(new File(dir, "targets_mixed.bed"));
         writeMixedIntervals(new File(dir, "targets_mixed.interval_list"));
+        writeDescribedFasta(new File(dir, "described.fasta"), chr2);
         writeDict(new File(dir, "ref.dict"), chr1, chr2);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
@@ -300,6 +301,32 @@ public class MakeFixtures {
             p.println("chr1\t99\t400\ttarget1\t0\t+");
             p.println("chr1\t899\t1200\ttarget2\t0\t+");
             p.println("chr2\t49\t200\ttarget3\t0\t-");
+        }
+    }
+
+    /**
+     * A FASTA whose headers carry a description and whose lines are not the output length.
+     *
+     * ref.fasta has bare contig names and is already wrapped at the length NormalizeFasta writes,
+     * so TRUNCATE_SEQUENCE_NAMES_AT_WHITESPACE has nothing to truncate and normalizing is the
+     * identity: the array covers both arguments without observing either. Here each header is
+     * "name description", so truncation changes the header line, and the bases are wrapped at 37
+     * rather than 100, so normalizing rewraps them.
+     *
+     * It deliberately has no .fai beside it. With one, ReferenceSequenceFileFactory opens the
+     * indexed reader, whose index would have to agree with the names; without one it opens
+     * FastaSequenceFile, which is the path this port reproduces.
+     */
+    static void writeDescribedFasta(File f, String chr2) throws Exception {
+        try (PrintWriter p = new PrintWriter(f)) {
+            p.println(">seq1 first sequence, described");
+            for (int i = 0; i < chr2.length(); i += 37) {
+                p.println(chr2.substring(i, Math.min(i + 37, chr2.length())));
+            }
+            p.println(">seq2\ta tab-separated description");
+            for (int i = 0; i < 120; i += 37) {
+                p.println(chr2.substring(i, Math.min(i + 37, 120)));
+            }
         }
     }
 

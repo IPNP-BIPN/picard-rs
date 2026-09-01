@@ -52,7 +52,7 @@
       ]
     },
     "NormalizeFasta": {
-      "--INPUT": ["/work/fixtures/ref.fasta"]
+      "--INPUT": ["/work/fixtures/ref.fasta", "/work/fixtures/described.fasta"]
     }
   },
   "constraints": [
