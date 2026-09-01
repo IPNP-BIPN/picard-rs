@@ -98,6 +98,13 @@
         "/work/fixtures/targets_mixed.interval_list"
       ]
     },
+    "ScatterIntervalsByNs": {
+      "$why": [
+        "The reference is named --REFERENCE here, not --REFERENCE_SEQUENCE, so the shared value",
+        "does not reach it and the argument is required: without this every row was a usage error."
+      ],
+      "--REFERENCE": ["/work/fixtures/ref.fasta"]
+    },
     "NormalizeFasta": {
       "--INPUT": ["/work/fixtures/ref.fasta", "/work/fixtures/described.fasta"]
     }
