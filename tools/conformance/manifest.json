@@ -49,7 +49,8 @@
       { "tool": "AddOATag", "port": "add-oa-tag", "t": 2, "status": "measured" },
       { "tool": "CollectAlignmentSummaryMetrics", "port": "collect-alignment-summary-metrics", "t": 2, "status": "measured" },
       { "tool": "CollectQualityYieldMetrics", "port": "collect-quality-yield-metrics", "t": 2, "status": "measured" },
-      { "tool": "SortSam", "port": "sort-sam", "t": 2, "status": "measured" }
+      { "tool": "SortSam", "port": "sort-sam", "t": 2, "status": "measured" },
+      { "tool": "CleanSam", "port": "clean-sam", "t": 2, "status": "pending" }
     ]
   },
   "suites": [

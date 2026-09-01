@@ -61,16 +61,26 @@ pub fn clean_sam(input_sam: &str) -> Result<String, ParseError> {
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
 }
 
-/// `CleanSam.doWork` up to the write: the header and the cleaned records.
-fn clean(input_sam: &str) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
+/// The per-record loop of `doWork`, over records that are already in memory.
+///
+/// The SAM entry points below read their records first and then call this; the runnable binary
+/// calls it directly, because its input is a BAM as often as it is a SAM and decoding a BAM to
+/// text only to parse the text back would be a different code path for the same records.
+///
+/// Each record is cleaned independently from the (immutable, shared) header, and `par_iter_mut`
+/// mutates them in place without reordering, so the result is byte-identical to a serial loop
+/// regardless of how the work is split across cores. See decision 0006.
+pub fn clean_records(header: &SamHeader, records: &mut [BamRecord]) {
     use rayon::prelude::*;
-    let (header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
-    // Each record is cleaned independently from the (immutable, shared) header, and `par_iter_mut`
-    // mutates them in place without reordering, so the result is byte-identical to a serial loop
-    // regardless of how the work is split across cores. See decision 0006.
     records
         .par_iter_mut()
-        .for_each(|rec| clean_record(rec, &header));
+        .for_each(|rec| clean_record(rec, header));
+}
+
+/// `CleanSam.doWork` up to the write: the header and the cleaned records.
+fn clean(input_sam: &str) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
+    let (header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
+    clean_records(&header, &mut records);
     Ok((header, records))
 }
 
