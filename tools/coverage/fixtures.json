@@ -51,6 +51,19 @@
         "/work/fixtures/targets_mixed.interval_list"
       ]
     },
+    "AddOrReplaceReadGroups": {
+      "$why": [
+        "RGLB, RGPL, RGPU and RGSM are required Strings with no default, so the generator can give",
+        "them no domain and the runner cannot pass them: every row of this tool's array was a",
+        "usage error, which measures the argument parser. These four values are what this",
+        "repository is willing to pass; they are held constant, so the array covers the arguments",
+        "that are actually varied and the tool runs at all."
+      ],
+      "--RGLB": ["lib1"],
+      "--RGPL": ["ILLUMINA"],
+      "--RGPU": ["unit1"],
+      "--RGSM": ["sample1"]
+    },
     "NormalizeFasta": {
       "--INPUT": ["/work/fixtures/ref.fasta", "/work/fixtures/described.fasta"]
     }
