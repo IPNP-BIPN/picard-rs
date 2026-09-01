@@ -22,7 +22,16 @@ What is recorded, per tool:
 The parse is deliberately literal: it reads the runner's printed summary rather than recomputing
 anything, so the committed number and the number a reader sees in the log cannot drift apart.
 
-Usage: measure.py --log run.log [--log run2.log ...] --out tools/coverage/measured.json
+A tool named `--pending` is measured and printed but kept out of `--out`, and the full set,
+committed measurements and pending ones together, is written to `--pending-out` for CI to publish.
+That is the same rule the golden-pending suites follow (docs/decisions/0008): a number produced on
+a developer machine, or in an emulated container, is not a measurement this repository commits.
+Committing the published file over `measured.json` and flipping the tool's `status` in
+`tools/conformance/manifest.json` is what turns the run into a claim.
+
+Usage: measure.py --log run.log [--log run2.log ...] [--pending Tool ...]
+                  --out tools/coverage/measured.json
+                  [--pending-out tools/coverage/pending/measured.json]
 """
 
 import argparse
@@ -80,6 +89,17 @@ def main(argv):
     ap.add_argument("--log", action="append", required=True, help="a run_array.py log")
     ap.add_argument("--out", required=True)
     ap.add_argument(
+        "--pending",
+        action="append",
+        default=[],
+        metavar="TOOL",
+        help="a tool whose measurement is published rather than committed",
+    )
+    ap.add_argument(
+        "--pending-out",
+        help="where the full set, pending tools included, is written for CI to publish",
+    )
+    ap.add_argument(
         "--corpus",
         default=str(Path(__file__).resolve().parent / "corpus"),
         help="where the corpora the same run wrote live",
@@ -102,6 +122,14 @@ def main(argv):
     if not tools:
         raise SystemExit("no summary line in any log; run_array.py prints one per tool")
 
+    pending = set(args.pending)
+    unknown = sorted(pending - set(tools))
+    if unknown:
+        raise SystemExit(
+            "declared pending but not measured by any log: " + ", ".join(unknown) + "; "
+            "a tool that did not run cannot be waiting for its number to be committed"
+        )
+
     out = {
         "$comment": [
             "Produced by tools/coverage/measure.py from run_array.py's own summary, in the",
@@ -115,13 +143,26 @@ def main(argv):
         ],
         "tools": dict(sorted(tools.items())),
     }
-    Path(args.out).write_text(json.dumps(out, indent=2) + "\n")
+
+    # The published file carries everything this run measured; the committed one carries only what
+    # has been through this path before. A pending tool therefore leaves `measured.json` byte-for-
+    # byte as it was, which is what lets CI keep failing on a real change while a new array lands.
+    if args.pending_out:
+        path = Path(args.pending_out)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(out, indent=2) + "\n")
+
+    committed = dict(out)
+    committed["tools"] = {t: e for t, e in out["tools"].items() if t not in pending}
+    Path(args.out).write_text(json.dumps(committed, indent=2) + "\n")
+
     for tool, entry in sorted(tools.items()):
+        state = " (pending: published, not committed)" if tool in pending else ""
         print(
             f"{tool}: t={entry['t']} rows={entry['rows']} matched={entry['matched']} "
-            f"({entry['share']:.0%}) distinct outputs={entry['distinct_outputs']}"
+            f"({entry['share']:.0%}) distinct outputs={entry['distinct_outputs']}{state}"
         )
-    print(f"wrote {args.out}")
+    print(f"wrote {args.out}" + (f" and {args.pending_out}" if args.pending_out else ""))
     return 0
 
 

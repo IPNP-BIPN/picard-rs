@@ -106,6 +106,16 @@ array cannot invent a file path), `fixtures.json` declares which values this rep
 to pass and which arguments it refuses to vary, and the run writes a corpus in the same dump format
 the conformance suites use. Decision 0009 records what the first two runs measured.
 
+Which tools the CI job runs is declared once, in the `coverage` block of
+[`tools/conformance/manifest.json`](tools/conformance/manifest.json), and the job is generated from
+it alongside the oracle jobs. A tool's `status` there carries the same distinction the suites' does:
+**measured** means the number in `tools/coverage/measured.json` was produced by that job on real
+x86-64 and is re-derived on every run, so a port that gains or loses argument surface fails the run;
+**pending** means the array runs and the measurement is published as an artefact, but nothing is
+committed, because a coverage number produced on a developer machine is the same mistake as a golden
+produced there. Committing the published file and flipping the status is what turns the run into a
+claim.
+
 Beyond the array, `tools/fuzz/` mutates from its rows and keeps whatever reaches a probe of the
 reference that nothing has reached, with JaCoCo measuring inside the pinned container:
 
