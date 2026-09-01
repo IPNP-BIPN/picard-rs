@@ -101,11 +101,25 @@ public class MakeFixtures {
         }
     }
 
+    /**
+     * The FASTA index, whose offsets have to be the file's real ones.
+     *
+     * The byte length of a contig is its bases plus one newline per line, and the last line is
+     * short: `ceil(len / 60) * 61` over-counts it by `60 - (len % 60)`. chr1 is 2000 bases, so the
+     * old arithmetic put chr2's offset 40 bytes past where chr2 begins.
+     *
+     * Nothing noticed until a tool took the indexed path. `ReferenceSequenceFileFactory` opens
+     * `IndexedFastaSequenceFile` only when the caller asks for names truncated at whitespace
+     * ("Using faidx requires truncateNamesAtWhitespace"), so NormalizeFasta read this index only
+     * with TRUNCATE_SEQUENCE_NAMES_AT_WHITESPACE=true, and then sliced chr2 from the wrong byte:
+     * its output carried the file's own line terminators as if they were bases, one of them
+     * producing an empty line. The covering array is what ran that combination.
+     */
     static void writeFai(File f, String chr1, String chr2) throws Exception {
         try (PrintWriter p = new PrintWriter(f)) {
             int lineWidth = 60, lineBytes = 61;
             long offset1 = ">chr1\n".length();
-            long chr1Bytes = (long) Math.ceil(chr1.length() / (double) lineWidth) * lineBytes;
+            long chr1Bytes = bytesOnDisk(chr1.length(), lineWidth);
             long offset2 = offset1 + chr1Bytes + ">chr2\n".length();
             p.printf("chr1\t%d\t%d\t%d\t%d%n", chr1.length(), offset1, lineWidth, lineBytes);
             p.printf("chr2\t%d\t%d\t%d\t%d%n", chr2.length(), offset2, lineWidth, lineBytes);
@@ -388,6 +402,12 @@ public class MakeFixtures {
             p.printf("@SQ\tSN:chr1\tLN:%d%n", chr1.length());
             p.printf("@SQ\tSN:chr2\tLN:%d%n", chr2.length());
         }
+    }
+
+    /** A contig's bytes in the file: its bases, plus the newline that ends each line. */
+    static long bytesOnDisk(int bases, int lineWidth) {
+        long lines = (bases + lineWidth - 1) / lineWidth;
+        return bases + lines;
     }
 
     static void writeFastq(File f, int end) throws Exception {
