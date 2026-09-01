@@ -54,6 +54,18 @@
       ],
       "--HEADER": ["/work/fixtures/small.sam"]
     },
+    "CalculateReadGroupChecksum": {
+      "$why": [
+        "The digest is a function of the header's @RG records and of nothing else, so the three",
+        "shared inputs give one answer and the array covers its arguments without testing them.",
+        "one_read_group.bam is the same corpus under a single read group, which is the one thing",
+        "this tool reads."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/one_read_group.bam"
+      ]
+    },
     "IntervalListToBed": {
       "--INPUT": [
         "/work/fixtures/targets.interval_list",
