@@ -85,6 +85,19 @@
       "--RGPU": ["unit1"],
       "--RGSM": ["sample1"]
     },
+    "NonNFastaSize": {
+      "$why": [
+        "The shared --INPUT list is BAMs, and this tool reads a FASTA. INTERVALS is optional in the",
+        "tool and held by the shared list, so every row takes the masked path; two interval lists",
+        "are declared because the count is the only output there is, and one list would make the",
+        "array cover the arguments without observing any of them."
+      ],
+      "--INPUT": ["/work/fixtures/ref.fasta"],
+      "--INTERVALS": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ]
+    },
     "NormalizeFasta": {
       "--INPUT": ["/work/fixtures/ref.fasta", "/work/fixtures/described.fasta"]
     }
