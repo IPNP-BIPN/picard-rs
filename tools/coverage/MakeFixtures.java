@@ -60,6 +60,7 @@ public class MakeFixtures {
 
         writeIntervals(new File(dir, "targets.interval_list"));
         writeBed(new File(dir, "targets.bed"));
+        writeMixedBed(new File(dir, "targets_mixed.bed"));
         writeDict(new File(dir, "ref.dict"), chr1, chr2);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
@@ -298,6 +299,29 @@ public class MakeFixtures {
             p.println("chr1\t99\t400\ttarget1\t0\t+");
             p.println("chr1\t899\t1200\ttarget2\t0\t+");
             p.println("chr2\t49\t200\ttarget3\t0\t-");
+        }
+    }
+
+    /**
+     * A BED the interval tools' arguments can actually be observed on.
+     *
+     * targets.bed is already sorted, disjoint and length-nonzero, so SORT, UNIQUE and
+     * KEEP_LENGTH_ZERO_INTERVALS all produce the same file on it: the array covers those
+     * arguments without testing them, which the runner says out loud. This one is built so that
+     * each of the three changes the output.
+     *
+     * Out of coordinate order, so SORT moves lines. Two overlapping features and two abutting
+     * ones, so UNIQUE merges and concatenates names. One feature whose BED start equals its end,
+     * which becomes `start == end + 1` and is dropped unless KEEP_LENGTH_ZERO_INTERVALS is set.
+     */
+    static void writeMixedBed(File f) throws Exception {
+        try (PrintWriter p = new PrintWriter(f)) {
+            p.println("chr2\t49\t200\ttargetB\t0\t-");
+            p.println("chr1\t299\t500\ttargetC\t0\t+");
+            p.println("chr1\t99\t400\ttargetA\t0\t+");
+            p.println("chr1\t599\t700\ttargetD\t0\t+");
+            p.println("chr1\t699\t800\ttargetE\t0\t+");
+            p.println("chr1\t900\t900\tzeroLength\t0\t+");
         }
     }
 

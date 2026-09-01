@@ -42,7 +42,7 @@
       "narrows nothing, because the value it replaces was not a value that tool could take."
     ],
     "BedToIntervalList": {
-      "--INPUT": ["/work/fixtures/targets.bed"],
+      "--INPUT": ["/work/fixtures/targets.bed", "/work/fixtures/targets_mixed.bed"],
       "--SEQUENCE_DICTIONARY": ["/work/fixtures/ref.dict"]
     },
     "IntervalListToBed": {
