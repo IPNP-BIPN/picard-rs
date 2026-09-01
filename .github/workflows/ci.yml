@@ -148,7 +148,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
 
-      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam
+      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter
 
       - name: Run the arrays, and record what the port covers
         # Every row goes through the reference and through the port, compared under the same
@@ -176,12 +176,17 @@ jobs:
           python3 tools/coverage/run_array.py --tool CleanSam --t 2 \
             --port target/release/clean-sam \
             | tee /tmp/CleanSam.log
+          python3 tools/coverage/run_array.py --tool SamFormatConverter --t 2 \
+            --port target/release/sam-format-converter \
+            | tee /tmp/SamFormatConverter.log
           python3 tools/coverage/measure.py --log /tmp/AddOATag.log \
             --log /tmp/CollectAlignmentSummaryMetrics.log \
             --log /tmp/CollectQualityYieldMetrics.log \
             --log /tmp/SortSam.log \
             --log /tmp/CleanSam.log \
+            --log /tmp/SamFormatConverter.log \
             --pending CleanSam \
+            --pending SamFormatConverter \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
