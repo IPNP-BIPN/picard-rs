@@ -71,6 +71,8 @@ all three and why. No optimisation work has been done, so 1.46x is a floor.
 | [0008](docs/decisions/0008-sixteen-goldens-had-never-been-produced-by-the-oracle.md) | Sixteen goldens had never been produced by the oracle |
 | [0009](docs/decisions/0009-the-first-covering-array-run-measures-the-argument-surface.md) | The first covering-array run measures the argument surface, and it is 0% |
 | [0010](docs/decisions/0010-the-fuzzer-found-a-divergence-the-conformance-suite-cannot.md) | The fuzzer found a divergence the conformance suite cannot |
+| [0011](docs/decisions/0011-the-sixteen-unchecked-goldens-came-back-green.md) | The sixteen unchecked goldens came back green |
+| [0012](docs/decisions/0012-what-the-move-to-3.5.0-costs-the-ported-surface.md) | What the move to Picard 3.5.0 costs the ported surface |
 
 ## Conformance suites
 
