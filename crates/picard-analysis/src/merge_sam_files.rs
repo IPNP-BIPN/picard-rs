@@ -421,11 +421,32 @@ fn merge_records(
     order: SortOrder,
     merge_dictionaries: bool,
 ) -> Result<(SamHeader, Vec<BamRecord>), MergeError> {
-    let mut headers: Vec<SamHeader> = Vec::with_capacity(inputs.len());
-    let mut per_input_records: Vec<Vec<BamRecord>> = Vec::with_capacity(inputs.len());
-    let mut comments: Vec<String> = Vec::new();
+    let mut parsed: Vec<(SamHeader, Vec<BamRecord>)> = Vec::with_capacity(inputs.len());
     for input in inputs {
-        let (header, records) = read_sam(input)?;
+        parsed.push(read_sam(input)?);
+    }
+    merge_parsed(parsed, order.name(), merge_dictionaries, Some(order))
+}
+
+/// The merge over inputs that are already parsed, which is what the runnable binary has: its
+/// inputs are BAMs as often as they are SAM text.
+///
+/// Two things `doWork` decides and this cannot are passed in rather than derived. `sort_order_name`
+/// is the `SO` the merged header carries, which is `SORT_ORDER` verbatim and may name an order
+/// this port does not sort by (`unsorted`, `unknown`). `sort_with` is whether the *writer* would
+/// have sorted: `makeWriter` is told the stream is presorted when every input's `SO` already equals
+/// `SORT_ORDER`, or when `ASSUME_SORTED` says to believe it does, and a presorted writer keeps the
+/// merge order rather than imposing one.
+pub fn merge_parsed(
+    parsed: Vec<(SamHeader, Vec<BamRecord>)>,
+    sort_order_name: &str,
+    merge_dictionaries: bool,
+    sort_with: Option<SortOrder>,
+) -> Result<(SamHeader, Vec<BamRecord>), MergeError> {
+    let mut headers: Vec<SamHeader> = Vec::with_capacity(parsed.len());
+    let mut per_input_records: Vec<Vec<BamRecord>> = Vec::with_capacity(parsed.len());
+    let mut comments: Vec<String> = Vec::new();
+    for (header, records) in parsed {
         comments.extend(header.comments.iter().cloned());
         headers.push(header);
         per_input_records.push(records);
@@ -482,14 +503,17 @@ fn merge_records(
 
     let mut header = SamHeader::new(); // @HD VN:<current>
     header.set_group_order("none"); // VN, GO
-    header.set_sort_order(order.name()); // VN, GO, SO
+    header.set_sort_order(sort_order_name); // VN, GO, SO
     header.sequences = sequences;
     header.read_groups = read_groups;
     header.programs = programs;
     header.comments = comments;
 
-    // A stable sort so wholly-identical records keep input order (decision 0021).
-    records.sort_by(order.comparator());
+    // A stable sort so wholly-identical records keep input order (decision 0021). Skipped
+    // entirely when the writer was presorted, because then nothing reordered the merge.
+    if let Some(order) = sort_with {
+        records.sort_by(order.comparator());
+    }
     Ok((header, records))
 }
 

@@ -137,7 +137,18 @@ pub fn touch_order(count: usize) -> Vec<usize> {
 /// the colon is the unclipped-coordinate methods'; the mate-alignment-end method next to them
 /// writes the same sentence WITHOUT it, which is a difference a reader would not invent.
 pub fn mate_cigar_refusal(records: &[MateCigarCheck]) -> Option<String> {
-    for index in touch_order(records.len()) {
+    mate_cigar_refusal_in_order(records, &touch_order(records.len()))
+}
+
+/// The same refusal, for a caller that knows its own touch order.
+///
+/// `SortSam`'s order is the `SortingCollection`'s, which compares the second record against the
+/// first and so names the second. `MergeSamFiles` reaches the same throw through
+/// `MergingSamRecordIterator`, which touches each stream's records in file order and therefore
+/// names the first. The message is identical; which record it names is not, and only running both
+/// against the reference says which is which.
+pub fn mate_cigar_refusal_in_order(records: &[MateCigarCheck], order: &[usize]) -> Option<String> {
+    for &index in order {
         let record = &records[index];
         if record.needs_mate_cigar() && record.mate_cigar.is_none() {
             return Some(format!(
