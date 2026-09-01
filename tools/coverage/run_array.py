@@ -205,7 +205,16 @@ def run_port(binary, row_args, workdir):
     # lands, without pretending the binary understands more than it does.
     argv = [str(binary)] + [a.lstrip("-") for a in rewritten]
     result = subprocess.run(argv, capture_output=True, text=True)
-    return result.returncode, read_output(out_dir), first_error(result.stderr or result.stdout)
+    message = first_error(result.stderr or result.stdout)
+    # The port ran against host paths because that is where the fixtures were mounted, so a
+    # refusal that names its input names a path the reference could never print. MergeSamFiles is
+    # the first tool to reproduce one ("Merging with interval but file is not indexed: <file>"),
+    # and without this the row could not match however right the port was. Mapping the two mount
+    # points back is the inverse of the rewrite above, not a canonicalization of the message: any
+    # other difference in it still fails the row.
+    message = message.replace(str(workdir / "fixtures"), "/work/fixtures")
+    message = message.replace(str(out_dir), "/work/out")
+    return result.returncode, read_output(out_dir), message
 
 
 def outcome(code, text, error, tool):
