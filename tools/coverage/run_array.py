@@ -55,7 +55,18 @@ def build_fixtures(workdir):
         'cp /harness/MakeFixtures.java . && javac -cp "$ORACLE_CP" -d . MakeFixtures.java '
         # The fixture must be byte-reproducible, so the JDK deflater is pinned here exactly as the
         # oracle contract pins it for goldens.
-        '&& java -Dsamjdk.try_use_intel_deflater=false -cp ".:$ORACLE_CP" MakeFixtures /out'
+        '&& java -Dsamjdk.try_use_intel_deflater=false -cp ".:$ORACLE_CP" MakeFixtures /out '
+        # The oracle mounts this directory read-only, so a tool that asks whether its input is
+        # writable is told no; the port runs on the host, where the same files are writable, and
+        # the two would disagree for a reason that is the harness's rather than the tool's.
+        # `BamFileIoUtils.reheaderBamFile` calls `IOUtil.assertFileIsWritable(inputFile)` before it
+        # copies anything, so every BAM row of ReplaceSamHeader is that refusal.
+        #
+        # The write bit comes off here, inside the container, rather than from the runner: the
+        # files are written by the container as root, and on a CI runner the unprivileged user that
+        # started it cannot chmod them. Only the files: the directory keeps its write bit so the
+        # temporary tree can still be removed.
+        "&& find /out -type f -exec chmod a-w {} +"
     )
     result = subprocess.run(
         [
@@ -71,6 +82,7 @@ def build_fixtures(workdir):
         print(result.stdout[-2000:])
         print(result.stderr[-2000:])
         raise SystemExit("could not build the fixtures")
+
     return fixtures
 
 
