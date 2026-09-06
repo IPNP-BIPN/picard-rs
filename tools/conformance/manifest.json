@@ -174,6 +174,24 @@
         "port": "fix-mate-information",
         "t": 2,
         "status": "measured"
+      },
+      {
+        "tool": "MeanQualityByCycle",
+        "port": "mean-quality-by-cycle",
+        "t": 2,
+        "status": "pending"
+      },
+      {
+        "tool": "CollectBaseDistributionByCycle",
+        "port": "collect-base-distribution-by-cycle",
+        "t": 2,
+        "status": "pending"
+      },
+      {
+        "tool": "QualityScoreDistribution",
+        "port": "quality-score-distribution",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },

@@ -26,6 +26,9 @@
     "--HISTOGRAM_FILE": [
       "/work/out/histogram.pdf"
     ],
+    "--CHART_OUTPUT": [
+      "/work/out/chart.pdf"
+    ],
     "--TMP_DIR": [
       "/work/tmp"
     ],
