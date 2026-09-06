@@ -229,8 +229,6 @@ jobs:
             --log /tmp/ScatterIntervalsByNs.log \
             --log /tmp/ViewSam.log \
             --log /tmp/BamIndexStats.log \
-            --pending ViewSam \
-            --pending BamIndexStats \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -258,7 +256,9 @@ jobs:
             tools/coverage/corpus/ReplaceSamHeader.t2.txt \
             tools/coverage/corpus/CalculateReadGroupChecksum.t2.txt \
             tools/coverage/corpus/NonNFastaSize.t2.txt \
-            tools/coverage/corpus/ScatterIntervalsByNs.t2.txt)
+            tools/coverage/corpus/ScatterIntervalsByNs.t2.txt \
+            tools/coverage/corpus/ViewSam.t2.txt \
+            tools/coverage/corpus/BamIndexStats.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"

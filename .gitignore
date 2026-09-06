@@ -30,6 +30,8 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/CalculateReadGroupChecksum.t2.txt
 !tools/coverage/corpus/NonNFastaSize.t2.txt
 !tools/coverage/corpus/ScatterIntervalsByNs.t2.txt
+!tools/coverage/corpus/ViewSam.t2.txt
+!tools/coverage/corpus/BamIndexStats.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

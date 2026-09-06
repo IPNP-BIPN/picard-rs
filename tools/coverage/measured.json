@@ -30,6 +30,16 @@
       "t": 2,
       "share": 1.0
     },
+    "BamIndexStats": {
+      "rows": 9,
+      "accepted": 3,
+      "rejected": 6,
+      "distinct_outputs": 1,
+      "distinct_rejections": 2,
+      "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
     "BedToIntervalList": {
       "rows": 9,
       "accepted": 9,
@@ -157,6 +167,16 @@
       "distinct_outputs": 2,
       "distinct_rejections": 2,
       "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
+    "ViewSam": {
+      "rows": 14,
+      "accepted": 8,
+      "rejected": 6,
+      "distinct_outputs": 5,
+      "distinct_rejections": 1,
+      "matched": 14,
       "t": 2,
       "share": 1.0
     }
