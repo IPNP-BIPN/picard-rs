@@ -173,7 +173,7 @@
         "tool": "FixMateInformation",
         "port": "fix-mate-information",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       }
     ]
   },
