@@ -235,6 +235,15 @@ def run_port(binary, row_args, workdir, on_stdout=False):
     message = message.replace(str(workdir / "fixtures"), "/work/fixtures")
     message = message.replace(str(out_dir), "/work/out")
     text = result.stdout if on_stdout else read_output(out_dir)
+    # The same inverse on the OUTPUT, for the same reason and no other: a tool that writes a path it
+    # was given writes the one it was given. `CreateSequenceDictionary` puts the reference's own
+    # `file:` URI in every `@SQ` line's `UR`, so the port's rows differed from the reference's on
+    # the mount point this harness chose and on nothing else. Undoing the rewrite is not a
+    # canonicalization of the tool's answer: it is the inverse of what the runner did on the way in,
+    # and any other difference in the text still fails the row.
+    if isinstance(text, str):
+        text = text.replace(str(workdir / "fixtures"), "/work/fixtures")
+        text = text.replace(str(out_dir), "/work/out")
     return result.returncode, text, message
 
 

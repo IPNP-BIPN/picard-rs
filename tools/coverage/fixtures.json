@@ -53,6 +53,23 @@
     "--SORT_ORDER": [
       "coordinate",
       "queryname"
+    ],
+    "--REFERENCE": [
+      "/work/fixtures/ref.fasta"
+    ],
+    "--GENOME_ASSEMBLY": [
+      "GRCh38",
+      "hg19"
+    ],
+    "--SPECIES": [
+      "Homo_sapiens"
+    ],
+    "--URI": [
+      "file:/work/fixtures/ref.fasta"
+    ],
+    "--NUM_SEQUENCES": [
+      "2147483647",
+      "1"
     ]
   },
   "per_tool": {
@@ -154,6 +171,11 @@
       "--INPUT": [
         "/work/fixtures/ref.fasta",
         "/work/fixtures/described.fasta"
+      ]
+    },
+    "CreateSequenceDictionary": {
+      "--TRUNCATE_NAMES_AT_WHITESPACE": [
+        "true"
       ]
     }
   },
