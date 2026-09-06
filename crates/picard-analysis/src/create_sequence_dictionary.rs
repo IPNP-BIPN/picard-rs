@@ -11,8 +11,24 @@
 //! comparison; everything else (`@HD VN:1.6`, and each `SN`/`LN`/`M5`) is exact. No `@PG` and no
 //! timestamp are written.
 //!
-//! The optional `GENOME_ASSEMBLY` (`AS`), `SPECIES` (`SP`), and `URI` overrides, and alt/alias
-//! handling, are separate surfaces.
+//! # The optional attributes, and the order they are written in
+//!
+//! `makeSequenceRecord` sets `M5`, then `AS` when `GENOME_ASSEMBLY` was given, then `UR`
+//! unconditionally, then `SP` when `SPECIES` was given. A `SAMSequenceRecord`'s attributes keep
+//! insertion order (htsjdk-rs decision 0009), so that IS the order they appear in, and a port that
+//! sorted them or that wrote `AS` after `UR` would produce a different file for the same inputs.
+//!
+//! `URI` overrides the reference's own `file:` URI when it is given, which is why the `UR` value is
+//! a parameter here rather than derived: the tool has an argument for it.
+//!
+//! `NUM_SEQUENCES` truncates the dictionary to its first N contigs.
+//!
+//! `TRUNCATE_NAMES_AT_WHITESPACE=false` is NOT ported, and the reason is one layer down:
+//! `ReferenceSequenceFileFactory.getReferenceSequenceFile` takes the flag and the reader keeps the
+//! whole header when it is false, while `htsjdk_bam::fasta::ReferenceSequence` truncates and drops
+//! the description. Supporting it here would mean inventing the untruncated name from something
+//! this port no longer has. The array holds the argument at Picard's default until the reader
+//! carries the description. `ALT_NAMES` and the alias handling are a separate surface.
 
 use htsjdk_bam::fasta::{read_fasta, FastaError};
 use md5::{Digest, Md5};
@@ -34,16 +50,46 @@ fn calculate_md5(bases: &[u8]) -> String {
 /// `CreateSequenceDictionary.makeSequenceDictionary` for a FASTA input. `fasta` is the reference
 /// bytes; `reference_uri` is the `UR` value (its `file:` URI).
 pub fn create_sequence_dictionary(fasta: &[u8], reference_uri: &str) -> Result<String, FastaError> {
+    create_sequence_dictionary_with(fasta, reference_uri, &Options::default())
+}
+
+/// `CreateSequenceDictionary`'s optional arguments, defaulting to Picard's defaults.
+#[derive(Debug, Clone, Default)]
+pub struct Options {
+    /// `GENOME_ASSEMBLY`, written as `AS` when present.
+    pub genome_assembly: Option<String>,
+    /// `SPECIES`, written as `SP` when present.
+    pub species: Option<String>,
+    /// `NUM_SEQUENCES`: keep only the first N contigs. Picard's default is `Integer.MAX_VALUE`.
+    pub num_sequences: Option<usize>,
+}
+
+/// `makeSequenceDictionary` with the optional attributes the tool accepts.
+pub fn create_sequence_dictionary_with(
+    fasta: &[u8],
+    reference_uri: &str,
+    options: &Options,
+) -> Result<String, FastaError> {
     let contigs = read_fasta(fasta)?;
     let mut out = String::from("@HD\tVN:1.6\n");
-    for contig in &contigs {
+    let keep = options.num_sequences.unwrap_or(usize::MAX);
+    for contig in contigs.iter().take(keep) {
+        // `SamSequenceRecordsIterator.makeSequenceRecord`'s order: M5, then AS when given, then
+        // UR, then SP when given. The attributes keep insertion order, so this is the file's.
         out.push_str(&format!(
-            "@SQ\tSN:{}\tLN:{}\tM5:{}\tUR:{}\n",
+            "@SQ\tSN:{}\tLN:{}\tM5:{}",
             contig.name,
             contig.bases.len(),
             calculate_md5(&contig.bases),
-            reference_uri,
         ));
+        if let Some(assembly) = &options.genome_assembly {
+            out.push_str(&format!("\tAS:{assembly}"));
+        }
+        out.push_str(&format!("\tUR:{reference_uri}"));
+        if let Some(species) = &options.species {
+            out.push_str(&format!("\tSP:{species}"));
+        }
+        out.push('\n');
     }
     Ok(out)
 }

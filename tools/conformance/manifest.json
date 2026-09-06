@@ -155,6 +155,12 @@
         "port": "reorder-sam",
         "t": 2,
         "status": "pending"
+      },
+      {
+        "tool": "CreateSequenceDictionary",
+        "port": "create-sequence-dictionary",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
