@@ -1,0 +1,8 @@
+# IntervalListToBed t=2 rows=7 from IntervalListToBed.t2.json
+row	0:CREATE_INDEX=true,INPUT=fixture[0],SORT=true,VALIDATION_STRINGENCY=STRICT	chr1	99	400	target1	500	+\nchr1	899	1200	target2	500	+\nchr2	49	200	target3	500	-\n
+row	1:CREATE_INDEX=true,INPUT=fixture[1],SORT=false,VALIDATION_STRINGENCY=LENIENT	chr2	49	200	targetB	500	-\nchr1	299	500	targetC	500	+\nchr1	99	400	targetA	500	+\nchr1	599	700	targetD	500	-\n
+row	2:CREATE_INDEX=false,INPUT=fixture[0],SORT=false,VALIDATION_STRINGENCY=SILENT	chr1	99	400	target1	500	+\nchr1	899	1200	target2	500	+\nchr2	49	200	target3	500	-\n
+row	3:CREATE_INDEX=false,INPUT=fixture[1],SORT=true,VALIDATION_STRINGENCY=STRICT	chr1	99	400	targetA	500	+\nchr1	299	500	targetC	500	+\nchr1	599	700	targetD	500	-\nchr2	49	200	targetB	500	-\n
+row	4:CREATE_INDEX=true,INPUT=fixture[1],SORT=true,VALIDATION_STRINGENCY=SILENT	chr1	99	400	targetA	500	+\nchr1	299	500	targetC	500	+\nchr1	599	700	targetD	500	-\nchr2	49	200	targetB	500	-\n
+row	5:CREATE_INDEX=false,INPUT=fixture[0],SORT=true,VALIDATION_STRINGENCY=LENIENT	chr1	99	400	target1	500	+\nchr1	899	1200	target2	500	+\nchr2	49	200	target3	500	-\n
+row	6:CREATE_INDEX=true,INPUT=fixture[0],SORT=false,VALIDATION_STRINGENCY=STRICT	chr1	99	400	target1	500	+\nchr1	899	1200	target2	500	+\nchr2	49	200	target3	500	-\n

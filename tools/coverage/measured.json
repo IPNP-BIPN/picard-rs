@@ -20,6 +20,46 @@
       "t": 2,
       "share": 1.0
     },
+    "AddOrReplaceReadGroups": {
+      "rows": 17,
+      "accepted": 11,
+      "rejected": 6,
+      "distinct_outputs": 4,
+      "distinct_rejections": 4,
+      "matched": 17,
+      "t": 2,
+      "share": 1.0
+    },
+    "BedToIntervalList": {
+      "rows": 9,
+      "accepted": 9,
+      "rejected": 0,
+      "distinct_outputs": 4,
+      "distinct_rejections": 0,
+      "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
+    "CalculateReadGroupChecksum": {
+      "rows": 6,
+      "accepted": 6,
+      "rejected": 0,
+      "distinct_outputs": 2,
+      "distinct_rejections": 0,
+      "matched": 6,
+      "t": 2,
+      "share": 1.0
+    },
+    "CleanSam": {
+      "rows": 9,
+      "accepted": 9,
+      "rejected": 0,
+      "distinct_outputs": 2,
+      "distinct_rejections": 0,
+      "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectAlignmentSummaryMetrics": {
       "rows": 16,
       "accepted": 16,
@@ -37,6 +77,76 @@
       "distinct_outputs": 4,
       "distinct_rejections": 0,
       "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
+    "IntervalListToBed": {
+      "rows": 7,
+      "accepted": 7,
+      "rejected": 0,
+      "distinct_outputs": 3,
+      "distinct_rejections": 0,
+      "matched": 7,
+      "t": 2,
+      "share": 1.0
+    },
+    "MergeSamFiles": {
+      "rows": 17,
+      "accepted": 2,
+      "rejected": 15,
+      "distinct_outputs": 2,
+      "distinct_rejections": 4,
+      "matched": 17,
+      "t": 2,
+      "share": 1.0
+    },
+    "NonNFastaSize": {
+      "rows": 6,
+      "accepted": 6,
+      "rejected": 0,
+      "distinct_outputs": 2,
+      "distinct_rejections": 0,
+      "matched": 6,
+      "t": 2,
+      "share": 1.0
+    },
+    "NormalizeFasta": {
+      "rows": 7,
+      "accepted": 7,
+      "rejected": 0,
+      "distinct_outputs": 3,
+      "distinct_rejections": 0,
+      "matched": 7,
+      "t": 2,
+      "share": 1.0
+    },
+    "ReplaceSamHeader": {
+      "rows": 9,
+      "accepted": 3,
+      "rejected": 6,
+      "distinct_outputs": 1,
+      "distinct_rejections": 2,
+      "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
+    "SamFormatConverter": {
+      "rows": 9,
+      "accepted": 7,
+      "rejected": 2,
+      "distinct_outputs": 2,
+      "distinct_rejections": 1,
+      "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
+    "ScatterIntervalsByNs": {
+      "rows": 9,
+      "accepted": 9,
+      "rejected": 0,
+      "distinct_outputs": 3,
+      "distinct_rejections": 0,
+      "matched": 9,
       "t": 2,
       "share": 1.0
     },
