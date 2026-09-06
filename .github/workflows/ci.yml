@@ -221,17 +221,6 @@ jobs:
             --log /tmp/CalculateReadGroupChecksum.log \
             --log /tmp/NonNFastaSize.log \
             --log /tmp/ScatterIntervalsByNs.log \
-            --pending CleanSam \
-            --pending SamFormatConverter \
-            --pending BedToIntervalList \
-            --pending IntervalListToBed \
-            --pending NormalizeFasta \
-            --pending AddOrReplaceReadGroups \
-            --pending MergeSamFiles \
-            --pending ReplaceSamHeader \
-            --pending CalculateReadGroupChecksum \
-            --pending NonNFastaSize \
-            --pending ScatterIntervalsByNs \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -248,7 +237,18 @@ jobs:
             tools/coverage/corpus/AddOATag.t2.txt \
             tools/coverage/corpus/CollectAlignmentSummaryMetrics.t2.txt \
             tools/coverage/corpus/CollectQualityYieldMetrics.t2.txt \
-            tools/coverage/corpus/SortSam.t2.txt)
+            tools/coverage/corpus/SortSam.t2.txt \
+            tools/coverage/corpus/CleanSam.t2.txt \
+            tools/coverage/corpus/SamFormatConverter.t2.txt \
+            tools/coverage/corpus/BedToIntervalList.t2.txt \
+            tools/coverage/corpus/IntervalListToBed.t2.txt \
+            tools/coverage/corpus/NormalizeFasta.t2.txt \
+            tools/coverage/corpus/AddOrReplaceReadGroups.t2.txt \
+            tools/coverage/corpus/MergeSamFiles.t2.txt \
+            tools/coverage/corpus/ReplaceSamHeader.t2.txt \
+            tools/coverage/corpus/CalculateReadGroupChecksum.t2.txt \
+            tools/coverage/corpus/NonNFastaSize.t2.txt \
+            tools/coverage/corpus/ScatterIntervalsByNs.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"

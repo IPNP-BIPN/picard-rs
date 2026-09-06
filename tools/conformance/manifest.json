@@ -46,21 +46,96 @@
       "act that turns the run into a claim."
     ],
     "tools": [
-      { "tool": "AddOATag", "port": "add-oa-tag", "t": 2, "status": "measured" },
-      { "tool": "CollectAlignmentSummaryMetrics", "port": "collect-alignment-summary-metrics", "t": 2, "status": "measured" },
-      { "tool": "CollectQualityYieldMetrics", "port": "collect-quality-yield-metrics", "t": 2, "status": "measured" },
-      { "tool": "SortSam", "port": "sort-sam", "t": 2, "status": "measured" },
-      { "tool": "CleanSam", "port": "clean-sam", "t": 2, "status": "pending" },
-      { "tool": "SamFormatConverter", "port": "sam-format-converter", "t": 2, "status": "pending" },
-      { "tool": "BedToIntervalList", "port": "bed-to-interval-list", "t": 2, "status": "pending" },
-      { "tool": "IntervalListToBed", "port": "interval-list-to-bed", "t": 2, "status": "pending" },
-      { "tool": "NormalizeFasta", "port": "normalize-fasta", "t": 2, "status": "pending" },
-      { "tool": "AddOrReplaceReadGroups", "port": "add-or-replace-read-groups", "t": 2, "status": "pending" },
-      { "tool": "MergeSamFiles", "port": "merge-sam-files", "t": 2, "status": "pending" },
-      { "tool": "ReplaceSamHeader", "port": "replace-sam-header", "t": 2, "status": "pending" },
-      { "tool": "CalculateReadGroupChecksum", "port": "calculate-read-group-checksum", "t": 2, "status": "pending" },
-      { "tool": "NonNFastaSize", "port": "non-n-fasta-size", "t": 2, "status": "pending" },
-      { "tool": "ScatterIntervalsByNs", "port": "scatter-intervals-by-ns", "t": 2, "status": "pending" }
+      {
+        "tool": "AddOATag",
+        "port": "add-oa-tag",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "CollectAlignmentSummaryMetrics",
+        "port": "collect-alignment-summary-metrics",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "CollectQualityYieldMetrics",
+        "port": "collect-quality-yield-metrics",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "SortSam",
+        "port": "sort-sam",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "CleanSam",
+        "port": "clean-sam",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "SamFormatConverter",
+        "port": "sam-format-converter",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "BedToIntervalList",
+        "port": "bed-to-interval-list",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "IntervalListToBed",
+        "port": "interval-list-to-bed",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "NormalizeFasta",
+        "port": "normalize-fasta",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "AddOrReplaceReadGroups",
+        "port": "add-or-replace-read-groups",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "MergeSamFiles",
+        "port": "merge-sam-files",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "ReplaceSamHeader",
+        "port": "replace-sam-header",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "CalculateReadGroupChecksum",
+        "port": "calculate-read-group-checksum",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "NonNFastaSize",
+        "port": "non-n-fasta-size",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "ScatterIntervalsByNs",
+        "port": "scatter-intervals-by-ns",
+        "t": 2,
+        "status": "measured"
+      }
     ]
   },
   "suites": [
