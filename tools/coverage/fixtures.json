@@ -70,6 +70,14 @@
     "--NUM_SEQUENCES": [
       "2147483647",
       "1"
+    ],
+    "--PROBABILITY": [
+      "1.0",
+      "0.5"
+    ],
+    "--RANDOM_SEED": [
+      "1",
+      "42"
     ]
   },
   "per_tool": {
@@ -176,6 +184,11 @@
     "CreateSequenceDictionary": {
       "--TRUNCATE_NAMES_AT_WHITESPACE": [
         "true"
+      ]
+    },
+    "DownsampleSam": {
+      "--STRATEGY": [
+        "ConstantMemory"
       ]
     }
   },

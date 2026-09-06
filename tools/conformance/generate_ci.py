@@ -199,7 +199,10 @@ def coverage_job(manifest):
     runs = "\n".join(
         f"          python3 tools/coverage/run_array.py --tool {t['tool']} --t {t['t']} \\\n"
         # A tool with no output argument is compared on its standard output; see run_array.py.
-        f"            --port target/release/{t['port']}{' --stdout' if t.get('output') == 'stdout' else ''} \\\n"
+        f"            --port target/release/{t['port']}"
+        f"{' --stdout' if t.get('output') == 'stdout' else ''}"
+        # A tool that stamps a @PG carrying its command line: see run_array.py.
+        f"{' --strip-program-records' if t.get('strip_program_records') else ''} \\\n"
         f"            | tee /tmp/{t['tool']}.log"
         for t in tools
     )
