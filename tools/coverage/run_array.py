@@ -117,7 +117,7 @@ def as_cli(args):
     return out
 
 
-def run_oracle(tool, row_args, workdir, on_stdout=False):
+def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False):
     """Run one row in the container. Returns (exit code, output text, stdout tail).
 
     `on_stdout` is for the tools that HAVE no output argument: `ViewSam` and `BamIndexStats` print
@@ -145,11 +145,11 @@ def run_oracle(tool, row_args, workdir, on_stdout=False):
         capture_output=True,
         text=True,
     )
-    text = result.stdout if on_stdout else read_output(out_dir)
+    text = result.stdout if on_stdout else read_output(out_dir, strip_pg)
     return result.returncode, text, first_error(result.stderr or result.stdout)
 
 
-def read_output(out_dir):
+def read_output(out_dir, strip_program_records=False):
     """The row's output file, as text where it is text and as a digest where it is not.
 
     A record-transform writes a BAM, which is gzip, so reading it as UTF-8 throws on its second
@@ -173,7 +173,31 @@ def read_output(out_dir):
     except UnicodeDecodeError:
         pass
     payload, kind = decompressed(raw)
+    if strip_program_records:
+        payload = without_program_records(payload)
     return f"{kind} sha256={hashlib.sha256(payload).hexdigest()} bytes={len(payload)}"
+
+
+def without_program_records(payload):
+    """A BAM's bytes with the `@PG` lines removed from its header text.
+
+    A tool that stamps its own provenance writes a `CL:` holding the command line it was given --
+    temporary directories, argument order, the reference's version string. None of that is
+    reproducible by a second implementation and none of it is the tool's answer, which is why the
+    metrics suites canonicalize the same thing out of their text headers.
+
+    This is the binary equivalent, and it is deliberately narrow: only the `@PG` LINES go, the
+    header's length prefix is rewritten to match, and every other byte -- `@HD`, `@SQ`, `@RG`, and
+    every record -- is hashed as it was. A tool whose `@PG` this hides a real difference in would
+    have to differ in nothing else at all.
+    """
+    if len(payload) < 12 or payload[:4] != b"BAM\x01":
+        return payload
+    length = int.from_bytes(payload[4:8], "little")
+    text = payload[8 : 8 + length].decode("utf-8", errors="replace")
+    kept = "".join(line + "\n" for line in text.splitlines() if not line.startswith("@PG"))
+    encoded = kept.encode("utf-8")
+    return payload[:4] + len(encoded).to_bytes(4, "little") + encoded + payload[8 + length :]
 
 
 def decompressed(raw):
@@ -206,7 +230,7 @@ def first_error(text):
     return text.strip().split("\n")[-1][:200] if text.strip() else ""
 
 
-def run_port(binary, row_args, workdir, on_stdout=False):
+def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False):
     """Run the port binary on the same row, with the fixture paths rewritten to the host."""
     out_dir = workdir / "port"
     out_dir.mkdir(exist_ok=True)
@@ -234,7 +258,7 @@ def run_port(binary, row_args, workdir, on_stdout=False):
     # other difference in it still fails the row.
     message = message.replace(str(workdir / "fixtures"), "/work/fixtures")
     message = message.replace(str(out_dir), "/work/out")
-    text = result.stdout if on_stdout else read_output(out_dir)
+    text = result.stdout if on_stdout else read_output(out_dir, strip_pg)
     # The same inverse on the OUTPUT, for the same reason and no other: a tool that writes a path it
     # was given writes the one it was given. `CreateSequenceDictionary` puts the reference's own
     # `file:` URI in every `@SQ` line's `UR`, so the port's rows differed from the reference's on
@@ -279,6 +303,12 @@ def main(argv):
     ap.add_argument("--dump", help="write the corpus here (default tools/coverage/corpus/<tool>.txt)")
     ap.add_argument("--limit", type=int, help="run only the first N rows")
     ap.add_argument(
+        "--strip-program-records",
+        action="store_true",
+        help="hash a BAM output with its @PG lines removed, for a tool that stamps its own "
+        "provenance with the command line it was given",
+    )
+    ap.add_argument(
         "--stdout",
         action="store_true",
         help="compare standard output rather than the output file, for a tool that writes no file",
@@ -303,7 +333,9 @@ def main(argv):
         results = []
         for row in rows:
             row_args = row_arguments(row, array["excluded"])
-            code, text, tail = run_oracle(args.tool, row_args, workdir, args.stdout)
+            code, text, tail = run_oracle(
+                args.tool, row_args, workdir, args.stdout, args.strip_program_records
+            )
             entry = {
                 "row": row["row"],
                 "labels": row["labels"],
@@ -313,7 +345,9 @@ def main(argv):
                 "oracle_error": "" if code == 0 else tail,
             }
             if args.port:
-                p_code, p_text, p_tail = run_port(args.port, row_args, workdir, args.stdout)
+                p_code, p_text, p_tail = run_port(
+                    args.port, row_args, workdir, args.stdout, args.strip_program_records
+                )
                 entry["port_exit"] = p_code
                 entry["port_output"] = outcome(p_code, p_text, p_tail, args.tool)
                 entry["port_error"] = "" if p_code == 0 else p_tail

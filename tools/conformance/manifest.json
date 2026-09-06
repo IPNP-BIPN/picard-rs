@@ -161,6 +161,13 @@
         "port": "create-sequence-dictionary",
         "t": 2,
         "status": "measured"
+      },
+      {
+        "tool": "DownsampleSam",
+        "port": "downsample-sam",
+        "t": 2,
+        "status": "pending",
+        "strip_program_records": true
       }
     ]
   },
