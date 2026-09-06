@@ -1,0 +1,10 @@
+# BamIndexStats t=2 rows=9 from BamIndexStats.t2.json
+row	0:CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=STRICT	chr1 length=	2000	Aligned= 290	Unaligned= 10\nchr2 length=	1000	Aligned= 90	Unaligned= 10\nNoCoordinateCount= 0\n
+row	1:CREATE_INDEX=true,INPUT=fixture[1],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMFormatException: Invalid GZIP header
+row	2:CREATE_INDEX=true,INPUT=fixture[2],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: No index for bam file /work/fixtures/queryname.bam
+row	3:CREATE_INDEX=false,INPUT=fixture[0],VALIDATION_STRINGENCY=LENIENT	chr1 length=	2000	Aligned= 290	Unaligned= 10\nchr2 length=	1000	Aligned= 90	Unaligned= 10\nNoCoordinateCount= 0\n
+row	4:CREATE_INDEX=false,INPUT=fixture[1],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMFormatException: Invalid GZIP header
+row	5:CREATE_INDEX=false,INPUT=fixture[2],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: No index for bam file /work/fixtures/queryname.bam
+row	6:CREATE_INDEX=false,INPUT=fixture[0],VALIDATION_STRINGENCY=SILENT	chr1 length=	2000	Aligned= 290	Unaligned= 10\nchr2 length=	1000	Aligned= 90	Unaligned= 10\nNoCoordinateCount= 0\n
+row	7:CREATE_INDEX=true,INPUT=fixture[1],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMFormatException: Invalid GZIP header
+row	8:CREATE_INDEX=true,INPUT=fixture[2],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: No index for bam file /work/fixtures/queryname.bam
