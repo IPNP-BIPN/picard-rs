@@ -16,10 +16,15 @@
 use htsjdk_bam::pair::set_mate_info;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam_with, write_sam};
+use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::text_parse::{ParseError, ValidationStringency};
 use htsjdk_bam::{coordinate, query_name};
 
 const READ_PAIRED: u16 = 0x1;
+const READ_UNMAPPED: u16 = 0x4;
+const READ_REVERSE_STRAND: u16 = 0x10;
+const MATE_UNMAPPED: u16 = 0x8;
+const MATE_REVERSE_STRAND: u16 = 0x20;
 const SECONDARY_ALIGNMENT: u16 = 0x100;
 const SUPPLEMENTARY_ALIGNMENT: u16 = 0x800;
 const FIRST_OF_PAIR: u16 = 0x40;
@@ -65,19 +70,25 @@ fn fix_templates(records: &mut [BamRecord], set_mate_cigar: bool) {
 
         let mut first_primary: Option<usize> = None;
         let mut second_primary: Option<usize> = None;
+        let mut supplementals: Vec<usize> = Vec::new();
         for (offset, r) in records[start..end].iter().enumerate() {
             let i = start + offset;
-            assert!(
-                is_primary(r),
-                "FixMateInformation: secondary/supplementary records are not ported"
-            );
             if r.flags & READ_PAIRED != 0 {
-                if r.flags & FIRST_OF_PAIR != 0 {
-                    assert!(first_primary.is_none(), "two first-of-pair primaries");
-                    first_primary = Some(i);
-                } else if r.flags & SECOND_OF_PAIR != 0 {
-                    assert!(second_primary.is_none(), "two second-of-pair primaries");
-                    second_primary = Some(i);
+                // `isSecondaryOrSupplementary()`: only a PRIMARY record can be the end whose mate
+                // info the others are set from. A secondary alignment is neither that nor a
+                // record the reference touches afterwards; a supplementary one is touched, from
+                // the OTHER end's primary, which is what `supplementals` collects.
+                if r.flags & SUPPLEMENTARY_ALIGNMENT != 0 {
+                    supplementals.push(i);
+                }
+                if is_primary(r) {
+                    if r.flags & FIRST_OF_PAIR != 0 {
+                        assert!(first_primary.is_none(), "two first-of-pair primaries");
+                        first_primary = Some(i);
+                    } else if r.flags & SECOND_OF_PAIR != 0 {
+                        assert!(second_primary.is_none(), "two second-of-pair primaries");
+                        second_primary = Some(i);
+                    }
                 }
             }
         }
@@ -92,12 +103,68 @@ fn fix_templates(records: &mut [BamRecord], set_mate_cigar: bool) {
             } else {
                 set_mate_info(b, a, set_mate_cigar);
             }
+
+            // `setMateInformationOnSupplementalAlignment`, from the OTHER end's primary: a
+            // first-of-pair supplementary takes the second primary's, and the reverse. The
+            // reference does this only when the template has both primaries, which is why it sits
+            // inside this branch.
+            for index in &supplementals {
+                let from = if records[*index].flags & FIRST_OF_PAIR != 0 {
+                    s
+                } else {
+                    f
+                };
+                let mate = records[from].clone();
+                set_mate_info_on_supplemental(&mut records[*index], &mate, set_mate_cigar);
+            }
         }
         // A lone paired read (missing mate) would throw unless IGNORE_MISSING_MATES; the corpora do
         // not exercise that, and a fragment (unpaired) read simply passes through.
 
         start = end;
     }
+}
+
+/// `SAMRecord.setMateNegativeStrandFlag` and friends: one bit, set or cleared.
+fn set_flag(record: &mut BamRecord, bit: u16, value: bool) {
+    if value {
+        record.flags |= bit;
+    } else {
+        record.flags &= !bit;
+    }
+}
+
+/// `SamPairUtil.setMateInformationOnSupplementalAlignment`.
+///
+/// Six fields and two tags, and the insert size is the mate's NEGATED: a supplementary alignment
+/// describes the same fragment from the other side. `MC` is set when the caller asked for a mate
+/// cigar AND the mate is mapped, and CLEARED otherwise -- the else branch writes null rather than
+/// leaving whatever was there, which is the difference between a record that carries a stale mate
+/// cigar and one that carries none.
+fn set_mate_info_on_supplemental(
+    supplemental: &mut BamRecord,
+    mate: &BamRecord,
+    set_mate_cigar: bool,
+) {
+    supplemental.mate_reference_index = mate.reference_index;
+    supplemental.mate_alignment_start = mate.alignment_start;
+    set_flag(
+        supplemental,
+        MATE_REVERSE_STRAND,
+        mate.flags & READ_REVERSE_STRAND != 0,
+    );
+    set_flag(supplemental, MATE_UNMAPPED, mate.flags & READ_UNMAPPED != 0);
+    supplemental.inferred_insert_size = -mate.inferred_insert_size;
+    if set_mate_cigar && mate.flags & READ_UNMAPPED == 0 {
+        supplemental
+            .tags
+            .insert(Tag::new(b"MC"), TagValue::Str(mate.cigar.to_text()));
+    } else {
+        supplemental.tags.remove(Tag::new(b"MC"));
+    }
+    supplemental
+        .tags
+        .insert(Tag::new(b"MQ"), TagValue::Int(mate.mapping_quality as i64));
 }
 
 /// `FixMateInformation.doWork` for a single SAM input.
