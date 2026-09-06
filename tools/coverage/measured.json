@@ -110,6 +110,16 @@
       "t": 2,
       "share": 1.0
     },
+    "FixMateInformation": {
+      "rows": 12,
+      "accepted": 7,
+      "rejected": 5,
+      "distinct_outputs": 4,
+      "distinct_rejections": 3,
+      "matched": 12,
+      "t": 2,
+      "share": 1.0
+    },
     "IntervalListToBed": {
       "rows": 7,
       "accepted": 7,
