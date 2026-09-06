@@ -154,13 +154,13 @@
         "tool": "ReorderSam",
         "port": "reorder-sam",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CreateSequenceDictionary",
         "port": "create-sequence-dictionary",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       }
     ]
   },

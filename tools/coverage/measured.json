@@ -90,6 +90,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CreateSequenceDictionary": {
+      "rows": 7,
+      "accepted": 7,
+      "rejected": 0,
+      "distinct_outputs": 4,
+      "distinct_rejections": 0,
+      "matched": 7,
+      "t": 2,
+      "share": 1.0
+    },
     "IntervalListToBed": {
       "rows": 7,
       "accepted": 7,
@@ -127,6 +137,16 @@
       "distinct_outputs": 3,
       "distinct_rejections": 0,
       "matched": 7,
+      "t": 2,
+      "share": 1.0
+    },
+    "ReorderSam": {
+      "rows": 11,
+      "accepted": 11,
+      "rejected": 0,
+      "distinct_outputs": 2,
+      "distinct_rejections": 0,
+      "matched": 11,
       "t": 2,
       "share": 1.0
     },
