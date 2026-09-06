@@ -117,8 +117,15 @@ def as_cli(args):
     return out
 
 
-def run_oracle(tool, row_args, workdir):
-    """Run one row in the container. Returns (exit code, output file text, stdout tail)."""
+def run_oracle(tool, row_args, workdir, on_stdout=False):
+    """Run one row in the container. Returns (exit code, output text, stdout tail).
+
+    `on_stdout` is for the tools that HAVE no output argument: `ViewSam` and `BamIndexStats` print
+    to standard output and write no file at all. Comparing the output directory for those compares
+    nothing -- every accepted row looks alike, the array reports one distinct output, and the port
+    matches by producing the same nothing. That is not a measurement, and this is the difference
+    between covering an argument and observing it.
+    """
     out_dir = workdir / "out"
     out_dir.mkdir(exist_ok=True)
     for stale in out_dir.iterdir():
@@ -138,7 +145,8 @@ def run_oracle(tool, row_args, workdir):
         capture_output=True,
         text=True,
     )
-    return result.returncode, read_output(out_dir), first_error(result.stderr or result.stdout)
+    text = result.stdout if on_stdout else read_output(out_dir)
+    return result.returncode, text, first_error(result.stderr or result.stdout)
 
 
 def read_output(out_dir):
@@ -198,7 +206,7 @@ def first_error(text):
     return text.strip().split("\n")[-1][:200] if text.strip() else ""
 
 
-def run_port(binary, row_args, workdir):
+def run_port(binary, row_args, workdir, on_stdout=False):
     """Run the port binary on the same row, with the fixture paths rewritten to the host."""
     out_dir = workdir / "port"
     out_dir.mkdir(exist_ok=True)
@@ -226,7 +234,8 @@ def run_port(binary, row_args, workdir):
     # other difference in it still fails the row.
     message = message.replace(str(workdir / "fixtures"), "/work/fixtures")
     message = message.replace(str(out_dir), "/work/out")
-    return result.returncode, read_output(out_dir), message
+    text = result.stdout if on_stdout else read_output(out_dir)
+    return result.returncode, text, message
 
 
 def outcome(code, text, error, tool):
@@ -260,6 +269,11 @@ def main(argv):
     ap.add_argument("--port", help="path to the port binary; omit to run the oracle alone")
     ap.add_argument("--dump", help="write the corpus here (default tools/coverage/corpus/<tool>.txt)")
     ap.add_argument("--limit", type=int, help="run only the first N rows")
+    ap.add_argument(
+        "--stdout",
+        action="store_true",
+        help="compare standard output rather than the output file, for a tool that writes no file",
+    )
     args = ap.parse_args(argv)
 
     array_path = ARRAYS / f"{args.tool}.t{args.t}.json"
@@ -280,7 +294,7 @@ def main(argv):
         results = []
         for row in rows:
             row_args = row_arguments(row, array["excluded"])
-            code, text, tail = run_oracle(args.tool, row_args, workdir)
+            code, text, tail = run_oracle(args.tool, row_args, workdir, args.stdout)
             entry = {
                 "row": row["row"],
                 "labels": row["labels"],
@@ -290,7 +304,7 @@ def main(argv):
                 "oracle_error": "" if code == 0 else tail,
             }
             if args.port:
-                p_code, p_text, p_tail = run_port(args.port, row_args, workdir)
+                p_code, p_text, p_tail = run_port(args.port, row_args, workdir, args.stdout)
                 entry["port_exit"] = p_code
                 entry["port_output"] = outcome(p_code, p_text, p_tail, args.tool)
                 entry["port_error"] = "" if p_code == 0 else p_tail

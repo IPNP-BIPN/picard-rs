@@ -198,7 +198,8 @@ def coverage_job(manifest):
     bins = " ".join(f"--bin {t['port']}" for t in tools)
     runs = "\n".join(
         f"          python3 tools/coverage/run_array.py --tool {t['tool']} --t {t['t']} \\\n"
-        f"            --port target/release/{t['port']} \\\n"
+        # A tool with no output argument is compared on its standard output; see run_array.py.
+        f"            --port target/release/{t['port']}{' --stdout' if t.get('output') == 'stdout' else ''} \\\n"
         f"            | tee /tmp/{t['tool']}.log"
         for t in tools
     )

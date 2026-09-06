@@ -135,6 +135,20 @@
         "port": "scatter-intervals-by-ns",
         "t": 2,
         "status": "measured"
+      },
+      {
+        "tool": "ViewSam",
+        "port": "view-sam",
+        "t": 2,
+        "status": "pending",
+        "output": "stdout"
+      },
+      {
+        "tool": "BamIndexStats",
+        "port": "bam-index-stats",
+        "t": 2,
+        "status": "pending",
+        "output": "stdout"
       }
     ]
   },

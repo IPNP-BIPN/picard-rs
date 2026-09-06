@@ -2,10 +2,16 @@
 //!
 //! Ports `picard.sam.BamIndexStats.doWork` (which delegates to `BAMIndexMetaData.printIndexStats`) at
 //! tag 3.4.0: print the per-reference aligned/unaligned record counts of a BAM's index, then the
-//! total no-coordinate record count. The counts come from the `.bai`; the port builds the index with
-//! [`htsjdk_bam::build_bam_index`] (whose metadata is identical to the write-side index it would read,
-//! since the counts do not depend on the virtual offsets) and reads it with
-//! [`htsjdk_bam::parse_bai_metadata`], both oracle-proven, so this tool is a thin composition.
+//! total no-coordinate record count.
+//!
+//! # The index is READ, not rebuilt
+//!
+//! [`bam_index_stats`] builds the index from the BAM, which gives the same counts for a file that
+//! HAS one and the wrong behaviour for a file that does not: htsjdk opens the `.bai` beside the
+//! input and throws `No index for bam file <path>` when it is missing. The covering array caught
+//! it -- six of nine rows refused where this answered -- so [`bam_index_stats_with_index`] is what
+//! a command line calls, and the rebuild stays for callers that already have the bytes and want
+//! the counts.
 //!
 //! A reference with no reads has no metadata chunk in the index, and htsjdk prints `Aligned= 0
 //! Unaligned= 0` for it (its `getMetaData` returns a zeroed record, not null), so `None` maps to
@@ -29,16 +35,27 @@ impl From<BuildIndexError> for BamIndexStatsError {
     }
 }
 
-/// `printIndexStats` for a BAM given as its raw bytes: the exact text the tool prints.
+/// `printIndexStats` for a BAM given as its raw bytes, with the index rebuilt from it.
+///
+/// The counts do not depend on the virtual offsets, so a rebuilt index answers what a read one
+/// would for a file that has an index. For a file that has none, see the note above: this answers
+/// where the reference refuses, which is why a command line calls
+/// [`bam_index_stats_with_index`] instead.
 pub fn bam_index_stats(bam: &[u8]) -> Result<String, BamIndexStatsError> {
+    let bai = build_bam_index(bam)?;
+    bam_index_stats_with_index(bam, &bai)
+}
+
+/// `printIndexStats` over the BAM and the `.bai` the caller found beside it, which is what
+/// `BamIndexStats.doWork` does.
+pub fn bam_index_stats_with_index(bam: &[u8], bai: &[u8]) -> Result<String, BamIndexStatsError> {
     let decoded =
         htsjdk_bgzf::decompress_all(bam).map_err(|e| BamIndexStatsError::Bgzf(format!("{e:?}")))?;
     let reader =
         BamReader::new(&decoded).map_err(|e| BamIndexStatsError::Bgzf(format!("{e:?}")))?;
     let sequences = reader.header.text.sequences.clone();
 
-    let bai = build_bam_index(bam)?;
-    let stats = parse_bai_metadata(&bai).map_err(|e| BamIndexStatsError::Bai(format!("{e:?}")))?;
+    let stats = parse_bai_metadata(bai).map_err(|e| BamIndexStatsError::Bai(format!("{e:?}")))?;
 
     let mut out = String::new();
     for (i, seq) in sequences.iter().enumerate() {
