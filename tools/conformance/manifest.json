@@ -192,6 +192,12 @@
         "port": "quality-score-distribution",
         "t": 2,
         "status": "measured"
+      },
+      {
+        "tool": "SetNmMdAndUqTags",
+        "port": "set-nm-md-and-uq-tags",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
