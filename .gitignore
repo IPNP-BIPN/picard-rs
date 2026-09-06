@@ -36,6 +36,9 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/CreateSequenceDictionary.t2.txt
 !tools/coverage/corpus/DownsampleSam.t2.txt
 !tools/coverage/corpus/FixMateInformation.t2.txt
+!tools/coverage/corpus/MeanQualityByCycle.t2.txt
+!tools/coverage/corpus/CollectBaseDistributionByCycle.t2.txt
+!tools/coverage/corpus/QualityScoreDistribution.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

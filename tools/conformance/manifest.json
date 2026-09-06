@@ -179,19 +179,19 @@
         "tool": "MeanQualityByCycle",
         "port": "mean-quality-by-cycle",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectBaseDistributionByCycle",
         "port": "collect-base-distribution-by-cycle",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "QualityScoreDistribution",
         "port": "quality-score-distribution",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       }
     ]
   },
