@@ -17,7 +17,7 @@ use std::io::{Read, Write};
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::sam_file::write_sam;
 use picard_analysis::fix_mate_information::{
-    fix_mate_information, fix_mate_information_to_bam, SortOrder,
+    fix_mate_information_to_bam_with, fix_mate_information_with, Options, SortOrder,
 };
 
 fn arg(args: &[String], key: &str) -> Option<String> {
@@ -40,6 +40,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("queryname") => Some(SortOrder::Queryname),
         Some(other) => return Err(format!("unknown SORT_ORDER: {other}").into()),
     };
+    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
+    let options = Options {
+        sort_order,
+        assume_sorted: flag("ASSUME_SORTED=", false),
+        add_mate_cigar: flag("ADD_MATE_CIGAR=", true),
+        ignore_missing_mates: flag("IGNORE_MISSING_MATES=", true),
+        create_index: flag("CREATE_INDEX=", false),
+    };
 
     let mut raw = Vec::new();
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
@@ -55,14 +63,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         String::from_utf8(raw)?
     };
 
+    // The reference throws rather than exiting, so its handler prints the class before the
+    // message: a row that refuses is a row this has to refuse the same way, text included.
+    let refuse = |error: picard_analysis::fix_mate_information::FixMateError| -> String {
+        eprintln!(
+            "Exception in thread \"main\" {}: {}",
+            error.java_class(),
+            error.message()
+        );
+        std::process::exit(1);
+    };
+
     if output.ends_with(".sam") {
-        let sam = fix_mate_information(&text, sort_order).map_err(|e| format!("{e:?}"))?;
+        let sam = match fix_mate_information_with(&text, &options) {
+            Ok(sam) => sam,
+            Err(error) => {
+                refuse(error);
+                unreachable!()
+            }
+        };
         let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
         out.write_all(sam.as_bytes())?;
         out.flush()?;
         return Ok(());
     }
-    let bam = fix_mate_information_to_bam(&text, sort_order).map_err(|e| format!("{e:?}"))?;
+    let bam = match fix_mate_information_to_bam_with(&text, &options) {
+        Ok(bam) => bam,
+        Err(error) => {
+            refuse(error);
+            unreachable!()
+        }
+    };
     std::fs::write(&output, &bam)?;
     Ok(())
 }

@@ -30,6 +30,77 @@ const SUPPLEMENTARY_ALIGNMENT: u16 = 0x800;
 const FIRST_OF_PAIR: u16 = 0x40;
 const SECOND_OF_PAIR: u16 = 0x80;
 
+/// `FixMateInformation`'s arguments, defaulting to Picard's defaults.
+#[derive(Debug, Clone, Copy)]
+pub struct Options {
+    /// `SORT_ORDER`. `None` is Picard's default and means "the input header's own order", which
+    /// is not the same as `coordinate`.
+    pub sort_order: Option<SortOrder>,
+    /// `ASSUME_SORTED`: take the input as queryname-sorted whatever its header says, which skips
+    /// the re-sort. On a coordinate-sorted file that means templates are NOT grouped, so only
+    /// records that happen to be adjacent are fixed together -- and that is the reference's
+    /// behaviour, not a degradation of it.
+    pub assume_sorted: bool,
+    /// `ADD_MATE_CIGAR`: write `MC`, or clear it.
+    pub add_mate_cigar: bool,
+    /// `IGNORE_MISSING_MATES`: pass a lone end through, or refuse.
+    pub ignore_missing_mates: bool,
+    /// `CREATE_INDEX`, which is refused unless the output order is coordinate.
+    pub create_index: bool,
+}
+
+impl Default for Options {
+    /// Picard's defaults, which are not `bool::default()` twice: `ADD_MATE_CIGAR` and
+    /// `IGNORE_MISSING_MATES` are true.
+    fn default() -> Options {
+        Options {
+            sort_order: None,
+            assume_sorted: false,
+            add_mate_cigar: true,
+            ignore_missing_mates: true,
+            create_index: false,
+        }
+    }
+}
+
+/// What `FixMateInformation` refuses, with the reference's own messages.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FixMateError {
+    /// The input did not parse.
+    Parse(String),
+    /// `SAMException("Missing second read of pair: " + name)`, and its first-read twin. The
+    /// reference names the end it FOUND, so a template with only a second read reports "Missing
+    /// first read of pair".
+    MissingMate { first: bool, name: String },
+    /// `PicardException("Can't CREATE_INDEX unless sort order is coordinate")`.
+    IndexWithoutCoordinate,
+}
+
+impl FixMateError {
+    /// The message the reference prints, without the `Exception in thread "main"` prefix.
+    pub fn message(&self) -> String {
+        match self {
+            FixMateError::Parse(detail) => detail.clone(),
+            FixMateError::MissingMate { first, name } => {
+                let which = if *first { "first" } else { "second" };
+                format!("Missing {which} read of pair: {name}")
+            }
+            FixMateError::IndexWithoutCoordinate => {
+                "Can't CREATE_INDEX unless sort order is coordinate".to_string()
+            }
+        }
+    }
+
+    /// The exception class, which decides how the reference's own handler prints it.
+    pub fn java_class(&self) -> &'static str {
+        match self {
+            FixMateError::Parse(_) => "htsjdk.samtools.SAMFormatException",
+            FixMateError::MissingMate { .. } => "htsjdk.samtools.SAMException",
+            FixMateError::IndexWithoutCoordinate => "picard.PicardException",
+        }
+    }
+}
+
 /// The output sort order options this port handles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortOrder {
@@ -59,7 +130,11 @@ fn is_primary(rec: &BamRecord) -> bool {
 }
 
 /// `SamPairUtil.SetMateInfoIterator`: over queryname-sorted records, fix each template's mate info.
-fn fix_templates(records: &mut [BamRecord], set_mate_cigar: bool) {
+fn fix_templates(
+    records: &mut [BamRecord],
+    set_mate_cigar: bool,
+    ignore_missing_mates: bool,
+) -> Result<(), FixMateError> {
     let mut start = 0;
     while start < records.len() {
         // The run of records sharing this read name.
@@ -117,12 +192,32 @@ fn fix_templates(records: &mut [BamRecord], set_mate_cigar: bool) {
                 let mate = records[from].clone();
                 set_mate_info_on_supplemental(&mut records[*index], &mate, set_mate_cigar);
             }
+        } else if !ignore_missing_mates {
+            // The reference names the end it FOUND: a template with only a second read reports
+            // "Missing first read of pair". A fragment read is not a missing mate at all, which is
+            // why the paired flag is tested again here.
+            if let Some(f) = first_primary {
+                if records[f].flags & READ_PAIRED != 0 {
+                    return Err(FixMateError::MissingMate {
+                        first: false,
+                        name: records[f].read_name.clone(),
+                    });
+                }
+            } else if let Some(s) = second_primary {
+                if records[s].flags & READ_PAIRED != 0 {
+                    return Err(FixMateError::MissingMate {
+                        first: true,
+                        name: records[s].read_name.clone(),
+                    });
+                }
+            }
         }
         // A lone paired read (missing mate) would throw unless IGNORE_MISSING_MATES; the corpora do
         // not exercise that, and a fragment (unpaired) read simply passes through.
 
         start = end;
     }
+    Ok(())
 }
 
 /// `SAMRecord.setMateNegativeStrandFlag` and friends: one bit, set or cleared.
@@ -167,25 +262,44 @@ fn set_mate_info_on_supplemental(
         .insert(Tag::new(b"MQ"), TagValue::Int(mate.mapping_quality as i64));
 }
 
-/// `FixMateInformation.doWork` for a single SAM input.
+/// `FixMateInformation.doWork` for a single SAM input, with Picard's defaults.
 pub fn fix_mate_information(
     input_sam: &str,
     sort_order: Option<SortOrder>,
 ) -> Result<String, ParseError> {
-    let (header, records) = fix_mates(input_sam, sort_order)?;
+    let options = Options {
+        sort_order,
+        ..Options::default()
+    };
+    // The old signature answered with a `ParseError`, and its callers only ever met the parse
+    // one: with Picard's defaults the two refusals below cannot be raised at all.
+    fix_mate_information_with(input_sam, &options).map_err(|error| match error {
+        FixMateError::Parse(_) => read_sam_with(input_sam, ValidationStringency::Lenient)
+            .expect_err("the parse failed once already"),
+        other => panic!("unreachable with Picard's defaults: {}", other.message()),
+    })
+}
+
+/// `doWork` with the arguments the tool declares.
+pub fn fix_mate_information_with(
+    input_sam: &str,
+    options: &Options,
+) -> Result<String, FixMateError> {
+    let (header, records) = fix_mates_with(input_sam, options)?;
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
 }
 
 /// `FixMateInformation.doWork` up to the write: the header (with its final sort order) and the
 /// mate-fixed, re-sorted records.
-fn fix_mates(
+fn fix_mates_with(
     input_sam: &str,
-    sort_order: Option<SortOrder>,
-) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
-    let (mut header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
+    options: &Options,
+) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), FixMateError> {
+    let (mut header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)
+        .map_err(|error| FixMateError::Parse(format!("{error:?}")))?;
 
     // The output order defaults to the input header's sort order.
-    let output_order = sort_order.unwrap_or_else(|| {
+    let output_order = options.sort_order.unwrap_or_else(|| {
         header
             .attributes
             .get("SO")
@@ -193,12 +307,27 @@ fn fix_mates(
             .unwrap_or(SortOrder::Coordinate)
     });
 
-    // Sort into queryname order to group templates, fix them, then re-sort to the output order.
-    records.sort_by(query_name::compare);
-    fix_templates(&mut records, true);
+    // `if (CREATE_INDEX && header.getSortOrder() != coordinate) throw`, and the header's order at
+    // that point is the OUTPUT order rather than the input's.
+    if options.create_index && output_order != SortOrder::Coordinate {
+        return Err(FixMateError::IndexWithoutCoordinate);
+    }
+
+    // `if (ASSUME_SORTED || allQueryNameSorted)` the input is taken as already grouped and the
+    // re-sort is skipped. On a coordinate-sorted file that changes the answer rather than only the
+    // speed: templates are not adjacent, so a pair whose ends sit apart is never fixed together.
+    let already_queryname = header.attributes.get("SO") == Some("queryname");
+    if !(options.assume_sorted || already_queryname) {
+        records.sort_by(query_name::compare);
+    }
+    fix_templates(
+        &mut records,
+        options.add_mate_cigar,
+        options.ignore_missing_mates,
+    )?;
     match output_order {
         SortOrder::Coordinate => records.sort_by(coordinate::compare),
-        SortOrder::Queryname => {} // already queryname-sorted
+        SortOrder::Queryname => records.sort_by(query_name::compare),
     }
 
     header.set_sort_order(output_order.name());
@@ -215,8 +344,24 @@ pub fn fix_mate_information_to_bam(
     input_sam: &str,
     sort_order: Option<SortOrder>,
 ) -> Result<Vec<u8>, ParseError> {
+    let options = Options {
+        sort_order,
+        ..Options::default()
+    };
+    fix_mate_information_to_bam_with(input_sam, &options).map_err(|error| match error {
+        FixMateError::Parse(_) => read_sam_with(input_sam, ValidationStringency::Lenient)
+            .expect_err("the parse failed once already"),
+        other => panic!("unreachable with Picard's defaults: {}", other.message()),
+    })
+}
+
+/// The same, with the arguments the tool declares.
+pub fn fix_mate_information_to_bam_with(
+    input_sam: &str,
+    options: &Options,
+) -> Result<Vec<u8>, FixMateError> {
     use htsjdk_bam::writer::BamWriter;
-    let (header, records) = fix_mates(input_sam, sort_order)?;
+    let (header, records) = fix_mates_with(input_sam, options)?;
     let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &records {
         writer

@@ -117,6 +117,26 @@ def as_cli(args):
     return out
 
 
+def fresh_directory(workdir, stem):
+    """A directory no previous row has written into, for this row's output.
+
+    Emptying one directory and reusing it looks equivalent and is not. The oracle runs in a
+    container with this directory bind-mounted; deleting a file from the host and then creating a
+    file of the same name from inside a later container fails on the shared mount with
+    `NoSuchFileException`, and htsjdk reports that as `SAMException: Not creating BAM index`. Two
+    FixMateInformation rows were recorded as that rejection, which is the harness's answer and not
+    the reference's: run either row on its own and the reference writes the index and the file.
+
+    A row therefore gets a directory of its own. They accumulate inside the run's temporary tree,
+    which is removed when the run ends.
+    """
+    parent = workdir / stem
+    parent.mkdir(exist_ok=True)
+    made = parent / str(len(list(parent.iterdir())))
+    made.mkdir()
+    return made
+
+
 def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False):
     """Run one row in the container. Returns (exit code, output text, stdout tail).
 
@@ -126,10 +146,7 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False):
     matches by producing the same nothing. That is not a measurement, and this is the difference
     between covering an argument and observing it.
     """
-    out_dir = workdir / "out"
-    out_dir.mkdir(exist_ok=True)
-    for stale in out_dir.iterdir():
-        stale.unlink()
+    out_dir = fresh_directory(workdir, "out")
 
     cli = " ".join(as_cli(row_args))
     # `java -jar picard.jar <Tool> <args>`: the tool name is the first token, and the arguments
@@ -232,10 +249,7 @@ def first_error(text):
 
 def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False):
     """Run the port binary on the same row, with the fixture paths rewritten to the host."""
-    out_dir = workdir / "port"
-    out_dir.mkdir(exist_ok=True)
-    for stale in out_dir.iterdir():
-        stale.unlink()
+    out_dir = fresh_directory(workdir, "port")
 
     rewritten = []
     for pair in row_args:
