@@ -100,6 +100,16 @@
       "t": 2,
       "share": 1.0
     },
+    "DownsampleSam": {
+      "rows": 11,
+      "accepted": 11,
+      "rejected": 0,
+      "distinct_outputs": 5,
+      "distinct_rejections": 0,
+      "matched": 11,
+      "t": 2,
+      "share": 1.0
+    },
     "IntervalListToBed": {
       "rows": 7,
       "accepted": 7,
