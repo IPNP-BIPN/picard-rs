@@ -237,8 +237,6 @@ jobs:
             --log /tmp/BamIndexStats.log \
             --log /tmp/ReorderSam.log \
             --log /tmp/CreateSequenceDictionary.log \
-            --pending ReorderSam \
-            --pending CreateSequenceDictionary \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -268,7 +266,9 @@ jobs:
             tools/coverage/corpus/NonNFastaSize.t2.txt \
             tools/coverage/corpus/ScatterIntervalsByNs.t2.txt \
             tools/coverage/corpus/ViewSam.t2.txt \
-            tools/coverage/corpus/BamIndexStats.t2.txt)
+            tools/coverage/corpus/BamIndexStats.t2.txt \
+            tools/coverage/corpus/ReorderSam.t2.txt \
+            tools/coverage/corpus/CreateSequenceDictionary.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
