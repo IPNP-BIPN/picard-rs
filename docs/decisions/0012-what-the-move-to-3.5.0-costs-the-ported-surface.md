@@ -118,3 +118,18 @@ gatk-rs), the four `markduplicates/util` classes and `MarkDuplicatesForFlowHelpe
 accounted for above, so the name match is a way of finding what to read, not the measurement
 itself: the two collectors that matter most here were found by reading all 29 diffs, and one of
 them is named by a module the match did find.
+
+## Why #114 is closed
+
+*Added 2026-09-06.* [#114](https://github.com/IPNP-BIPN/picard-rs/issues/114) was the issue this
+document was written from, and keeping both is keeping the same content in two places where only
+one of them is durable.
+
+An issue is a thing to do. The version move is a thing *not* to do yet, decided in
+[gatk-rs#810](https://github.com/IPNP-BIPN/gatk-rs/issues/810) and blocked behind htsjdk-rs, which
+records the same shape in its own
+[decision 0042](https://github.com/IPNP-BIPN/htsjdk-rs/blob/main/docs/decisions/0042-the-reference-version-is-pinned-by-the-consumers-not-by-this-repository.md).
+An open issue tracking someone else's decision can only be closed by that decision changing, and
+the bill above is what a reader actually needs when it does.
+
+The pin moves when the three repositories move together. Until then, this file is the answer.
