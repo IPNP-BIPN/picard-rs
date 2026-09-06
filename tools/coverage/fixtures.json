@@ -17,17 +17,43 @@
       "/work/fixtures/small.sam",
       "/work/fixtures/queryname.bam"
     ],
-    "--OUTPUT": ["/work/out/output.txt"],
-    "--REFERENCE_SEQUENCE": ["/work/fixtures/ref.fasta"],
-    "--HISTOGRAM_FILE": ["/work/out/histogram.pdf"],
-    "--TMP_DIR": ["/work/tmp"],
-    "--INTERVALS": ["/work/fixtures/targets.interval_list"],
-    "--TARGET_INTERVALS": ["/work/fixtures/targets.interval_list"],
-    "--SEQUENCE_DICTIONARY": ["/work/fixtures/ref.fasta"],
-    "--FASTQ": ["/work/fixtures/reads_1.fastq"],
-    "--SECOND_END_FASTQ": ["/work/fixtures/reads_2.fastq"],
-    "--UNMAPPED_BAM": ["/work/fixtures/unmapped.bam"],
-    "--ALIGNED_BAM": ["/work/fixtures/small.bam"]
+    "--OUTPUT": [
+      "/work/out/output.txt"
+    ],
+    "--REFERENCE_SEQUENCE": [
+      "/work/fixtures/ref.fasta"
+    ],
+    "--HISTOGRAM_FILE": [
+      "/work/out/histogram.pdf"
+    ],
+    "--TMP_DIR": [
+      "/work/tmp"
+    ],
+    "--INTERVALS": [
+      "/work/fixtures/targets.interval_list"
+    ],
+    "--TARGET_INTERVALS": [
+      "/work/fixtures/targets.interval_list"
+    ],
+    "--SEQUENCE_DICTIONARY": [
+      "/work/fixtures/ref.fasta"
+    ],
+    "--FASTQ": [
+      "/work/fixtures/reads_1.fastq"
+    ],
+    "--SECOND_END_FASTQ": [
+      "/work/fixtures/reads_2.fastq"
+    ],
+    "--UNMAPPED_BAM": [
+      "/work/fixtures/unmapped.bam"
+    ],
+    "--ALIGNED_BAM": [
+      "/work/fixtures/small.bam"
+    ],
+    "--SORT_ORDER": [
+      "coordinate",
+      "queryname"
+    ]
   },
   "per_tool": {
     "$why": [
@@ -42,8 +68,13 @@
       "narrows nothing, because the value it replaces was not a value that tool could take."
     ],
     "BedToIntervalList": {
-      "--INPUT": ["/work/fixtures/targets.bed", "/work/fixtures/targets_mixed.bed"],
-      "--SEQUENCE_DICTIONARY": ["/work/fixtures/ref.dict"]
+      "--INPUT": [
+        "/work/fixtures/targets.bed",
+        "/work/fixtures/targets_mixed.bed"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "/work/fixtures/ref.dict"
+      ]
     },
     "ReplaceSamHeader": {
       "$why": [
@@ -52,7 +83,9 @@
         "fixture's, which shares the corpus's dictionary, so the replacement is a real reheader",
         "rather than a mismatch."
       ],
-      "--HEADER": ["/work/fixtures/small.sam"]
+      "--HEADER": [
+        "/work/fixtures/small.sam"
+      ]
     },
     "CalculateReadGroupChecksum": {
       "$why": [
@@ -80,10 +113,18 @@
         "repository is willing to pass; they are held constant, so the array covers the arguments",
         "that are actually varied and the tool runs at all."
       ],
-      "--RGLB": ["lib1"],
-      "--RGPL": ["ILLUMINA"],
-      "--RGPU": ["unit1"],
-      "--RGSM": ["sample1"]
+      "--RGLB": [
+        "lib1"
+      ],
+      "--RGPL": [
+        "ILLUMINA"
+      ],
+      "--RGPU": [
+        "unit1"
+      ],
+      "--RGSM": [
+        "sample1"
+      ]
     },
     "NonNFastaSize": {
       "$why": [
@@ -92,7 +133,9 @@
         "are declared because the count is the only output there is, and one list would make the",
         "array cover the arguments without observing any of them."
       ],
-      "--INPUT": ["/work/fixtures/ref.fasta"],
+      "--INPUT": [
+        "/work/fixtures/ref.fasta"
+      ],
       "--INTERVALS": [
         "/work/fixtures/targets.interval_list",
         "/work/fixtures/targets_mixed.interval_list"
@@ -103,20 +146,32 @@
         "The reference is named --REFERENCE here, not --REFERENCE_SEQUENCE, so the shared value",
         "does not reach it and the argument is required: without this every row was a usage error."
       ],
-      "--REFERENCE": ["/work/fixtures/ref.fasta"]
+      "--REFERENCE": [
+        "/work/fixtures/ref.fasta"
+      ]
     },
     "NormalizeFasta": {
-      "--INPUT": ["/work/fixtures/ref.fasta", "/work/fixtures/described.fasta"]
+      "--INPUT": [
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/described.fasta"
+      ]
     }
   },
   "constraints": [
     {
-      "forbid": { "--FLOW_MODE": "true" },
+      "forbid": {
+        "--FLOW_MODE": "true"
+      },
       "why": "Picard 3.4.0 throws on it: 'FLOW_MODE is obsolete. Flow support now provided by CollectQualityYieldMetricsFlow'. Every row carrying it is rejected before the tool runs, which cost eight of CollectQualityYieldMetrics' eleven rows in the first run (decision 0009). The rejection itself is behaviour worth keeping, but once, as its own case, not as half the array."
     },
     {
-      "tools": ["CollectAlignmentSummaryMetrics", "CollectQualityYieldMetrics"],
-      "forbid": { "--INPUT": "/work/fixtures/queryname.bam" },
+      "tools": [
+        "CollectAlignmentSummaryMetrics",
+        "CollectQualityYieldMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam"
+      },
       "why": "These collectors require coordinate order, and no value of ASSUME_SORTED makes a queryname input work: false is refused up front ('should be coordinate sorted but the header says the sort order is queryname') and true lets it through until the reference walk fails mid-stream ('Requesting earlier reference sequence: 0 < 1'). This was first declared as two argument-pair clauses and measuring showed that to be the wrong shape: the input itself is invalid for these tools, not a combination of it with something else. The clause is scoped, because the same file is an ordinary input for SortSam or SamToFastq. Both rejection messages are behaviour the port owes and belong in the conformance manifest as their own cases, not as most of a covering array."
     }
   ],

@@ -149,6 +149,12 @@
         "t": 2,
         "status": "measured",
         "output": "stdout"
+      },
+      {
+        "tool": "ReorderSam",
+        "port": "reorder-sam",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
