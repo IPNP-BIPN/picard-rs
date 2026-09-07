@@ -290,6 +290,16 @@
       "t": 2,
       "share": 1.0
     },
+    "ValidateSamFile": {
+      "rows": 13,
+      "accepted": 5,
+      "rejected": 8,
+      "distinct_outputs": 1,
+      "distinct_rejections": 5,
+      "matched": 13,
+      "t": 2,
+      "share": 1.0
+    },
     "ViewSam": {
       "rows": 14,
       "accepted": 8,
