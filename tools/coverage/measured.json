@@ -230,6 +230,16 @@
       "t": 2,
       "share": 1.0
     },
+    "SetNmMdAndUqTags": {
+      "rows": 11,
+      "accepted": 8,
+      "rejected": 3,
+      "distinct_outputs": 4,
+      "distinct_rejections": 1,
+      "matched": 11,
+      "t": 2,
+      "share": 1.0
+    },
     "SortSam": {
       "rows": 10,
       "accepted": 7,

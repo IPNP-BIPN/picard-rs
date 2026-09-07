@@ -261,7 +261,6 @@ jobs:
             --log /tmp/CollectBaseDistributionByCycle.log \
             --log /tmp/QualityScoreDistribution.log \
             --log /tmp/SetNmMdAndUqTags.log \
-            --pending SetNmMdAndUqTags \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -298,7 +297,8 @@ jobs:
             tools/coverage/corpus/FixMateInformation.t2.txt \
             tools/coverage/corpus/MeanQualityByCycle.t2.txt \
             tools/coverage/corpus/CollectBaseDistributionByCycle.t2.txt \
-            tools/coverage/corpus/QualityScoreDistribution.t2.txt)
+            tools/coverage/corpus/QualityScoreDistribution.t2.txt \
+            tools/coverage/corpus/SetNmMdAndUqTags.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
