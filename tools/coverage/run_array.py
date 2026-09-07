@@ -186,9 +186,20 @@ def read_output(out_dir, strip_program_records=False):
         return ""
     raw = produced.read_bytes()
     try:
-        return raw.decode("utf-8")
+        text = raw.decode("utf-8")
     except UnicodeDecodeError:
         pass
+    else:
+        # A text output can carry the same provenance a BAM header does. `IntervalListTools`
+        # stamps an `@PG` line holding the command line it was given, mount points and all, into
+        # an interval list, and no second implementation reproduces that. The same flag removes it
+        # from the same place for the same reason, and removes nothing else: every other line,
+        # `@HD`, `@SQ`, `@CO` and every interval, is compared as it was written.
+        if strip_program_records:
+            text = "".join(
+                line + "\n" for line in text.splitlines() if not line.startswith("@PG\t")
+            )
+        return text
     payload, kind = decompressed(raw)
     if strip_program_records:
         payload = without_program_records(payload)

@@ -204,6 +204,13 @@
         "port": "revert-sam",
         "t": 2,
         "status": "measured"
+      },
+      {
+        "tool": "IntervalListTools",
+        "port": "interval-list-tools",
+        "t": 2,
+        "status": "pending",
+        "strip_program_records": true
       }
     ]
   },

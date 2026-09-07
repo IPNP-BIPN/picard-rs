@@ -194,6 +194,12 @@
         "ConstantMemory"
       ]
     },
+    "IntervalListTools": {
+      "--INPUT": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ]
+    },
     "RevertSam": {
       "--MAX_DISCARD_FRACTION": [
         "0.01",
