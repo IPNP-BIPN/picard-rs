@@ -53,6 +53,10 @@ use htsjdk_bam::cigar::{Cigar, Op};
 pub enum ScoringStrategy {
     SumOfBaseQualities,
     TotalMappedReferenceLength,
+    /// `RANDOM`, which is not random: the read NAME is hashed with Murmur3 seeded at 1 and the low
+    /// fourteen bits become the score, so both ends of a pair score alike and two runs over one
+    /// file keep the same reads.
+    Random,
 }
 
 /// `MarkDuplicates.DuplicateTaggingPolicy`.
@@ -210,6 +214,14 @@ pub fn duplicate_score(record: &Record, strategy: ScoringStrategy) -> i16 {
             } else {
                 capped(i64::from(record.cigar.reference_length()))
             }
+        }
+        // `score += hash & 0b11_1111_1111_1111; score -= Short.MIN_VALUE / 4;` -- the shift moves
+        // the value off zero so that a vendor-failed read can be discounted twice, once per mate,
+        // without underflowing.
+        ScoringStrategy::Random => {
+            let hashed = (crate::murmur3::hash_unencoded_chars(&record.name, 1)
+                & 0b11_1111_1111_1111) as i16;
+            hashed.wrapping_sub(i16::MIN / 4)
         }
     };
     if record.fails_vendor_quality() {
