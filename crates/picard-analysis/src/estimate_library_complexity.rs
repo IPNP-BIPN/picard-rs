@@ -139,3 +139,156 @@ pub fn metrics(bins: &[(i64, i64, i64)], min_group_count: i64) -> Metrics {
     );
     out
 }
+
+use crate::mark_duplicates::{optical_duplicates, Location, ReadEnds};
+use std::collections::BTreeMap;
+
+/// `MAX_GROUP_RATIO`'s default, the multiple of the expected group size past which a group is
+/// dropped with a warning rather than searched.
+pub const DEFAULT_MAX_GROUP_RATIO: i64 = 500;
+
+/// One template as the tool holds it: both ends in READ order, and where the cluster was.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PairedRead {
+    pub read1: Vec<u8>,
+    pub read2: Vec<u8>,
+    pub library: String,
+    pub read_group: i32,
+    pub location: Location,
+    /// `PairedReadSequenceWithBarcodes`: the three tags' `String.hashCode()`, or zero for a tag
+    /// that was not asked for or not present. They are compared for equality and nothing else.
+    pub barcodes: (i32, i32, i32),
+}
+
+/// `PairedReadComparator`: the first `seed` bases of read one, then of read two.
+///
+/// The comparison is a BYTE SUBTRACTION in the reference, over `byte`, which is signed there. Every
+/// base is ASCII, so the sign never shows; the ordering is the unsigned one either way.
+pub fn seed_order(left: &PairedRead, right: &PairedRead, seed: usize) -> std::cmp::Ordering {
+    for index in 0..seed {
+        match left.read1[index].cmp(&right.read1[index]) {
+            std::cmp::Ordering::Equal => {}
+            other => return other,
+        }
+    }
+    for index in 0..seed {
+        match left.read2[index].cmp(&right.read2[index]) {
+            std::cmp::Ordering::Equal => {}
+            other => return other,
+        }
+    }
+    std::cmp::Ordering::Equal
+}
+
+/// `getNextGroup`: the run of pairs whose seeds equal the run's FIRST pair, which is what the sort
+/// has already put together.
+pub fn groups(pairs: &[PairedRead], seed: usize) -> Vec<std::ops::Range<usize>> {
+    let mut out = Vec::new();
+    let mut start = 0;
+    while start < pairs.len() {
+        let mut end = start + 1;
+        while end < pairs.len()
+            && same_group(
+                (&pairs[start].read1, &pairs[start].read2),
+                (&pairs[end].read1, &pairs[end].read2),
+                seed,
+            )
+        {
+            end += 1;
+        }
+        out.push(start..end);
+        start = end;
+    }
+    out
+}
+
+/// What one library's search produced: how many groups of each size, and how many of those groups'
+/// members were optical duplicates.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LibraryHistograms {
+    pub duplication: BTreeMap<i64, i64>,
+    pub optical: BTreeMap<i64, i64>,
+}
+
+/// `ElcIdenticalBasesDuplicatesFinder.searchDuplicates` and `fillHistogram`.
+///
+/// Each pair not already claimed takes every later pair that matches it, and the SIZE of what it
+/// took -- itself included -- is the bin incremented. A pair that took nobody increments bin one,
+/// and that bin is what `MIN_GROUP_COUNT` then decides about.
+///
+/// The optical count is per MEMBER and not per group: the flags come back one per member of the
+/// set, and every flag set increments the same bin again. The keeper handed to the finder is the
+/// pair that claimed the others, which sits LAST in the list the finder is given.
+pub fn search_duplicates(
+    group: &[&PairedRead],
+    seed: usize,
+    max_diff_rate: f64,
+    max_read_length: usize,
+    optical_distance: i32,
+    use_barcodes: bool,
+    histograms: &mut LibraryHistograms,
+) {
+    let mut claimed = vec![false; group.len()];
+    for left in 0..group.len() {
+        if claimed[left] {
+            continue;
+        }
+        let mut dupes: Vec<usize> = Vec::new();
+        for right in (left + 1)..group.len() {
+            if claimed[right] {
+                continue;
+            }
+            let same_barcodes = !use_barcodes || group[left].barcodes == group[right].barcodes;
+            if same_barcodes
+                && matches(
+                    (&group[left].read1, &group[left].read2),
+                    (&group[right].read1, &group[right].read2),
+                    seed,
+                    max_diff_rate,
+                    max_read_length,
+                )
+            {
+                dupes.push(right);
+                claimed[right] = true;
+            }
+        }
+        if dupes.is_empty() {
+            *histograms.duplication.entry(1).or_insert(0) += 1;
+            continue;
+        }
+        // `dupes.add(prs)`: the claiming pair is appended, so it is the LAST element and the
+        // keeper at the same time.
+        dupes.push(left);
+        let size = dupes.len() as i64;
+        *histograms.duplication.entry(size).or_insert(0) += 1;
+        let ends: Vec<ReadEnds> = dupes
+            .iter()
+            .map(|index| ReadEnds {
+                location: group[*index].location,
+                read_group: group[*index].read_group,
+                ..ReadEnds {
+                    library: String::new(),
+                    read1_reference_index: -1,
+                    read1_coordinate: 0,
+                    read2_reference_index: -1,
+                    read2_coordinate: 0,
+                    orientation: 0,
+                    orientation_for_optical_duplicates: 0,
+                    read1_index_in_file: 0,
+                    read2_index_in_file: 0,
+                    score: 0,
+                    location: Location::default(),
+                    read_group: -1,
+                    barcode: None,
+                    is_optical_duplicate: false,
+                }
+            })
+            .collect();
+        let flags = optical_duplicates(&ends, Some(ends.len() - 1), optical_distance);
+        for flag in flags {
+            if flag {
+                *histograms.optical.entry(size).or_insert(0) += 1;
+            }
+        }
+    }
+}
