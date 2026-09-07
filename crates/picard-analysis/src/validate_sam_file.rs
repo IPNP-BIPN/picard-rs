@@ -61,6 +61,8 @@ use htsjdk_bam::sam_file::read_sam_with;
 use htsjdk_bam::tag::Tag;
 use htsjdk_bam::text_parse::{ParseError, ValidationStringency};
 
+use crate::java_hash_map::JavaHashMap;
+
 /// Why `ValidateSamFile` could not run: the input failed to parse, or the reference FASTA did.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidateError {
@@ -127,6 +129,16 @@ struct Report {
     count: usize,
     verbose: bool,
     counts: BTreeMap<String, f64>,
+    /// `errorsToIgnore`: types dropped before they are counted at all.
+    ignore: Vec<String>,
+    /// `ignoreWarnings`: a warning is dropped before it is counted, exactly as an ignored type is.
+    ignore_warnings: bool,
+    /// `maxVerboseOutput`, 100 by default. In verbose mode, reaching it throws
+    /// `MaxOutputExceededException`, which ends the whole validation.
+    max_output: usize,
+    exceeded: bool,
+    errors: usize,
+    warnings: usize,
 }
 
 impl Report {
@@ -136,6 +148,12 @@ impl Report {
             count: 0,
             verbose,
             counts: BTreeMap::new(),
+            ignore: Vec::new(),
+            ignore_warnings: false,
+            max_output: 100,
+            exceeded: false,
+            errors: 0,
+            warnings: 0,
         }
     }
 
@@ -150,6 +168,20 @@ impl Report {
         read_name: Option<&str>,
         message: &str,
     ) {
+        // `addError`: an ignored type never reaches the counters, and neither does a warning when
+        // warnings are ignored. Once the verbose cap has been reached htsjdk is unwinding through
+        // `MaxOutputExceededException`, so nothing further is recorded at all.
+        if self.exceeded || self.ignore.iter().any(|t| t == ty) {
+            return;
+        }
+        if severity == WARNING {
+            if self.ignore_warnings {
+                return;
+            }
+            self.warnings += 1;
+        } else {
+            self.errors += 1;
+        }
         self.count += 1;
         *self.counts.entry(format!("{severity}:{ty}")).or_insert(0.0) += 1.0;
         if !self.verbose {
@@ -169,6 +201,9 @@ impl Report {
         }
         self.out.push_str(message);
         self.out.push('\n');
+        if self.count >= self.max_output {
+            self.exceeded = true;
+        }
     }
 }
 
@@ -559,6 +594,63 @@ impl SortOrder {
     }
 }
 
+/// The tool's arguments, with Picard's defaults.
+#[derive(Debug, Clone)]
+pub struct Options {
+    /// `MODE`: VERBOSE prints one line per error, SUMMARY prints the histogram of counts.
+    pub verbose: bool,
+    /// `IGNORE`: error types dropped before they are counted.
+    pub ignore: Vec<String>,
+    /// `IGNORE_WARNINGS`: drop every warning, which also removes it from the exit code.
+    pub ignore_warnings: bool,
+    /// `SKIP_MATE_VALIDATION`: skip the mate checks and the unmatched-pair pass.
+    pub skip_mate_validation: bool,
+    /// `MAX_OUTPUT`, 100: in verbose mode, the error that reaches this count is the last one.
+    pub max_output: usize,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Options {
+            verbose: true,
+            ignore: Vec::new(),
+            ignore_warnings: false,
+            skip_mate_validation: false,
+            max_output: 100,
+        }
+    }
+}
+
+/// What a validation found: its report, and the counts the exit code is derived from.
+pub struct Validation {
+    pub report: String,
+    pub errors: usize,
+    pub warnings: usize,
+}
+
+impl Validation {
+    /// `ValidateSamFile.ReturnTypes`: 0 clean, 1 warnings only, 2 errors and warnings, 3 errors
+    /// only. It is the tool's answer rather than a failure, which is why the row records it.
+    pub fn exit_code(&self) -> i32 {
+        match (self.errors, self.warnings) {
+            (0, 0) => 0,
+            (0, _) => 1,
+            (_, 0) => 3,
+            _ => 2,
+        }
+    }
+}
+
+/// `ValidateSamFile` over already-parsed records, with the tool's arguments.
+pub fn validate_records(
+    header: &SamHeader,
+    records: &[BamRecord],
+    fasta: Option<&[u8]>,
+    options: &Options,
+) -> Result<Validation, ValidateError> {
+    validate_inner(header, records, fasta, options)
+}
+
 /// `ValidateSamFile MODE=VERBOSE`, SAM text input, no reference: the raw verbose report.
 pub fn validate_sam_file_verbose(input_sam: &str) -> Result<String, ValidateError> {
     validate(input_sam, None, true)
@@ -595,6 +687,21 @@ pub fn validate_sam_file_summary_with_reference(
 /// histogram.
 fn validate(input_sam: &str, fasta: Option<&[u8]>, verbose: bool) -> Result<String, ValidateError> {
     let (header, records) = read_sam_with(input_sam, ValidationStringency::Silent)?;
+    let options = Options {
+        verbose,
+        ..Options::default()
+    };
+    Ok(validate_inner(&header, &records, fasta, &options)?.report)
+}
+
+/// The validation itself, over parsed records.
+fn validate_inner(
+    header: &SamHeader,
+    records: &[BamRecord],
+    fasta: Option<&[u8]>,
+    options: &Options,
+) -> Result<Validation, ValidateError> {
+    let verbose = options.verbose;
 
     // The reference bases by contig name, resolved once, for the `NM` value check.
     let contigs = match fasta {
@@ -608,45 +715,45 @@ fn validate(input_sam: &str, fasta: Option<&[u8]>, verbose: bool) -> Result<Stri
     let have_reference = fasta.is_some();
 
     let mut rep = Report::new(verbose);
-    validate_header(&header, &mut rep);
+    rep.ignore = options.ignore.clone();
+    rep.ignore_warnings = options.ignore_warnings;
+    rep.max_output = options.max_output;
+    validate_header(header, &mut rep);
 
     // Armed by an empty dictionary, disarmed by the first mapped read it reports on.
     let mut dict_empty_pending = header.sequences.is_empty();
 
     // Sort-order checking: the comparator from the header's SO, and the previous record seen.
-    let sort_order = SortOrder::of(&header);
+    let sort_order = SortOrder::of(header);
     let mut prev_record: Option<&BamRecord> = None;
 
-    // Reads awaiting their mate. Keyed, as htsjdk's coordinate-sorted map is, by (reference bucket,
-    // read name): a read is stored under the reference index it claims for its mate, and matched
-    // when a later read on that reference arrives. A linear vector keeps a deterministic order for
-    // the leftover `MATE_NOT_FOUND` pass. (Cross-reference pairing and multi-leftover ordering are
-    // deferred; the covered corpus keeps every pair on one reference with at most one leftover.)
-    let mut pending: Vec<(i32, String, PairEndInfo)> = Vec::new();
+    // Reads awaiting their mate. htsjdk keeps them in an `InMemoryPairEndInfoMap`, which is a
+    // `java.util.HashMap<String, PairEndInfo>` keyed on the read name alone -- its `remove` takes a
+    // reference index and ignores it -- and reports the leftovers by ITERATING that map. So the
+    // order of the `MATE_NOT_FOUND` lines is Java's bucket order, which is why this is a
+    // [`JavaHashMap`] and not a vector: the names are the same either way and the file is not.
+    let mut pending: JavaHashMap<PairEndInfo> = JavaHashMap::new();
 
     for (i, rec) in records.iter().enumerate() {
         let record_number = (i + 1) as i64;
         let unmapped = rec.flags & READ_UNMAPPED != 0;
 
         // isValid(): the per-record flag / mapping / CIGAR / read-group checks, emitted first.
-        is_valid_record(&header, rec, record_number, &mut rep);
+        is_valid_record(header, rec, record_number, &mut rep);
 
-        // validateMateFields: only for paired, primary reads. (The MC-as-valid-cigar check is
-        // deferred; the corpus MC tags are valid cigars.)
-        if rec.flags & READ_PAIRED != 0 && rec.flags & (SECONDARY | SUPPLEMENTARY) == 0 {
-            let found = pending.iter().position(|(bucket, name, _)| {
-                *bucket == rec.reference_index && *name == rec.read_name
-            });
-            if let Some(pos) = found {
-                let (_, _, first) = pending.remove(pos);
-                let second = PairEndInfo::new(rec, record_number);
-                validate_mates(&first, &second, &rec.read_name, &mut rep);
-            } else {
-                pending.push((
-                    rec.mate_reference_index,
-                    rec.read_name.clone(),
-                    PairEndInfo::new(rec, record_number),
-                ));
+        // validateMateFields: only for paired, primary reads, and only when the caller has not
+        // asked for the mate checks to be skipped. (The MC-as-valid-cigar check is deferred; the
+        // corpus MC tags are valid cigars.)
+        if !options.skip_mate_validation
+            && rec.flags & READ_PAIRED != 0
+            && rec.flags & (SECONDARY | SUPPLEMENTARY) == 0
+        {
+            match pending.remove(&rec.read_name) {
+                Some(first) => {
+                    let second = PairEndInfo::new(rec, record_number);
+                    validate_mates(&first, &second, &rec.read_name, &mut rep);
+                }
+                None => pending.put(&rec.read_name, PairEndInfo::new(rec, record_number)),
             }
         }
 
@@ -671,7 +778,7 @@ fn validate(input_sam: &str, fasta: Option<&[u8]>, verbose: bool) -> Result<Stri
         prev_record = Some(rec);
 
         // validateReadGroup
-        if !read_group_present(&header, rec) {
+        if !read_group_present(header, rec) {
             rep.add(
                 WARNING,
                 "RECORD_MISSING_READ_GROUP",
@@ -743,8 +850,9 @@ fn validate(input_sam: &str, fasta: Option<&[u8]>, verbose: bool) -> Result<Stri
         }
     }
 
-    // validateUnmatchedPairs: reads marked paired whose mate never arrived.
-    for (_, name, _) in &pending {
+    // validateUnmatchedPairs: reads marked paired whose mate never arrived. Skipped with the mate
+    // checks, because `pending` is only filled when they run.
+    for (name, _) in pending.iter() {
         rep.add(
             ERROR,
             "MATE_NOT_FOUND",
@@ -756,11 +864,28 @@ fn validate(input_sam: &str, fasta: Option<&[u8]>, verbose: bool) -> Result<Stri
 
     // A clean file prints `No errors found` in either mode. In verbose mode the per-error lines are
     // already in `out`; in summary mode the errors, if any, become the histogram.
+    let (errors, warnings) = (rep.errors, rep.warnings);
     if rep.count == 0 {
-        return Ok("No errors found\n".to_string());
+        return Ok(Validation {
+            report: "No errors found\n".to_string(),
+            errors,
+            warnings,
+        });
     }
     if verbose {
-        return Ok(rep.out);
+        let mut report = rep.out;
+        if rep.exceeded {
+            // The catch in `validateSamFileVerbose`, which is where the run ends.
+            report.push_str(&format!(
+                "Maximum output of [{}] errors reached.\n",
+                rep.max_output
+            ));
+        }
+        return Ok(Validation {
+            report,
+            errors,
+            warnings,
+        });
     }
     let mut metrics = htsjdk_metrics::file::MetricsFile::new();
     metrics.histograms.push(htsjdk_metrics::file::Histogram {
@@ -769,7 +894,11 @@ fn validate(input_sam: &str, fasta: Option<&[u8]>, verbose: bool) -> Result<Stri
         key_class: "java.lang.String".to_string(),
         bins: rep.counts.into_iter().collect(),
     });
-    Ok(metrics.write())
+    Ok(Validation {
+        report: metrics.write(),
+        errors,
+        warnings,
+    })
 }
 
 #[cfg(test)]

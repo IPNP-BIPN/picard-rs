@@ -224,6 +224,13 @@
         "t": 2,
         "status": "measured",
         "strip_program_records": true
+      },
+      {
+        "tool": "ValidateSamFile",
+        "port": "validate-sam-file",
+        "t": 2,
+        "status": "pending",
+        "exit_code_is_a_result": true
       }
     ]
   },

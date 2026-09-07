@@ -202,7 +202,9 @@ def coverage_job(manifest):
         f"            --port target/release/{t['port']}"
         f"{' --stdout' if t.get('output') == 'stdout' else ''}"
         # A tool that stamps a @PG carrying its command line: see run_array.py.
-        f"{' --strip-program-records' if t.get('strip_program_records') else ''} \\\n"
+        f"{' --strip-program-records' if t.get('strip_program_records') else ''}"
+        # A tool whose exit code says what it FOUND rather than that it failed.
+        f"{' --exit-code-is-a-result' if t.get('exit_code_is_a_result') else ''} \\\n"
         f"            | tee /tmp/{t['tool']}.log"
         for t in tools
     )

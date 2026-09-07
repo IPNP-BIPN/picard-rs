@@ -71,6 +71,7 @@ pub mod illumina_run_metrics;
 pub mod insert_size;
 pub mod interval_list_to_bed;
 pub mod interval_list_tools;
+pub mod java_hash_map;
 pub mod jumping_library;
 pub mod lift_over_haplotype_map;
 pub mod lift_over_interval_list;

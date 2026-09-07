@@ -305,8 +305,17 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False):
     return result.returncode, text, message
 
 
-def outcome(code, text, error, tool):
-    """One row's result, as the thing that will be compared: output, or rejection."""
+def outcome(code, text, error, tool, exit_code_is_a_result=False):
+    """One row's result, as the thing that will be compared: output, or rejection.
+
+    `exit_code_is_a_result` is for a tool whose non-zero exit is an ANSWER rather than a refusal.
+    `ValidateSamFile` returns 1 for warnings, 2 for errors and warnings, 3 for errors, and writes
+    its report either way, so reading a non-zero exit as a rejection throws away the report and
+    records the help footer that follows it. For such a tool the row is the code AND the report;
+    a genuine refusal still writes nothing, and falls back to the message.
+    """
+    if code != 0 and exit_code_is_a_result and text:
+        return f"EXIT={code} {canonical(text, tool)}"
     if code != 0:
         return f"EXIT={code} {error}"
     if not text:
@@ -343,6 +352,12 @@ def main(argv):
         "provenance with the command line it was given",
     )
     ap.add_argument(
+        "--exit-code-is-a-result",
+        action="store_true",
+        help="record a non-zero exit code together with the output, for a tool whose exit code "
+        "reports what it found rather than that it failed",
+    )
+    ap.add_argument(
         "--stdout",
         action="store_true",
         help="compare standard output rather than the output file, for a tool that writes no file",
@@ -375,7 +390,9 @@ def main(argv):
                 "labels": row["labels"],
                 "arguments": row_args,
                 "oracle_exit": code,
-                "oracle_output": outcome(code, text, tail, args.tool),
+                "oracle_output": outcome(
+                    code, text, tail, args.tool, args.exit_code_is_a_result
+                ),
                 "oracle_error": "" if code == 0 else tail,
             }
             if args.port:
@@ -383,7 +400,9 @@ def main(argv):
                     args.port, row_args, workdir, args.stdout, args.strip_program_records
                 )
                 entry["port_exit"] = p_code
-                entry["port_output"] = outcome(p_code, p_text, p_tail, args.tool)
+                entry["port_output"] = outcome(
+                    p_code, p_text, p_tail, args.tool, args.exit_code_is_a_result
+                )
                 entry["port_error"] = "" if p_code == 0 else p_tail
                 # Reproducing a rejection is reproducing the tool: a row both sides reject with
                 # the same message is a match, not a skipped case.

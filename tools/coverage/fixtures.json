@@ -198,6 +198,12 @@
         "ConstantMemory"
       ]
     },
+    "ValidateSamFile": {
+      "--IGNORE": [
+        "MATE_NOT_FOUND",
+        "MISSING_TAG_NM"
+      ]
+    },
     "IntervalListTools": {
       "--INPUT": [
         "/work/fixtures/targets.interval_list",
