@@ -277,7 +277,6 @@ jobs:
             --log /tmp/ExtractSequences.log \
             --log /tmp/IntervalListTools.log \
             --log /tmp/PositionBasedDownsampleSam.log \
-            --pending PositionBasedDownsampleSam \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -318,7 +317,8 @@ jobs:
             tools/coverage/corpus/SetNmMdAndUqTags.t2.txt \
             tools/coverage/corpus/RevertSam.t2.txt \
             tools/coverage/corpus/ExtractSequences.t2.txt \
-            tools/coverage/corpus/IntervalListTools.t2.txt)
+            tools/coverage/corpus/IntervalListTools.t2.txt \
+            tools/coverage/corpus/PositionBasedDownsampleSam.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
