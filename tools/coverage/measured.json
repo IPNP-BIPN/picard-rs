@@ -130,6 +130,16 @@
       "t": 2,
       "share": 1.0
     },
+    "FilterSamReads": {
+      "rows": 25,
+      "accepted": 6,
+      "rejected": 19,
+      "distinct_outputs": 4,
+      "distinct_rejections": 6,
+      "matched": 25,
+      "t": 2,
+      "share": 1.0
+    },
     "FixMateInformation": {
       "rows": 12,
       "accepted": 7,
