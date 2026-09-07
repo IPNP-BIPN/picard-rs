@@ -88,6 +88,7 @@ pub mod merge_bam_alignment_hits;
 pub mod merge_bam_alignment_pair;
 pub mod merge_ped_into_vcf;
 pub mod merge_sam_files;
+pub mod murmur3;
 pub mod non_n_fasta_size;
 pub mod normalize_fasta;
 pub mod position_based_downsample_sam;

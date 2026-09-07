@@ -201,6 +201,10 @@
         "ConstantMemory"
       ]
     },
+    "MarkDuplicates": {
+      "--ASSUME_SORTED": [],
+      "--TAG_DUPLICATE_SET_MEMBERS": []
+    },
     "FilterSamReads": {
       "--READ_LIST_FILE": [
         "/work/fixtures/read_names.txt"
