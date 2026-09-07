@@ -1,0 +1,411 @@
+{
+  "tool": "GenotypeConcordance",
+  "origin": "picard",
+  "t": 2,
+  "numeric_policy": "strict",
+  "arguments_total": 29,
+  "arguments_in_array": 9,
+  "arguments_excluded": 20,
+  "excluded": [
+    {
+      "argument": "--arguments_file",
+      "type": "List[File]",
+      "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CALL_SAMPLE",
+      "type": "String",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "sample1",
+      "source": "fixture"
+    },
+    {
+      "argument": "--CALL_VCF",
+      "type": "PicardHtsPath",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/variants.vcf",
+      "source": "fixture"
+    },
+    {
+      "argument": "--COMPRESSION_LEVEL",
+      "type": "int",
+      "reason": "excluded by the repository: changes the deflate level of a written BAM. Varying it would make the output bytes differ for a reason that is not the tool's logic, and the deflate pin is asserted by its own suite (htsjdk-rs decision 0001)",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CREATE_MD5_FILE",
+      "type": "boolean",
+      "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--help",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--INTERVALS",
+      "type": "List[PicardHtsPath]",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/targets.interval_list",
+      "source": "fixture"
+    },
+    {
+      "argument": "--MAX_RECORDS_IN_RAM",
+      "type": "Integer",
+      "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--MIN_DP",
+      "type": "int",
+      "reason": "only one value available (default)",
+      "held_at": "0",
+      "source": "default"
+    },
+    {
+      "argument": "--MIN_GQ",
+      "type": "int",
+      "reason": "only one value available (default)",
+      "held_at": "0",
+      "source": "default"
+    },
+    {
+      "argument": "--OUTPUT",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/out/output.txt",
+      "source": "fixture"
+    },
+    {
+      "argument": "--QUIET",
+      "type": "Boolean",
+      "reason": "excluded by the repository: suppresses the log on stderr; the compared output is stdout and the output file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--REFERENCE_SEQUENCE",
+      "type": "PicardHtsPath",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/ref.fasta",
+      "source": "fixture"
+    },
+    {
+      "argument": "--showHidden",
+      "type": "boolean",
+      "reason": "excluded by the repository: changes the usage text only",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--TMP_DIR",
+      "type": "List[File]",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/tmp",
+      "source": "fixture"
+    },
+    {
+      "argument": "--TRUTH_VCF",
+      "type": "PicardHtsPath",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/variants.vcf",
+      "source": "fixture"
+    },
+    {
+      "argument": "--USE_JDK_DEFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract; varying it would compare zlib output against GKL output and call the difference a divergence",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--USE_JDK_INFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--VERBOSITY",
+      "type": "LogLevel",
+      "reason": "excluded by the repository: log level on stderr, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--version",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints the version and exits, same reason",
+      "held_at": null,
+      "source": "none"
+    }
+  ],
+  "rows": 10,
+  "tuples_total": 160,
+  "tuples_covered": 160,
+  "tuples_forbidden": 0,
+  "constraint_notes": [
+    "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
+  ],
+  "coverage": 1.0,
+  "array": [
+    {
+      "row": 0,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--IGNORE_FILTER_STATUS": "true",
+        "--INTERSECT_INTERVALS": "true",
+        "--MISSING_SITES_HOM_REF": "true",
+        "--OUTPUT_ALL_ROWS": "true",
+        "--OUTPUT_VCF": "true",
+        "--TRUTH_SAMPLE": "fixture[0]",
+        "--USE_VCF_INDEX": "true",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--IGNORE_FILTER_STATUS=true",
+        "--INTERSECT_INTERVALS=true",
+        "--MISSING_SITES_HOM_REF=true",
+        "--OUTPUT_ALL_ROWS=true",
+        "--OUTPUT_VCF=true",
+        "--TRUTH_SAMPLE=sample2",
+        "--USE_VCF_INDEX=true",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 1,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--IGNORE_FILTER_STATUS": "false",
+        "--INTERSECT_INTERVALS": "false",
+        "--MISSING_SITES_HOM_REF": "false",
+        "--OUTPUT_ALL_ROWS": "false",
+        "--OUTPUT_VCF": "false",
+        "--TRUTH_SAMPLE": "fixture[1]",
+        "--USE_VCF_INDEX": "false",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--IGNORE_FILTER_STATUS=false",
+        "--INTERSECT_INTERVALS=false",
+        "--MISSING_SITES_HOM_REF=false",
+        "--OUTPUT_ALL_ROWS=false",
+        "--OUTPUT_VCF=false",
+        "--TRUTH_SAMPLE=sample1",
+        "--USE_VCF_INDEX=false",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 2,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--IGNORE_FILTER_STATUS": "true",
+        "--INTERSECT_INTERVALS": "false",
+        "--MISSING_SITES_HOM_REF": "true",
+        "--OUTPUT_ALL_ROWS": "false",
+        "--OUTPUT_VCF": "true",
+        "--TRUTH_SAMPLE": "fixture[1]",
+        "--USE_VCF_INDEX": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--IGNORE_FILTER_STATUS=true",
+        "--INTERSECT_INTERVALS=false",
+        "--MISSING_SITES_HOM_REF=true",
+        "--OUTPUT_ALL_ROWS=false",
+        "--OUTPUT_VCF=true",
+        "--TRUTH_SAMPLE=sample1",
+        "--USE_VCF_INDEX=true",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 3,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--IGNORE_FILTER_STATUS": "false",
+        "--INTERSECT_INTERVALS": "true",
+        "--MISSING_SITES_HOM_REF": "false",
+        "--OUTPUT_ALL_ROWS": "true",
+        "--OUTPUT_VCF": "false",
+        "--TRUTH_SAMPLE": "fixture[0]",
+        "--USE_VCF_INDEX": "false",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--IGNORE_FILTER_STATUS=false",
+        "--INTERSECT_INTERVALS=true",
+        "--MISSING_SITES_HOM_REF=false",
+        "--OUTPUT_ALL_ROWS=true",
+        "--OUTPUT_VCF=false",
+        "--TRUTH_SAMPLE=sample2",
+        "--USE_VCF_INDEX=false",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 4,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--IGNORE_FILTER_STATUS": "true",
+        "--INTERSECT_INTERVALS": "false",
+        "--MISSING_SITES_HOM_REF": "false",
+        "--OUTPUT_ALL_ROWS": "true",
+        "--OUTPUT_VCF": "true",
+        "--TRUTH_SAMPLE": "fixture[0]",
+        "--USE_VCF_INDEX": "false",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--IGNORE_FILTER_STATUS=true",
+        "--INTERSECT_INTERVALS=false",
+        "--MISSING_SITES_HOM_REF=false",
+        "--OUTPUT_ALL_ROWS=true",
+        "--OUTPUT_VCF=true",
+        "--TRUTH_SAMPLE=sample2",
+        "--USE_VCF_INDEX=false",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 5,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--IGNORE_FILTER_STATUS": "false",
+        "--INTERSECT_INTERVALS": "true",
+        "--MISSING_SITES_HOM_REF": "true",
+        "--OUTPUT_ALL_ROWS": "true",
+        "--OUTPUT_VCF": "true",
+        "--TRUTH_SAMPLE": "fixture[1]",
+        "--USE_VCF_INDEX": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--IGNORE_FILTER_STATUS=false",
+        "--INTERSECT_INTERVALS=true",
+        "--MISSING_SITES_HOM_REF=true",
+        "--OUTPUT_ALL_ROWS=true",
+        "--OUTPUT_VCF=true",
+        "--TRUTH_SAMPLE=sample1",
+        "--USE_VCF_INDEX=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--IGNORE_FILTER_STATUS": "false",
+        "--INTERSECT_INTERVALS": "true",
+        "--MISSING_SITES_HOM_REF": "false",
+        "--OUTPUT_ALL_ROWS": "false",
+        "--OUTPUT_VCF": "true",
+        "--TRUTH_SAMPLE": "fixture[0]",
+        "--USE_VCF_INDEX": "true",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--IGNORE_FILTER_STATUS=false",
+        "--INTERSECT_INTERVALS=true",
+        "--MISSING_SITES_HOM_REF=false",
+        "--OUTPUT_ALL_ROWS=false",
+        "--OUTPUT_VCF=true",
+        "--TRUTH_SAMPLE=sample2",
+        "--USE_VCF_INDEX=true",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--IGNORE_FILTER_STATUS": "true",
+        "--INTERSECT_INTERVALS": "false",
+        "--MISSING_SITES_HOM_REF": "true",
+        "--OUTPUT_ALL_ROWS": "true",
+        "--OUTPUT_VCF": "false",
+        "--TRUTH_SAMPLE": "fixture[0]",
+        "--USE_VCF_INDEX": "true",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--IGNORE_FILTER_STATUS=true",
+        "--INTERSECT_INTERVALS=false",
+        "--MISSING_SITES_HOM_REF=true",
+        "--OUTPUT_ALL_ROWS=true",
+        "--OUTPUT_VCF=false",
+        "--TRUTH_SAMPLE=sample2",
+        "--USE_VCF_INDEX=true",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--IGNORE_FILTER_STATUS": "true",
+        "--INTERSECT_INTERVALS": "true",
+        "--MISSING_SITES_HOM_REF": "true",
+        "--OUTPUT_ALL_ROWS": "true",
+        "--OUTPUT_VCF": "true",
+        "--TRUTH_SAMPLE": "fixture[1]",
+        "--USE_VCF_INDEX": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--IGNORE_FILTER_STATUS=true",
+        "--INTERSECT_INTERVALS=true",
+        "--MISSING_SITES_HOM_REF=true",
+        "--OUTPUT_ALL_ROWS=true",
+        "--OUTPUT_VCF=true",
+        "--TRUTH_SAMPLE=sample1",
+        "--USE_VCF_INDEX=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--IGNORE_FILTER_STATUS": "true",
+        "--INTERSECT_INTERVALS": "true",
+        "--MISSING_SITES_HOM_REF": "true",
+        "--OUTPUT_ALL_ROWS": "true",
+        "--OUTPUT_VCF": "true",
+        "--TRUTH_SAMPLE": "fixture[0]",
+        "--USE_VCF_INDEX": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--IGNORE_FILTER_STATUS=true",
+        "--INTERSECT_INTERVALS=true",
+        "--MISSING_SITES_HOM_REF=true",
+        "--OUTPUT_ALL_ROWS=true",
+        "--OUTPUT_VCF=true",
+        "--TRUTH_SAMPLE=sample2",
+        "--USE_VCF_INDEX=true",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    }
+  ]
+}
