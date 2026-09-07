@@ -241,6 +241,15 @@ def first_error(text):
     unless ASSUME_SORTED is set. Both are behaviour the port has to reproduce, message included,
     so the message is recorded as this row's output rather than thrown away as noise.
     """
+    # A Barclay validation failure prints the tool's entire usage first and its own message last,
+    # and the usage is documentation: `RevertSam`'s help contains the sentence "the program will
+    # exit with an Exception instead of exiting cleanly", which the scan below matched, so the row
+    # recorded a doc line instead of the refusal. For a usage dump the refusal is the block after
+    # the last blank line, which is where Barclay prints it.
+    if text.lstrip().startswith("USAGE:"):
+        tail = text.rstrip().split("\n\n")[-1].strip()
+        if tail:
+            return " ".join(line.strip() for line in tail.split("\n"))[:400]
     for line in text.split("\n"):
         if "Exception" in line or line.startswith("ERROR"):
             return line.strip()

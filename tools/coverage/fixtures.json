@@ -193,9 +193,24 @@
       "--STRATEGY": [
         "ConstantMemory"
       ]
+    },
+    "RevertSam": {
+      "--MAX_DISCARD_FRACTION": [
+        "0.01",
+        "1.0"
+      ]
     }
   },
   "constraints": [
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--OUTPUT_BY_READGROUP": "true"
+      },
+      "why": "OUTPUT_BY_READGROUP=true requires OUTPUT to be a DIRECTORY, and this harness compares one output file, so the repository has no directory to give it: every row carrying it is refused with 'When OUTPUT_BY_READGROUP=true and OUTPUT is provided, it must be a directory'. Eight of the first sixteen rows were that one refusal, and they crowded out the arguments the tool actually varies. The refusal is behaviour and is kept, but as one case rather than half the array, exactly as the FLOW_MODE constraint below keeps its own."
+    },
     {
       "forbid": {
         "--FLOW_MODE": "true"
