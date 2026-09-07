@@ -220,6 +220,16 @@ public class MakeFixtures {
         writeVcf(new File(dir, "dbsnp.vcf"), chr1, chr2, false);
         writeVcf(new File(dir, "single_sample.vcf"), chr1, chr2, true, 1);
 
+        // Two `CollectQualityYieldMetrics` outputs, for the tools that accumulate metrics files
+        // rather than reads. The header comments are what that tool writes, command line and
+        // timestamp included, because the accumulator reads past them to the table and a fixture
+        // that dropped them would not be the file it is given in practice. The two differ in every
+        // counter, so a row that reads one is a different answer from a row that reads the other.
+        writeQualityYield(new File(dir, "quality_yield_one.metrics"),
+                400, 400, 50, 20000, 20000, 10547, 10547, 5200, 5200, 20456, 20456);
+        writeQualityYield(new File(dir, "quality_yield_two.metrics"),
+                150, 120, 60, 9000, 7200, 4100, 3300, 2000, 1600, 8800, 7000);
+
         writeIntervals(new File(dir, "targets.interval_list"));
         writeBed(new File(dir, "targets.bed"));
         writeMixedBed(new File(dir, "targets_mixed.bed"));
@@ -325,6 +335,25 @@ public class MakeFixtures {
      * of half the reads, where the search never looks, so the plant is done on the read-order copy
      * and complemented back.
      */
+    /** One `QualityYieldMetrics` row, written the way `CollectQualityYieldMetrics` writes it. */
+    static void writeQualityYield(File f, long totalReads, long pfReads, int readLength,
+                                  long totalBases, long pfBases, long q20, long pfQ20, long q30,
+                                  long pfQ30, long q20Yield, long pfQ20Yield) throws Exception {
+        try (PrintWriter out = new PrintWriter(f, "UTF-8")) {
+            out.print("## htsjdk.samtools.metrics.StringHeader\n");
+            out.print("# CollectQualityYieldMetrics INPUT=/work/fixtures/small.bam OUTPUT=/work/out/output.txt\n");
+            out.print("## htsjdk.samtools.metrics.StringHeader\n");
+            out.print("# Started on: Mon Sep 07 00:00:00 UTC 2026\n");
+            out.print("\n");
+            out.print("## METRICS CLASS\tpicard.analysis.CollectQualityYieldMetrics$QualityYieldMetrics\n");
+            out.print("TOTAL_READS\tPF_READS\tREAD_LENGTH\tTOTAL_BASES\tPF_BASES\tQ20_BASES\tPF_Q20_BASES\tQ30_BASES\tPF_Q30_BASES\tQ20_EQUIVALENT_YIELD\tPF_Q20_EQUIVALENT_YIELD\n");
+            out.printf("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d%n",
+                    totalReads, pfReads, readLength, totalBases, pfBases, q20, pfQ20, q30, pfQ30,
+                    q20Yield, pfQ20Yield);
+            out.print("\n");
+        }
+    }
+
     static void plantAdapter(SAMRecord read, String adapter, int length) throws Exception {
         byte[] bases = read.getReadBases();
         if (read.getReadNegativeStrandFlag()) SequenceUtil.reverseComplement(bases);
