@@ -31,6 +31,10 @@ pub struct Options {
     pub read_group_name: String,
     /// `SAMPLE_NAME` (required, no default).
     pub sample_name: String,
+    /// `SORT_ORDER`, `queryname` by default. It is written into the header AND it decides the
+    /// order: the writer is given the header's order, so asking for coordinate on a file of
+    /// unmapped reads keeps them in the order the FASTQ had them.
+    pub sort_order: String,
 }
 
 impl Options {
@@ -38,6 +42,7 @@ impl Options {
         Options {
             read_group_name: "A".to_string(),
             sample_name: sample_name.to_string(),
+            sort_order: "queryname".to_string(),
         }
     }
 }
@@ -67,7 +72,8 @@ fn fastq_to_records_unpaired(
     fastq_text: &str,
     opts: &Options,
 ) -> Result<(SamHeader, Vec<BamRecord>), FastqError> {
-    let header = build_header(&opts.read_group_name, &opts.sample_name);
+    let mut header = build_header(&opts.read_group_name, &opts.sample_name);
+    header.set_sort_order(&opts.sort_order);
 
     use rayon::prelude::*;
     // Converting each FASTQ record to an unmapped SAM record is independent; the parallel map's
@@ -85,8 +91,11 @@ fn fastq_to_records_unpaired(
         })
         .collect();
 
-    // The writer sorts by queryname because the header is SO:queryname.
-    records.sort_by(query_name::compare);
+    // The writer sorts by whatever the header says. Every record here is unmapped, so a
+    // coordinate sort has nothing to order by and the FASTQ's own order survives.
+    if opts.sort_order == "queryname" {
+        records.sort_by(query_name::compare);
+    }
     Ok((header, records))
 }
 
