@@ -201,6 +201,22 @@
         "ConstantMemory"
       ]
     },
+    "MarkDuplicatesWithMateCigar": {
+      "--ASSUME_SORTED": [],
+      "--TAG_DUPLICATE_SET_MEMBERS": [],
+      "--INPUT": [
+        "/work/fixtures/mate_cigar.bam",
+        "/work/fixtures/small.bam"
+      ]
+    },
+    "SimpleMarkDuplicatesWithMateCigar": {
+      "--ASSUME_SORTED": [],
+      "--TAG_DUPLICATE_SET_MEMBERS": [],
+      "--INPUT": [
+        "/work/fixtures/mate_cigar.bam",
+        "/work/fixtures/small.bam"
+      ]
+    },
     "MarkDuplicates": {
       "--ASSUME_SORTED": [],
       "--TAG_DUPLICATE_SET_MEMBERS": []

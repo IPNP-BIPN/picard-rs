@@ -73,6 +73,10 @@ pub enum Refusal {
     /// `SAMException`, thrown by the simple one whatever the skip says, because it asks htsjdk for
     /// the mate cigar and htsjdk is the one that refuses.
     MateCigarNotFound { read: String },
+    /// `PicardException`, thrown by `MarkDuplicatesWithMateCigarIterator`'s constructor: this tool
+    /// refuses one of the three scoring strategies outright, because the two ends of a pair are
+    /// scored separately here and summing base qualities would let them disagree.
+    SumOfBaseQualitiesUnsupported,
 }
 
 impl Refusal {
@@ -85,8 +89,18 @@ impl Refusal {
             Refusal::NoMateCigar { read } => format!(
                 "Read {read} was mapped and had a mapped mate, but no mate cigar (\"MC\") tag."
             ),
+            // htsjdk appends the RECORD and not its name: `SAMRecord.toString` renders
+            // `<name> <1|2>/2 <length>b aligned to <contig>:<start>-<end>.`. This port carries the
+            // name alone, because a `Record` here has no contig NAME to render -- the difference
+            // is visible in the covering array and is tracked rather than hidden.
             Refusal::MateCigarNotFound { read } => {
                 format!("Mate CIGAR (Tag MC) not found: {read}")
+            }
+            Refusal::SumOfBaseQualitiesUnsupported => {
+                "SUM_OF_BASE_QUALITIES not supported as this \
+                 may cause inconsistencies across ends in a pair.  Please use a different scoring \
+                 strategy."
+                    .to_string()
             }
         }
     }
@@ -94,7 +108,9 @@ impl Refusal {
     /// The exception class the reference throws, which is not the same for the two tools.
     pub fn exception(&self) -> &'static str {
         match self {
-            Refusal::NotCoordinateSorted | Refusal::NoMateCigar { .. } => "picard.PicardException",
+            Refusal::NotCoordinateSorted
+            | Refusal::NoMateCigar { .. }
+            | Refusal::SumOfBaseQualitiesUnsupported => "picard.PicardException",
             Refusal::MateCigarNotFound { .. } => "htsjdk.samtools.SAMException",
         }
     }
@@ -123,6 +139,11 @@ pub fn mark_with_mate_cigar(
     if order != SortOrder::Coordinate {
         return Err(Refusal::NotCoordinateSorted);
     }
+    // The iterator's constructor refuses the strategy before it reads a record, and it refuses it
+    // whatever the file holds.
+    if options.base.scoring == crate::mark_duplicates::ScoringStrategy::SumOfBaseQualities {
+        return Err(Refusal::SumOfBaseQualitiesUnsupported);
+    }
     let mut skipped: Vec<usize> = Vec::new();
     for (index, record) in records.iter().enumerate() {
         if !needs_mate_cigar(record) || mate_cigar(record).is_some() {
@@ -135,7 +156,12 @@ pub fn mark_with_mate_cigar(
         }
         skipped.push(index);
     }
-    Ok(marking_without(records, &skipped, &options.base))
+    // The mate-cigar path scores a pair from one end, which the base options do not say.
+    let base = Options {
+        assume_mate_cigar: true,
+        ..options.base.clone()
+    };
+    Ok(marking_without(records, &skipped, &base))
 }
 
 /// `SimpleMarkDuplicatesWithMateCigar.doWork`, over records already in memory.

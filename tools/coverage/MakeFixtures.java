@@ -80,6 +80,25 @@ public class MakeFixtures {
         }
         writeBam(new File(dir, "tiled.bam"), tiled, tiledReads, false);
 
+        // Reads carrying `MC`, for the duplicate markers that read the mate's cigar instead of
+        // waiting for the mate. Without the tag `SimpleMarkDuplicatesWithMateCigar` refuses every
+        // file outright and `MarkDuplicatesWithMateCigar` skips every pair, so a corpus without it
+        // measures the refusal and nothing else. `SamPairUtil.setMateInformation` writes the tag
+        // the same way `FixMateInformation --ADD_MATE_CIGAR` does; the file is new, so no existing
+        // fixture's bytes move.
+        SAMFileHeader mateCigarHeader = header(SAMFileHeader.SortOrder.coordinate);
+        java.util.List<SAMRecord> mateCigarReads = reads(mateCigarHeader, true);
+        java.util.Map<String, java.util.List<SAMRecord>> byName = new java.util.LinkedHashMap<>();
+        for (SAMRecord r : mateCigarReads) {
+            byName.computeIfAbsent(r.getReadName(), k -> new java.util.ArrayList<>()).add(r);
+        }
+        for (java.util.List<SAMRecord> template : byName.values()) {
+            if (template.size() == 2) {
+                htsjdk.samtools.SamPairUtil.setMateInfo(template.get(0), template.get(1), true);
+            }
+        }
+        writeBam(new File(dir, "mate_cigar.bam"), mateCigarHeader, mateCigarReads, true);
+
         SAMFileHeader unmappedHeader = header(SAMFileHeader.SortOrder.unsorted);
         writeBam(new File(dir, "unmapped.bam"), unmappedHeader, unmapped(unmappedHeader), false);
 
