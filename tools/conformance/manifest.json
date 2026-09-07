@@ -306,6 +306,12 @@
         "exit_code_is_a_result": true
       },
       {
+        "tool": "AccumulateQualityYieldMetrics",
+        "port": "accumulate-quality-yield-metrics",
+        "t": 2,
+        "status": "pending"
+      },
+      {
         "tool": "EstimateLibraryComplexity",
         "port": "estimate-library-complexity",
         "t": 2,
