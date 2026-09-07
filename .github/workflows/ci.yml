@@ -148,7 +148,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
 
-      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools
+      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools --bin position-based-downsample-sam
 
       - name: Run the arrays, and record what the port covers
         # Every row goes through the reference and through the port, compared under the same
@@ -245,6 +245,9 @@ jobs:
           python3 tools/coverage/run_array.py --tool IntervalListTools --t 2 \
             --port target/release/interval-list-tools --strip-program-records \
             | tee /tmp/IntervalListTools.log
+          python3 tools/coverage/run_array.py --tool PositionBasedDownsampleSam --t 2 \
+            --port target/release/position-based-downsample-sam --strip-program-records \
+            | tee /tmp/PositionBasedDownsampleSam.log
           python3 tools/coverage/measure.py --log /tmp/AddOATag.log \
             --log /tmp/CollectAlignmentSummaryMetrics.log \
             --log /tmp/CollectQualityYieldMetrics.log \
@@ -273,8 +276,10 @@ jobs:
             --log /tmp/RevertSam.log \
             --log /tmp/ExtractSequences.log \
             --log /tmp/IntervalListTools.log \
+            --log /tmp/PositionBasedDownsampleSam.log \
             --pending ExtractSequences \
             --pending IntervalListTools \
+            --pending PositionBasedDownsampleSam \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
