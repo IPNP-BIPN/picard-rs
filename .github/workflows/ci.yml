@@ -148,7 +148,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
 
-      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam
+      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences
 
       - name: Run the arrays, and record what the port covers
         # Every row goes through the reference and through the port, compared under the same
@@ -239,6 +239,9 @@ jobs:
           python3 tools/coverage/run_array.py --tool RevertSam --t 2 \
             --port target/release/revert-sam \
             | tee /tmp/RevertSam.log
+          python3 tools/coverage/run_array.py --tool ExtractSequences --t 2 \
+            --port target/release/extract-sequences \
+            | tee /tmp/ExtractSequences.log
           python3 tools/coverage/measure.py --log /tmp/AddOATag.log \
             --log /tmp/CollectAlignmentSummaryMetrics.log \
             --log /tmp/CollectQualityYieldMetrics.log \
@@ -265,6 +268,8 @@ jobs:
             --log /tmp/QualityScoreDistribution.log \
             --log /tmp/SetNmMdAndUqTags.log \
             --log /tmp/RevertSam.log \
+            --log /tmp/ExtractSequences.log \
+            --pending ExtractSequences \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
