@@ -120,6 +120,16 @@
       "t": 2,
       "share": 1.0
     },
+    "ExtractSequences": {
+      "rows": 7,
+      "accepted": 7,
+      "rejected": 0,
+      "distinct_outputs": 4,
+      "distinct_rejections": 0,
+      "matched": 7,
+      "t": 2,
+      "share": 1.0
+    },
     "FixMateInformation": {
       "rows": 12,
       "accepted": 7,
