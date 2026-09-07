@@ -148,7 +148,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
 
-      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools --bin position-based-downsample-sam --bin validate-sam-file --bin filter-sam-reads --bin mark-duplicates --bin fastq-to-sam --bin split-sam-by-number-of-reads --bin split-sam-by-library --bin make-vcf-sample-name-map --bin sam-to-fastq --bin collect-duplicate-metrics --bin mark-duplicates-with-mate-cigar --bin simple-mark-duplicates-with-mate-cigar --bin check-duplicate-marking --bin collect-jumping-library-metrics --bin mark-illumina-adapters
+      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools --bin position-based-downsample-sam --bin validate-sam-file --bin filter-sam-reads --bin mark-duplicates --bin fastq-to-sam --bin split-sam-by-number-of-reads --bin split-sam-by-library --bin make-vcf-sample-name-map --bin sam-to-fastq --bin collect-duplicate-metrics --bin mark-duplicates-with-mate-cigar --bin simple-mark-duplicates-with-mate-cigar --bin check-duplicate-marking --bin accumulate-quality-yield-metrics --bin collect-jumping-library-metrics --bin mark-illumina-adapters
 
       - name: Run the arrays, and record what the port covers
         # Every row goes through the reference and through the port, compared under the same
@@ -284,6 +284,9 @@ jobs:
           python3 tools/coverage/run_array.py --tool CheckDuplicateMarking --t 2 \
             --port target/release/check-duplicate-marking --exit-code-is-a-result \
             | tee /tmp/CheckDuplicateMarking.log
+          python3 tools/coverage/run_array.py --tool AccumulateQualityYieldMetrics --t 2 \
+            --port target/release/accumulate-quality-yield-metrics \
+            | tee /tmp/AccumulateQualityYieldMetrics.log
           python3 tools/coverage/run_array.py --tool CollectJumpingLibraryMetrics --t 2 \
             --port target/release/collect-jumping-library-metrics \
             | tee /tmp/CollectJumpingLibraryMetrics.log
@@ -331,10 +334,12 @@ jobs:
             --log /tmp/MarkDuplicatesWithMateCigar.log \
             --log /tmp/SimpleMarkDuplicatesWithMateCigar.log \
             --log /tmp/CheckDuplicateMarking.log \
+            --log /tmp/AccumulateQualityYieldMetrics.log \
             --log /tmp/CollectJumpingLibraryMetrics.log \
             --log /tmp/MarkIlluminaAdapters.log \
             --pending CollectDuplicateMetrics \
             --pending CheckDuplicateMarking \
+            --pending AccumulateQualityYieldMetrics \
             --pending CollectJumpingLibraryMetrics \
             --pending MarkIlluminaAdapters \
             --out tools/coverage/measured.json \

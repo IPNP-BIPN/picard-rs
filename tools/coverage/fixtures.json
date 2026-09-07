@@ -108,6 +108,18 @@
       "tools/coverage/domains.py). Adding one widens the programme by making a tool measurable; it",
       "narrows nothing, because the value it replaces was not a value that tool could take."
     ],
+    "AccumulateQualityYieldMetrics": {
+      "$why": [
+        "The input is another tool's metrics file, so INPUT names the two the corpus writes. They",
+        "differ in every counter, which is what makes a row that reads one a different answer from",
+        "a row that reads the other. The summing across files is not observable from an array: a",
+        "row carries one value per argument, and the tool sums the files it is given several of."
+      ],
+      "--INPUT": [
+        "/work/fixtures/quality_yield_one.metrics",
+        "/work/fixtures/quality_yield_two.metrics"
+      ]
+    },
     "BedToIntervalList": {
       "--INPUT": [
         "/work/fixtures/targets.bed",
