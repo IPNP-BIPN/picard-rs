@@ -424,22 +424,24 @@ fn close_enough(left: &ReadEnds, right: &ReadEnds, distance: i32) -> bool {
         && (left.location.y - right.location.y).abs() <= distance
 }
 
-/// `OpticalDuplicateFinder.findOpticalDuplicates`, on its fast path.
+/// `OpticalDuplicateFinder.findOpticalDuplicates`: the fast path for a small set, the graph for a
+/// larger one.
 ///
-/// The keeper is compared to everyone first, and then every other pair is compared once, with the
-/// one already flagged left alone so a chain of two does not flag both. The GRAPH path, which the
-/// reference takes for three ends without a keeper or four with one, is not ported: it clusters
-/// transitive neighbours, and every set the golden carries is a set of two.
+/// The threshold is read off the keeper the CALLER passed, not off the one that survives the
+/// location check: a keeper without a location still puts a set of three on the fast path.
+///
+/// On the fast path the keeper is compared to everyone first, and then every other pair is
+/// compared once, with the one already flagged left alone so a chain of two does not flag both.
 pub fn optical_duplicates(list: &[ReadEnds], keeper: Option<usize>, distance: i32) -> Vec<bool> {
     let mut flags = vec![false; list.len()];
     if list.len() < 2 {
         return flags;
     }
+    let threshold = if keeper.is_none() { 3 } else { 4 };
+    // `keeperOrNull`: a keeper with no location is no keeper.
     let keeper = keeper.filter(|index| list[*index].location.known);
-    if list.len() >= if keeper.is_none() { 3 } else { 4 } {
-        // The graph path, which is not ported. Saying so is better than answering with the fast
-        // path's answer, which is only correct when there is nothing transitive to cluster.
-        return flags;
+    if list.len() >= threshold {
+        return optical_duplicates_with_graph(list, keeper, distance);
     }
     if let Some(keeper) = keeper {
         for (index, other) in list.iter().enumerate() {
@@ -461,6 +463,111 @@ pub fn optical_duplicates(list: &[ReadEnds], keeper: Option<usize>, distance: i3
                 let index = if flags[right] { left } else { right };
                 flags[index] = true;
             }
+        }
+    }
+    flags
+}
+
+/// `getOpticalDuplicatesFlagWithGraph`: cluster the ends that lie within the distance of each
+/// other, then keep one read per cluster and flag the rest.
+///
+/// The clustering is what the fast path cannot do. Three ends in a row, each within the distance
+/// of the next but the outer two further apart than that, are ONE optical cluster here and two
+/// unrelated pairs there, so the count differs by one on exactly the shape a pairwise test gets
+/// wrong.
+///
+/// Three details decide the answer.
+///
+/// The edges are only ever drawn inside a bucket of `(read group, tile)`, and the bucket key is
+/// `(read group << 16) + tile` -- an integer, so two different pairs sharing that value share a
+/// bucket. Inside one, the comparison drops the read-group and tile tests it no longer needs and
+/// compares the two coordinates alone.
+///
+/// An end with no location joins no bucket and is a cluster of its own, which is why it is never
+/// flagged.
+///
+/// The read kept in a cluster is the one with the SMALLEST x, ties broken by the smallest y --
+/// except in the keeper's own cluster, where the keeper is kept whatever its coordinates are. The
+/// walk over the ends is in index order, so a smaller read met later displaces the one already
+/// held and flags it.
+fn optical_duplicates_with_graph(
+    list: &[ReadEnds],
+    keeper: Option<usize>,
+    distance: i32,
+) -> Vec<bool> {
+    let mut flags = vec![false; list.len()];
+
+    // The graph's clusters, as a union-find over the ends' indices.
+    let mut parent: Vec<usize> = (0..list.len()).collect();
+    fn find(parent: &mut [usize], index: usize) -> usize {
+        let mut root = index;
+        while parent[root] != root {
+            root = parent[root];
+        }
+        let mut walk = index;
+        while parent[walk] != root {
+            let next = parent[walk];
+            parent[walk] = root;
+            walk = next;
+        }
+        root
+    }
+
+    let mut buckets: Vec<(i32, Vec<usize>)> = Vec::new();
+    for (index, end) in list.iter().enumerate() {
+        if !end.location.known {
+            continue;
+        }
+        let key = (end.read_group << 16) + i32::from(end.location.tile);
+        match buckets.iter_mut().find(|(existing, _)| *existing == key) {
+            Some((_, members)) => members.push(index),
+            None => buckets.push((key, vec![index])),
+        }
+    }
+    for (_, members) in &buckets {
+        for (position, left) in members.iter().enumerate() {
+            for right in &members[position + 1..] {
+                // `closeEnoughShort`: the bucket has already settled the read group and the tile.
+                if (list[*left].location.x - list[*right].location.x).abs() <= distance
+                    && (list[*left].location.y - list[*right].location.y).abs() <= distance
+                {
+                    let a = find(&mut parent, *left);
+                    let b = find(&mut parent, *right);
+                    if a != b {
+                        parent[a] = b;
+                    }
+                }
+            }
+        }
+    }
+    let cluster: Vec<usize> = (0..list.len())
+        .map(|index| find(&mut parent, index))
+        .collect();
+
+    // `clusterToRepresentativeRead`, walked in index order. The reference's map is keyed on the
+    // end's index, and every key is smaller than the table it lives in, so its iteration is that
+    // order too.
+    let mut representative: Vec<Option<usize>> = vec![None; list.len()];
+    if let Some(keeper) = keeper {
+        representative[cluster[keeper]] = Some(keeper);
+    }
+    let keeper_cluster = keeper.map(|index| cluster[index]);
+    for index in 0..list.len() {
+        let group = cluster[index];
+        match representative[group] {
+            Some(held) if Some(index) != keeper => {
+                let smaller = list[index].location.x < list[held].location.x
+                    || (list[index].location.x == list[held].location.x
+                        && list[index].location.y < list[held].location.y);
+                if keeper_cluster != Some(group) && smaller {
+                    flags[held] = true;
+                    representative[group] = Some(index);
+                } else {
+                    flags[index] = true;
+                }
+            }
+            Some(_) => {}
+            None => representative[group] = Some(index),
         }
     }
     flags
