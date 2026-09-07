@@ -209,7 +209,7 @@
         "tool": "ExtractSequences",
         "port": "extract-sequences",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "IntervalListTools",
