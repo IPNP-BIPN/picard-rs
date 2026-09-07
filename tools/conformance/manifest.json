@@ -215,7 +215,7 @@
         "tool": "IntervalListTools",
         "port": "interval-list-tools",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true
       }
     ]
