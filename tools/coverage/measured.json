@@ -349,6 +349,16 @@
       "matched": 14,
       "t": 2,
       "share": 1.0
+    },
+    "FastqToSam": {
+      "rows": 12,
+      "accepted": 1,
+      "rejected": 11,
+      "distinct_outputs": 1,
+      "distinct_rejections": 3,
+      "matched": 12,
+      "t": 2,
+      "share": 1.0
     }
   }
 }
