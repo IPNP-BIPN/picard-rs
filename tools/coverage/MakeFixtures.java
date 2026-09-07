@@ -61,6 +61,25 @@ public class MakeFixtures {
         for (SAMRecord r : oneGroupReads) r.setAttribute("RG", "rg1");
         writeBam(new File(dir, "one_read_group.bam"), oneGroup, oneGroupReads, false);
 
+        // Illumina-style read names, for the tools that read a physical location out of one.
+        // `PositionBasedDownsampleSam` keeps reads by where they sit on the flowcell, and the
+        // names everywhere else in this corpus (`read0314`) carry no location at all: the parser
+        // refuses them, every read lands on the same defaulted tile, and the mask becomes
+        // all-or-nothing. These names give it tiles and coordinates to work on, in a file of its
+        // own so that no existing fixture's bytes move.
+        SAMFileHeader tiled = header(SAMFileHeader.SortOrder.coordinate);
+        java.util.List<SAMRecord> tiledReads = reads(tiled, true);
+        for (SAMRecord r : tiledReads) {
+            // The new name is derived from the old one, so the two ends of a pair still share it:
+            // `read0314` gives 314, and both mates carry that number.
+            int n = Integer.parseInt(r.getReadName().replaceAll("[^0-9]", ""));
+            int tile = 1101 + (n % 4);
+            int x = 1000 + ((n * 137) % 20000);
+            int y = 1000 + ((n * 251) % 20000);
+            r.setReadName(String.format("INST:1:FLOWCELL:1:%d:%d:%d", tile, x, y));
+        }
+        writeBam(new File(dir, "tiled.bam"), tiled, tiledReads, false);
+
         SAMFileHeader unmappedHeader = header(SAMFileHeader.SortOrder.unsorted);
         writeBam(new File(dir, "unmapped.bam"), unmappedHeader, unmapped(unmappedHeader), false);
 

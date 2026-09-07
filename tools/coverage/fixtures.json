@@ -204,6 +204,16 @@
         "/work/fixtures/targets_mixed.interval_list"
       ]
     },
+    "PositionBasedDownsampleSam": {
+      "--FRACTION": [
+        "0.1",
+        "0.5"
+      ],
+      "--INPUT": [
+        "/work/fixtures/tiled.bam",
+        "/work/fixtures/small.bam"
+      ]
+    },
     "ExtractSequences": {
       "--LINE_LENGTH": [
         "60",
