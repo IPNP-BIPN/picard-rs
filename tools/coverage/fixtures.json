@@ -29,6 +29,10 @@
     "--CHART_OUTPUT": [
       "/work/out/chart.pdf"
     ],
+    "--INTERVAL_LIST": [
+      "/work/fixtures/targets.interval_list",
+      "/work/fixtures/targets_mixed.interval_list"
+    ],
     "--TMP_DIR": [
       "/work/tmp"
     ],
@@ -198,6 +202,12 @@
       "--INPUT": [
         "/work/fixtures/targets.interval_list",
         "/work/fixtures/targets_mixed.interval_list"
+      ]
+    },
+    "ExtractSequences": {
+      "--LINE_LENGTH": [
+        "60",
+        "80"
       ]
     },
     "RevertSam": {
