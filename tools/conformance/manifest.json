@@ -281,7 +281,7 @@
         "tool": "CollectDuplicateMetrics",
         "port": "collect-duplicate-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "metrics.txt"
       },
       {
@@ -321,13 +321,13 @@
         "tool": "CollectJumpingLibraryMetrics",
         "port": "collect-jumping-library-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "MarkIlluminaAdapters",
         "port": "mark-illumina-adapters",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       }
     ]
   },

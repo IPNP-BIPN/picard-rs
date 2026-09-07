@@ -90,6 +90,26 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectDuplicateMetrics": {
+      "rows": 10,
+      "accepted": 7,
+      "rejected": 3,
+      "distinct_outputs": 1,
+      "distinct_rejections": 2,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
+    "CollectJumpingLibraryMetrics": {
+      "rows": 9,
+      "accepted": 6,
+      "rejected": 3,
+      "distinct_outputs": 1,
+      "distinct_rejections": 1,
+      "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectQualityYieldMetrics": {
       "rows": 10,
       "accepted": 10,
@@ -207,6 +227,16 @@
       "distinct_outputs": 1,
       "distinct_rejections": 3,
       "matched": 18,
+      "t": 2,
+      "share": 1.0
+    },
+    "MarkIlluminaAdapters": {
+      "rows": 27,
+      "accepted": 27,
+      "rejected": 0,
+      "distinct_outputs": 4,
+      "distinct_rejections": 0,
+      "matched": 27,
       "t": 2,
       "share": 1.0
     },
