@@ -197,6 +197,28 @@
         "/work/fixtures/described.fasta"
       ]
     },
+    "CheckDuplicateMarking": {
+      "$why": [
+        "MODE's four values are declared here because the pinned inventory does not carry them:",
+        "the argument's type is a nested enum named Mode, and the dump left enum_members null for",
+        "all seven arguments of that type, so the generator excludes it as an unmodelled type. The",
+        "values are the enum's own, in its declaration order.",
+        "INPUT is narrowed to two files because the shared ones cannot answer anything: every pair",
+        "in them carries the same duplicate flag on both ends, so the tool finds nothing whatever",
+        "MODE says. inconsistent_duplicates.bam flips one flag per template, choosing which record",
+        "of the pair so that each of the four modes reports a different set of names."
+      ],
+      "--INPUT": [
+        "/work/fixtures/inconsistent_duplicates.bam",
+        "/work/fixtures/queryname.bam"
+      ],
+      "--MODE": [
+        "ALL",
+        "PRIMARY_ONLY",
+        "PRIMARY_MAPPED_ONLY",
+        "PRIMARY_PROPER_PAIR_ONLY"
+      ]
+    },
     "CreateSequenceDictionary": {
       "--TRUNCATE_NAMES_AT_WHITESPACE": [
         "true"

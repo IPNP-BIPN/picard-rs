@@ -100,6 +100,51 @@ public class MakeFixtures {
         }
         writeBam(new File(dir, "mate_cigar.bam"), mateCigarHeader, mateCigarReads, true);
 
+        // Records of one query name that DISAGREE about their duplicate flag, for
+        // `CheckDuplicateMarking`. Everywhere else in this corpus both ends of a pair carry the
+        // same flag, so the tool finds nothing whatever `MODE` is asked for: the array covers the
+        // argument and observes none of it.
+        //
+        // Which record of the pair is flipped decides which modes see the disagreement, and that
+        // is what makes the four values four answers. A flipped SECONDARY or SUPPLEMENTARY record
+        // is seen by `ALL` alone; a flipped UNMAPPED one is also seen by `PRIMARY_ONLY`; a flipped
+        // record of a pair that is not proper is seen by those and by `PRIMARY_MAPPED_ONLY`; and a
+        // flipped ordinary mate is seen by all four.
+        //
+        // Coordinate-sorted, so the tool has to sort it into query-name order itself: the order it
+        // sorts into decides which record of a name is the one the others are compared against.
+        SAMFileHeader inconsistentHeader = header(SAMFileHeader.SortOrder.coordinate);
+        java.util.List<SAMRecord> inconsistentReads = reads(inconsistentHeader, true);
+        java.util.Map<String, java.util.List<SAMRecord>> inconsistentTemplates = new java.util.LinkedHashMap<>();
+        for (SAMRecord r : inconsistentReads) {
+            inconsistentTemplates.computeIfAbsent(r.getReadName(), k -> new java.util.ArrayList<>()).add(r);
+        }
+        int flipped = 0;
+        for (java.util.List<SAMRecord> template : inconsistentTemplates.values()) {
+            if (template.size() != 2) continue;
+            SAMRecord one = template.get(0).getFirstOfPairFlag() ? template.get(0) : template.get(1);
+            SAMRecord two = template.get(0).getFirstOfPairFlag() ? template.get(1) : template.get(0);
+            int n = Integer.parseInt(one.getReadName().replaceAll("[^0-9]", ""));
+            SAMRecord flip;
+            if (n % 16 == 0) {
+                flip = one;          // secondary
+            } else if (n % 18 == 0) {
+                flip = two;          // supplementary
+            } else if (n % 20 == 0) {
+                flip = two;          // unmapped
+            } else if (n % 5 == 0) {
+                flip = two;          // not a proper pair
+            } else if (n % 6 == 0) {
+                flip = two;          // an ordinary mate
+            } else {
+                continue;
+            }
+            flip.setDuplicateReadFlag(!flip.getDuplicateReadFlag());
+            flipped++;
+        }
+        if (flipped == 0) throw new IllegalStateException("no duplicate flag was flipped");
+        writeBam(new File(dir, "inconsistent_duplicates.bam"), inconsistentHeader, inconsistentReads, false);
+
         // Reads whose ends really are Illumina adapters, for `MarkIlluminaAdapters`. On the random
         // bases of the other fixtures no adapter is ever found, so every accepted row produces the
         // same output and the array covers the search without running it.
