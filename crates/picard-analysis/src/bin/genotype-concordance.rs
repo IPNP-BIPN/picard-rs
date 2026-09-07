@@ -169,7 +169,7 @@ fn sub_context(record: &VariantContext, sample: &str) -> Option<(VariantType, Si
     let mut kept: Vec<&htsjdk_vcf::allele::Allele> = record
         .alleles
         .iter()
-        .filter(|allele| called.iter().any(|called| *called == *allele))
+        .filter(|allele| called.contains(allele))
         .collect();
     if !added_reference && !kept.iter().any(|allele| allele.is_reference()) {
         // `allelesOfGenotypes` adds the reference when no genotype allele was the reference, and
