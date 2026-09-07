@@ -217,6 +217,12 @@
         "/work/fixtures/small.bam"
       ]
     },
+    "MakeVcfSampleNameMap": {
+      "--INPUT": [
+        "/work/fixtures/single_sample.vcf",
+        "/work/fixtures/variants.vcf"
+      ]
+    },
     "SplitSamByNumberOfReads": {
       "--OUTPUT": [
         "/work/out"
