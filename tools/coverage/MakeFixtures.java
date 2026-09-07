@@ -121,6 +121,30 @@ public class MakeFixtures {
         }
         int flipped = 0;
         for (java.util.List<SAMRecord> template : inconsistentTemplates.values()) {
+            if (template.size() != 2) continue;
+            SAMRecord one = template.get(0).getFirstOfPairFlag() ? template.get(0) : template.get(1);
+            SAMRecord two = template.get(0).getFirstOfPairFlag() ? template.get(1) : template.get(0);
+            int n = Integer.parseInt(one.getReadName().replaceAll("[^0-9]", ""));
+            SAMRecord flip;
+            if (n % 16 == 0) {
+                flip = one;          // secondary
+            } else if (n % 18 == 0) {
+                flip = two;          // supplementary
+            } else if (n % 20 == 0) {
+                flip = two;          // unmapped
+            } else if (n % 5 == 0) {
+                flip = two;          // not a proper pair
+            } else if (n % 6 == 0) {
+                flip = two;          // an ordinary mate
+            } else {
+                continue;
+            }
+            flip.setDuplicateReadFlag(!flip.getDuplicateReadFlag());
+            flipped++;
+        }
+        if (flipped == 0) throw new IllegalStateException("no duplicate flag was flipped");
+        writeBam(new File(dir, "inconsistent_duplicates.bam"), inconsistentHeader, inconsistentReads, false);
+
         // Reads whose ends really are Illumina adapters, for `MarkIlluminaAdapters`. On the random
         // bases of the other fixtures no adapter is ever found, so every accepted row produces the
         // same output and the array covers the search without running it.
@@ -150,25 +174,6 @@ public class MakeFixtures {
             SAMRecord one = template.get(0).getFirstOfPairFlag() ? template.get(0) : template.get(1);
             SAMRecord two = template.get(0).getFirstOfPairFlag() ? template.get(1) : template.get(0);
             int n = Integer.parseInt(one.getReadName().replaceAll("[^0-9]", ""));
-            SAMRecord flip;
-            if (n % 16 == 0) {
-                flip = one;          // secondary
-            } else if (n % 18 == 0) {
-                flip = two;          // supplementary
-            } else if (n % 20 == 0) {
-                flip = two;          // unmapped
-            } else if (n % 5 == 0) {
-                flip = two;          // not a proper pair
-            } else if (n % 6 == 0) {
-                flip = two;          // an ordinary mate
-            } else {
-                continue;
-            }
-            flip.setDuplicateReadFlag(!flip.getDuplicateReadFlag());
-            flipped++;
-        }
-        if (flipped == 0) throw new IllegalStateException("no duplicate flag was flipped");
-        writeBam(new File(dir, "inconsistent_duplicates.bam"), inconsistentHeader, inconsistentReads, false);
             String fivePrime, threePrime;
             boolean twoSided;
             if (n % 12 == 0) {
