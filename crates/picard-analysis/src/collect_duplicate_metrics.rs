@@ -98,6 +98,49 @@ impl DuplicationMetrics {
     }
 }
 
+/// The columns `DuplicationMetrics` writes, in the order the file writes them.
+pub const COLUMNS: [&str; 10] = [
+    "LIBRARY",
+    "UNPAIRED_READS_EXAMINED",
+    "READ_PAIRS_EXAMINED",
+    "SECONDARY_OR_SUPPLEMENTARY_RDS",
+    "UNMAPPED_READS",
+    "UNPAIRED_READ_DUPLICATES",
+    "READ_PAIR_DUPLICATES",
+    "READ_PAIR_OPTICAL_DUPLICATES",
+    "PERCENT_DUPLICATION",
+    "ESTIMATED_LIBRARY_SIZE",
+];
+
+/// The row as the metrics file writes it. `ESTIMATED_LIBRARY_SIZE` is EMPTY rather than zero when
+/// the estimate has no answer, which is what a null field is in a metrics file.
+impl htsjdk_metrics::file::MetricBean for DuplicationMetrics {
+    fn class_name(&self) -> &str {
+        "picard.sam.DuplicationMetrics"
+    }
+    fn columns(&self) -> &[&'static str] {
+        &COLUMNS
+    }
+    fn values(&self) -> Vec<htsjdk_metrics::file::Value> {
+        use htsjdk_metrics::file::Value;
+        vec![
+            Value::Str(self.library.clone()),
+            Value::Long(self.unpaired_reads_examined),
+            Value::Long(self.read_pairs_examined),
+            Value::Long(self.secondary_or_supplementary_reads),
+            Value::Long(self.unmapped_reads),
+            Value::Long(self.unpaired_read_duplicates),
+            Value::Long(self.read_pair_duplicates),
+            Value::Long(self.read_pair_optical_duplicates),
+            Value::Double(self.percent_duplication()),
+            match self.estimated_library_size() {
+                Some(size) => Value::Long(size),
+                None => Value::Null,
+            },
+        ]
+    }
+}
+
 /// The whole run: one row per library, in the order the libraries are named.
 ///
 /// The rows come from `LibraryIdGenerator`, which is built from the HEADER, so every library a
