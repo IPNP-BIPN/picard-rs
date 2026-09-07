@@ -153,6 +153,11 @@ impl Record {
     pub fn reverse_strand(&self) -> bool {
         self.flags & 0x10 != 0
     }
+    /// `SAMRecord.getMateNegativeStrandFlag`, which the mate-cigar path needs to orient a pair
+    /// from one end.
+    pub fn mate_reverse_strand(&self) -> bool {
+        self.flags & 0x20 != 0
+    }
     pub fn first_of_pair(&self) -> bool {
         self.flags & 0x40 != 0
     }
@@ -839,6 +844,18 @@ fn optical_flags(chunk: &[ReadEnds], keeper: usize, options: &Options) -> Vec<bo
 }
 
 /// The second pass: the flag, the tag, the removal and the metrics, in the reference's order.
+/// The writing pass over decisions someone else made: the flags, the `DT` tags, what is written
+/// at all, and the metrics. `MarkDuplicates` reaches it through [`mark`]; the mate-cigar iterator
+/// reaches it with its own decisions.
+pub fn marking_from(
+    records: &[Record],
+    options: &Options,
+    duplicate: &[bool],
+    optical: &[bool],
+) -> Marking {
+    write(records, options, duplicate, optical)
+}
+
 fn write(records: &[Record], options: &Options, duplicate: &[bool], optical: &[bool]) -> Marking {
     let mut metrics: Vec<Metrics> = Vec::new();
     let mut duplicate_type: Vec<Option<String>> = Vec::new();

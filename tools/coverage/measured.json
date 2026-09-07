@@ -186,9 +186,9 @@
       "rejected": 17,
       "distinct_outputs": 1,
       "distinct_rejections": 3,
-      "matched": 17,
+      "matched": 18,
       "t": 2,
-      "share": 0.9444444444444444
+      "share": 1.0
     },
     "MeanQualityByCycle": {
       "rows": 10,
@@ -316,9 +316,9 @@
       "rejected": 18,
       "distinct_outputs": 2,
       "distinct_rejections": 2,
-      "matched": 16,
+      "matched": 20,
       "t": 2,
-      "share": 0.8
+      "share": 1.0
     },
     "SortSam": {
       "rows": 10,
