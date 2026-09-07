@@ -339,6 +339,40 @@
         "/work/fixtures/small.bam"
       ]
     },
+    "EstimateLibraryComplexity": {
+      "$why": [
+        "The numeric arguments are declared here because each has a default and no bounds, so the",
+        "generator holds them at that default and the array varies nothing but the booleans. These",
+        "are the five that decide something on this corpus: the seed the grouping uses, the quality",
+        "floor, the difference rate, the group floor the metrics apply, and the pixel distance the",
+        "optical duplicates are found within.",
+        "INPUT is complexity.bam, whose pairs actually repeat: on the shared fixtures every group",
+        "holds one pair and MIN_GROUP_COUNT drops the lot."
+      ],
+      "--INPUT": [
+        "/work/fixtures/complexity.bam"
+      ],
+      "--MIN_IDENTICAL_BASES": [
+        "5",
+        "10"
+      ],
+      "--MIN_MEAN_QUALITY": [
+        "20",
+        "30"
+      ],
+      "--MAX_DIFF_RATE": [
+        "0.03",
+        "0.0"
+      ],
+      "--MIN_GROUP_COUNT": [
+        "2",
+        "1"
+      ],
+      "--OPTICAL_DUPLICATE_PIXEL_DISTANCE": [
+        "100",
+        "10"
+      ]
+    },
     "ExtractSequences": {
       "--LINE_LENGTH": [
         "60",

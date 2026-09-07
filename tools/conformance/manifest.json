@@ -319,6 +319,12 @@
         "output_name": "output.txt.genotype_concordance_summary_metrics"
       },
       {
+        "tool": "EstimateLibraryComplexity",
+        "port": "estimate-library-complexity",
+        "t": 2,
+        "status": "pending"
+      },
+      {
         "tool": "CollectJumpingLibraryMetrics",
         "port": "collect-jumping-library-metrics",
         "t": 2,
