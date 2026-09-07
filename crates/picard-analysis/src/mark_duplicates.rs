@@ -88,6 +88,11 @@ pub struct Options {
     pub parse_read_names: bool,
     /// `BARCODE_TAG`, whose value splits one position into one set per barcode.
     pub barcode_tag: Option<String>,
+    /// Not an argument of any tool: the two mate-cigar markers score a pair from ONE end, adding
+    /// the mate's reference length off the `MC` tag (`DuplicateScoringStrategy.compare(..., true)`
+    /// in `MarkQueue`), and `MarkDuplicates` scores each end alone. It decides which read of a set
+    /// is kept, so the same file can come out marked differently under the two tools.
+    pub assume_mate_cigar: bool,
 }
 
 impl Default for Options {
@@ -103,6 +108,7 @@ impl Default for Options {
             optical_duplicate_pixel_distance: DEFAULT_OPTICAL_DUPLICATE_DISTANCE,
             parse_read_names: true,
             barcode_tag: None,
+            assume_mate_cigar: false,
         }
     }
 }
@@ -146,6 +152,11 @@ impl Record {
     }
     pub fn reverse_strand(&self) -> bool {
         self.flags & 0x10 != 0
+    }
+    /// `SAMRecord.getMateNegativeStrandFlag`, which the mate-cigar path needs to orient a pair
+    /// from one end.
+    pub fn mate_reverse_strand(&self) -> bool {
+        self.flags & 0x20 != 0
     }
     pub fn first_of_pair(&self) -> bool {
         self.flags & 0x40 != 0
@@ -197,6 +208,21 @@ impl Record {
 /// the pair's sum, and a record that fails the vendor check is discounted by `Short.MIN_VALUE / 2`
 /// AFTER the cap rather than before it.
 pub fn duplicate_score(record: &Record, strategy: ScoringStrategy) -> i16 {
+    duplicate_score_with(record, strategy, false)
+}
+
+/// `DuplicateScoringStrategy.computeDuplicateScore(record, strategy, assumeMateCigar)`.
+///
+/// `assume_mate_cigar` is what the two mate-cigar markers pass: under
+/// `TOTAL_MAPPED_REFERENCE_LENGTH` a paired read with a mapped mate scores its OWN reference
+/// length plus its MATE's, read off the `MC` tag, so a pair is scored as a pair from one end.
+/// `MarkDuplicates` passes false and scores each end alone, which is why the same file can pick a
+/// different read to keep under the two tools.
+pub fn duplicate_score_with(
+    record: &Record,
+    strategy: ScoringStrategy,
+    assume_mate_cigar: bool,
+) -> i16 {
     let capped = |value: i64| -> i16 { value.min(i64::from(i16::MAX / 2)) as i16 };
     let mut score: i16 = match strategy {
         ScoringStrategy::SumOfBaseQualities => {
@@ -209,10 +235,22 @@ pub fn duplicate_score(record: &Record, strategy: ScoringStrategy) -> i16 {
             capped(sum)
         }
         ScoringStrategy::TotalMappedReferenceLength => {
-            if record.unmapped() {
+            let own = if record.unmapped() {
                 0
             } else {
                 capped(i64::from(record.cigar.reference_length()))
+            };
+            match (
+                assume_mate_cigar,
+                record.paired() && !record.mate_unmapped(),
+            ) {
+                (true, true) => own.wrapping_add(match &record.mate_cigar {
+                    Some(cigar) => capped(i64::from(cigar.reference_length())),
+                    // `SAMUtils.getMateCigar` returns null and the addition is of nothing; the
+                    // caller has already refused a pair with no `MC` or dropped it.
+                    None => 0,
+                }),
+                _ => own,
             }
         }
         // `score += hash & 0b11_1111_1111_1111; score -= Short.MIN_VALUE / 4;` -- the shift moves
@@ -362,7 +400,7 @@ pub fn build_read_ends(record: &Record, index: usize, options: &Options) -> Read
         orientation_for_optical_duplicates: 0,
         read1_index_in_file: index,
         read2_index_in_file: index,
-        score: duplicate_score(record, options.scoring),
+        score: duplicate_score_with(record, options.scoring, options.assume_mate_cigar),
         location: if options.parse_read_names {
             location(&record.name)
         } else {
@@ -806,6 +844,18 @@ fn optical_flags(chunk: &[ReadEnds], keeper: usize, options: &Options) -> Vec<bo
 }
 
 /// The second pass: the flag, the tag, the removal and the metrics, in the reference's order.
+/// The writing pass over decisions someone else made: the flags, the `DT` tags, what is written
+/// at all, and the metrics. `MarkDuplicates` reaches it through [`mark`]; the mate-cigar iterator
+/// reaches it with its own decisions.
+pub fn marking_from(
+    records: &[Record],
+    options: &Options,
+    duplicate: &[bool],
+    optical: &[bool],
+) -> Marking {
+    write(records, options, duplicate, optical)
+}
+
 fn write(records: &[Record], options: &Options, duplicate: &[bool], optical: &[bool]) -> Marking {
     let mut metrics: Vec<Metrics> = Vec::new();
     let mut duplicate_type: Vec<Option<String>> = Vec::new();

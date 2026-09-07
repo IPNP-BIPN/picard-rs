@@ -33,7 +33,7 @@
 
 use htsjdk_bam::cigar::Cigar;
 
-use crate::mark_duplicates::{mark, Marking, Options, Record};
+use crate::mark_duplicates::{Marking, Options, Record};
 
 /// The sort order the header declares, which both tools check before anything else.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,6 +73,10 @@ pub enum Refusal {
     /// `SAMException`, thrown by the simple one whatever the skip says, because it asks htsjdk for
     /// the mate cigar and htsjdk is the one that refuses.
     MateCigarNotFound { read: String },
+    /// `PicardException`, thrown by `MarkDuplicatesWithMateCigarIterator`'s constructor: this tool
+    /// refuses one of the three scoring strategies outright, because the two ends of a pair are
+    /// scored separately here and summing base qualities would let them disagree.
+    SumOfBaseQualitiesUnsupported,
 }
 
 impl Refusal {
@@ -85,8 +89,18 @@ impl Refusal {
             Refusal::NoMateCigar { read } => format!(
                 "Read {read} was mapped and had a mapped mate, but no mate cigar (\"MC\") tag."
             ),
+            // htsjdk appends the RECORD and not its name: `SAMRecord.toString` renders
+            // `<name> <1|2>/2 <length>b aligned to <contig>:<start>-<end>.`. This port carries the
+            // name alone, because a `Record` here has no contig NAME to render -- the difference
+            // is visible in the covering array and is tracked rather than hidden.
             Refusal::MateCigarNotFound { read } => {
                 format!("Mate CIGAR (Tag MC) not found: {read}")
+            }
+            Refusal::SumOfBaseQualitiesUnsupported => {
+                "SUM_OF_BASE_QUALITIES not supported as this \
+                 may cause inconsistencies across ends in a pair.  Please use a different scoring \
+                 strategy."
+                    .to_string()
             }
         }
     }
@@ -94,10 +108,46 @@ impl Refusal {
     /// The exception class the reference throws, which is not the same for the two tools.
     pub fn exception(&self) -> &'static str {
         match self {
-            Refusal::NotCoordinateSorted | Refusal::NoMateCigar { .. } => "picard.PicardException",
+            Refusal::NotCoordinateSorted
+            | Refusal::NoMateCigar { .. }
+            | Refusal::SumOfBaseQualitiesUnsupported => "picard.PicardException",
             Refusal::MateCigarNotFound { .. } => "htsjdk.samtools.SAMException",
         }
     }
+}
+
+/// `SAMRecord.toString`, which is what htsjdk appends to the refusal rather than the read name:
+/// `<name> <1|2>/2 <length>b aligned to <contig>:<start>-<end>.`, or `unmapped read.`.
+///
+/// The contig is the record's own reference name, which this crate's `Record` does not carry, so
+/// the caller supplies it through [`describe_with_contig`]; without one the index is printed,
+/// which no reference output ever contains and so cannot be mistaken for a match.
+/// [`describe`] with the contig name the header gives.
+pub fn describe_with_contig(record: &Record, contig: Option<&str>) -> String {
+    let mut out = record.name.clone();
+    if record.paired() {
+        out.push_str(if record.first_of_pair() {
+            " 1/2"
+        } else {
+            " 2/2"
+        });
+    }
+    out.push(' ');
+    out.push_str(&record.qualities.len().to_string());
+    out.push('b');
+    if record.unmapped() {
+        out.push_str(" unmapped read.");
+    } else {
+        let name = contig
+            .map(str::to_string)
+            .unwrap_or_else(|| record.reference_index.to_string());
+        let end = record.alignment_start + record.cigar.reference_length() as i32 - 1;
+        out.push_str(&format!(
+            " aligned to {name}:{}-{end}.",
+            record.alignment_start
+        ));
+    }
+    out
 }
 
 /// A record's mate cigar, where it carries one.
@@ -123,6 +173,11 @@ pub fn mark_with_mate_cigar(
     if order != SortOrder::Coordinate {
         return Err(Refusal::NotCoordinateSorted);
     }
+    // The iterator's constructor refuses the strategy before it reads a record, and it refuses it
+    // whatever the file holds.
+    if options.base.scoring == crate::mark_duplicates::ScoringStrategy::SumOfBaseQualities {
+        return Err(Refusal::SumOfBaseQualitiesUnsupported);
+    }
     let mut skipped: Vec<usize> = Vec::new();
     for (index, record) in records.iter().enumerate() {
         if !needs_mate_cigar(record) || mate_cigar(record).is_some() {
@@ -135,7 +190,22 @@ pub fn mark_with_mate_cigar(
         }
         skipped.push(index);
     }
-    Ok(marking_without(records, &skipped, &options.base))
+    // The mate-cigar path scores a pair from one end, which the base options do not say.
+    let base = Options {
+        assume_mate_cigar: true,
+        ..options.base.clone()
+    };
+    // The marking itself is the iterator's, not `MarkDuplicates`'s: a sliding window with a queue
+    // that decides a duplicate as the second end arrives, rather than a sorted whole cut into
+    // sets. The two disagree wherever three ends share a position and arrival order is not score
+    // order (picard-rs #307).
+    let decisions = crate::mate_cigar_iterator::mark_with_queue(records, &base, &skipped);
+    Ok(crate::mark_duplicates::marking_from(
+        records,
+        &base,
+        &decisions.duplicate,
+        &decisions.optical,
+    ))
 }
 
 /// `SimpleMarkDuplicatesWithMateCigar.doWork`, over records already in memory.
@@ -147,87 +217,43 @@ pub fn simple_mark_with_mate_cigar(
     records: &[Record],
     order: SortOrder,
     options: &Options,
+    contigs: &[String],
 ) -> Result<Marking, Refusal> {
     if order != SortOrder::Coordinate {
         return Err(Refusal::NotCoordinateSorted);
     }
-    if let Some(record) = records
-        .iter()
-        .find(|record| needs_mate_cigar(record) && mate_cigar(record).is_none())
-    {
-        return Err(Refusal::MateCigarNotFound {
-            read: record.name.clone(),
-        });
-    }
-    Ok(mark(records, options))
-}
-
-/// The marking of a file with some pairs taken out of it, and the metrics of the whole.
-///
-/// The skipped records are removed before the sets are cut, so they change what the sets hold, and
-/// they are put back unmarked for the writing pass: the reference writes them out untouched.
-fn marking_without(records: &[Record], skipped: &[usize], options: &Options) -> Marking {
-    if skipped.is_empty() {
-        return mark(records, options);
-    }
-    let kept: Vec<Record> = records
-        .iter()
-        .enumerate()
-        .filter(|(index, _)| !skipped.contains(index))
-        .map(|(_, record)| record.clone())
-        .collect();
-    let inner = mark(&kept, options);
-    // The metrics are counted over every record, skipped ones included, because the writing pass
-    // walks the whole file.
-    let whole = mark(records, options);
-
-    let mut duplicate = vec![false; records.len()];
-    let mut optical = vec![false; records.len()];
-    let mut duplicate_type = vec![None; records.len()];
-    let mut written = vec![true; records.len()];
-    let mut position = 0;
-    for index in 0..records.len() {
-        if skipped.contains(&index) {
-            continue;
+    // The refusal is htsjdk's, from `SAMUtils.getMateUnclippedStart`/`End`, and WHICH record it
+    // names is decided by the sort that `DuplicateSetIterator` runs before it cuts a single set.
+    // Java's sort begins by comparing `a[1]` against `a[0]`, in that order, and the comparator
+    // resolves the mate coordinate of its first argument first -- so the record named is the
+    // SECOND of the file, not the first. The order below is that examination order; a file whose
+    // failure lies deeper than the first comparison would need the whole of TimSort to predict.
+    let examination = [1usize, 0]
+        .into_iter()
+        .chain(2..records.len())
+        .filter(|index| *index < records.len());
+    for index in examination {
+        let record = &records[index];
+        if needs_mate_cigar(record) && mate_cigar(record).is_none() {
+            return Err(Refusal::MateCigarNotFound {
+                read: describe_with_contig(
+                    record,
+                    contigs
+                        .get(record.reference_index.max(0) as usize)
+                        .map(String::as_str),
+                ),
+            });
         }
-        duplicate[index] = inner.duplicate[position];
-        optical[index] = inner.optical[position];
-        duplicate_type[index] = inner.duplicate_type[position].clone();
-        written[index] = inner.written[position];
-        position += 1;
     }
-    let mut metrics = whole.metrics;
-    for row in &mut metrics {
-        // The duplicate counters are the inner run's; the examined ones are the whole file's.
-        let inner_row = inner
-            .metrics
-            .iter()
-            .find(|other| other.library == row.library);
-        row.unpaired_read_duplicates = inner_row.map(|r| r.unpaired_read_duplicates).unwrap_or(0);
-        row.read_pair_duplicates = inner_row.map(|r| r.read_pair_duplicates).unwrap_or(0);
-        row.read_pair_optical_duplicates = inner_row
-            .map(|r| r.read_pair_optical_duplicates)
-            .unwrap_or(0);
-        row.estimated_library_size = crate::mark_duplicates::estimate_library_size(
-            row.read_pairs_examined - row.read_pair_optical_duplicates,
-            row.read_pairs_examined - row.read_pair_duplicates,
-        );
-        let examined = row.unpaired_reads_examined + row.read_pairs_examined;
-        row.percent_duplication = if examined == 0 {
-            0.0
-        } else {
-            (row.unpaired_read_duplicates + row.read_pair_duplicates * 2) as f64
-                / (row.unpaired_reads_examined + row.read_pairs_examined * 2) as f64
-        };
-    }
-    Marking {
-        duplicate,
-        optical,
-        duplicate_type,
-        written,
-        metrics,
-        all_sets: inner.all_sets,
-        optical_sets: inner.optical_sets,
-        non_optical_sets: inner.non_optical_sets,
-    }
+    // The marking is htsjdk's duplicate-set iterator, not `MarkDuplicates`'s sorted whole: this
+    // tool is a `MarkDuplicates` subclass whose iterator does the grouping for it.
+    let base = Options {
+        assume_mate_cigar: true,
+        ..options.clone()
+    };
+    let duplicate = crate::duplicate_set::mark_duplicate_sets(records, &base);
+    let optical = vec![false; records.len()];
+    Ok(crate::mark_duplicates::marking_from(
+        records, &base, &duplicate, &optical,
+    ))
 }

@@ -244,6 +244,65 @@
         "t": 2,
         "status": "measured",
         "strip_program_records": true
+      },
+      {
+        "tool": "FastqToSam",
+        "port": "fastq-to-sam",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "SplitSamByNumberOfReads",
+        "port": "split-sam-by-number-of-reads",
+        "t": 2,
+        "status": "measured",
+        "output_name": "shard_0001.bam"
+      },
+      {
+        "tool": "SplitSamByLibrary",
+        "port": "split-sam-by-library",
+        "t": 2,
+        "status": "measured",
+        "output_name": "lib1.bam"
+      },
+      {
+        "tool": "MakeVcfSampleNameMap",
+        "port": "make-vcf-sample-name-map",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "SamToFastq",
+        "port": "sam-to-fastq",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "CollectDuplicateMetrics",
+        "port": "collect-duplicate-metrics",
+        "t": 2,
+        "status": "pending",
+        "output_name": "metrics.txt"
+      },
+      {
+        "tool": "MarkDuplicatesWithMateCigar",
+        "port": "mark-duplicates-with-mate-cigar",
+        "t": 2,
+        "status": "measured",
+        "strip_program_records": true
+      },
+      {
+        "tool": "SimpleMarkDuplicatesWithMateCigar",
+        "port": "simple-mark-duplicates-with-mate-cigar",
+        "t": 2,
+        "status": "measured",
+        "strip_program_records": true
+      },
+      {
+        "tool": "CollectJumpingLibraryMetrics",
+        "port": "collect-jumping-library-metrics",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },

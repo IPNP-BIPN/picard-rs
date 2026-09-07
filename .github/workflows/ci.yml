@@ -148,7 +148,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
 
-      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools --bin position-based-downsample-sam --bin validate-sam-file --bin filter-sam-reads --bin mark-duplicates
+      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools --bin position-based-downsample-sam --bin validate-sam-file --bin filter-sam-reads --bin mark-duplicates --bin fastq-to-sam --bin split-sam-by-number-of-reads --bin split-sam-by-library --bin make-vcf-sample-name-map --bin sam-to-fastq --bin collect-duplicate-metrics --bin mark-duplicates-with-mate-cigar --bin simple-mark-duplicates-with-mate-cigar --bin collect-jumping-library-metrics
 
       - name: Run the arrays, and record what the port covers
         # Every row goes through the reference and through the port, compared under the same
@@ -257,6 +257,33 @@ jobs:
           python3 tools/coverage/run_array.py --tool MarkDuplicates --t 2 \
             --port target/release/mark-duplicates --strip-program-records \
             | tee /tmp/MarkDuplicates.log
+          python3 tools/coverage/run_array.py --tool FastqToSam --t 2 \
+            --port target/release/fastq-to-sam \
+            | tee /tmp/FastqToSam.log
+          python3 tools/coverage/run_array.py --tool SplitSamByNumberOfReads --t 2 \
+            --port target/release/split-sam-by-number-of-reads --output-name shard_0001.bam \
+            | tee /tmp/SplitSamByNumberOfReads.log
+          python3 tools/coverage/run_array.py --tool SplitSamByLibrary --t 2 \
+            --port target/release/split-sam-by-library --output-name lib1.bam \
+            | tee /tmp/SplitSamByLibrary.log
+          python3 tools/coverage/run_array.py --tool MakeVcfSampleNameMap --t 2 \
+            --port target/release/make-vcf-sample-name-map \
+            | tee /tmp/MakeVcfSampleNameMap.log
+          python3 tools/coverage/run_array.py --tool SamToFastq --t 2 \
+            --port target/release/sam-to-fastq \
+            | tee /tmp/SamToFastq.log
+          python3 tools/coverage/run_array.py --tool CollectDuplicateMetrics --t 2 \
+            --port target/release/collect-duplicate-metrics --output-name metrics.txt \
+            | tee /tmp/CollectDuplicateMetrics.log
+          python3 tools/coverage/run_array.py --tool MarkDuplicatesWithMateCigar --t 2 \
+            --port target/release/mark-duplicates-with-mate-cigar --strip-program-records \
+            | tee /tmp/MarkDuplicatesWithMateCigar.log
+          python3 tools/coverage/run_array.py --tool SimpleMarkDuplicatesWithMateCigar --t 2 \
+            --port target/release/simple-mark-duplicates-with-mate-cigar --strip-program-records \
+            | tee /tmp/SimpleMarkDuplicatesWithMateCigar.log
+          python3 tools/coverage/run_array.py --tool CollectJumpingLibraryMetrics --t 2 \
+            --port target/release/collect-jumping-library-metrics \
+            | tee /tmp/CollectJumpingLibraryMetrics.log
           python3 tools/coverage/measure.py --log /tmp/AddOATag.log \
             --log /tmp/CollectAlignmentSummaryMetrics.log \
             --log /tmp/CollectQualityYieldMetrics.log \
@@ -289,6 +316,17 @@ jobs:
             --log /tmp/ValidateSamFile.log \
             --log /tmp/FilterSamReads.log \
             --log /tmp/MarkDuplicates.log \
+            --log /tmp/FastqToSam.log \
+            --log /tmp/SplitSamByNumberOfReads.log \
+            --log /tmp/SplitSamByLibrary.log \
+            --log /tmp/MakeVcfSampleNameMap.log \
+            --log /tmp/SamToFastq.log \
+            --log /tmp/CollectDuplicateMetrics.log \
+            --log /tmp/MarkDuplicatesWithMateCigar.log \
+            --log /tmp/SimpleMarkDuplicatesWithMateCigar.log \
+            --log /tmp/CollectJumpingLibraryMetrics.log \
+            --pending CollectDuplicateMetrics \
+            --pending CollectJumpingLibraryMetrics \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -333,7 +371,14 @@ jobs:
             tools/coverage/corpus/PositionBasedDownsampleSam.t2.txt \
             tools/coverage/corpus/ValidateSamFile.t2.txt \
             tools/coverage/corpus/FilterSamReads.t2.txt \
-            tools/coverage/corpus/MarkDuplicates.t2.txt)
+            tools/coverage/corpus/MarkDuplicates.t2.txt \
+            tools/coverage/corpus/FastqToSam.t2.txt \
+            tools/coverage/corpus/SplitSamByNumberOfReads.t2.txt \
+            tools/coverage/corpus/SplitSamByLibrary.t2.txt \
+            tools/coverage/corpus/MakeVcfSampleNameMap.t2.txt \
+            tools/coverage/corpus/SamToFastq.t2.txt \
+            tools/coverage/corpus/MarkDuplicatesWithMateCigar.t2.txt \
+            tools/coverage/corpus/SimpleMarkDuplicatesWithMateCigar.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"

@@ -48,6 +48,9 @@
     "--SEQUENCE_DICTIONARY": [
       "/work/fixtures/ref.fasta"
     ],
+    "--SAMPLE_NAME": [
+      "sample1"
+    ],
     "--FASTQ": [
       "/work/fixtures/reads_1.fastq"
     ],
@@ -201,6 +204,43 @@
         "ConstantMemory"
       ]
     },
+    "MarkDuplicatesWithMateCigar": {
+      "--ASSUME_SORTED": [],
+      "--TAG_DUPLICATE_SET_MEMBERS": [],
+      "--INPUT": [
+        "/work/fixtures/mate_cigar.bam",
+        "/work/fixtures/small.bam"
+      ]
+    },
+    "SimpleMarkDuplicatesWithMateCigar": {
+      "--ASSUME_SORTED": [],
+      "--TAG_DUPLICATE_SET_MEMBERS": [],
+      "--INPUT": [
+        "/work/fixtures/mate_cigar.bam",
+        "/work/fixtures/small.bam"
+      ]
+    },
+    "MakeVcfSampleNameMap": {
+      "--INPUT": [
+        "/work/fixtures/single_sample.vcf",
+        "/work/fixtures/variants.vcf"
+      ]
+    },
+    "SplitSamByNumberOfReads": {
+      "--OUTPUT": [
+        "/work/out"
+      ],
+      "--SPLIT_TO_N_READS": [
+        "100",
+        "300"
+      ],
+      "--SPLIT_TO_N_FILES": []
+    },
+    "SplitSamByLibrary": {
+      "--OUTPUT": [
+        "/work/out"
+      ]
+    },
     "MarkDuplicates": {
       "--ASSUME_SORTED": [],
       "--TAG_DUPLICATE_SET_MEMBERS": []
@@ -245,6 +285,20 @@
       "--MAX_DISCARD_FRACTION": [
         "0.01",
         "1.0"
+      ]
+    },
+    "SamToFastq": {
+      "--FASTQ": [
+        "/work/out/output.txt"
+      ],
+      "--OUTPUT_PER_RG": [],
+      "--COMPRESS_OUTPUTS_PER_RG": [],
+      "--SECOND_END_FASTQ": [
+        "/work/out/second.fastq"
+      ],
+      "--INPUT": [
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/small.bam"
       ]
     }
   },
