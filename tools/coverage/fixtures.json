@@ -283,6 +283,20 @@
         "0.01",
         "1.0"
       ]
+    },
+    "SamToFastq": {
+      "--FASTQ": [
+        "/work/out/output.txt"
+      ],
+      "--OUTPUT_PER_RG": [],
+      "--COMPRESS_OUTPUTS_PER_RG": [],
+      "--SECOND_END_FASTQ": [
+        "/work/out/second.fastq"
+      ],
+      "--INPUT": [
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/small.bam"
+      ]
     }
   },
   "constraints": [

@@ -266,6 +266,12 @@
         "status": "pending"
       },
       {
+        "tool": "SamToFastq",
+        "port": "sam-to-fastq",
+        "t": 2,
+        "status": "pending"
+      },
+      {
         "tool": "MarkDuplicatesWithMateCigar",
         "port": "mark-duplicates-with-mate-cigar",
         "t": 2,
