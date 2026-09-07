@@ -1,0 +1,481 @@
+{
+  "tool": "SamToFastqWithTags",
+  "origin": "picard",
+  "t": 2,
+  "numeric_policy": "strict",
+  "arguments_total": 39,
+  "arguments_in_array": 9,
+  "arguments_excluded": 30,
+  "excluded": [
+    {
+      "argument": "--FASTQ",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/out/reads.fastq",
+      "source": "fixture"
+    },
+    {
+      "argument": "--INPUT",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/tagged.bam",
+      "source": "fixture"
+    },
+    {
+      "argument": "--arguments_file",
+      "type": "File",
+      "reason": "File needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CLIPPING_ACTION",
+      "type": "String",
+      "reason": "free-form string with no default: a fixture must supply the values",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CLIPPING_ATTRIBUTE",
+      "type": "String",
+      "reason": "free-form string with no default: a fixture must supply the values",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CLIPPING_MIN_LENGTH",
+      "type": "Integer",
+      "reason": "only one value available (default)",
+      "held_at": "0",
+      "source": "default"
+    },
+    {
+      "argument": "--COMPRESS_OUTPUTS_PER_RG",
+      "type": "Boolean",
+      "reason": "excluded by the repository: no value is declared for this tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--COMPRESSION_LEVEL",
+      "type": "Integer",
+      "reason": "excluded by the repository: changes the deflate level of a written BAM. Varying it would make the output bytes differ for a reason that is not the tool's logic, and the deflate pin is asserted by its own suite (htsjdk-rs decision 0001)",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CREATE_MD5_FILE",
+      "type": "Boolean",
+      "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--help",
+      "type": "Boolean",
+      "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--MAX_RECORDS_IN_RAM",
+      "type": "Integer",
+      "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--OUTPUT_DIR",
+      "type": "File",
+      "reason": "File needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--OUTPUT_PER_RG",
+      "type": "Boolean",
+      "reason": "excluded by the repository: no value is declared for this tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--QUALITY",
+      "type": "Integer",
+      "reason": "numeric with no declared bounds and no default: any value would be invented, and an invented value covers nothing",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--QUIET",
+      "type": "Boolean",
+      "reason": "excluded by the repository: suppresses the log on stderr; the compared output is stdout and the output file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--READ1_MAX_BASES_TO_WRITE",
+      "type": "Integer",
+      "reason": "numeric with no declared bounds and no default: any value would be invented, and an invented value covers nothing",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--READ1_TRIM",
+      "type": "Integer",
+      "reason": "only one value available (default)",
+      "held_at": "0",
+      "source": "default"
+    },
+    {
+      "argument": "--READ2_MAX_BASES_TO_WRITE",
+      "type": "Integer",
+      "reason": "numeric with no declared bounds and no default: any value would be invented, and an invented value covers nothing",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--READ2_TRIM",
+      "type": "Integer",
+      "reason": "only one value available (default)",
+      "held_at": "0",
+      "source": "default"
+    },
+    {
+      "argument": "--REFERENCE_SEQUENCE",
+      "type": "PicardHtsPath",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/ref.fasta",
+      "source": "fixture"
+    },
+    {
+      "argument": "--RG_TAG",
+      "type": "String",
+      "reason": "only one value available (default)",
+      "held_at": "PU",
+      "source": "default"
+    },
+    {
+      "argument": "--SECOND_END_FASTQ",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/out/second.fastq",
+      "source": "fixture"
+    },
+    {
+      "argument": "--TAG_GROUP_SEPERATOR",
+      "type": "String",
+      "reason": "free-form string with no default: a fixture must supply the values",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--TMP_DIR",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/tmp",
+      "source": "fixture"
+    },
+    {
+      "argument": "--UNPAIRED_FASTQ",
+      "type": "File",
+      "reason": "File needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--USE_JDK_DEFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract; varying it would compare zlib output against GKL output and call the difference a divergence",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--USE_JDK_INFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--VERBOSITY",
+      "type": "LogLevel",
+      "reason": "excluded by the repository: log level on stderr, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--version",
+      "type": "Boolean",
+      "reason": "excluded by the repository: prints the version and exits, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--showHidden",
+      "type": "Boolean",
+      "reason": "excluded by the repository: changes the usage text only",
+      "held_at": null,
+      "source": "none"
+    }
+  ],
+  "rows": 10,
+  "tuples_total": 160,
+  "tuples_covered": 160,
+  "tuples_forbidden": 0,
+  "constraint_notes": [
+    "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
+  ],
+  "coverage": 1.0,
+  "array": [
+    {
+      "row": 0,
+      "labels": {
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP": "true",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS": "true",
+        "--INTERLEAVE": "true",
+        "--QUALITY_TAG_GROUP": "fixture[0]",
+        "--RE_REVERSE": "true",
+        "--SEQUENCE_TAG_GROUP": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP=true",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS=true",
+        "--INTERLEAVE=true",
+        "--QUALITY_TAG_GROUP=CY",
+        "--RE_REVERSE=true",
+        "--SEQUENCE_TAG_GROUP=CB",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 1,
+      "labels": {
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP": "true",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_NON_PF_READS": "false",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS": "false",
+        "--INTERLEAVE": "false",
+        "--QUALITY_TAG_GROUP": "fixture[1]",
+        "--RE_REVERSE": "false",
+        "--SEQUENCE_TAG_GROUP": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP=true",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_NON_PF_READS=false",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS=false",
+        "--INTERLEAVE=false",
+        "--QUALITY_TAG_GROUP=CY,UY",
+        "--RE_REVERSE=false",
+        "--SEQUENCE_TAG_GROUP=CB,UR",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 2,
+      "labels": {
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP": "false",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_NON_PF_READS": "false",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS": "true",
+        "--INTERLEAVE": "false",
+        "--QUALITY_TAG_GROUP": "fixture[0]",
+        "--RE_REVERSE": "false",
+        "--SEQUENCE_TAG_GROUP": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP=false",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_NON_PF_READS=false",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS=true",
+        "--INTERLEAVE=false",
+        "--QUALITY_TAG_GROUP=CY",
+        "--RE_REVERSE=false",
+        "--SEQUENCE_TAG_GROUP=CB",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 3,
+      "labels": {
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP": "false",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS": "false",
+        "--INTERLEAVE": "true",
+        "--QUALITY_TAG_GROUP": "fixture[1]",
+        "--RE_REVERSE": "true",
+        "--SEQUENCE_TAG_GROUP": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP=false",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS=false",
+        "--INTERLEAVE=true",
+        "--QUALITY_TAG_GROUP=CY,UY",
+        "--RE_REVERSE=true",
+        "--SEQUENCE_TAG_GROUP=CB,UR",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 4,
+      "labels": {
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP": "false",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_NON_PF_READS": "false",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS": "false",
+        "--INTERLEAVE": "true",
+        "--QUALITY_TAG_GROUP": "fixture[0]",
+        "--RE_REVERSE": "true",
+        "--SEQUENCE_TAG_GROUP": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP=false",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_NON_PF_READS=false",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS=false",
+        "--INTERLEAVE=true",
+        "--QUALITY_TAG_GROUP=CY",
+        "--RE_REVERSE=true",
+        "--SEQUENCE_TAG_GROUP=CB,UR",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 5,
+      "labels": {
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP": "true",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS": "true",
+        "--INTERLEAVE": "true",
+        "--QUALITY_TAG_GROUP": "fixture[0]",
+        "--RE_REVERSE": "false",
+        "--SEQUENCE_TAG_GROUP": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP=true",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS=true",
+        "--INTERLEAVE=true",
+        "--QUALITY_TAG_GROUP=CY",
+        "--RE_REVERSE=false",
+        "--SEQUENCE_TAG_GROUP=CB",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP": "false",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS": "false",
+        "--INTERLEAVE": "false",
+        "--QUALITY_TAG_GROUP": "fixture[0]",
+        "--RE_REVERSE": "true",
+        "--SEQUENCE_TAG_GROUP": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP=false",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS=false",
+        "--INTERLEAVE=false",
+        "--QUALITY_TAG_GROUP=CY",
+        "--RE_REVERSE=true",
+        "--SEQUENCE_TAG_GROUP=CB",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP": "true",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_NON_PF_READS": "false",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS": "true",
+        "--INTERLEAVE": "true",
+        "--QUALITY_TAG_GROUP": "fixture[1]",
+        "--RE_REVERSE": "true",
+        "--SEQUENCE_TAG_GROUP": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP=true",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_NON_PF_READS=false",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS=true",
+        "--INTERLEAVE=true",
+        "--QUALITY_TAG_GROUP=CY,UY",
+        "--RE_REVERSE=true",
+        "--SEQUENCE_TAG_GROUP=CB",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP": "true",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS": "true",
+        "--INTERLEAVE": "true",
+        "--QUALITY_TAG_GROUP": "fixture[0]",
+        "--RE_REVERSE": "false",
+        "--SEQUENCE_TAG_GROUP": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP=true",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS=true",
+        "--INTERLEAVE=true",
+        "--QUALITY_TAG_GROUP=CY",
+        "--RE_REVERSE=false",
+        "--SEQUENCE_TAG_GROUP=CB,UR",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP": "true",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS": "true",
+        "--INTERLEAVE": "true",
+        "--QUALITY_TAG_GROUP": "fixture[0]",
+        "--RE_REVERSE": "true",
+        "--SEQUENCE_TAG_GROUP": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--COMPRESS_OUTPUTS_PER_TAG_GROUP=true",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INCLUDE_NON_PRIMARY_ALIGNMENTS=true",
+        "--INTERLEAVE=true",
+        "--QUALITY_TAG_GROUP=CY",
+        "--RE_REVERSE=true",
+        "--SEQUENCE_TAG_GROUP=CB",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    }
+  ]
+}

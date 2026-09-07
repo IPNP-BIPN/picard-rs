@@ -319,6 +319,13 @@
         "output_name": "output.txt.genotype_concordance_summary_metrics"
       },
       {
+        "tool": "SamToFastqWithTags",
+        "port": "sam-to-fastq-with-tags",
+        "t": 2,
+        "status": "pending",
+        "output_name": "CB.fastq"
+      },
+      {
         "tool": "CollectJumpingLibraryMetrics",
         "port": "collect-jumping-library-metrics",
         "t": 2,
