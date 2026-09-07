@@ -150,6 +150,16 @@
       "t": 2,
       "share": 1.0
     },
+    "IntervalListTools": {
+      "rows": 33,
+      "accepted": 17,
+      "rejected": 16,
+      "distinct_outputs": 4,
+      "distinct_rejections": 3,
+      "matched": 33,
+      "t": 2,
+      "share": 1.0
+    },
     "MeanQualityByCycle": {
       "rows": 10,
       "accepted": 7,
