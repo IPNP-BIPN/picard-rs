@@ -48,6 +48,9 @@
     "--SEQUENCE_DICTIONARY": [
       "/work/fixtures/ref.fasta"
     ],
+    "--SAMPLE_NAME": [
+      "sample1"
+    ],
     "--FASTQ": [
       "/work/fixtures/reads_1.fastq"
     ],

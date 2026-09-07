@@ -166,7 +166,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
 
-    let marking = match simple_mark_with_mate_cigar(&marked_records, order, &options) {
+    let contigs: Vec<String> = header.sequences.iter().map(|s| s.name.clone()).collect();
+    let marking = match simple_mark_with_mate_cigar(&marked_records, order, &options, &contigs) {
         Ok(marking) => marking,
         Err(refusal) => {
             eprintln!(
