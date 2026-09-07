@@ -204,7 +204,9 @@ def coverage_job(manifest):
         # A tool that stamps a @PG carrying its command line: see run_array.py.
         f"{' --strip-program-records' if t.get('strip_program_records') else ''}"
         # A tool whose exit code says what it FOUND rather than that it failed.
-        f"{' --exit-code-is-a-result' if t.get('exit_code_is_a_result') else ''} \\\n"
+        f"{' --exit-code-is-a-result' if t.get('exit_code_is_a_result') else ''}"
+        # A tool that writes `<OUTPUT>.<suffix>` rather than the file it was given.
+        f"{' --output-name ' + t['output_name'] if t.get('output_name') else ''} \\\n"
         f"            | tee /tmp/{t['tool']}.log"
         for t in tools
     )

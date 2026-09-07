@@ -137,7 +137,7 @@ def fresh_directory(workdir, stem):
     return made
 
 
-def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False):
+def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt"):
     """Run one row in the container. Returns (exit code, output text, stdout tail).
 
     `on_stdout` is for the tools that HAVE no output argument: `ViewSam` and `BamIndexStats` print
@@ -162,11 +162,11 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False):
         capture_output=True,
         text=True,
     )
-    text = result.stdout if on_stdout else read_output(out_dir, strip_pg)
+    text = result.stdout if on_stdout else read_output(out_dir, strip_pg, output_name)
     return result.returncode, text, first_error(result.stderr or result.stdout)
 
 
-def read_output(out_dir, strip_program_records=False):
+def read_output(out_dir, strip_program_records=False, output_name="output.txt"):
     """The row's output file, as text where it is text and as a digest where it is not.
 
     A record-transform writes a BAM, which is gzip, so reading it as UTF-8 throws on its second
@@ -181,7 +181,11 @@ def read_output(out_dir, strip_program_records=False):
     htsjdk-rs asserts in a suite of its own (decisions 0001 and 0029). What is left after the
     decompression is the header and the records, which is what this array is measuring.
     """
-    produced = out_dir / "output.txt"
+    # Most tools write the file they were given. Some write `<OUTPUT>.<suffix>` instead, one per
+    # metric class, and comparing `output.txt` for those compares nothing at all: every row looks
+    # alike, the array reports one distinct output, and a port matches by producing the same
+    # nothing. `GenotypeConcordance` writes five such files; the manifest names the one to compare.
+    produced = out_dir / output_name
     if not produced.exists():
         return ""
     raw = produced.read_bytes()
@@ -272,7 +276,7 @@ def first_error(text):
     return " ".join(line.strip() for line in tail.split("\n"))[:400] if tail else ""
 
 
-def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False):
+def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt"):
     """Run the port binary on the same row, with the fixture paths rewritten to the host."""
     out_dir = fresh_directory(workdir, "port")
 
@@ -302,7 +306,7 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False):
     # other difference in it still fails the row.
     message = message.replace(str(workdir / "fixtures"), "/work/fixtures")
     message = message.replace(str(out_dir), "/work/out")
-    text = result.stdout if on_stdout else read_output(out_dir, strip_pg)
+    text = result.stdout if on_stdout else read_output(out_dir, strip_pg, output_name)
     # The same inverse on the OUTPUT, for the same reason and no other: a tool that writes a path it
     # was given writes the one it was given. `CreateSequenceDictionary` puts the reference's own
     # `file:` URI in every `@SQ` line's `UR`, so the port's rows differed from the reference's on
@@ -368,6 +372,12 @@ def main(argv):
         "reports what it found rather than that it failed",
     )
     ap.add_argument(
+        "--output-name",
+        default="output.txt",
+        help="the file in the output directory to compare, for a tool that writes "
+        "`<OUTPUT>.<suffix>` rather than the file it was given",
+    )
+    ap.add_argument(
         "--stdout",
         action="store_true",
         help="compare standard output rather than the output file, for a tool that writes no file",
@@ -393,7 +403,12 @@ def main(argv):
         for row in rows:
             row_args = row_arguments(row, array["excluded"])
             code, text, tail = run_oracle(
-                args.tool, row_args, workdir, args.stdout, args.strip_program_records
+                args.tool,
+                row_args,
+                workdir,
+                args.stdout,
+                args.strip_program_records,
+                args.output_name,
             )
             entry = {
                 "row": row["row"],
@@ -407,7 +422,12 @@ def main(argv):
             }
             if args.port:
                 p_code, p_text, p_tail = run_port(
-                    args.port, row_args, workdir, args.stdout, args.strip_program_records
+                    args.port,
+                    row_args,
+                    workdir,
+                    args.stdout,
+                    args.strip_program_records,
+                    args.output_name,
                 )
                 entry["port_exit"] = p_code
                 entry["port_output"] = outcome(
