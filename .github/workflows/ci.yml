@@ -317,10 +317,6 @@ jobs:
             --log /tmp/SamToFastq.log \
             --log /tmp/MarkDuplicatesWithMateCigar.log \
             --log /tmp/SimpleMarkDuplicatesWithMateCigar.log \
-            --pending SplitSamByNumberOfReads \
-            --pending SplitSamByLibrary \
-            --pending MakeVcfSampleNameMap \
-            --pending SamToFastq \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -367,6 +363,10 @@ jobs:
             tools/coverage/corpus/FilterSamReads.t2.txt \
             tools/coverage/corpus/MarkDuplicates.t2.txt \
             tools/coverage/corpus/FastqToSam.t2.txt \
+            tools/coverage/corpus/SplitSamByNumberOfReads.t2.txt \
+            tools/coverage/corpus/SplitSamByLibrary.t2.txt \
+            tools/coverage/corpus/MakeVcfSampleNameMap.t2.txt \
+            tools/coverage/corpus/SamToFastq.t2.txt \
             tools/coverage/corpus/MarkDuplicatesWithMateCigar.t2.txt \
             tools/coverage/corpus/SimpleMarkDuplicatesWithMateCigar.t2.txt)
           if [ -n "$dirty" ]; then
