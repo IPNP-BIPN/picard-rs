@@ -242,7 +242,7 @@
         "tool": "MarkDuplicates",
         "port": "mark-duplicates",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true
       }
     ]

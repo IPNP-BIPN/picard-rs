@@ -170,6 +170,16 @@
       "t": 2,
       "share": 1.0
     },
+    "MarkDuplicates": {
+      "rows": 21,
+      "accepted": 6,
+      "rejected": 15,
+      "distinct_outputs": 6,
+      "distinct_rejections": 4,
+      "matched": 21,
+      "t": 2,
+      "share": 1.0
+    },
     "MeanQualityByCycle": {
       "rows": 10,
       "accepted": 7,
