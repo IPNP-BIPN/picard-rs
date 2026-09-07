@@ -26,6 +26,9 @@
     "--HISTOGRAM_FILE": [
       "/work/out/histogram.pdf"
     ],
+    "--METRICS_FILE": [
+      "/work/out/metrics.txt"
+    ],
     "--CHART_OUTPUT": [
       "/work/out/chart.pdf"
     ],
@@ -197,6 +200,14 @@
       "--STRATEGY": [
         "ConstantMemory"
       ]
+    },
+    "FilterSamReads": {
+      "--READ_LIST_FILE": [
+        "/work/fixtures/read_names.txt"
+      ],
+      "--INTERVAL_LIST": [],
+      "--TAG": [],
+      "--JAVASCRIPT_FILE": []
     },
     "ValidateSamFile": {
       "--IGNORE": [

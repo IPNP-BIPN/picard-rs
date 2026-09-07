@@ -1,0 +1,629 @@
+{
+  "tool": "FilterSamReads",
+  "origin": "picard",
+  "t": 2,
+  "numeric_policy": "strict",
+  "arguments_total": 25,
+  "arguments_in_array": 6,
+  "arguments_excluded": 19,
+  "excluded": [
+    {
+      "argument": "--arguments_file",
+      "type": "List[File]",
+      "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--COMPRESSION_LEVEL",
+      "type": "int",
+      "reason": "excluded by the repository: changes the deflate level of a written BAM. Varying it would make the output bytes differ for a reason that is not the tool's logic, and the deflate pin is asserted by its own suite (htsjdk-rs decision 0001)",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CREATE_MD5_FILE",
+      "type": "boolean",
+      "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--help",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--INTERVAL_LIST",
+      "type": "File",
+      "reason": "excluded by the repository: no value is declared for this tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--JAVASCRIPT_FILE",
+      "type": "File",
+      "reason": "excluded by the repository: no value is declared for this tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--MAX_RECORDS_IN_RAM",
+      "type": "Integer",
+      "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--OUTPUT",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/out/output.txt",
+      "source": "fixture"
+    },
+    {
+      "argument": "--QUIET",
+      "type": "Boolean",
+      "reason": "excluded by the repository: suppresses the log on stderr; the compared output is stdout and the output file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--READ_LIST_FILE",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/read_names.txt",
+      "source": "fixture"
+    },
+    {
+      "argument": "--REFERENCE_SEQUENCE",
+      "type": "PicardHtsPath",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/ref.fasta",
+      "source": "fixture"
+    },
+    {
+      "argument": "--showHidden",
+      "type": "boolean",
+      "reason": "excluded by the repository: changes the usage text only",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--TAG",
+      "type": "String",
+      "reason": "excluded by the repository: no value is declared for this tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--TAG_VALUE",
+      "type": "List[String]",
+      "reason": "free-form string with no default: a fixture must supply the values",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--TMP_DIR",
+      "type": "List[File]",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/tmp",
+      "source": "fixture"
+    },
+    {
+      "argument": "--USE_JDK_DEFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract; varying it would compare zlib output against GKL output and call the difference a divergence",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--USE_JDK_INFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--VERBOSITY",
+      "type": "LogLevel",
+      "reason": "excluded by the repository: log level on stderr, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--version",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints the version and exits, same reason",
+      "held_at": null,
+      "source": "none"
+    }
+  ],
+  "rows": 25,
+  "tuples_total": 153,
+  "tuples_covered": 153,
+  "tuples_forbidden": 0,
+  "constraint_notes": [
+    "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
+  ],
+  "coverage": 1.0,
+  "array": [
+    {
+      "row": 0,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "includeAligned",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=includeAligned",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 1,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "excludeAligned",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--WRITE_READS_FILES": "false"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=excludeAligned",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=queryname",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--WRITE_READS_FILES=false"
+      ]
+    },
+    {
+      "row": 2,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "includeReadList",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--WRITE_READS_FILES": "false"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=includeReadList",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--WRITE_READS_FILES=false"
+      ]
+    },
+    {
+      "row": 3,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "excludeReadList",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=excludeReadList",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=queryname",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 4,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "includeJavascript",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=includeJavascript",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 5,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "includePairedIntervals",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--WRITE_READS_FILES": "false"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=includePairedIntervals",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--WRITE_READS_FILES=false"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "includeTagValues",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=includeTagValues",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "excludeTagValues",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=excludeTagValues",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--FILTER": "includeAligned",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--FILTER=includeAligned",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--FILTER": "excludeAligned",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--FILTER=excludeAligned",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--FILTER": "includeReadList",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--FILTER=includeReadList",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=queryname",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 11,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--FILTER": "excludeReadList",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--WRITE_READS_FILES": "false"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--FILTER=excludeReadList",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--WRITE_READS_FILES=false"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--FILTER": "includeJavascript",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--WRITE_READS_FILES": "false"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--FILTER=includeJavascript",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=queryname",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--WRITE_READS_FILES=false"
+      ]
+    },
+    {
+      "row": 13,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--FILTER": "includePairedIntervals",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--FILTER=includePairedIntervals",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=queryname",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 14,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--FILTER": "includeTagValues",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--WRITE_READS_FILES": "false"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--FILTER=includeTagValues",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=queryname",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--WRITE_READS_FILES=false"
+      ]
+    },
+    {
+      "row": 15,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--FILTER": "excludeTagValues",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--WRITE_READS_FILES": "false"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--FILTER=excludeTagValues",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=queryname",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--WRITE_READS_FILES=false"
+      ]
+    },
+    {
+      "row": 16,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "includeAligned",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=includeAligned",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=queryname",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 17,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "excludeAligned",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=excludeAligned",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 18,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "includeReadList",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=includeReadList",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 19,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "excludeReadList",
+        "--INPUT": "fixture[1]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=excludeReadList",
+        "--INPUT=/work/fixtures/small.sam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 20,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "includeJavascript",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=includeJavascript",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 21,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "includePairedIntervals",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=includePairedIntervals",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 22,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "includeTagValues",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=includeTagValues",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 23,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "excludeTagValues",
+        "--INPUT": "fixture[2]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=excludeTagValues",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 24,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "includeAligned",
+        "--INPUT": "fixture[0]",
+        "--SORT_ORDER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--WRITE_READS_FILES": "false"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=includeAligned",
+        "--INPUT=/work/fixtures/small.bam",
+        "--SORT_ORDER=coordinate",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--WRITE_READS_FILES=false"
+      ]
+    }
+  ]
+}

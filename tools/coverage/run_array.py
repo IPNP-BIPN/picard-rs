@@ -264,7 +264,12 @@ def first_error(text):
     for line in text.split("\n"):
         if "Exception" in line or line.startswith("ERROR"):
             return line.strip()
-    return text.strip().split("\n")[-1][:200] if text.strip() else ""
+    # Neither a stack trace nor a usage dump: the refusal is whatever was printed last, and a tool
+    # that failed two checks printed two lines. Taking only the last one recorded half the answer
+    # -- the reference's `FilterSamReads` prints both the argument that does not belong to the
+    # filter and the one the filter needs, and a port that printed the same two matched on one.
+    tail = text.rstrip().split("\n\n")[-1].strip()
+    return " ".join(line.strip() for line in tail.split("\n"))[:400] if tail else ""
 
 
 def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False):
@@ -283,7 +288,12 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False):
     # lands, without pretending the binary understands more than it does.
     argv = [str(binary)] + [a.lstrip("-") for a in rewritten]
     result = subprocess.run(argv, capture_output=True, text=True)
-    message = first_error(result.stderr or result.stdout)
+    # The mount points are mapped back BEFORE the message is read, not after: `first_error` caps
+    # what it returns, and a host path is longer than the container path it stands for, so mapping
+    # afterwards left a message that had been truncated mid-path.
+    raw = (result.stderr or result.stdout)
+    raw = raw.replace(str(workdir / "fixtures"), "/work/fixtures").replace(str(out_dir), "/work/out")
+    message = first_error(raw)
     # The port ran against host paths because that is where the fixtures were mounted, so a
     # refusal that names its input names a path the reference could never print. MergeSamFiles is
     # the first tool to reproduce one ("Merging with interval but file is not indexed: <file>"),
