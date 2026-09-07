@@ -265,7 +265,11 @@ pub fn histogram_standard_deviation(histogram: &BTreeMap<i64, i64>) -> f64 {
         let difference = *id as f64 - mean;
         sum += difference * difference * *count as f64;
     }
-    (sum / total as f64).sqrt()
+    // `Histogram.getStandardDeviation` divides by `count - 1`, not by the count: it is the SAMPLE
+    // deviation. Dividing by the count instead is a factor of sqrt(n/(n-1)), which on a histogram
+    // of 126 pairs is a difference in the sixth digit -- small enough to look like rounding and
+    // large enough to fail a byte comparison, which is how the covering array found it.
+    (sum / (total as f64 - 1.0)).sqrt()
 }
 
 /// `DuplicationMetrics.estimateLibrarySize`, by the bisection the reference uses.
@@ -345,6 +349,38 @@ pub const COLUMNS: [&str; 17] = [
     "PCT_NONJUMPS",
     "PCT_CHIMERAS",
 ];
+
+/// The metrics file's own row: the class name, the columns and the values in `COLUMNS` order.
+impl htsjdk_metrics::file::MetricBean for JumpingLibraryMetrics {
+    fn class_name(&self) -> &str {
+        "picard.analysis.JumpingLibraryMetrics"
+    }
+    fn columns(&self) -> &[&'static str] {
+        &COLUMNS
+    }
+    fn values(&self) -> Vec<htsjdk_metrics::file::Value> {
+        use htsjdk_metrics::file::Value;
+        vec![
+            Value::Long(self.jump_pairs),
+            Value::Long(self.jump_duplicate_pairs),
+            Value::Double(self.jump_duplicate_pct),
+            Value::Long(self.jump_library_size),
+            Value::Double(self.jump_mean_insert_size),
+            Value::Double(self.jump_stdev_insert_size),
+            Value::Long(self.nonjump_pairs),
+            Value::Long(self.nonjump_duplicate_pairs),
+            Value::Double(self.nonjump_duplicate_pct),
+            Value::Long(self.nonjump_library_size),
+            Value::Double(self.nonjump_mean_insert_size),
+            Value::Double(self.nonjump_stdev_insert_size),
+            Value::Long(self.chimeric_pairs),
+            Value::Long(self.fragments),
+            Value::Double(self.pct_jumps),
+            Value::Double(self.pct_nonjumps),
+            Value::Double(self.pct_chimeras),
+        ]
+    }
+}
 
 /// One whole run: the buckets, then the arithmetic on top of them.
 ///
