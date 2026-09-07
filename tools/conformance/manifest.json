@@ -197,7 +197,7 @@
         "tool": "SetNmMdAndUqTags",
         "port": "set-nm-md-and-uq-tags",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "RevertSam",
