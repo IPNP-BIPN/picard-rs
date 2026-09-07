@@ -312,6 +312,13 @@
         "status": "pending"
       },
       {
+        "tool": "GenotypeConcordance",
+        "port": "genotype-concordance",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.txt.genotype_concordance_summary_metrics"
+      },
+      {
         "tool": "CollectJumpingLibraryMetrics",
         "port": "collect-jumping-library-metrics",
         "t": 2,
