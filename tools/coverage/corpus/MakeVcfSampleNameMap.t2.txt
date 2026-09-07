@@ -1,0 +1,7 @@
+# MakeVcfSampleNameMap t=2 rows=6 from MakeVcfSampleNameMap.t2.json
+row	0:CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=STRICT	/work/fixtures/single_sample.vcf	sample1\n
+row	1:CREATE_INDEX=true,INPUT=fixture[1],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" picard.PicardException: Input: /work/fixtures/variants.vcf was expected to contain a single sample but actually contained 2 samples.
+row	2:CREATE_INDEX=false,INPUT=fixture[0],VALIDATION_STRINGENCY=LENIENT	/work/fixtures/single_sample.vcf	sample1\n
+row	3:CREATE_INDEX=false,INPUT=fixture[1],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" picard.PicardException: Input: /work/fixtures/variants.vcf was expected to contain a single sample but actually contained 2 samples.
+row	4:CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=SILENT	/work/fixtures/single_sample.vcf	sample1\n
+row	5:CREATE_INDEX=false,INPUT=fixture[1],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" picard.PicardException: Input: /work/fixtures/variants.vcf was expected to contain a single sample but actually contained 2 samples.

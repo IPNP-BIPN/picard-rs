@@ -255,27 +255,27 @@
         "tool": "SplitSamByNumberOfReads",
         "port": "split-sam-by-number-of-reads",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "shard_0001.bam"
       },
       {
         "tool": "SplitSamByLibrary",
         "port": "split-sam-by-library",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "lib1.bam"
       },
       {
         "tool": "MakeVcfSampleNameMap",
         "port": "make-vcf-sample-name-map",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "SamToFastq",
         "port": "sam-to-fastq",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "MarkDuplicatesWithMateCigar",
