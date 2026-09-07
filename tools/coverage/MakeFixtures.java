@@ -27,6 +27,7 @@
  */
 
 import htsjdk.samtools.*;
+import htsjdk.samtools.util.SequenceUtil;
 import java.io.File;
 import java.io.PrintWriter;
 import java.util.Random;
@@ -98,6 +99,62 @@ public class MakeFixtures {
             }
         }
         writeBam(new File(dir, "mate_cigar.bam"), mateCigarHeader, mateCigarReads, true);
+
+        // Reads whose ends really are Illumina adapters, for `MarkIlluminaAdapters`. On the random
+        // bases of the other fixtures no adapter is ever found, so every accepted row produces the
+        // same output and the array covers the search without running it.
+        //
+        // Three families are planted, and which family a pair gets is what makes `--ADAPTERS`
+        // observable. Picard's parser APPENDS to a list argument's default, so every row searches
+        // INDEXED, DUAL_INDEXED and PAIRED_END whatever it asks for: a corpus carrying only a
+        // PAIRED_END adapter answers the same thing for all nine values. NEXTERA_V2 and
+        // TRUSEQ_SMALLRNA are not in that default, so the pairs carrying them are marked only by
+        // the rows that name them.
+        //
+        // Two planting shapes, because the paired rule has two branches. A one-sided plant puts
+        // the three prime adapter in read one and leaves read two alone, which is the branch that
+        // re-checks the single match against twice the minimum and then marks BOTH reads. A
+        // two-sided plant puts the three prime adapter in read one and the five prime adapter in
+        // read-order in read two, at the same offset, which is the branch where the two indices
+        // agree and the pair is marked immediately.
+        SAMFileHeader adapterHeader = header(SAMFileHeader.SortOrder.queryname);
+        java.util.List<SAMRecord> adapterReads = reads(adapterHeader, false);
+        java.util.Map<String, java.util.List<SAMRecord>> adapterTemplates = new java.util.LinkedHashMap<>();
+        for (SAMRecord r : adapterReads) {
+            adapterTemplates.computeIfAbsent(r.getReadName(), k -> new java.util.ArrayList<>()).add(r);
+        }
+        int planted = 0;
+        for (java.util.List<SAMRecord> template : adapterTemplates.values()) {
+            if (template.size() != 2) continue;
+            SAMRecord one = template.get(0).getFirstOfPairFlag() ? template.get(0) : template.get(1);
+            SAMRecord two = template.get(0).getFirstOfPairFlag() ? template.get(1) : template.get(0);
+            int n = Integer.parseInt(one.getReadName().replaceAll("[^0-9]", ""));
+            String fivePrime, threePrime;
+            boolean twoSided;
+            if (n % 12 == 0) {
+                fivePrime = "AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT";
+                threePrime = "AGATCGGAAGAGCGGTTCAGCAGGAATGCCGAGACCGATCTCGTATGCCGTCTTCTGCTTG";
+                twoSided = false;
+            } else if (n % 12 == 4) {
+                fivePrime = "AATGATACGGCGACCACCGAGATCTACACNNNNNNNNTCGTCGGCAGCGTCAGATGTGTATAAGAGACAG";
+                threePrime = "CTGTCTCTTATACACATCTCCGAGCCCACGAGACNNNNNNNNATCTCGTATGCCGTCTTCTGCTTG";
+                twoSided = true;
+            } else if (n % 12 == 8) {
+                fivePrime = "AATGATACGGCGACCACCGAGATCTACACGTTCAGAGTTCTACAGTCCGACGATC";
+                threePrime = "TGGAATTCTCGGGTGCCAAGGAACTCCAGTCACNNNNNNATCTCGTATGCCGTCTTCTGCTTG";
+                twoSided = false;
+            } else {
+                continue;
+            }
+            // 24 bases, which is well over the paired minimum and over the single-end one too.
+            plantAdapter(one, threePrime, 24);
+            if (twoSided) {
+                plantAdapter(two, SequenceUtil.reverseComplement(fivePrime), 24);
+            }
+            planted++;
+        }
+        if (planted == 0) throw new IllegalStateException("no adapter was planted");
+        writeBam(new File(dir, "adapters.bam"), adapterHeader, adapterReads, false);
 
         SAMFileHeader unmappedHeader = header(SAMFileHeader.SortOrder.unsorted);
         writeBam(new File(dir, "unmapped.bam"), unmappedHeader, unmapped(unmappedHeader), false);
@@ -212,6 +269,24 @@ public class MakeFixtures {
             h.addReadGroup(r);
         }
         return h;
+    }
+
+    /**
+     * Put the first `length` bases of an adapter at the end of a read, IN READ ORDER.
+     *
+     * A record on the negative strand stores its bases reverse complemented, and the tool searches
+     * what the sequencer read rather than what the file stores: it reverse complements a copy
+     * before it looks. Planting into the stored bases would therefore put the adapter at the front
+     * of half the reads, where the search never looks, so the plant is done on the read-order copy
+     * and complemented back.
+     */
+    static void plantAdapter(SAMRecord read, String adapter, int length) throws Exception {
+        byte[] bases = read.getReadBases();
+        if (read.getReadNegativeStrandFlag()) SequenceUtil.reverseComplement(bases);
+        byte[] planted = adapter.substring(0, length).getBytes("UTF-8");
+        System.arraycopy(planted, 0, bases, bases.length - planted.length, planted.length);
+        if (read.getReadNegativeStrandFlag()) SequenceUtil.reverseComplement(bases);
+        read.setReadBases(bases);
     }
 
     static java.util.List<SAMRecord> reads(SAMFileHeader header, boolean coordinateSorted) {

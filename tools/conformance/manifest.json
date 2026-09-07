@@ -290,6 +290,12 @@
         "t": 2,
         "status": "measured",
         "strip_program_records": true
+      },
+      {
+        "tool": "MarkIlluminaAdapters",
+        "port": "mark-illumina-adapters",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
