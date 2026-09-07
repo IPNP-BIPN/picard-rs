@@ -210,6 +210,16 @@
       "t": 2,
       "share": 1.0
     },
+    "RevertSam": {
+      "rows": 17,
+      "accepted": 4,
+      "rejected": 13,
+      "distinct_outputs": 4,
+      "distinct_rejections": 4,
+      "matched": 17,
+      "t": 2,
+      "share": 1.0
+    },
     "SamFormatConverter": {
       "rows": 9,
       "accepted": 7,

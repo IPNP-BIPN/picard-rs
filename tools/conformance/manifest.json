@@ -203,7 +203,7 @@
         "tool": "RevertSam",
         "port": "revert-sam",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "ExtractSequences",
