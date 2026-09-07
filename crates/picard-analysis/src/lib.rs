@@ -80,6 +80,7 @@ pub mod make_vcf_sample_name_map;
 pub mod mark_duplicates;
 pub mod mark_illumina_adapters;
 pub mod mate_cigar_duplicates;
+pub mod mate_cigar_iterator;
 pub mod math3;
 pub mod merge_bam_alignment;
 pub mod merge_bam_alignment_clip;

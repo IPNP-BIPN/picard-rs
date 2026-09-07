@@ -161,7 +161,17 @@ pub fn mark_with_mate_cigar(
         assume_mate_cigar: true,
         ..options.base.clone()
     };
-    Ok(marking_without(records, &skipped, &base))
+    // The marking itself is the iterator's, not `MarkDuplicates`'s: a sliding window with a queue
+    // that decides a duplicate as the second end arrives, rather than a sorted whole cut into
+    // sets. The two disagree wherever three ends share a position and arrival order is not score
+    // order (picard-rs #307).
+    let decisions = crate::mate_cigar_iterator::mark_with_queue(records, &base, &skipped);
+    Ok(crate::mark_duplicates::marking_from(
+        records,
+        &base,
+        &decisions.duplicate,
+        &decisions.optical,
+    ))
 }
 
 /// `SimpleMarkDuplicatesWithMateCigar.doWork`, over records already in memory.
@@ -188,72 +198,3 @@ pub fn simple_mark_with_mate_cigar(
     Ok(mark(records, options))
 }
 
-/// The marking of a file with some pairs taken out of it, and the metrics of the whole.
-///
-/// The skipped records are removed before the sets are cut, so they change what the sets hold, and
-/// they are put back unmarked for the writing pass: the reference writes them out untouched.
-fn marking_without(records: &[Record], skipped: &[usize], options: &Options) -> Marking {
-    if skipped.is_empty() {
-        return mark(records, options);
-    }
-    let kept: Vec<Record> = records
-        .iter()
-        .enumerate()
-        .filter(|(index, _)| !skipped.contains(index))
-        .map(|(_, record)| record.clone())
-        .collect();
-    let inner = mark(&kept, options);
-    // The metrics are counted over every record, skipped ones included, because the writing pass
-    // walks the whole file.
-    let whole = mark(records, options);
-
-    let mut duplicate = vec![false; records.len()];
-    let mut optical = vec![false; records.len()];
-    let mut duplicate_type = vec![None; records.len()];
-    let mut written = vec![true; records.len()];
-    let mut position = 0;
-    for index in 0..records.len() {
-        if skipped.contains(&index) {
-            continue;
-        }
-        duplicate[index] = inner.duplicate[position];
-        optical[index] = inner.optical[position];
-        duplicate_type[index] = inner.duplicate_type[position].clone();
-        written[index] = inner.written[position];
-        position += 1;
-    }
-    let mut metrics = whole.metrics;
-    for row in &mut metrics {
-        // The duplicate counters are the inner run's; the examined ones are the whole file's.
-        let inner_row = inner
-            .metrics
-            .iter()
-            .find(|other| other.library == row.library);
-        row.unpaired_read_duplicates = inner_row.map(|r| r.unpaired_read_duplicates).unwrap_or(0);
-        row.read_pair_duplicates = inner_row.map(|r| r.read_pair_duplicates).unwrap_or(0);
-        row.read_pair_optical_duplicates = inner_row
-            .map(|r| r.read_pair_optical_duplicates)
-            .unwrap_or(0);
-        row.estimated_library_size = crate::mark_duplicates::estimate_library_size(
-            row.read_pairs_examined - row.read_pair_optical_duplicates,
-            row.read_pairs_examined - row.read_pair_duplicates,
-        );
-        let examined = row.unpaired_reads_examined + row.read_pairs_examined;
-        row.percent_duplication = if examined == 0 {
-            0.0
-        } else {
-            (row.unpaired_read_duplicates + row.read_pair_duplicates * 2) as f64
-                / (row.unpaired_reads_examined + row.read_pairs_examined * 2) as f64
-        };
-    }
-    Marking {
-        duplicate,
-        optical,
-        duplicate_type,
-        written,
-        metrics,
-        all_sets: inner.all_sets,
-        optical_sets: inner.optical_sets,
-        non_optical_sets: inner.non_optical_sets,
-    }
-}
