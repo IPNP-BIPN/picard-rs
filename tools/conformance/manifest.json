@@ -198,6 +198,12 @@
         "port": "set-nm-md-and-uq-tags",
         "t": 2,
         "status": "pending"
+      },
+      {
+        "tool": "RevertSam",
+        "port": "revert-sam",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
