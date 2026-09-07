@@ -108,6 +108,16 @@ public class MakeFixtures {
             for (int i = 0; i < READS; i += 8) out.printf("read%04d%n", i);
         }
 
+        // Three small VCFs, for the tools that read variants rather than reads. `variants.vcf` has
+        // two samples and a mix of SNPs and an indel, half of its sites also in `dbsnp.vcf`, so a
+        // tool that partitions by novelty sees both partitions; `single_sample.vcf` is the
+        // one-sample file the tools that refuse more than one need. Written through htsjdk's own
+        // writer, index and all, because a hand-written VCF is a fixture whose bugs become the
+        // tool's answers.
+        writeVcf(new File(dir, "variants.vcf"), chr1, chr2, true);
+        writeVcf(new File(dir, "dbsnp.vcf"), chr1, chr2, false);
+        writeVcf(new File(dir, "single_sample.vcf"), chr1, chr2, true, 1);
+
         writeIntervals(new File(dir, "targets.interval_list"));
         writeBed(new File(dir, "targets.bed"));
         writeMixedBed(new File(dir, "targets_mixed.bed"));
@@ -454,6 +464,84 @@ public class MakeFixtures {
      * none. Every tool taking a SEQUENCE_DICTIONARY therefore needed this file before it could be
      * given an array at all.
      */
+    static void writeVcf(File f, String chr1, String chr2, boolean withGenotypes) throws Exception {
+        writeVcf(f, chr1, chr2, withGenotypes, 2);
+    }
+
+    static void writeVcf(File f, String chr1, String chr2, boolean withGenotypes, int sampleCount)
+            throws Exception {
+        htsjdk.samtools.SAMSequenceDictionary dict = new htsjdk.samtools.SAMSequenceDictionary();
+        dict.addSequence(new SAMSequenceRecord("chr1", chr1.length()));
+        dict.addSequence(new SAMSequenceRecord("chr2", chr2.length()));
+
+        java.util.Set<htsjdk.variant.vcf.VCFHeaderLine> lines = new java.util.LinkedHashSet<>();
+        lines.add(new htsjdk.variant.vcf.VCFFormatHeaderLine(
+                "GT", 1, htsjdk.variant.vcf.VCFHeaderLineType.String, "Genotype"));
+        lines.add(new htsjdk.variant.vcf.VCFFormatHeaderLine(
+                "GQ", 1, htsjdk.variant.vcf.VCFHeaderLineType.Integer, "Genotype quality"));
+        lines.add(new htsjdk.variant.vcf.VCFFormatHeaderLine(
+                "DP", 1, htsjdk.variant.vcf.VCFHeaderLineType.Integer, "Depth"));
+        lines.add(new htsjdk.variant.vcf.VCFInfoHeaderLine(
+                "AC", 1, htsjdk.variant.vcf.VCFHeaderLineType.Integer, "Allele count"));
+        lines.add(new htsjdk.variant.vcf.VCFFilterHeaderLine("LowQual", "Low quality"));
+
+        java.util.List<String> samples = new java.util.ArrayList<>();
+        if (withGenotypes) {
+            for (int i = 1; i <= sampleCount; i++) samples.add("sample" + i);
+        }
+        htsjdk.variant.vcf.VCFHeader header = new htsjdk.variant.vcf.VCFHeader(lines, samples);
+        header.setSequenceDictionary(dict);
+
+        try (htsjdk.variant.variantcontext.writer.VariantContextWriter writer =
+                     new htsjdk.variant.variantcontext.writer.VariantContextWriterBuilder()
+                             .setOutputFile(f)
+                             .setReferenceDictionary(dict)
+                             .setOption(htsjdk.variant.variantcontext.writer.Options.INDEX_ON_THE_FLY)
+                             .build()) {
+            writer.writeHeader(header);
+            // The first four are on chr1 (2,000 bases), the last two on chr2 (1,000).
+            int[] positions = {100, 300, 500, 700, 200, 600};
+            for (int i = 0; i < positions.length; i++) {
+                // The sites-only file keeps every other variant, so half of the full file is known.
+                if (!withGenotypes && i % 2 == 1) continue;
+                String contig = i < 4 ? "chr1" : "chr2";
+                int position = positions[i];
+                String reference = String.valueOf((i < 4 ? chr1 : chr2).charAt(position - 1));
+                boolean indel = i == 3;
+                htsjdk.variant.variantcontext.Allele ref = htsjdk.variant.variantcontext.Allele
+                        .create(indel ? reference + "AT" : reference, true);
+                htsjdk.variant.variantcontext.Allele alt = htsjdk.variant.variantcontext.Allele
+                        .create(indel ? reference : (reference.equals("A") ? "G" : "A"), false);
+                htsjdk.variant.variantcontext.VariantContextBuilder builder =
+                        new htsjdk.variant.variantcontext.VariantContextBuilder()
+                                .chr(contig)
+                                .start(position)
+                                .stop(position + ref.length() - 1)
+                                .alleles(java.util.Arrays.asList(ref, alt))
+                                .attribute("AC", 1 + (i % 2));
+                if (i == 5) builder.filter("LowQual");
+                if (withGenotypes) {
+                    java.util.List<htsjdk.variant.variantcontext.Genotype> genotypes =
+                            new java.util.ArrayList<>();
+                    for (int g = 0; g < samples.size(); g++) {
+                        java.util.List<htsjdk.variant.variantcontext.Allele> called = (i + g) % 3 == 0
+                                ? java.util.Arrays.asList(ref, ref)
+                                : ((i + g) % 3 == 1
+                                        ? java.util.Arrays.asList(ref, alt)
+                                        : java.util.Arrays.asList(alt, alt));
+                        genotypes.add(new htsjdk.variant.variantcontext.GenotypeBuilder(
+                                samples.get(g), called)
+                                .GQ(20 + 7 * ((i + g) % 5))
+                                .DP(10 + ((i + g) % 4))
+                                .make());
+                    }
+                    builder.genotypes(genotypes);
+                }
+                writer.add(builder.make());
+            }
+        }
+    }
+
     static void writeDict(File f, String chr1, String chr2) throws Exception {
         try (PrintWriter p = new PrintWriter(f)) {
             p.println("@HD\tVN:1.6\tSO:unsorted");

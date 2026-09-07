@@ -249,7 +249,7 @@
         "tool": "FastqToSam",
         "port": "fastq-to-sam",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "SplitSamByNumberOfReads",
@@ -264,6 +264,18 @@
         "t": 2,
         "status": "pending",
         "output_name": "lib1.bam"
+      },
+      {
+        "tool": "MakeVcfSampleNameMap",
+        "port": "make-vcf-sample-name-map",
+        "t": 2,
+        "status": "pending"
+      },
+      {
+        "tool": "SamToFastq",
+        "port": "sam-to-fastq",
+        "t": 2,
+        "status": "pending"
       },
       {
         "tool": "MarkDuplicatesWithMateCigar",

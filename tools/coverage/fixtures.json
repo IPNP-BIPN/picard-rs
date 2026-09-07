@@ -220,6 +220,12 @@
         "/work/fixtures/small.bam"
       ]
     },
+    "MakeVcfSampleNameMap": {
+      "--INPUT": [
+        "/work/fixtures/single_sample.vcf",
+        "/work/fixtures/variants.vcf"
+      ]
+    },
     "SplitSamByNumberOfReads": {
       "--OUTPUT": [
         "/work/out"
@@ -279,6 +285,20 @@
       "--MAX_DISCARD_FRACTION": [
         "0.01",
         "1.0"
+      ]
+    },
+    "SamToFastq": {
+      "--FASTQ": [
+        "/work/out/output.txt"
+      ],
+      "--OUTPUT_PER_RG": [],
+      "--COMPRESS_OUTPUTS_PER_RG": [],
+      "--SECOND_END_FASTQ": [
+        "/work/out/second.fastq"
+      ],
+      "--INPUT": [
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/small.bam"
       ]
     }
   },
