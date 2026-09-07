@@ -52,8 +52,11 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/SplitSamByLibrary.t2.txt
 !tools/coverage/corpus/MakeVcfSampleNameMap.t2.txt
 !tools/coverage/corpus/SamToFastq.t2.txt
+!tools/coverage/corpus/CollectDuplicateMetrics.t2.txt
 !tools/coverage/corpus/MarkDuplicatesWithMateCigar.t2.txt
 !tools/coverage/corpus/SimpleMarkDuplicatesWithMateCigar.t2.txt
+!tools/coverage/corpus/CollectJumpingLibraryMetrics.t2.txt
+!tools/coverage/corpus/MarkIlluminaAdapters.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real
