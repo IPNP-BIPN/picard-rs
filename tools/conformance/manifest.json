@@ -222,7 +222,7 @@
         "tool": "PositionBasedDownsampleSam",
         "port": "position-based-downsample-sam",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true
       },
       {
