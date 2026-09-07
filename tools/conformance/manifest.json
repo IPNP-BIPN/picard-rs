@@ -249,14 +249,14 @@
         "tool": "MarkDuplicatesWithMateCigar",
         "port": "mark-duplicates-with-mate-cigar",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true
       },
       {
         "tool": "SimpleMarkDuplicatesWithMateCigar",
         "port": "simple-mark-duplicates-with-mate-cigar",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true
       }
     ]
