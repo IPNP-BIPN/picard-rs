@@ -198,6 +198,12 @@
         "ConstantMemory"
       ]
     },
+    "IntervalListTools": {
+      "--INPUT": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ]
+    },
     "ExtractSequences": {
       "--LINE_LENGTH": [
         "60",
