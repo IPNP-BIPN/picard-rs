@@ -80,6 +80,25 @@ public class MakeFixtures {
         }
         writeBam(new File(dir, "tiled.bam"), tiled, tiledReads, false);
 
+        // Reads carrying `MC`, for the duplicate markers that read the mate's cigar instead of
+        // waiting for the mate. Without the tag `SimpleMarkDuplicatesWithMateCigar` refuses every
+        // file outright and `MarkDuplicatesWithMateCigar` skips every pair, so a corpus without it
+        // measures the refusal and nothing else. `SamPairUtil.setMateInformation` writes the tag
+        // the same way `FixMateInformation --ADD_MATE_CIGAR` does; the file is new, so no existing
+        // fixture's bytes move.
+        SAMFileHeader mateCigarHeader = header(SAMFileHeader.SortOrder.coordinate);
+        java.util.List<SAMRecord> mateCigarReads = reads(mateCigarHeader, true);
+        java.util.Map<String, java.util.List<SAMRecord>> byName = new java.util.LinkedHashMap<>();
+        for (SAMRecord r : mateCigarReads) {
+            byName.computeIfAbsent(r.getReadName(), k -> new java.util.ArrayList<>()).add(r);
+        }
+        for (java.util.List<SAMRecord> template : byName.values()) {
+            if (template.size() == 2) {
+                htsjdk.samtools.SamPairUtil.setMateInfo(template.get(0), template.get(1), true);
+            }
+        }
+        writeBam(new File(dir, "mate_cigar.bam"), mateCigarHeader, mateCigarReads, true);
+
         SAMFileHeader unmappedHeader = header(SAMFileHeader.SortOrder.unsorted);
         writeBam(new File(dir, "unmapped.bam"), unmappedHeader, unmapped(unmappedHeader), false);
 
@@ -89,14 +108,14 @@ public class MakeFixtures {
             for (int i = 0; i < READS; i += 8) out.printf("read%04d%n", i);
         }
 
-        // Two small VCFs, for the tools that read variants rather than reads. `variants.vcf` has
-        // two samples and a mix of SNPs and an indel, half of them also present in `dbsnp.vcf`, so
-        // a metrics tool that partitions by novelty sees both partitions. Written through htsjdk's
-        // own writer, index and all, because a hand-written VCF is a fixture whose bugs become the
+        // Three small VCFs, for the tools that read variants rather than reads. `variants.vcf` has
+        // two samples and a mix of SNPs and an indel, half of its sites also in `dbsnp.vcf`, so a
+        // tool that partitions by novelty sees both partitions; `single_sample.vcf` is the
+        // one-sample file the tools that refuse more than one need. Written through htsjdk's own
+        // writer, index and all, because a hand-written VCF is a fixture whose bugs become the
         // tool's answers.
         writeVcf(new File(dir, "variants.vcf"), chr1, chr2, true);
         writeVcf(new File(dir, "dbsnp.vcf"), chr1, chr2, false);
-        // One sample, for the tools that refuse a multi-sample VCF.
         writeVcf(new File(dir, "single_sample.vcf"), chr1, chr2, true, 1);
 
         writeIntervals(new File(dir, "targets.interval_list"));
@@ -444,13 +463,6 @@ public class MakeFixtures {
      * the reference and throws "Could not find dictionary next to reference file" when there is
      * none. Every tool taking a SEQUENCE_DICTIONARY therefore needed this file before it could be
      * given an array at all.
-     */
-    /**
-     * A small VCF over the two contigs. `withGenotypes` writes two samples; the sites-only file is
-     * what a `DBSNP` argument wants.
-     *
-     * Every other variant of the full file is also in the sites-only one, so a tool that splits its
-     * metrics into "known" and "novel" gets both.
      */
     static void writeVcf(File f, String chr1, String chr2, boolean withGenotypes) throws Exception {
         writeVcf(f, chr1, chr2, withGenotypes, 2);

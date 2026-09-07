@@ -246,6 +246,12 @@
         "strip_program_records": true
       },
       {
+        "tool": "FastqToSam",
+        "port": "fastq-to-sam",
+        "t": 2,
+        "status": "pending"
+      },
+      {
         "tool": "SplitSamByNumberOfReads",
         "port": "split-sam-by-number-of-reads",
         "t": 2,
