@@ -177,7 +177,7 @@
         "--MISSING_SITES_HOM_REF=true",
         "--OUTPUT_ALL_ROWS=true",
         "--OUTPUT_VCF=true",
-        "--TRUTH_SAMPLE=sample2",
+        "--TRUTH_SAMPLE=sample1",
         "--USE_VCF_INDEX=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -202,7 +202,7 @@
         "--MISSING_SITES_HOM_REF=false",
         "--OUTPUT_ALL_ROWS=false",
         "--OUTPUT_VCF=false",
-        "--TRUTH_SAMPLE=sample1",
+        "--TRUTH_SAMPLE=sample2",
         "--USE_VCF_INDEX=false",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -227,7 +227,7 @@
         "--MISSING_SITES_HOM_REF=true",
         "--OUTPUT_ALL_ROWS=false",
         "--OUTPUT_VCF=true",
-        "--TRUTH_SAMPLE=sample1",
+        "--TRUTH_SAMPLE=sample2",
         "--USE_VCF_INDEX=true",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
@@ -252,7 +252,7 @@
         "--MISSING_SITES_HOM_REF=false",
         "--OUTPUT_ALL_ROWS=true",
         "--OUTPUT_VCF=false",
-        "--TRUTH_SAMPLE=sample2",
+        "--TRUTH_SAMPLE=sample1",
         "--USE_VCF_INDEX=false",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
@@ -277,7 +277,7 @@
         "--MISSING_SITES_HOM_REF=false",
         "--OUTPUT_ALL_ROWS=true",
         "--OUTPUT_VCF=true",
-        "--TRUTH_SAMPLE=sample2",
+        "--TRUTH_SAMPLE=sample1",
         "--USE_VCF_INDEX=false",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -302,7 +302,7 @@
         "--MISSING_SITES_HOM_REF=true",
         "--OUTPUT_ALL_ROWS=true",
         "--OUTPUT_VCF=true",
-        "--TRUTH_SAMPLE=sample1",
+        "--TRUTH_SAMPLE=sample2",
         "--USE_VCF_INDEX=true",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -327,7 +327,7 @@
         "--MISSING_SITES_HOM_REF=false",
         "--OUTPUT_ALL_ROWS=false",
         "--OUTPUT_VCF=true",
-        "--TRUTH_SAMPLE=sample2",
+        "--TRUTH_SAMPLE=sample1",
         "--USE_VCF_INDEX=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -352,7 +352,7 @@
         "--MISSING_SITES_HOM_REF=true",
         "--OUTPUT_ALL_ROWS=true",
         "--OUTPUT_VCF=false",
-        "--TRUTH_SAMPLE=sample2",
+        "--TRUTH_SAMPLE=sample1",
         "--USE_VCF_INDEX=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -377,7 +377,7 @@
         "--MISSING_SITES_HOM_REF=true",
         "--OUTPUT_ALL_ROWS=true",
         "--OUTPUT_VCF=true",
-        "--TRUTH_SAMPLE=sample1",
+        "--TRUTH_SAMPLE=sample2",
         "--USE_VCF_INDEX=false",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -402,7 +402,7 @@
         "--MISSING_SITES_HOM_REF=true",
         "--OUTPUT_ALL_ROWS=true",
         "--OUTPUT_VCF=true",
-        "--TRUTH_SAMPLE=sample2",
+        "--TRUTH_SAMPLE=sample1",
         "--USE_VCF_INDEX=true",
         "--VALIDATION_STRINGENCY=SILENT"
       ]

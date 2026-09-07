@@ -220,6 +220,27 @@
         "/work/fixtures/small.bam"
       ]
     },
+    "GenotypeConcordance": {
+      "$why": [
+        "Both sides are the same file, and the two samples are what makes the comparison say",
+        "anything: sample1 against sample1 is perfect concordance, sample1 against sample2 is a",
+        "real contingency table. CALL_SAMPLE is held at one value so the array varies the truth",
+        "side alone, which is enough to reach both shapes."
+      ],
+      "--TRUTH_VCF": [
+        "/work/fixtures/variants.vcf"
+      ],
+      "--CALL_VCF": [
+        "/work/fixtures/variants.vcf"
+      ],
+      "--TRUTH_SAMPLE": [
+        "sample1",
+        "sample2"
+      ],
+      "--CALL_SAMPLE": [
+        "sample1"
+      ]
+    },
     "MakeVcfSampleNameMap": {
       "--INPUT": [
         "/work/fixtures/single_sample.vcf",
