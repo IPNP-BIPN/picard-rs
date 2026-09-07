@@ -39,12 +39,50 @@ impl Filter {
 }
 
 /// Parses a `READ_LIST_FILE`: one read name per line, blank lines ignored.
-fn read_name_set(read_list_text: &str) -> HashSet<&str> {
+pub fn read_name_set(read_list_text: &str) -> HashSet<&str> {
     read_list_text
         .lines()
         .map(str::trim)
         .filter(|l| !l.is_empty())
         .collect()
+}
+
+/// `ReadNameFilter.filterOut` over records already in memory: a read is kept when its membership
+/// in the set matches the filter's `includeReads` flag.
+///
+/// The text entry points below parse and re-encode SAM; a caller holding records (a BAM reader,
+/// say) needs the predicate and not the parsing.
+pub fn keep_by_read_list(
+    records: &[BamRecord],
+    names: &HashSet<&str>,
+    filter: Filter,
+) -> Vec<BamRecord> {
+    let include = filter.include();
+    records
+        .par_iter()
+        .filter(|rec| names.contains(rec.read_name.as_str()) == include)
+        .cloned()
+        .collect()
+}
+
+/// `AlignedFilter` driven pairwise over records already in memory, as
+/// [`filter_sam_reads_aligned`] does over SAM text.
+pub fn keep_by_alignment(records: &[BamRecord], filter: AlignedFilter) -> Vec<BamRecord> {
+    let include = matches!(filter, AlignedFilter::IncludeAligned);
+    let mut kept: Vec<BamRecord> = Vec::with_capacity(records.len());
+    let mut start = 0;
+    while start < records.len() {
+        let mut end = start + 1;
+        while end < records.len() && records[end].read_name == records[start].read_name {
+            end += 1;
+        }
+        let group = &records[start..end];
+        if group.iter().all(is_aligned) == include {
+            kept.extend_from_slice(group);
+        }
+        start = end;
+    }
+    kept
 }
 
 /// `FilterSamReads` with a read-list filter, for SAM input and output. `read_list_text` is the

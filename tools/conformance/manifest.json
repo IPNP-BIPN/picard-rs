@@ -231,6 +231,12 @@
         "t": 2,
         "status": "measured",
         "exit_code_is_a_result": true
+      },
+      {
+        "tool": "FilterSamReads",
+        "port": "filter-sam-reads",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },

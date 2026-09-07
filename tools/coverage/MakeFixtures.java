@@ -83,6 +83,12 @@ public class MakeFixtures {
         SAMFileHeader unmappedHeader = header(SAMFileHeader.SortOrder.unsorted);
         writeBam(new File(dir, "unmapped.bam"), unmappedHeader, unmapped(unmappedHeader), false);
 
+        // A read-name list, for FilterSamReads' includeReadList / excludeReadList. Every fourth
+        // pair, so both filters keep something and drop something.
+        try (PrintWriter out = new PrintWriter(new File(dir, "read_names.txt"), "UTF-8")) {
+            for (int i = 0; i < READS; i += 8) out.printf("read%04d%n", i);
+        }
+
         writeIntervals(new File(dir, "targets.interval_list"));
         writeBed(new File(dir, "targets.bed"));
         writeMixedBed(new File(dir, "targets_mixed.bed"));
