@@ -252,6 +252,20 @@
         "status": "pending"
       },
       {
+        "tool": "SplitSamByNumberOfReads",
+        "port": "split-sam-by-number-of-reads",
+        "t": 2,
+        "status": "pending",
+        "output_name": "shard_0001.bam"
+      },
+      {
+        "tool": "SplitSamByLibrary",
+        "port": "split-sam-by-library",
+        "t": 2,
+        "status": "pending",
+        "output_name": "lib1.bam"
+      },
+      {
         "tool": "MarkDuplicatesWithMateCigar",
         "port": "mark-duplicates-with-mate-cigar",
         "t": 2,

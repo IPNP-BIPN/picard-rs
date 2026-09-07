@@ -220,6 +220,21 @@
         "/work/fixtures/small.bam"
       ]
     },
+    "SplitSamByNumberOfReads": {
+      "--OUTPUT": [
+        "/work/out"
+      ],
+      "--SPLIT_TO_N_READS": [
+        "100",
+        "300"
+      ],
+      "--SPLIT_TO_N_FILES": []
+    },
+    "SplitSamByLibrary": {
+      "--OUTPUT": [
+        "/work/out"
+      ]
+    },
     "MarkDuplicates": {
       "--ASSUME_SORTED": [],
       "--TAG_DUPLICATE_SET_MEMBERS": []
