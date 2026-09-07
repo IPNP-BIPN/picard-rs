@@ -48,6 +48,10 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/FilterSamReads.t2.txt
 !tools/coverage/corpus/MarkDuplicates.t2.txt
 !tools/coverage/corpus/FastqToSam.t2.txt
+!tools/coverage/corpus/SplitSamByNumberOfReads.t2.txt
+!tools/coverage/corpus/SplitSamByLibrary.t2.txt
+!tools/coverage/corpus/MakeVcfSampleNameMap.t2.txt
+!tools/coverage/corpus/SamToFastq.t2.txt
 !tools/coverage/corpus/MarkDuplicatesWithMateCigar.t2.txt
 !tools/coverage/corpus/SimpleMarkDuplicatesWithMateCigar.t2.txt
 # {{END coverage corpora}}

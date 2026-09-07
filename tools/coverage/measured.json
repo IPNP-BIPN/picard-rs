@@ -180,6 +180,16 @@
       "t": 2,
       "share": 1.0
     },
+    "MakeVcfSampleNameMap": {
+      "rows": 6,
+      "accepted": 3,
+      "rejected": 3,
+      "distinct_outputs": 1,
+      "distinct_rejections": 1,
+      "matched": 6,
+      "t": 2,
+      "share": 1.0
+    },
     "MarkDuplicates": {
       "rows": 21,
       "accepted": 6,
@@ -300,6 +310,16 @@
       "t": 2,
       "share": 1.0
     },
+    "SamToFastq": {
+      "rows": 10,
+      "accepted": 3,
+      "rejected": 7,
+      "distinct_outputs": 3,
+      "distinct_rejections": 1,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
     "ScatterIntervalsByNs": {
       "rows": 9,
       "accepted": 9,
@@ -337,6 +357,26 @@
       "distinct_outputs": 2,
       "distinct_rejections": 2,
       "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
+    "SplitSamByLibrary": {
+      "rows": 9,
+      "accepted": 9,
+      "rejected": 0,
+      "distinct_outputs": 3,
+      "distinct_rejections": 0,
+      "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
+    "SplitSamByNumberOfReads": {
+      "rows": 9,
+      "accepted": 9,
+      "rejected": 0,
+      "distinct_outputs": 5,
+      "distinct_rejections": 0,
+      "matched": 9,
       "t": 2,
       "share": 1.0
     },
