@@ -107,20 +107,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         read_sam(&text).map_err(|e| format!("{e:?}"))?
     };
 
-    match revert_with(&header, records, &options) {
-        Ok((out_header, records)) => write_bam(&output, &out_header, &records)?,
-        Err((out_header, records, error)) => {
-            // The discard-fraction refusal happens after `out.close()`, so the output exists and
-            // then the tool throws. Writing it here is not tidiness: a row that stops short of the
-            // write would differ from the reference on the file as well as on the message.
-            write_bam(&output, &out_header, &records)?;
-            eprintln!(
-                "Exception in thread \"main\" {}: {}",
-                error.java_class(),
-                error.message()
-            );
-            std::process::exit(1);
-        }
+    // The discard-fraction refusal happens after `out.close()`, so the output exists and then the
+    // tool throws. Writing before the exit is not tidiness: a row that stopped short of the write
+    // would differ from the reference on the file as well as on the message.
+    let reverted = revert_with(&header, records, &options);
+    write_bam(&output, &reverted.header, &reverted.records)?;
+    if let Some(error) = reverted.error {
+        eprintln!(
+            "Exception in thread \"main\" {}: {}",
+            error.java_class(),
+            error.message()
+        );
+        std::process::exit(1);
     }
     Ok(())
 }

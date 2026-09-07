@@ -418,16 +418,20 @@ fn sanitize(records: Vec<BamRecord>, keep_first_duplicate: bool) -> (Vec<BamReco
     (out, discarded, total)
 }
 
-/// `RevertSam.doWork` up to the write, with the tool's arguments.
+/// What a run produced: the output, and the refusal if there was one.
 ///
-/// The output file is produced even when the discard fraction refuses the run: Picard closes the
-/// writer and throws afterwards, so the caller gets the records AND the error.
-#[allow(clippy::type_complexity)]
-pub fn revert_with(
-    header: &SamHeader,
-    records: Vec<BamRecord>,
-    options: &Options,
-) -> Result<(SamHeader, Vec<BamRecord>), (SamHeader, Vec<BamRecord>, RevertError)> {
+/// A `Result` would be the wrong shape here, because the discard-fraction refusal does not
+/// replace the output. Picard closes the writer and throws afterwards, so the file exists and the
+/// run still fails, and a caller that wrote nothing on the error would differ from the reference
+/// on the bytes as well as on the message.
+pub struct Reverted {
+    pub header: SamHeader,
+    pub records: Vec<BamRecord>,
+    pub error: Option<RevertError>,
+}
+
+/// `RevertSam.doWork` up to the write, with the tool's arguments.
+pub fn revert_with(header: &SamHeader, records: Vec<BamRecord>, options: &Options) -> Reverted {
     // createOutHeader: a fresh header carrying the sort order; the dictionary and the @PG records
     // survive only when the alignment is kept. The read groups are added afterwards, always.
     let mut out_header = SamHeader::new();
@@ -464,17 +468,16 @@ pub fn revert_with(
         } else {
             discarded as f64 / total as f64
         };
-        if fraction > options.max_discard_fraction {
-            return Err((
-                out_header,
-                kept,
-                RevertError::DiscardedTooMuch {
-                    discarded: fraction,
-                    max: options.max_discard_fraction,
-                },
-            ));
-        }
-        return Ok((out_header, kept));
+        let error =
+            (fraction > options.max_discard_fraction).then_some(RevertError::DiscardedTooMuch {
+                discarded: fraction,
+                max: options.max_discard_fraction,
+            });
+        return Reverted {
+            header: out_header,
+            records: kept,
+            error,
+        };
     }
 
     if !presorted {
@@ -483,7 +486,11 @@ pub fn revert_with(
             SortOrder::Coordinate => records.sort_by(coordinate::compare),
         }
     }
-    Ok((out_header, records))
+    Reverted {
+        header: out_header,
+        records,
+        error: None,
+    }
 }
 
 /// `RevertSam.doWork` up to the write: the bare output header and the reverted, queryname-sorted
