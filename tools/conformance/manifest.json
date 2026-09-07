@@ -249,7 +249,7 @@
         "tool": "FastqToSam",
         "port": "fastq-to-sam",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "SplitSamByNumberOfReads",

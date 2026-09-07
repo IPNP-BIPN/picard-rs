@@ -317,7 +317,6 @@ jobs:
             --log /tmp/SamToFastq.log \
             --log /tmp/MarkDuplicatesWithMateCigar.log \
             --log /tmp/SimpleMarkDuplicatesWithMateCigar.log \
-            --pending FastqToSam \
             --pending SplitSamByNumberOfReads \
             --pending SplitSamByLibrary \
             --pending MakeVcfSampleNameMap \
@@ -367,6 +366,7 @@ jobs:
             tools/coverage/corpus/ValidateSamFile.t2.txt \
             tools/coverage/corpus/FilterSamReads.t2.txt \
             tools/coverage/corpus/MarkDuplicates.t2.txt \
+            tools/coverage/corpus/FastqToSam.t2.txt \
             tools/coverage/corpus/MarkDuplicatesWithMateCigar.t2.txt \
             tools/coverage/corpus/SimpleMarkDuplicatesWithMateCigar.t2.txt)
           if [ -n "$dirty" ]; then
