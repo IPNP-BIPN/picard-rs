@@ -244,6 +244,20 @@
         "t": 2,
         "status": "pending",
         "strip_program_records": true
+      },
+      {
+        "tool": "MarkDuplicatesWithMateCigar",
+        "port": "mark-duplicates-with-mate-cigar",
+        "t": 2,
+        "status": "pending",
+        "strip_program_records": true
+      },
+      {
+        "tool": "SimpleMarkDuplicatesWithMateCigar",
+        "port": "simple-mark-duplicates-with-mate-cigar",
+        "t": 2,
+        "status": "pending",
+        "strip_program_records": true
       }
     ]
   },

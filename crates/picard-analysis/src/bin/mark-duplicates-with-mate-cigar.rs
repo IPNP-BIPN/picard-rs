@@ -1,19 +1,18 @@
-//! `MarkDuplicates` as a runnable binary: the covering array's port side.
+//! `MarkDuplicatesWithMateCigar` as a runnable binary: the covering array's port side.
 //!
-//! The library decides which records are duplicates; this is the file around that decision, and
-//! the file is where the arguments live.
+//! The sibling of `MarkDuplicates` that reads the mate's position off the `MC` tag instead of
+//! waiting for the mate, which is why one pass over a coordinate-sorted file is enough for it and
+//! why almost every row of its array is a refusal:
 //!
-//! `ASSUME_SORT_ORDER` is the one that shapes everything. It is not a hint: the reference reads it
-//! instead of the header, refuses anything that is neither coordinate nor queryname, and, for
-//! queryname, rewrites the OUTPUT header to `SO:unknown GO:query` because a queryname-grouped file
-//! is not a sorted one. The writer is always presorted, so assuming coordinate over a
-//! queryname-sorted file does not re-sort anything -- it reaches htsjdk's own check and fails
-//! there, with htsjdk's wording.
+//! * a file that is not coordinate-sorted is refused before a record is read;
+//! * `DUPLICATE_SCORING_STRATEGY=SUM_OF_BASE_QUALITIES` is refused outright, whatever the file
+//!   holds, because the two ends of a pair are scored separately here and summing base qualities
+//!   would let them disagree;
+//! * a pair with no `MC` is skipped, and `SKIP_PAIRS_WITH_NO_MATE_CIGAR=false` turns that skip
+//!   into a refusal naming the read.
 //!
-//! What is not ported here is stated rather than implied: `TAG_DUPLICATE_SET_MEMBERS` needs the
-//! representative-read index of every duplicate set, which is a second sorting collection in the
-//! reference and a surface of its own, so the repository declares no value for it and the array
-//! does not vary it.
+//! The corpus gained `mate_cigar.bam` for this: without a file that carries the tag, every row
+//! measured the refusal and nothing else.
 
 use std::io::Read;
 
@@ -23,7 +22,10 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
-use picard_analysis::mark_duplicates::{mark, Options, Record, ScoringStrategy, TaggingPolicy};
+use picard_analysis::mark_duplicates::{Options, Record, ScoringStrategy, TaggingPolicy};
+use picard_analysis::mate_cigar_duplicates::{
+    mark_with_mate_cigar, MateCigarOptions, SortOrder as MateSortOrder,
+};
 
 const DUPLICATE_READ: u16 = 0x400;
 
@@ -74,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or(100),
         parse_read_names: true,
         barcode_tag: arg(&args, "BARCODE_TAG="),
-        assume_mate_cigar: false,
+        assume_mate_cigar: true,
     };
 
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
@@ -98,29 +100,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         read_sam(&text).map_err(|e| format!("{e:?}"))?
     };
 
-    // `openInputs` sets the header's own sort order to ASSUME_SORT_ORDER, so by the time the check
-    // below reads "the header", the header is already saying what it was told to say -- which is
-    // why the refusal prints the assumed order twice.
-    let assumed = arg(&args, "ASSUME_SORT_ORDER=").or_else(|| arg(&args, "ASO="));
+    // ASSUME_SORT_ORDER is written into the header by `openInputs`, so it decides this check as
+    // surely as the file does: a coordinate-sorted file assumed to be anything else is refused,
+    // and the message says nothing about the assumption.
     let mut header = header;
-    if let Some(order) = &assumed {
-        header.set_sort_order(order);
+    if let Some(order) = arg(&args, "ASSUME_SORT_ORDER=").or_else(|| arg(&args, "ASO=")) {
+        header.set_sort_order(&order);
     }
     let header_order = header
         .attributes
         .get("SO")
         .unwrap_or("unsorted")
         .to_string();
-    if !matches!(header_order.as_str(), "coordinate" | "queryname") {
-        eprintln!(
-            "Exception in thread \"main\" picard.PicardException: This program requires input that \
-             are either coordinate or query sorted (according to the header, or at least \
-             ASSUME_SORT_ORDER and the content.) Found ASSUME_SORT_ORDER={} and header \
-             sortorder={header_order}",
-            assumed.as_deref().unwrap_or("null")
-        );
-        std::process::exit(1);
-    }
+    let order = match header_order.as_str() {
+        "coordinate" => MateSortOrder::Coordinate,
+        "queryname" => MateSortOrder::Queryname,
+        _ => MateSortOrder::Unsorted,
+    };
 
     // The read group's library, which is what a duplicate set is cut by, and the group's index in
     // the header, which is what `closeEnough` compares.
@@ -169,81 +165,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }),
                 existing_dt: string_tag(record, b"DT"),
-                mate_cigar: None,
+                mate_cigar: match record.tags.get(Tag::new(b"MC")) {
+                    Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text).ok(),
+                    _ => None,
+                },
                 mate_alignment_start: record.mate_alignment_start,
             }
         })
         .collect();
 
-    let marking = mark(&marked_records, &options);
+    let mate_options = MateCigarOptions {
+        base: options.clone(),
+        skip_pairs_with_no_mate_cigar: flag("SKIP_PAIRS_WITH_NO_MATE_CIGAR=", true),
+        minimum_distance: arg(&args, "MINIMUM_DISTANCE=")
+            .map(|v| v.parse::<i32>())
+            .transpose()?
+            .unwrap_or(-1),
+    };
+    let marking = match mark_with_mate_cigar(&marked_records, order, &mate_options) {
+        Ok(marking) => marking,
+        Err(refusal) => {
+            eprintln!(
+                "Exception in thread \"main\" {}: {}",
+                refusal.exception(),
+                refusal.message()
+            );
+            std::process::exit(1);
+        }
+    };
 
-    // `createOutHeader`: assuming queryname says the file is queryname GROUPED, which is not a
-    // sort order, so the output says so.
-    let mut out_header = header.clone();
-    if assumed.as_deref() == Some("queryname") {
-        out_header.set_sort_order("unknown");
-        out_header.set_group_order("query");
-    }
+    let out_header = header.clone();
     let add_pg_tag = flag("ADD_PG_TAG_TO_READS=", true);
-
-    // htsjdk's own check in `SAMFileWriterImpl.addAlignment`, which is where a file assumed to be
-    // coordinate-sorted and not is caught. The writer is presorted, so nothing re-sorts and the
-    // record that goes backwards is the one that throws.
-    let coordinate_out = out_header.attributes.get("SO") == Some("coordinate");
-    let mut previous: Option<(i32, i32)> = None;
 
     let mut writer = BamWriter::new(Vec::new(), &out_header).map_err(|e| format!("{e:?}"))?;
     for (index, record) in records.iter().enumerate() {
         if !marking.written[index] {
             continue;
         }
-        if coordinate_out {
-            // `SAMSortOrderChecker.isSorted` under `coordinate`, whose key is the contig NAME and
-            // the start, and whose message prints that key for both records.
-            let here = (record.reference_index, record.alignment_start);
-            if let Some(before) = previous {
-                // `SAMRecordCoordinateComparator.fileOrderCompare`, in which an UNMAPPED record
-                // (reference index -1) sorts LAST rather than first: comparing the pair as plain
-                // tuples finds a violation one record early, and the message names the record it
-                // found rather than the record htsjdk finds.
-                let file_order = |left: (i32, i32), right: (i32, i32)| -> i32 {
-                    if left.0 == -1 {
-                        return if right.0 == -1 { 0 } else { 1 };
-                    }
-                    if right.0 == -1 {
-                        return -1;
-                    }
-                    if left.0 != right.0 {
-                        return left.0 - right.0;
-                    }
-                    left.1 - right.1
-                };
-                if file_order(before, here) > 0 {
-                    let key = |reference_index: i32, start: i32| -> String {
-                        let name = usize::try_from(reference_index)
-                            .ok()
-                            .and_then(|i| out_header.sequences.get(i))
-                            .map(|s| s.name.as_str())
-                            .unwrap_or("*");
-                        format!("{name}:{start}")
-                    };
-                    // Both keys are the OFFENDING record, and that is htsjdk's, not a slip here:
-                    // `isSorted` sets `prev = rec` before returning false, so the message's
-                    // `getPreviousRecord()` returns the record that has just been rejected.
-                    eprintln!(
-                        "Exception in thread \"main\" java.lang.IllegalArgumentException: \
-                         Alignments added out of order in SAMFileWriterImpl.addAlignment for \
-                         file://{output}. Sort order is coordinate. Offending records are at [{}] \
-                         and [{}]",
-                        key(here.0, here.1),
-                        key(here.0, here.1)
-                    );
-                    std::process::exit(1);
-                }
-            }
-            previous = Some(here);
-        }
-
         let mut written = record.clone();
         written.flags &= !DUPLICATE_READ;
         if marking.duplicate[index] {
@@ -255,10 +213,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .tags
                 .insert(Tag::new(b"DT"), TagValue::Str(code.clone()));
         }
+        // `updateProgramRecord` only CHAINS: a record that already carries a `PG` gets the new id,
+        // and a record with none gets a warning and nothing else. That is the opposite of
+        // `MarkDuplicates`, which fills its chain from the records themselves and so stamps every
+        // one of them; here the chain comes from the HEADER's program records, and this corpus has
+        // none, so `ADD_PG_TAG_TO_READS` changes not a byte.
         if add_pg_tag {
-            written
-                .tags
-                .insert(Tag::new(b"PG"), TagValue::Str("MarkDuplicates".to_string()));
+            if let Some(TagValue::Str(existing)) = written.tags.get(Tag::new(b"PG")) {
+                let chained = existing.clone();
+                if header.programs.iter().any(|pg| pg.id == chained) {
+                    written.tags.insert(Tag::new(b"PG"), TagValue::Str(chained));
+                }
+            }
         }
         writer.write(&written).map_err(|e| format!("{e:?}"))?;
     }
