@@ -26,6 +26,9 @@
     "--HISTOGRAM_FILE": [
       "/work/out/histogram.pdf"
     ],
+    "--METRICS": [
+      "/work/out/metrics.txt"
+    ],
     "--METRICS_FILE": [
       "/work/out/metrics.txt"
     ],
@@ -240,6 +243,12 @@
       "--INPUT": [
         "/work/fixtures/mate_cigar.bam",
         "/work/fixtures/small.bam"
+      ]
+    },
+    "MarkIlluminaAdapters": {
+      "--INPUT": [
+        "/work/fixtures/adapters.bam",
+        "/work/fixtures/queryname.bam"
       ]
     },
     "MakeVcfSampleNameMap": {

@@ -310,6 +310,12 @@
         "port": "collect-jumping-library-metrics",
         "t": 2,
         "status": "pending"
+      },
+      {
+        "tool": "MarkIlluminaAdapters",
+        "port": "mark-illumina-adapters",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
