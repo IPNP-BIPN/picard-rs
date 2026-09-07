@@ -217,6 +217,13 @@
         "t": 2,
         "status": "measured",
         "strip_program_records": true
+      },
+      {
+        "tool": "PositionBasedDownsampleSam",
+        "port": "position-based-downsample-sam",
+        "t": 2,
+        "status": "pending",
+        "strip_program_records": true
       }
     ]
   },
