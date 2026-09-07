@@ -229,7 +229,7 @@
         "tool": "ValidateSamFile",
         "port": "validate-sam-file",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "exit_code_is_a_result": true
       }
     ]
