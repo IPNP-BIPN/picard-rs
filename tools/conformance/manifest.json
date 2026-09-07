@@ -278,6 +278,13 @@
         "status": "measured"
       },
       {
+        "tool": "CollectDuplicateMetrics",
+        "port": "collect-duplicate-metrics",
+        "t": 2,
+        "status": "pending",
+        "output_name": "metrics.txt"
+      },
+      {
         "tool": "MarkDuplicatesWithMateCigar",
         "port": "mark-duplicates-with-mate-cigar",
         "t": 2,
