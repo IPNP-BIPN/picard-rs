@@ -236,7 +236,7 @@
         "tool": "FilterSamReads",
         "port": "filter-sam-reads",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       }
     ]
   },
