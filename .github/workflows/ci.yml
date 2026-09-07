@@ -297,7 +297,6 @@ jobs:
             --log /tmp/MarkDuplicates.log \
             --log /tmp/MarkDuplicatesWithMateCigar.log \
             --log /tmp/SimpleMarkDuplicatesWithMateCigar.log \
-            --pending MarkDuplicates \
             --pending MarkDuplicatesWithMateCigar \
             --pending SimpleMarkDuplicatesWithMateCigar \
             --out tools/coverage/measured.json \
@@ -343,7 +342,8 @@ jobs:
             tools/coverage/corpus/IntervalListTools.t2.txt \
             tools/coverage/corpus/PositionBasedDownsampleSam.t2.txt \
             tools/coverage/corpus/ValidateSamFile.t2.txt \
-            tools/coverage/corpus/FilterSamReads.t2.txt)
+            tools/coverage/corpus/FilterSamReads.t2.txt \
+            tools/coverage/corpus/MarkDuplicates.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
