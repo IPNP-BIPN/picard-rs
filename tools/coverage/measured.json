@@ -180,6 +180,16 @@
       "t": 2,
       "share": 1.0
     },
+    "MarkDuplicatesWithMateCigar": {
+      "rows": 18,
+      "accepted": 1,
+      "rejected": 17,
+      "distinct_outputs": 1,
+      "distinct_rejections": 3,
+      "matched": 17,
+      "t": 2,
+      "share": 0.9444444444444444
+    },
     "MeanQualityByCycle": {
       "rows": 10,
       "accepted": 7,
@@ -299,6 +309,16 @@
       "matched": 11,
       "t": 2,
       "share": 1.0
+    },
+    "SimpleMarkDuplicatesWithMateCigar": {
+      "rows": 20,
+      "accepted": 2,
+      "rejected": 18,
+      "distinct_outputs": 2,
+      "distinct_rejections": 2,
+      "matched": 16,
+      "t": 2,
+      "share": 0.8
     },
     "SortSam": {
       "rows": 10,
