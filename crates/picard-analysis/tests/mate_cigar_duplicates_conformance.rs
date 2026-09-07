@@ -32,6 +32,11 @@ fn corpus() -> String {
     text
 }
 
+/// The fixture's one contig, which the refusal renders into the record's description.
+fn contigs() -> Vec<String> {
+    vec!["chr1".to_string()]
+}
+
 fn field(text: &str, kind: &str, case: &str) -> Option<String> {
     let prefix = format!("{kind}\t{case}\t");
     text.lines()
@@ -149,7 +154,7 @@ fn both_tools_mark_what_the_reference_marked() {
             },
         )
         .expect("a coordinate-sorted file");
-        let simple = simple_mark_with_mate_cigar(&input, SortOrder::Coordinate, &base)
+        let simple = simple_mark_with_mate_cigar(&input, SortOrder::Coordinate, &base, &contigs())
             .expect("a coordinate-sorted file");
         assert_eq!(
             produced(&input, &with),
@@ -216,15 +221,19 @@ fn the_refusals_are_the_reference_ones() {
         format!("{}:{}", refused.exception(), refused.message())
     );
 
-    // The simple one refuses the same file whatever the skip says, in htsjdk's words. The golden
-    // records more of the read than the port carries, so what is compared is the prefix the
-    // message is built from.
-    let refused = simple_mark_with_mate_cigar(&input, SortOrder::Coordinate, &Options::default())
-        .expect_err("the refusal");
+    // The simple one refuses the same file whatever the skip says, in htsjdk's words -- and those
+    // words are the whole RECORD, not the read name, which the port now renders.
+    let refused = simple_mark_with_mate_cigar(
+        &input,
+        SortOrder::Coordinate,
+        &Options::default(),
+        &contigs(),
+    )
+    .expect_err("the refusal");
     let recorded = field(&text, "error", "no-mate-cigar.simple").expect("the golden's refusal");
-    assert!(
-        recorded.starts_with(&format!("{}:{}", refused.exception(), refused.message())),
-        "{recorded}"
+    assert_eq!(
+        recorded,
+        format!("{}:{}", refused.exception(), refused.message())
     );
     assert!(matches!(refused, Refusal::MateCigarNotFound { .. }));
 
@@ -250,7 +259,12 @@ fn the_refusals_are_the_reference_ones() {
         Err(Refusal::NotCoordinateSorted)
     );
     assert_eq!(
-        simple_mark_with_mate_cigar(&input, SortOrder::Queryname, &Options::default()),
+        simple_mark_with_mate_cigar(
+            &input,
+            SortOrder::Queryname,
+            &Options::default(),
+            &contigs()
+        ),
         Err(Refusal::NotCoordinateSorted)
     );
     assert!(marked(&text, "a-queryname-sorted-file.markduplicates").is_some());

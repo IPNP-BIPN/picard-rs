@@ -49,6 +49,7 @@ pub mod crosscheck_fingerprints;
 pub mod crosscheck_read_group_fingerprints;
 pub mod cycle;
 pub mod downsample_sam;
+pub mod duplicate_set;
 pub mod estimate_library_complexity;
 pub mod extract_fingerprint;
 pub mod extract_illumina_barcodes;
