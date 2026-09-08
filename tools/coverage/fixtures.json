@@ -464,6 +464,28 @@
         "unsorted",
         "unknown"
       ]
+    },
+    "FindMendelianViolations": {
+      "$why": [
+        "TRIOS is a pedigree file with no default, so the tool cannot run without one declared;",
+        "trio.vcf and trio.ped are the corpus. MIN_GQ and MIN_DP are declared because both have a",
+        "default and no bounds: the values straddle the child genotype qualities the fixture",
+        "carries, so lowering the floor admits a de novo call the default refuses to judge."
+      ],
+      "--INPUT": [
+        "/work/fixtures/trio.vcf"
+      ],
+      "--TRIOS": [
+        "/work/fixtures/trio.ped"
+      ],
+      "--MIN_GQ": [
+        "30",
+        "10"
+      ],
+      "--MIN_DP": [
+        "0",
+        "10"
+      ]
     }
   },
   "constraints": [

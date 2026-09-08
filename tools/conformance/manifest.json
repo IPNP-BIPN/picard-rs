@@ -354,6 +354,12 @@
         "t": 2,
         "status": "pending",
         "output_name": "CB.fastq"
+      },
+      {
+        "tool": "FindMendelianViolations",
+        "port": "find-mendelian-violations",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
