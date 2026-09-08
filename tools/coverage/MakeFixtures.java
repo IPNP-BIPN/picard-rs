@@ -494,6 +494,34 @@ public class MakeFixtures {
             out.print("\n");
         }
 
+        // The same two contigs mapped onto themselves end to end, so that a tool given this chain
+        // lifts everything and one given the other drops what falls outside it: the pair is what
+        // makes CHAIN an argument that decides something.
+        try (PrintWriter out = new PrintWriter(new File(dir, "lift_all.chain"), "UTF-8")) {
+            out.print("chain 1000 chr1 " + CHR1 + " + 0 " + CHR1 + " chr1 " + CHR1 + " + 0 " + CHR1 + " 1\n");
+            out.print(CHR1 + "\n");
+            out.print("\n");
+            out.print("chain 1000 chr2 " + CHR2 + " + 0 " + CHR2 + " chr2 " + CHR2 + " + 0 " + CHR2 + " 2\n");
+            out.print(CHR2 + "\n");
+            out.print("\n");
+        }
+
+        // A haplotype database, for the fingerprinting tools. Two blocks of two SNPs and one of
+        // one, anchored the way the format wants: the first SNP of a block names no anchor and
+        // every other names it. Two of the SNPs sit past chr1:1500, where lift.chain covers
+        // nothing, so a liftover drops them and reports the failure in its exit code.
+        try (PrintWriter out = new PrintWriter(new File(dir, "haplotypes.txt"), "UTF-8")) {
+            out.print("@HD\tVN:1.0\tSO:coordinate\n");
+            out.print("@SQ\tSN:chr1\tLN:" + CHR1 + "\n");
+            out.print("@SQ\tSN:chr2\tLN:" + CHR2 + "\n");
+            out.print("#CHROMOSOME\tPOSITION\tNAME\tMAJOR_ALLELE\tMINOR_ALLELE\tMAF\tANCHOR_SNP\tPANELS\n");
+            out.print("chr1\t100\trs1\tA\tC\t0.30\t\t\n");
+            out.print("chr1\t200\trs2\tG\tT\t0.25\trs1\t\n");
+            out.print("chr1\t1600\trs3\tC\tG\t0.40\t\t\n");
+            out.print("chr1\t1700\trs4\tT\tA\t0.15\trs3\t\n");
+            out.print("chr2\t100\trs5\tG\tA\t0.20\t\t\n");
+        }
+
         writeIntervals(new File(dir, "targets.interval_list"));
         writeBed(new File(dir, "targets.bed"));
         writeMixedBed(new File(dir, "targets_mixed.bed"));

@@ -344,6 +344,13 @@
         "exit_code_is_a_result": true
       },
       {
+        "tool": "LiftOverHaplotypeMap",
+        "port": "lift-over-haplotype-map",
+        "t": 2,
+        "status": "pending",
+        "exit_code_is_a_result": true
+      },
+      {
         "tool": "CollectJumpingLibraryMetrics",
         "port": "collect-jumping-library-metrics",
         "t": 2,

@@ -167,6 +167,21 @@
         "15"
       ]
     },
+    "LiftOverHaplotypeMap": {
+      "$why": [
+        "The input is a haplotype database, which no shared value provides, and CHAIN has no",
+        "default. haplotypes.txt carries two SNPs past chr1:1500, where lift.chain covers nothing,",
+        "so every row of this array is the partial answer AND the 101 exit code the tool reports",
+        "for it."
+      ],
+      "--INPUT": [
+        "/work/fixtures/haplotypes.txt"
+      ],
+      "--CHAIN": [
+        "/work/fixtures/lift.chain",
+        "/work/fixtures/lift_all.chain"
+      ]
+    },
     "LiftOverIntervalList": {
       "$why": [
         "CHAIN has no default and the tool cannot run without one, so the corpus writes lift.chain:",
