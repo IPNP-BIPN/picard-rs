@@ -120,6 +120,25 @@
         "/work/fixtures/quality_yield_two.metrics"
       ]
     },
+    "CollectUmiPrevalenceMetrics": {
+      "$why": [
+        "MINIMUM_MQ and MINIMUM_BARCODE_BQ are declared because both have a default and no bounds,",
+        "so the generator would hold them there and the array would vary one boolean. The values",
+        "straddle what umi.bam carries: mapping qualities of 25 and 60, and a barcode quality of",
+        "twenty in the reads that carry a BQ tag at all."
+      ],
+      "--INPUT": [
+        "/work/fixtures/umi.bam"
+      ],
+      "--MINIMUM_MQ": [
+        "30",
+        "20"
+      ],
+      "--MINIMUM_BARCODE_BQ": [
+        "30",
+        "15"
+      ]
+    },
     "BedToIntervalList": {
       "--INPUT": [
         "/work/fixtures/targets.bed",
