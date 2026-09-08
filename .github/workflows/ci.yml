@@ -42,6 +42,19 @@ jobs:
         # hand edit fails here instead of surviving unnoticed.
         run: python3 tools/conformance/generate_ci.py --check
 
+      - name: No merge conflict survived into a tracked file
+        # A conflicted `tools/coverage/fixtures.json` was committed and merged: nothing parses that
+        # file in CI -- the arrays are generated from it beforehand and committed -- so the markers
+        # rode all the way to main. Two lines here would have caught it.
+        run: |
+          if git grep -Iln -e '^<<<<<<< ' -e '^>>>>>>> ' -- . ':!*.md' ; then
+            echo "a conflict marker is committed above"
+            exit 1
+          fi
+          python3 -c "import json; json.load(open('tools/coverage/fixtures.json'))"
+          python3 -c "import json; json.load(open('tools/conformance/manifest.json'))"
+          echo "no conflict markers, and the two JSON files parse"
+
       - name: Every committed golden belongs to a declared suite
         # A golden that no suite regenerates is a golden nothing checks: it can only ever be
         # compared against itself. Thirteen of them were in exactly that state before the manifest
@@ -356,6 +369,7 @@ jobs:
             --port target/release/mark-illumina-adapters \
             | tee /tmp/MarkIlluminaAdapters.log
           python3 tools/coverage/run_array.py --tool SamToFastqWithTags --t 2 \
+            --fixtures-dir /tmp/corpus \
             --port target/release/sam-to-fastq-with-tags --output-name CB.fastq \
             | tee /tmp/SamToFastqWithTags.log
           python3 tools/coverage/measure.py --log /tmp/AddOATag.log \
