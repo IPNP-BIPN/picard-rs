@@ -407,6 +407,23 @@ public class MakeFixtures {
         }
         writeBam(new File(dir, "tagged.bam"), taggedHeader, taggedReads, false);
 
+        // A trio and its pedigree, for `FindMendelianViolations`. The sites are chosen for the
+        // classes the tool counts: a de novo heterozygote in a child of two reference parents, a
+        // heterozygote from two homozygous-variant parents, a homozygote from a reference parent
+        // and a variant one, a homozygous-variant child of a reference and a heterozygote -- and
+        // inherited sites that are no violation at all, so the denominator is not the numerator.
+        //
+        // The genotype qualities straddle the default MIN_GQ of thirty and the depths the default
+        // MIN_DP of zero, and one child heterozygote has an allele depth so lopsided (10 and 1)
+        // that MIN_HET_FRACTION refuses to judge it.
+        writeTrioVcf(new File(dir, "trio.vcf"), chr1);
+        try (PrintWriter out = new PrintWriter(new File(dir, "trio.ped"), "UTF-8")) {
+            // family, individual, father, mother, sex (1 male, 2 female), phenotype
+            out.print("fam1\tchild\tfather\tmother\t1\t2\n");
+            out.print("fam1\tfather\t0\t0\t1\t1\n");
+            out.print("fam1\tmother\t0\t0\t2\t1\n");
+        }
+
         writeIntervals(new File(dir, "targets.interval_list"));
         writeBed(new File(dir, "targets.bed"));
         writeMixedBed(new File(dir, "targets_mixed.bed"));
@@ -800,6 +817,99 @@ public class MakeFixtures {
      * none. Every tool taking a SEQUENCE_DICTIONARY therefore needed this file before it could be
      * given an array at all.
      */
+    static void writeTrioVcf(File f, String chr1) throws Exception {
+        htsjdk.samtools.SAMSequenceDictionary dict = new htsjdk.samtools.SAMSequenceDictionary();
+        dict.addSequence(new SAMSequenceRecord("chr1", chr1.length()));
+        dict.addSequence(new SAMSequenceRecord("chr2", CHR2));
+
+        java.util.Set<htsjdk.variant.vcf.VCFHeaderLine> lines = new java.util.LinkedHashSet<>();
+        lines.add(new htsjdk.variant.vcf.VCFFormatHeaderLine(
+                "GT", 1, htsjdk.variant.vcf.VCFHeaderLineType.String, "Genotype"));
+        lines.add(new htsjdk.variant.vcf.VCFFormatHeaderLine(
+                "GQ", 1, htsjdk.variant.vcf.VCFHeaderLineType.Integer, "Genotype quality"));
+        lines.add(new htsjdk.variant.vcf.VCFFormatHeaderLine(
+                "DP", 1, htsjdk.variant.vcf.VCFHeaderLineType.Integer, "Depth"));
+        lines.add(new htsjdk.variant.vcf.VCFFormatHeaderLine(
+                "AD", htsjdk.variant.vcf.VCFHeaderLineCount.R,
+                htsjdk.variant.vcf.VCFHeaderLineType.Integer, "Allele depths"));
+        lines.add(new htsjdk.variant.vcf.VCFFormatHeaderLine(
+                "PL", htsjdk.variant.vcf.VCFHeaderLineCount.G,
+                htsjdk.variant.vcf.VCFHeaderLineType.Integer, "Phred-scaled likelihoods"));
+
+        htsjdk.variant.vcf.VCFHeader header = new htsjdk.variant.vcf.VCFHeader(
+                lines, java.util.Arrays.asList("father", "mother", "child"));
+        header.setSequenceDictionary(dict);
+
+        // position, father, mother, child, child's allele depths, genotype quality
+        int[][] rows = {
+                //   pos  fa fa  mo mo  ch ch   AD0 AD1  GQ
+                {  100,  0, 0,   0, 0,   0, 1,   6,  6,  40 },  // de novo het
+                {  200,  1, 1,   1, 1,   0, 1,   6,  6,  40 },  // het from two hom-var parents
+                {  300,  0, 0,   1, 1,   0, 0,   9,  0,  40 },  // hom from ref x hom-var
+                {  400,  0, 0,   0, 1,   1, 1,   0,  9,  40 },  // hom-var from ref x het
+                {  500,  0, 1,   0, 1,   0, 1,   6,  6,  40 },  // inherited, no violation
+                {  600,  0, 1,   0, 0,   0, 1,   6,  6,  40 },  // inherited, no violation
+                {  700,  0, 0,   0, 0,   0, 1,   6,  6,  20 },  // de novo, under the default MIN_GQ
+                {  800,  0, 0,   0, 0,   0, 1,  10,  1,  40 },  // de novo, too lopsided to judge
+                {  900,  1, 1,   0, 0,   0, 1,   6,  6,  40 },  // inherited, no violation
+                { 1000,  0, 0,   0, 0,   0, 0,   9,  0,  40 },  // not variant at all
+        };
+
+        try (htsjdk.variant.variantcontext.writer.VariantContextWriter writer =
+                     new htsjdk.variant.variantcontext.writer.VariantContextWriterBuilder()
+                             .setOutputFile(f)
+                             .setReferenceDictionary(dict)
+                             .setOptions(java.util.EnumSet.of(
+                                     htsjdk.variant.variantcontext.writer.Options.INDEX_ON_THE_FLY))
+                             .build()) {
+            writer.writeHeader(header);
+            for (int[] row : rows) {
+                int pos = row[0];
+                htsjdk.variant.variantcontext.Allele ref =
+                        htsjdk.variant.variantcontext.Allele.create(
+                                chr1.substring(pos - 1, pos), true);
+                String altBase = chr1.charAt(pos - 1) == 'A' ? "C" : "A";
+                htsjdk.variant.variantcontext.Allele alt =
+                        htsjdk.variant.variantcontext.Allele.create(altBase, false);
+                java.util.List<htsjdk.variant.variantcontext.Allele> alleles =
+                        java.util.Arrays.asList(ref, alt);
+
+                java.util.List<htsjdk.variant.variantcontext.Genotype> genotypes =
+                        new java.util.ArrayList<>();
+                String[] names = {"father", "mother", "child"};
+                for (int sample = 0; sample < 3; sample++) {
+                    int first = row[1 + sample * 2];
+                    int second = row[2 + sample * 2];
+                    htsjdk.variant.variantcontext.GenotypeBuilder gb =
+                            new htsjdk.variant.variantcontext.GenotypeBuilder(names[sample],
+                                    java.util.Arrays.asList(
+                                            first == 0 ? ref : alt, second == 0 ? ref : alt));
+                    gb.GQ(sample == 2 ? row[9] : 40);
+                    // Two sites are shallower than the others, so MIN_DP decides something short
+                    // of deciding everything: at ten they drop out and the rest stay.
+                    gb.DP(sample == 2 && (pos == 500 || pos == 900) ? 8 : 12);
+                    gb.AD(sample == 2 ? new int[] {row[7], row[8]} : new int[] {6, 6});
+                    // `MendelianViolationDetector.accumulate` reads PL without checking for it,
+                    // so a genotype without one is a NullPointerException rather than a call the
+                    // tool skips: every genotype here carries the three likelihoods of a diploid
+                    // biallelic site, zero for the call that was made.
+                    // The likelihoods carry the same contrast as the declared quality, because
+                    // the detector reads the quality out of them: a PL that disagreed with GQ
+                    // would make MIN_GQ decide nothing at all.
+                    int called = first + second;
+                    int contrast = sample == 2 ? row[9] : 40;
+                    int[] pl = {called == 0 ? 0 : contrast,
+                                called == 1 ? 0 : contrast,
+                                called == 2 ? 0 : contrast};
+                    gb.PL(pl);
+                    genotypes.add(gb.make());
+                }
+                writer.add(new htsjdk.variant.variantcontext.VariantContextBuilder(
+                        "fixture", "chr1", pos, pos, alleles).genotypes(genotypes).make());
+            }
+        }
+    }
+
     static void writeVcf(File f, String chr1, String chr2, boolean withGenotypes) throws Exception {
         writeVcf(f, chr1, chr2, withGenotypes, 2);
     }

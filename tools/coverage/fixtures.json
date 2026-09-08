@@ -120,7 +120,6 @@
         "/work/fixtures/quality_yield_two.metrics"
       ]
     },
-<<<<<<< HEAD
     "SamToFastqWithTags": {
       "$why": [
         "The tag groups are free-form strings with no default, so without them the array cannot run",
@@ -147,7 +146,8 @@
       "--QUALITY_TAG_GROUP": [
         "CY",
         "CY,UY"
-=======
+      ]
+    },
     "CollectUmiPrevalenceMetrics": {
       "$why": [
         "MINIMUM_MQ and MINIMUM_BARCODE_BQ are declared because both have a default and no bounds,",
@@ -165,7 +165,6 @@
       "--MINIMUM_BARCODE_BQ": [
         "30",
         "15"
->>>>>>> main
       ]
     },
     "BedToIntervalList": {
@@ -445,6 +444,28 @@
       "--INPUT": [
         "/work/fixtures/queryname.bam",
         "/work/fixtures/small.bam"
+      ]
+    },
+    "FindMendelianViolations": {
+      "$why": [
+        "TRIOS is a pedigree file with no default, so the tool cannot run without one declared;",
+        "trio.vcf and trio.ped are the corpus. MIN_GQ and MIN_DP are declared because both have a",
+        "default and no bounds: the values straddle the child genotype qualities the fixture",
+        "carries, so lowering the floor admits a de novo call the default refuses to judge."
+      ],
+      "--INPUT": [
+        "/work/fixtures/trio.vcf"
+      ],
+      "--TRIOS": [
+        "/work/fixtures/trio.ped"
+      ],
+      "--MIN_GQ": [
+        "30",
+        "10"
+      ],
+      "--MIN_DP": [
+        "0",
+        "10"
       ]
     }
   },

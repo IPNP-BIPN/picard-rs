@@ -331,6 +331,12 @@
         "status": "pending"
       },
       {
+        "tool": "FindMendelianViolations",
+        "port": "find-mendelian-violations",
+        "t": 2,
+        "status": "pending"
+      },
+      {
         "tool": "CollectJumpingLibraryMetrics",
         "port": "collect-jumping-library-metrics",
         "t": 2,
