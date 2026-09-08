@@ -201,6 +201,87 @@ public class MakeFixtures {
         if (planted == 0) throw new IllegalStateException("no adapter was planted");
         writeBam(new File(dir, "adapters.bam"), adapterHeader, adapterReads, false);
 
+        // Read pairs that really do repeat, for `EstimateLibraryComplexity`. The tool groups pairs
+        // by the first MIN_IDENTICAL_BASES of both ends and counts how big each group of duplicates
+        // is; on the random bases of the other fixtures every group holds one pair, every bin is
+        // one, and MIN_GROUP_COUNT then drops the lot, so the metrics are zeros whatever the
+        // arguments say.
+        //
+        // Twenty-four families of one to four identical pairs each, which gives bins of one, two,
+        // three and four. Every fourth family mutates its later copies -- two bases, inside the
+        // default MAX_DIFF_RATE's allowance, or eight, outside it -- so the rate decides whether
+        // those copies join the group. Every sixth family is written at quality fifteen, below the
+        // default MIN_MEAN_QUALITY, so the quality filter has something to drop.
+        //
+        // The names are Illumina-style because the optical duplicate finder reads a tile and a
+        // position out of them: the first two copies of a family share a tile twenty pixels apart,
+        // which is inside the default pixel distance and outside a smaller one, and the later
+        // copies sit on tiles of their own.
+        //
+        // The two read groups alternate by family, never within one, so a family stays in one
+        // library and the library split does not cut a group in half.
+        SAMFileHeader complexityHeader = header(SAMFileHeader.SortOrder.queryname);
+        java.util.List<SAMRecord> complexityReads = new java.util.ArrayList<>();
+        Random complexityRng = new Random(20260908L);
+        String complexityBases = "ACGT";
+        for (int family = 0; family < 24; family++) {
+            byte[] readOne = new byte[READ_LENGTH];
+            byte[] readTwo = new byte[READ_LENGTH];
+            for (int b = 0; b < READ_LENGTH; b++) {
+                readOne[b] = (byte) complexityBases.charAt(complexityRng.nextInt(4));
+                readTwo[b] = (byte) complexityBases.charAt(complexityRng.nextInt(4));
+            }
+            int copies = 1 + (family % 4);
+            String group = (family % 2 == 0) ? "rg1" : "rg2";
+            byte quality = (byte) (family % 6 == 5 ? 15 : 35);
+            for (int copy = 0; copy < copies; copy++) {
+                byte[] one = readOne.clone();
+                if (copy > 0 && family % 4 == 3) {
+                    int errors = (family % 8 == 3) ? 2 : 8;
+                    for (int e = 0; e < errors; e++) {
+                        one[20 + e] = mutateBase(one[20 + e]);
+                    }
+                }
+                int tile = 1101 + (copy < 2 ? 0 : copy);
+                int x = 1000 + family * 7 + (copy < 2 ? copy * 20 : copy * 5000);
+                int y = 2000 + family * 11 + (copy < 2 ? copy * 20 : copy * 5000);
+                String name = String.format("INST:1:FLOWCELL:1:%d:%d:%d", tile, x, y);
+
+                SAMRecord first = new SAMRecord(complexityHeader);
+                SAMRecord second = new SAMRecord(complexityHeader);
+                for (SAMRecord r : new SAMRecord[] {first, second}) {
+                    byte[] quals = new byte[READ_LENGTH];
+                    java.util.Arrays.fill(quals, quality);
+                    r.setReadName(name);
+                    r.setBaseQualities(quals);
+                    r.setReferenceIndex(0);
+                    r.setCigarString(READ_LENGTH + "M");
+                    r.setMappingQuality(60);
+                    r.setAttribute("RG", group);
+                    r.setReadPairedFlag(true);
+                    r.setProperPairFlag(true);
+                }
+                first.setFirstOfPairFlag(true);
+                second.setSecondOfPairFlag(true);
+                first.setAlignmentStart(100 + family);
+                second.setAlignmentStart(400 + family);
+                first.setReadBases(one);
+                // The second end is on the negative strand, so the file stores it reverse
+                // complemented and the tool has to complement it back before it compares: a
+                // corpus whose ends are all forward never runs that path.
+                byte[] two = readTwo.clone();
+                SequenceUtil.reverseComplement(two);
+                second.setReadBases(two);
+                second.setReadNegativeStrandFlag(true);
+                first.setMateNegativeStrandFlag(true);
+                SamPairUtil.setMateInfo(first, second, false);
+                complexityReads.add(first);
+                complexityReads.add(second);
+            }
+        }
+        complexityReads.sort(new SAMRecordQueryNameComparator());
+        writeBam(new File(dir, "complexity.bam"), complexityHeader, complexityReads, false);
+
         SAMFileHeader unmappedHeader = header(SAMFileHeader.SortOrder.unsorted);
         writeBam(new File(dir, "unmapped.bam"), unmappedHeader, unmapped(unmappedHeader), false);
 
@@ -346,15 +427,16 @@ public class MakeFixtures {
         return h;
     }
 
-    /**
-     * Put the first `length` bases of an adapter at the end of a read, IN READ ORDER.
-     *
-     * A record on the negative strand stores its bases reverse complemented, and the tool searches
-     * what the sequencer read rather than what the file stores: it reverse complements a copy
-     * before it looks. Planting into the stored bases would therefore put the adapter at the front
-     * of half the reads, where the search never looks, so the plant is done on the read-order copy
-     * and complemented back.
-     */
+    /** The next base in ACGT order, for planting a mismatch that is still a real base. */
+    static byte mutateBase(byte base) {
+        switch (base) {
+            case 'A': return 'C';
+            case 'C': return 'G';
+            case 'G': return 'T';
+            default: return 'A';
+        }
+    }
+
     /** One `QualityYieldMetrics` row, written the way `CollectQualityYieldMetrics` writes it. */
     static void writeQualityYield(File f, long totalReads, long pfReads, int readLength,
                                   long totalBases, long pfBases, long q20, long pfQ20, long q30,
@@ -374,6 +456,15 @@ public class MakeFixtures {
         }
     }
 
+    /**
+     * Put the first `length` bases of an adapter at the end of a read, IN READ ORDER.
+     *
+     * A record on the negative strand stores its bases reverse complemented, and the tool searches
+     * what the sequencer read rather than what the file stores: it reverse complements a copy
+     * before it looks. Planting into the stored bases would therefore put the adapter at the front
+     * of half the reads, where the search never looks, so the plant is done on the read-order copy
+     * and complemented back.
+     */
     static void plantAdapter(SAMRecord read, String adapter, int length) throws Exception {
         byte[] bases = read.getReadBases();
         if (read.getReadNegativeStrandFlag()) SequenceUtil.reverseComplement(bases);
