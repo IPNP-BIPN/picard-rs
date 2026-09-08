@@ -445,9 +445,6 @@ jobs:
             --log /tmp/FindMendelianViolations.log \
             --log /tmp/LiftOverIntervalList.log \
             --log /tmp/LiftOverHaplotypeMap.log \
-            --pending CollectVariantCallingMetrics \
-            --pending LiftOverIntervalList \
-            --pending LiftOverHaplotypeMap \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -507,10 +504,13 @@ jobs:
             tools/coverage/corpus/EstimateLibraryComplexity.t2.txt \
             tools/coverage/corpus/CollectUmiPrevalenceMetrics.t2.txt \
             tools/coverage/corpus/RevertOriginalBaseQualitiesAndAddMateCigar.t2.txt \
+            tools/coverage/corpus/CollectVariantCallingMetrics.t2.txt \
             tools/coverage/corpus/CollectJumpingLibraryMetrics.t2.txt \
             tools/coverage/corpus/MarkIlluminaAdapters.t2.txt \
             tools/coverage/corpus/SamToFastqWithTags.t2.txt \
-            tools/coverage/corpus/FindMendelianViolations.t2.txt)
+            tools/coverage/corpus/FindMendelianViolations.t2.txt \
+            tools/coverage/corpus/LiftOverIntervalList.t2.txt \
+            tools/coverage/corpus/LiftOverHaplotypeMap.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"

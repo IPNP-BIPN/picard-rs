@@ -150,6 +150,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectVariantCallingMetrics": {
+      "rows": 8,
+      "accepted": 3,
+      "rejected": 5,
+      "distinct_outputs": 2,
+      "distinct_rejections": 1,
+      "matched": 8,
+      "t": 2,
+      "share": 1.0
+    },
     "CreateSequenceDictionary": {
       "rows": 7,
       "accepted": 7,
@@ -257,6 +267,26 @@
       "distinct_outputs": 4,
       "distinct_rejections": 3,
       "matched": 33,
+      "t": 2,
+      "share": 1.0
+    },
+    "LiftOverHaplotypeMap": {
+      "rows": 6,
+      "accepted": 3,
+      "rejected": 3,
+      "distinct_outputs": 1,
+      "distinct_rejections": 1,
+      "matched": 6,
+      "t": 2,
+      "share": 1.0
+    },
+    "LiftOverIntervalList": {
+      "rows": 7,
+      "accepted": 5,
+      "rejected": 2,
+      "distinct_outputs": 2,
+      "distinct_rejections": 1,
+      "matched": 7,
       "t": 2,
       "share": 1.0
     },

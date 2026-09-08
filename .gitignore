@@ -61,10 +61,13 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/EstimateLibraryComplexity.t2.txt
 !tools/coverage/corpus/CollectUmiPrevalenceMetrics.t2.txt
 !tools/coverage/corpus/RevertOriginalBaseQualitiesAndAddMateCigar.t2.txt
+!tools/coverage/corpus/CollectVariantCallingMetrics.t2.txt
 !tools/coverage/corpus/CollectJumpingLibraryMetrics.t2.txt
 !tools/coverage/corpus/MarkIlluminaAdapters.t2.txt
 !tools/coverage/corpus/SamToFastqWithTags.t2.txt
 !tools/coverage/corpus/FindMendelianViolations.t2.txt
+!tools/coverage/corpus/LiftOverIntervalList.t2.txt
+!tools/coverage/corpus/LiftOverHaplotypeMap.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real
