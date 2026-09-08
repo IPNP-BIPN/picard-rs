@@ -167,6 +167,27 @@
         "15"
       ]
     },
+    "LiftOverIntervalList": {
+      "$why": [
+        "CHAIN has no default and the tool cannot run without one, so the corpus writes lift.chain:",
+        "it moves the first thousand bases of chr1 five hundred to the right, maps the first five",
+        "hundred of chr2 onto themselves, and covers nothing else. MIN_LIFTOVER_PCT is declared",
+        "because the second interval of targets.interval_list is covered by a third of its length:",
+        "at the default it is rejected and at 0.3 it lifts, which is a different file AND a",
+        "different exit code."
+      ],
+      "--INPUT": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--CHAIN": [
+        "/work/fixtures/lift.chain"
+      ],
+      "--MIN_LIFTOVER_PCT": [
+        "0.95",
+        "0.3"
+      ]
+    },
     "BedToIntervalList": {
       "--INPUT": [
         "/work/fixtures/targets.bed",

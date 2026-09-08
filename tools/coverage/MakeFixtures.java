@@ -480,6 +480,20 @@ public class MakeFixtures {
             out.print("fam1\tmother\t0\t0\t2\t1\n");
         }
 
+        // A UCSC chain, for the tools that lift coordinates from one build to another. It maps the
+        // first thousand bases of chr1 five hundred bases to the right and the first five hundred
+        // of chr2 onto themselves, and covers nothing else: an interval past chr1:1000 lifts only
+        // in part, which is what MIN_LIFTOVER_PCT decides about, and one past chr1:1500 does not
+        // lift at all.
+        try (PrintWriter out = new PrintWriter(new File(dir, "lift.chain"), "UTF-8")) {
+            out.print("chain 1000 chr1 " + CHR1 + " + 0 1000 chr1 " + CHR1 + " + 500 1500 1\n");
+            out.print("1000\n");
+            out.print("\n");
+            out.print("chain 1000 chr2 " + CHR2 + " + 0 500 chr2 " + CHR2 + " + 0 500 2\n");
+            out.print("500\n");
+            out.print("\n");
+        }
+
         writeIntervals(new File(dir, "targets.interval_list"));
         writeBed(new File(dir, "targets.bed"));
         writeMixedBed(new File(dir, "targets_mixed.bed"));

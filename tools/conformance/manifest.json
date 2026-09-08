@@ -337,6 +337,13 @@
         "status": "measured"
       },
       {
+        "tool": "LiftOverIntervalList",
+        "port": "lift-over-interval-list",
+        "t": 2,
+        "status": "pending",
+        "exit_code_is_a_result": true
+      },
+      {
         "tool": "CollectJumpingLibraryMetrics",
         "port": "collect-jumping-library-metrics",
         "t": 2,
