@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 22,
-  "arguments_in_array": 3,
-  "arguments_excluded": 19,
+  "arguments_in_array": 5,
+  "arguments_excluded": 17,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -27,13 +27,6 @@
       "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--DBSNP",
-      "type": "PicardHtsPath",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/dbsnp.vcf",
-      "source": "fixture"
     },
     {
       "argument": "--help",
@@ -92,13 +85,6 @@
       "source": "none"
     },
     {
-      "argument": "--TARGET_INTERVALS",
-      "type": "PicardHtsPath",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/targets.interval_list",
-      "source": "fixture"
-    },
-    {
       "argument": "--THREAD_COUNT",
       "type": "int",
       "reason": "only one value available (default)",
@@ -141,9 +127,9 @@
       "source": "none"
     }
   ],
-  "rows": 6,
-  "tuples_total": 16,
-  "tuples_covered": 16,
+  "rows": 8,
+  "tuples_total": 48,
+  "tuples_covered": 48,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -154,12 +140,16 @@
       "row": 0,
       "labels": {
         "--CREATE_INDEX": "true",
+        "--DBSNP": "fixture[0]",
         "--GVCF_INPUT": "true",
+        "--TARGET_INTERVALS": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--DBSNP=/work/fixtures/dbsnp.vcf",
         "--GVCF_INPUT=true",
+        "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -167,12 +157,16 @@
       "row": 1,
       "labels": {
         "--CREATE_INDEX": "true",
+        "--DBSNP": "fixture[1]",
         "--GVCF_INPUT": "false",
+        "--TARGET_INTERVALS": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--DBSNP=/work/fixtures/variants.vcf",
         "--GVCF_INPUT=false",
+        "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -180,52 +174,102 @@
       "row": 2,
       "labels": {
         "--CREATE_INDEX": "false",
-        "--GVCF_INPUT": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--DBSNP": "fixture[0]",
+        "--GVCF_INPUT": "false",
+        "--TARGET_INTERVALS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
-        "--GVCF_INPUT=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--DBSNP=/work/fixtures/dbsnp.vcf",
+        "--GVCF_INPUT=false",
+        "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 3,
       "labels": {
         "--CREATE_INDEX": "false",
-        "--GVCF_INPUT": "false",
+        "--DBSNP": "fixture[1]",
+        "--GVCF_INPUT": "true",
+        "--TARGET_INTERVALS": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
-        "--GVCF_INPUT=false",
+        "--DBSNP=/work/fixtures/variants.vcf",
+        "--GVCF_INPUT=true",
+        "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 4,
       "labels": {
-        "--CREATE_INDEX": "true",
+        "--CREATE_INDEX": "false",
+        "--DBSNP": "fixture[0]",
         "--GVCF_INPUT": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--TARGET_INTERVALS": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
+        "--CREATE_INDEX=false",
+        "--DBSNP=/work/fixtures/dbsnp.vcf",
         "--GVCF_INPUT=true",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 5,
       "labels": {
-        "--CREATE_INDEX": "false",
-        "--GVCF_INPUT": "false",
+        "--CREATE_INDEX": "true",
+        "--DBSNP": "fixture[1]",
+        "--GVCF_INPUT": "true",
+        "--TARGET_INTERVALS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--DBSNP=/work/fixtures/variants.vcf",
+        "--GVCF_INPUT=true",
+        "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--DBSNP": "fixture[1]",
+        "--GVCF_INPUT": "true",
+        "--TARGET_INTERVALS": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--CREATE_INDEX=false",
-        "--GVCF_INPUT=false",
+        "--CREATE_INDEX=true",
+        "--DBSNP=/work/fixtures/variants.vcf",
+        "--GVCF_INPUT=true",
+        "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
         "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--DBSNP": "fixture[0]",
+        "--GVCF_INPUT": "false",
+        "--TARGET_INTERVALS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--DBSNP=/work/fixtures/dbsnp.vcf",
+        "--GVCF_INPUT=false",
+        "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     }
   ]

@@ -337,6 +337,13 @@
         "status": "measured"
       },
       {
+        "tool": "CollectVariantCallingMetrics",
+        "port": "collect-variant-calling-metrics",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.txt.variant_calling_summary_metrics"
+      },
+      {
         "tool": "CollectJumpingLibraryMetrics",
         "port": "collect-jumping-library-metrics",
         "t": 2,
