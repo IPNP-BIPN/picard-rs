@@ -191,7 +191,10 @@ fn duplicate_set_compare(
 }
 
 /// `SAMRecordDuplicateComparator.compare`: order within a set, and so which record represents it.
-fn compare(
+///
+/// It is also the comparator a writer uses for `SO:duplicate`, which is why it is public: a tool
+/// that writes a file in that order sorts by exactly this.
+pub fn compare(
     left: &Record,
     right: &Record,
     left_library: i32,
