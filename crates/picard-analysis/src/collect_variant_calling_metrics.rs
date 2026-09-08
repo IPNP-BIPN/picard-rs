@@ -197,3 +197,248 @@ pub fn collect(variants: &[Variant], samples: &[String]) -> (BTreeMap<String, Co
     }
     (details, summary)
 }
+
+/// The counters the twenty columns need beyond [`Counts`], which the earlier slice did not model.
+///
+/// They are the reference's own hidden fields plus the two indel and two complex-indel columns:
+/// the metrics file writes the RATIOS, and the ratios are computed from these.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct HiddenCounts {
+    pub db_snp_insertions: i64,
+    pub db_snp_deletions: i64,
+    pub novel_insertions: i64,
+    pub novel_deletions: i64,
+    pub total_complex_indels: i64,
+    pub num_in_db_snp_complex_indels: i64,
+    /// The reference and alternate depths of the HETEROZYGOUS calls, which the reference bias is
+    /// the ratio of. A summary row sums them over every sample; a detail row over its own.
+    pub reference_allele_observations: i64,
+    pub alternate_allele_observations: i64,
+    /// Detail rows only: the calls whose genotype quality is zero, and the two zygosities.
+    pub total_gq0_variants: i64,
+    pub number_of_hets: i64,
+    pub number_of_hom_var: i64,
+    pub total_het_depth: i64,
+}
+
+/// One sample's call at a site, as the accumulator reads it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Call {
+    /// `None` for a no-call; otherwise the allele indices, `0` being the reference.
+    pub alleles: Option<Vec<usize>>,
+    pub gq: i32,
+    /// One depth per allele, reference first.
+    pub allele_depths: Option<Vec<i32>>,
+}
+
+impl Call {
+    pub fn is_called(&self) -> bool {
+        self.alleles.is_some()
+    }
+    fn indices(&self) -> &[usize] {
+        self.alleles.as_deref().unwrap_or(&[])
+    }
+    pub fn is_hom_ref(&self) -> bool {
+        !self.indices().is_empty() && self.indices().iter().all(|allele| *allele == 0)
+    }
+    pub fn is_hom_var(&self) -> bool {
+        !self.indices().is_empty()
+            && self
+                .indices()
+                .iter()
+                .all(|allele| *allele == self.indices()[0])
+            && self.indices()[0] != 0
+    }
+    pub fn is_het(&self) -> bool {
+        let indices = self.indices();
+        !indices.is_empty() && indices.iter().any(|allele| *allele != indices[0])
+    }
+}
+
+/// One site, as the accumulator reads it: the alleles, the filter, both dbSNP answers, and one
+/// call per sample in the header's order.
+///
+/// The dbSNP membership is TWO answers and not one: the reference keeps a bitset of SNP sites and
+/// another of indel sites, and asks the one that matches the site's own type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Site {
+    pub reference: String,
+    pub alternates: Vec<String>,
+    pub filtered: bool,
+    pub in_db_snp_snps: bool,
+    pub in_db_snp_indels: bool,
+    pub calls: Vec<Call>,
+}
+
+impl Site {
+    /// `VariantContext.isSNP()`: one reference base against single-base alternates.
+    pub fn is_snp(&self) -> bool {
+        self.reference.len() == 1 && self.alternates.iter().all(|allele| allele.len() == 1)
+    }
+    pub fn is_biallelic(&self) -> bool {
+        self.alternates.len() == 1
+    }
+    /// `isComplexIndel`: an indel whose reference and alternate share neither a prefix nor the
+    /// simple insertion or deletion shape.
+    pub fn is_complex_indel(&self) -> bool {
+        if self.is_snp() || self.alternates.len() != 1 {
+            return false;
+        }
+        let alternate = &self.alternates[0];
+        !(alternate.starts_with(&self.reference) || self.reference.starts_with(alternate.as_str()))
+    }
+    pub fn is_simple_insertion(&self) -> bool {
+        self.alternates.len() == 1 && self.alternates[0].len() > self.reference.len()
+    }
+    /// `isVariantExcluded`: a site with no alternate, or one where every call is homozygous
+    /// reference, never reaches a counter at all.
+    pub fn is_excluded(&self) -> bool {
+        self.alternates.is_empty() || self.calls.iter().all(|call| call.is_hom_ref())
+    }
+
+    /// `getSingletonSample`: the one sample carrying exactly one variant chromosome.
+    ///
+    /// The reference sums over the FIRST TWO het-or-hom-var calls only, a het counting one and a
+    /// hom-var two, and asks whether that sum is one. Two hets therefore answer no as soon as the
+    /// second is seen, and a lone hom-var answers no as well.
+    pub fn singleton_sample(&self) -> Option<usize> {
+        let mut seen = Vec::new();
+        for (index, call) in self.calls.iter().enumerate() {
+            if call.is_het() || call.is_hom_var() {
+                seen.push((index, if call.is_het() { 1 } else { 2 }));
+                if seen.len() == 2 {
+                    break;
+                }
+            }
+        }
+        let total: i32 = seen.iter().map(|(_, weight)| *weight).sum();
+        if total == 1 {
+            seen.last().map(|(index, _)| *index)
+        } else {
+            None
+        }
+    }
+}
+
+/// `updateSummaryMetric` for one site, against one row's counters.
+///
+/// `call` is the row's own genotype, and `None` for the summary row -- which is what stops the
+/// reference bias from being counted twice for a one-sample file: the summary's numbers come from
+/// the DETAIL rows' calls, added there.
+pub fn accumulate_site(
+    counts: &mut Counts,
+    hidden: &mut HiddenCounts,
+    summary_hidden: Option<&mut HiddenCounts>,
+    site: &Site,
+    call: Option<&Call>,
+    has_singleton: bool,
+) {
+    // "If this sample's genotype doesn't have any variation, exclude it."
+    if let Some(call) = call {
+        if !call.is_called() {
+            return;
+        }
+    }
+    if site.filtered {
+        if site.is_snp() {
+            counts.filtered_snps += 1;
+        } else {
+            counts.filtered_indels += 1;
+        }
+        return;
+    }
+    if has_singleton {
+        counts.num_singletons += 1;
+    }
+
+    if site.is_biallelic() && site.is_snp() {
+        counts.total_snps += 1;
+        let transition = is_transition(
+            site.reference.as_bytes()[0],
+            site.alternates[0].as_bytes()[0],
+        );
+        if site.in_db_snp_snps {
+            counts.num_in_db_snp += 1;
+            if transition {
+                counts.db_snp_transitions += 1;
+            } else {
+                counts.db_snp_transversions += 1;
+            }
+        } else if transition {
+            counts.novel_transitions += 1;
+        } else {
+            counts.novel_transversions += 1;
+        }
+
+        // The reference bias, which only a HETEROZYGOUS call with allele depths contributes to,
+        // and which is added to the summary's counters at the same time.
+        if let Some(call) = call {
+            if call.is_het() {
+                if let Some(depths) = &call.allele_depths {
+                    if depths.len() >= 2 {
+                        hidden.reference_allele_observations += i64::from(depths[0]);
+                        hidden.alternate_allele_observations += i64::from(depths[1]);
+                        if let Some(summary) = summary_hidden {
+                            summary.reference_allele_observations += i64::from(depths[0]);
+                            summary.alternate_allele_observations += i64::from(depths[1]);
+                        }
+                    }
+                }
+            }
+        }
+    } else if site.is_snp() && site.alternates.len() > 1 {
+        counts.total_multiallelic_snps += 1;
+        if site.in_db_snp_snps {
+            counts.num_in_db_snp_multiallelic += 1;
+        }
+    } else if !site.is_snp() && !site.is_complex_indel() {
+        counts.total_indels += 1;
+        let insertion = site.is_simple_insertion();
+        if site.in_db_snp_indels {
+            counts.num_in_db_snp_indels += 1;
+            if insertion {
+                hidden.db_snp_insertions += 1;
+            } else {
+                hidden.db_snp_deletions += 1;
+            }
+        } else if insertion {
+            hidden.novel_insertions += 1;
+        } else {
+            hidden.novel_deletions += 1;
+        }
+    } else if site.is_complex_indel() {
+        hidden.total_complex_indels += 1;
+        if site.in_db_snp_indels {
+            hidden.num_in_db_snp_complex_indels += 1;
+        }
+    }
+}
+
+/// `updateDetailMetric`: the summary path, and then the three counters only a detail row has.
+pub fn accumulate_detail(
+    counts: &mut Counts,
+    hidden: &mut HiddenCounts,
+    summary_hidden: &mut HiddenCounts,
+    site: &Site,
+    call: &Call,
+    has_singleton: bool,
+) {
+    accumulate_site(
+        counts,
+        hidden,
+        Some(summary_hidden),
+        site,
+        Some(call),
+        has_singleton,
+    );
+    if !site.filtered {
+        if call.gq == 0 {
+            hidden.total_gq0_variants += 1;
+        }
+        if call.is_het() {
+            hidden.number_of_hets += 1;
+        } else if call.is_hom_var() {
+            hidden.number_of_hom_var += 1;
+        }
+    }
+}
