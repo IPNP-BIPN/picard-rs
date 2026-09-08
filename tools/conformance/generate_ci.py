@@ -198,6 +198,7 @@ def coverage_job(manifest):
     bins = " ".join(f"--bin {t['port']}" for t in tools)
     runs = "\n".join(
         f"          python3 tools/coverage/run_array.py --tool {t['tool']} --t {t['t']} \\\n"
+        f"            --fixtures-dir /tmp/corpus \\\n"
         # A tool with no output argument is compared on its standard output; see run_array.py.
         f"            --port target/release/{t['port']}"
         f"{' --stdout' if t.get('output') == 'stdout' else ''}"
@@ -233,6 +234,12 @@ def coverage_job(manifest):
         run: docker build --platform {manifest['oracle']['platform']} -t {manifest['oracle']['image']} {manifest['oracle']['context']}
 
       - run: cargo build --release {bins}
+
+      - name: Build the corpus once, for every array to share
+        # `MakeFixtures` is deterministic, so one build is every array's corpus. Building it per
+        # array is a container run each time, which is most of this job's wall clock once there
+        # are forty of them.
+        run: python3 tools/coverage/run_array.py --build-fixtures /tmp/corpus
 
       - name: Run the arrays, and record what the port covers
         # Every row goes through the reference and through the port, compared under the same
