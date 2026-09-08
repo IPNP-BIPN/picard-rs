@@ -341,6 +341,13 @@
         "port": "mark-illumina-adapters",
         "t": 2,
         "status": "measured"
+      },
+      {
+        "tool": "SamToFastqWithTags",
+        "port": "sam-to-fastq-with-tags",
+        "t": 2,
+        "status": "pending",
+        "output_name": "CB.fastq"
       }
     ]
   },

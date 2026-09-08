@@ -387,6 +387,26 @@ public class MakeFixtures {
         umiReads.sort(new SAMRecordCoordinateComparator());
         writeBam(new File(dir, "umi.bam"), umiHeader, umiReads, false);
 
+        // Reads carrying cell and molecular barcodes, for `SamToFastqWithTags`. That tool writes
+        // the ordinary read FASTQ and, beside it, one FASTQ per SEQUENCE_TAG_GROUP whose reads are
+        // built from TAG VALUES rather than from bases, so a corpus needs records that carry the
+        // tags and records that do not: a group naming a tag a read is missing is a refusal, and
+        // that is a row of the array.
+        //
+        // Every read carries every tag the array's groups name: a read missing one is a refusal
+        // ("does have a value for tag"), and a corpus that refused most rows would measure the
+        // check rather than the writing.
+        SAMFileHeader taggedHeader = header(SAMFileHeader.SortOrder.queryname);
+        java.util.List<SAMRecord> taggedReads = reads(taggedHeader, false);
+        for (SAMRecord r : taggedReads) {
+            int n = Integer.parseInt(r.getReadName().replaceAll("[^0-9]", ""));
+            r.setAttribute("CB", "ACGTAC" + (char) ('A' + (n % 4)));
+            r.setAttribute("CY", "IIIIIII");
+            r.setAttribute("UR", "TTGCA");
+            r.setAttribute("UY", "IIIII");
+        }
+        writeBam(new File(dir, "tagged.bam"), taggedHeader, taggedReads, false);
+
         writeIntervals(new File(dir, "targets.interval_list"));
         writeBed(new File(dir, "targets.bed"));
         writeMixedBed(new File(dir, "targets_mixed.bed"));

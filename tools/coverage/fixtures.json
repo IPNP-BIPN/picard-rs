@@ -120,6 +120,34 @@
         "/work/fixtures/quality_yield_two.metrics"
       ]
     },
+<<<<<<< HEAD
+    "SamToFastqWithTags": {
+      "$why": [
+        "The tag groups are free-form strings with no default, so without them the array cannot run",
+        "the tool at all: SEQUENCE_TAG_GROUP is required. Two values, one naming a tag every read",
+        "of tagged.bam carries and one naming a pair of them, and the quality groups match. FASTQ",
+        "and SECOND_END_FASTQ are the base tool's, and the array compares the TAG file, which is",
+        "what this tool adds."
+      ],
+      "--INPUT": [
+        "/work/fixtures/tagged.bam"
+      ],
+      "--FASTQ": [
+        "/work/out/reads.fastq"
+      ],
+      "--SECOND_END_FASTQ": [
+        "/work/out/second.fastq"
+      ],
+      "--OUTPUT_PER_RG": [],
+      "--COMPRESS_OUTPUTS_PER_RG": [],
+      "--SEQUENCE_TAG_GROUP": [
+        "CB",
+        "CB,UR"
+      ],
+      "--QUALITY_TAG_GROUP": [
+        "CY",
+        "CY,UY"
+=======
     "CollectUmiPrevalenceMetrics": {
       "$why": [
         "MINIMUM_MQ and MINIMUM_BARCODE_BQ are declared because both have a default and no bounds,",
@@ -137,6 +165,7 @@
       "--MINIMUM_BARCODE_BQ": [
         "30",
         "15"
+>>>>>>> main
       ]
     },
     "BedToIntervalList": {

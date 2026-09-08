@@ -140,6 +140,20 @@ pub fn sam_to_fastq_unpaired(records: &[BamRecord], opts: &Options) -> String {
 /// arrived second. A read filtered by [`is_dropped`] never enters the map, so a pair with one
 /// dropped mate is left incomplete and unwritten, matching htsjdk's MATE_NOT_FOUND handling.
 pub fn sam_to_fastq_paired(records: &[BamRecord], opts: &Options) -> (String, String) {
+    let (first, second, _) = sam_to_fastq_paired_counting_leftovers(records, opts);
+    (first, second)
+}
+
+/// The same, and how many reads were still waiting for a mate when the file ended.
+///
+/// `doWork` ends with `if (!firstSeenMates.isEmpty())` and hands a `MATE_NOT_FOUND` to
+/// `SAMUtils.processValidationError`, so the leftovers are not an error in themselves: what they
+/// become is decided by `VALIDATION_STRINGENCY`, and under `LENIENT` or `SILENT` the tool writes
+/// its files and returns zero.
+pub fn sam_to_fastq_paired_counting_leftovers(
+    records: &[BamRecord],
+    opts: &Options,
+) -> (String, String, usize) {
     use std::collections::HashMap;
 
     let mut first_seen: HashMap<&str, &BamRecord> = HashMap::new();
@@ -169,7 +183,7 @@ pub fn sam_to_fastq_paired(records: &[BamRecord], opts: &Options) -> (String, St
             }
         }
     }
-    (first_end, second_end)
+    (first_end, second_end, first_seen.len())
 }
 
 #[cfg(test)]

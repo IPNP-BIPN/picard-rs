@@ -121,9 +121,14 @@ fn tag_value<'a>(rec: &'a BamRecord, tag: &str) -> Result<&'a str, MissingTag> {
 /// A record is dropped from the FASTQ unless secondary/supplementary and vendor-fail are included;
 /// this mirrors `SamToFastq.handleRecord`'s filter (defaults off), so the tag FASTQ covers exactly the
 /// reads the base FASTQ does.
-fn is_dropped(rec: &BamRecord) -> bool {
-    rec.flags & (SECONDARY_ALIGNMENT | SUPPLEMENTARY_ALIGNMENT) != 0
-        || rec.flags & READ_FAILS_VENDOR_QUALITY != 0
+/// The same drop rule as the base tool's, which is what `INCLUDE_NON_PRIMARY_ALIGNMENTS` and
+/// `INCLUDE_NON_PF_READS` decide: the tag files are written from the SAME records as the read
+/// FASTQ, so a read those arguments keep is a read the tag files carry.
+fn is_dropped_with(rec: &BamRecord, options: &crate::sam_to_fastq::Options) -> bool {
+    let secondary_or_supplementary =
+        rec.flags & (SECONDARY_ALIGNMENT | SUPPLEMENTARY_ALIGNMENT) != 0;
+    (secondary_or_supplementary && !options.include_non_primary)
+        || (rec.flags & READ_FAILS_VENDOR_QUALITY != 0 && !options.include_non_pf)
 }
 
 /// `writeTagRecords` for one read and one group: the FASTQ record built from the group's tags.
@@ -168,12 +173,21 @@ pub fn sam_to_fastq_with_tags_unpaired(
     records: &[BamRecord],
     groups: &[TagGroup],
 ) -> Result<Vec<(String, String)>, MissingTag> {
+    sam_to_fastq_with_tags_unpaired_with(records, groups, &crate::sam_to_fastq::Options::default())
+}
+
+/// The same, with the base tool's arguments deciding which reads are written.
+pub fn sam_to_fastq_with_tags_unpaired_with(
+    records: &[BamRecord],
+    groups: &[TagGroup],
+    options: &crate::sam_to_fastq::Options,
+) -> Result<Vec<(String, String)>, MissingTag> {
     let mut files: Vec<(String, String)> = groups
         .iter()
         .map(|g| (g.file_name(), String::new()))
         .collect();
 
-    for rec in records.iter().filter(|r| !is_dropped(r)) {
+    for rec in records.iter().filter(|r| !is_dropped_with(r, options)) {
         assert!(
             rec.flags & READ_PAIRED == 0,
             "sam_to_fastq_with_tags_unpaired given a paired read; the paired path is not ported"
@@ -198,6 +212,15 @@ pub fn sam_to_fastq_with_tags_paired(
     records: &[BamRecord],
     groups: &[TagGroup],
 ) -> Result<Vec<(String, String)>, MissingTag> {
+    sam_to_fastq_with_tags_paired_with(records, groups, &crate::sam_to_fastq::Options::default())
+}
+
+/// The same, with the base tool's arguments deciding which reads are written.
+pub fn sam_to_fastq_with_tags_paired_with(
+    records: &[BamRecord],
+    groups: &[TagGroup],
+    options: &crate::sam_to_fastq::Options,
+) -> Result<Vec<(String, String)>, MissingTag> {
     use std::collections::HashMap;
 
     let mut files: Vec<(String, String)> = groups
@@ -206,7 +229,7 @@ pub fn sam_to_fastq_with_tags_paired(
         .collect();
     let mut first_seen: HashMap<&str, &BamRecord> = HashMap::new();
 
-    for rec in records.iter().filter(|r| !is_dropped(r)) {
+    for rec in records.iter().filter(|r| !is_dropped_with(r, options)) {
         assert!(
             rec.flags & READ_PAIRED != 0,
             "sam_to_fastq_with_tags_paired given an unpaired read"
