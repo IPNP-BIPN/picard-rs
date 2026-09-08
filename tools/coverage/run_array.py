@@ -137,7 +137,8 @@ def fresh_directory(workdir, stem):
     return made
 
 
-def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt"):
+def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt",
+               fixtures=None):
     """Run one row in the container. Returns (exit code, output text, stdout tail).
 
     `on_stdout` is for the tools that HAVE no output argument: `ViewSam` and `BamIndexStats` print
@@ -147,6 +148,7 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_
     between covering an argument and observing it.
     """
     out_dir = fresh_directory(workdir, "out")
+    fixtures = fixtures or workdir / "fixtures"
 
     cli = " ".join(as_cli(row_args))
     # `java -jar picard.jar <Tool> <args>`: the tool name is the first token, and the arguments
@@ -155,7 +157,7 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_
     result = subprocess.run(
         [
             "docker", "run", "--rm", "--platform", PLATFORM,
-            "-v", f"{workdir / 'fixtures'}:/work/fixtures:ro",
+            "-v", f"{fixtures}:/work/fixtures:ro",
             "-v", f"{out_dir}:/work/out",
             "-w", "/work", IMAGE, command,
         ],
@@ -276,14 +278,16 @@ def first_error(text):
     return " ".join(line.strip() for line in tail.split("\n"))[:400] if tail else ""
 
 
-def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt"):
+def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt",
+             fixtures=None):
     """Run the port binary on the same row, with the fixture paths rewritten to the host."""
     out_dir = fresh_directory(workdir, "port")
+    fixtures = fixtures or workdir / "fixtures"
 
     rewritten = []
     for pair in row_args:
         name, _, value = pair.partition("=")
-        value = value.replace("/work/fixtures", str(workdir / "fixtures"))
+        value = value.replace("/work/fixtures", str(fixtures))
         value = value.replace("/work/out", str(out_dir))
         rewritten.append(f"{name}={value}")
 
@@ -296,7 +300,7 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_
     # what it returns, and a host path is longer than the container path it stands for, so mapping
     # afterwards left a message that had been truncated mid-path.
     raw = (result.stderr or result.stdout)
-    raw = raw.replace(str(workdir / "fixtures"), "/work/fixtures").replace(str(out_dir), "/work/out")
+    raw = raw.replace(str(fixtures), "/work/fixtures").replace(str(out_dir), "/work/out")
     message = first_error(raw)
     # The port ran against host paths because that is where the fixtures were mounted, so a
     # refusal that names its input names a path the reference could never print. MergeSamFiles is
@@ -304,7 +308,7 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_
     # and without this the row could not match however right the port was. Mapping the two mount
     # points back is the inverse of the rewrite above, not a canonicalization of the message: any
     # other difference in it still fails the row.
-    message = message.replace(str(workdir / "fixtures"), "/work/fixtures")
+    message = message.replace(str(fixtures), "/work/fixtures")
     message = message.replace(str(out_dir), "/work/out")
     text = result.stdout if on_stdout else read_output(out_dir, strip_pg, output_name)
     # The same inverse on the OUTPUT, for the same reason and no other: a tool that writes a path it
@@ -314,7 +318,7 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_
     # canonicalization of the tool's answer: it is the inverse of what the runner did on the way in,
     # and any other difference in the text still fails the row.
     if isinstance(text, str):
-        text = text.replace(str(workdir / "fixtures"), "/work/fixtures")
+        text = text.replace(str(fixtures), "/work/fixtures")
         text = text.replace(str(out_dir), "/work/out")
     return result.returncode, text, message
 
@@ -354,7 +358,7 @@ def canonical(text, tool):
 
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--tool", required=True)
+    ap.add_argument("--tool", help="the tool whose array to run; not needed with --build-fixtures")
     ap.add_argument("--t", type=int, default=2)
     ap.add_argument("--port", help="path to the port binary; omit to run the oracle alone")
     ap.add_argument("--dump", help="write the corpus here (default tools/coverage/corpus/<tool>.txt)")
@@ -378,11 +382,32 @@ def main(argv):
         "`<OUTPUT>.<suffix>` rather than the file it was given",
     )
     ap.add_argument(
+        "--fixtures-dir",
+        help="a corpus already built by --build-fixtures, to be used instead of building one. "
+        "Every array needs the same corpus, and building it is a container run each time: one "
+        "build shared by the whole suite is the same inputs and a fraction of the wall clock",
+    )
+    ap.add_argument(
+        "--build-fixtures",
+        help="build the corpus into this directory and exit, for a suite that will share it",
+    )
+    ap.add_argument(
         "--stdout",
         action="store_true",
         help="compare standard output rather than the output file, for a tool that writes no file",
     )
     args = ap.parse_args(argv)
+
+    if args.build_fixtures:
+        # The corpus and nothing else: the suite that shares it runs the rows itself.
+        target = Path(args.build_fixtures)
+        target.mkdir(parents=True, exist_ok=True)
+        built = build_fixtures(target)
+        print(f"built the corpus in {built}")
+        return 0
+
+    if not args.tool:
+        raise SystemExit("--tool is required unless --build-fixtures was given")
 
     array_path = ARRAYS / f"{args.tool}.t{args.t}.json"
     if not array_path.exists():
@@ -396,8 +421,18 @@ def main(argv):
 
     workdir = Path(tempfile.mkdtemp(prefix="covering-"))
     try:
-        print(f"building fixtures in {workdir}")
-        build_fixtures(workdir)
+        # A shared corpus is the same corpus: `MakeFixtures` is deterministic, so building it once
+        # for the whole suite and building it per tool produce the same bytes. What it saves is a
+        # container run per array, which is most of the suite's wall clock once there are forty of
+        # them.
+        if args.fixtures_dir:
+            fixtures = Path(args.fixtures_dir) / "fixtures"
+            if not fixtures.is_dir():
+                raise SystemExit(f"no corpus at {fixtures}; build one with --build-fixtures")
+            print(f"using the corpus in {fixtures}")
+        else:
+            print(f"building fixtures in {workdir}")
+            fixtures = build_fixtures(workdir)
 
         results = []
         for row in rows:
@@ -409,6 +444,7 @@ def main(argv):
                 args.stdout,
                 args.strip_program_records,
                 args.output_name,
+                fixtures,
             )
             entry = {
                 "row": row["row"],
@@ -428,6 +464,7 @@ def main(argv):
                     args.stdout,
                     args.strip_program_records,
                     args.output_name,
+                    fixtures,
                 )
                 entry["port_exit"] = p_code
                 entry["port_output"] = outcome(
