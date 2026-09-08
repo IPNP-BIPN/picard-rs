@@ -367,6 +367,20 @@
         "port": "find-mendelian-violations",
         "t": 2,
         "status": "measured"
+      },
+      {
+        "tool": "LiftOverIntervalList",
+        "port": "lift-over-interval-list",
+        "t": 2,
+        "status": "pending",
+        "exit_code_is_a_result": true
+      },
+      {
+        "tool": "LiftOverHaplotypeMap",
+        "port": "lift-over-haplotype-map",
+        "t": 2,
+        "status": "pending",
+        "exit_code_is_a_result": true
       }
     ]
   },

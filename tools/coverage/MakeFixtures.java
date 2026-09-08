@@ -480,6 +480,48 @@ public class MakeFixtures {
             out.print("fam1\tmother\t0\t0\t2\t1\n");
         }
 
+        // A UCSC chain, for the tools that lift coordinates from one build to another. It maps the
+        // first thousand bases of chr1 five hundred bases to the right and the first five hundred
+        // of chr2 onto themselves, and covers nothing else: an interval past chr1:1000 lifts only
+        // in part, which is what MIN_LIFTOVER_PCT decides about, and one past chr1:1500 does not
+        // lift at all.
+        try (PrintWriter out = new PrintWriter(new File(dir, "lift.chain"), "UTF-8")) {
+            out.print("chain 1000 chr1 " + CHR1 + " + 0 1000 chr1 " + CHR1 + " + 500 1500 1\n");
+            out.print("1000\n");
+            out.print("\n");
+            out.print("chain 1000 chr2 " + CHR2 + " + 0 500 chr2 " + CHR2 + " + 0 500 2\n");
+            out.print("500\n");
+            out.print("\n");
+        }
+
+        // The same two contigs mapped onto themselves end to end, so that a tool given this chain
+        // lifts everything and one given the other drops what falls outside it: the pair is what
+        // makes CHAIN an argument that decides something.
+        try (PrintWriter out = new PrintWriter(new File(dir, "lift_all.chain"), "UTF-8")) {
+            out.print("chain 1000 chr1 " + CHR1 + " + 0 " + CHR1 + " chr1 " + CHR1 + " + 0 " + CHR1 + " 1\n");
+            out.print(CHR1 + "\n");
+            out.print("\n");
+            out.print("chain 1000 chr2 " + CHR2 + " + 0 " + CHR2 + " chr2 " + CHR2 + " + 0 " + CHR2 + " 2\n");
+            out.print(CHR2 + "\n");
+            out.print("\n");
+        }
+
+        // A haplotype database, for the fingerprinting tools. Two blocks of two SNPs and one of
+        // one, anchored the way the format wants: the first SNP of a block names no anchor and
+        // every other names it. Two of the SNPs sit past chr1:1500, where lift.chain covers
+        // nothing, so a liftover drops them and reports the failure in its exit code.
+        try (PrintWriter out = new PrintWriter(new File(dir, "haplotypes.txt"), "UTF-8")) {
+            out.print("@HD\tVN:1.0\tSO:coordinate\n");
+            out.print("@SQ\tSN:chr1\tLN:" + CHR1 + "\n");
+            out.print("@SQ\tSN:chr2\tLN:" + CHR2 + "\n");
+            out.print("#CHROMOSOME\tPOSITION\tNAME\tMAJOR_ALLELE\tMINOR_ALLELE\tMAF\tANCHOR_SNP\tPANELS\n");
+            out.print("chr1\t100\trs1\tA\tC\t0.30\t\t\n");
+            out.print("chr1\t200\trs2\tG\tT\t0.25\trs1\t\n");
+            out.print("chr1\t1600\trs3\tC\tG\t0.40\t\t\n");
+            out.print("chr1\t1700\trs4\tT\tA\t0.15\trs3\t\n");
+            out.print("chr2\t100\trs5\tG\tA\t0.20\t\t\n");
+        }
+
         writeIntervals(new File(dir, "targets.interval_list"));
         writeBed(new File(dir, "targets.bed"));
         writeMixedBed(new File(dir, "targets_mixed.bed"));
