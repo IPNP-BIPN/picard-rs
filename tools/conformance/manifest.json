@@ -331,6 +331,12 @@
         "status": "pending"
       },
       {
+        "tool": "RevertOriginalBaseQualitiesAndAddMateCigar",
+        "port": "revert-original-base-qualities-and-add-mate-cigar",
+        "t": 2,
+        "status": "pending"
+      },
+      {
         "tool": "CollectJumpingLibraryMetrics",
         "port": "collect-jumping-library-metrics",
         "t": 2,

@@ -445,6 +445,25 @@
         "/work/fixtures/queryname.bam",
         "/work/fixtures/small.bam"
       ]
+    },
+    "RevertOriginalBaseQualitiesAndAddMateCigar": {
+      "$why": [
+        "Two inputs that answer the skip check differently: original_quals.bam carries OQ and no",
+        "mate cigar, so the tool runs; mate_cigar.bam carries a mate cigar and no OQ, so the tool",
+        "returns having written nothing at all. MAX_RECORDS_TO_EXAMINE is left at its default",
+        "because the answer is decided by the first informative record either way."
+      ],
+      "--INPUT": [
+        "/work/fixtures/original_quals.bam",
+        "/work/fixtures/mate_cigar.bam"
+      ],
+      "--SORT_ORDER": [
+        "coordinate",
+        "queryname",
+        "duplicate",
+        "unsorted",
+        "unknown"
+      ]
     }
   },
   "constraints": [
