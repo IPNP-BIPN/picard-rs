@@ -10,6 +10,16 @@
     "that covers its arguments without testing them."
   ],
   "tools": {
+    "AccumulateQualityYieldMetrics": {
+      "rows": 6,
+      "accepted": 6,
+      "rejected": 0,
+      "distinct_outputs": 2,
+      "distinct_rejections": 0,
+      "matched": 6,
+      "t": 2,
+      "share": 1.0
+    },
     "AddOATag": {
       "rows": 9,
       "accepted": 9,
@@ -57,6 +67,16 @@
       "distinct_outputs": 2,
       "distinct_rejections": 0,
       "matched": 6,
+      "t": 2,
+      "share": 1.0
+    },
+    "CheckDuplicateMarking": {
+      "rows": 13,
+      "accepted": 4,
+      "rejected": 9,
+      "distinct_outputs": 1,
+      "distinct_rejections": 4,
+      "matched": 13,
       "t": 2,
       "share": 1.0
     },
@@ -120,6 +140,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectUmiPrevalenceMetrics": {
+      "rows": 8,
+      "accepted": 8,
+      "rejected": 0,
+      "distinct_outputs": 6,
+      "distinct_rejections": 0,
+      "matched": 8,
+      "t": 2,
+      "share": 1.0
+    },
     "CreateSequenceDictionary": {
       "rows": 7,
       "accepted": 7,
@@ -137,6 +167,16 @@
       "distinct_outputs": 5,
       "distinct_rejections": 0,
       "matched": 11,
+      "t": 2,
+      "share": 1.0
+    },
+    "EstimateLibraryComplexity": {
+      "rows": 10,
+      "accepted": 10,
+      "rejected": 0,
+      "distinct_outputs": 4,
+      "distinct_rejections": 0,
+      "matched": 10,
       "t": 2,
       "share": 1.0
     },
@@ -170,6 +210,16 @@
       "t": 2,
       "share": 1.0
     },
+    "FindMendelianViolations": {
+      "rows": 8,
+      "accepted": 8,
+      "rejected": 0,
+      "distinct_outputs": 3,
+      "distinct_rejections": 0,
+      "matched": 8,
+      "t": 2,
+      "share": 1.0
+    },
     "FixMateInformation": {
       "rows": 12,
       "accepted": 7,
@@ -177,6 +227,16 @@
       "distinct_outputs": 4,
       "distinct_rejections": 3,
       "matched": 12,
+      "t": 2,
+      "share": 1.0
+    },
+    "GenotypeConcordance": {
+      "rows": 10,
+      "accepted": 10,
+      "rejected": 0,
+      "distinct_outputs": 4,
+      "distinct_rejections": 0,
+      "matched": 10,
       "t": 2,
       "share": 1.0
     },
@@ -320,6 +380,16 @@
       "t": 2,
       "share": 1.0
     },
+    "RevertOriginalBaseQualitiesAndAddMateCigar": {
+      "rows": 16,
+      "accepted": 14,
+      "rejected": 2,
+      "distinct_outputs": 7,
+      "distinct_rejections": 1,
+      "matched": 16,
+      "t": 2,
+      "share": 1.0
+    },
     "RevertSam": {
       "rows": 17,
       "accepted": 4,
@@ -346,6 +416,16 @@
       "rejected": 7,
       "distinct_outputs": 3,
       "distinct_rejections": 1,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
+    "SamToFastqWithTags": {
+      "rows": 10,
+      "accepted": 2,
+      "rejected": 8,
+      "distinct_outputs": 2,
+      "distinct_rejections": 2,
       "matched": 10,
       "t": 2,
       "share": 1.0

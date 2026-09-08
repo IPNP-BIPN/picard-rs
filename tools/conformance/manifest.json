@@ -302,39 +302,39 @@
         "tool": "CheckDuplicateMarking",
         "port": "check-duplicate-marking",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "exit_code_is_a_result": true
       },
       {
         "tool": "AccumulateQualityYieldMetrics",
         "port": "accumulate-quality-yield-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "GenotypeConcordance",
         "port": "genotype-concordance",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt.genotype_concordance_summary_metrics"
       },
       {
         "tool": "EstimateLibraryComplexity",
         "port": "estimate-library-complexity",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectUmiPrevalenceMetrics",
         "port": "collect-umi-prevalence-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "RevertOriginalBaseQualitiesAndAddMateCigar",
         "port": "revert-original-base-qualities-and-add-mate-cigar",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectJumpingLibraryMetrics",
@@ -352,14 +352,14 @@
         "tool": "SamToFastqWithTags",
         "port": "sam-to-fastq-with-tags",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "CB.fastq"
       },
       {
         "tool": "FindMendelianViolations",
         "port": "find-mendelian-violations",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       }
     ]
   },

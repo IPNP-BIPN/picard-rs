@@ -430,14 +430,6 @@ jobs:
             --log /tmp/MarkIlluminaAdapters.log \
             --log /tmp/SamToFastqWithTags.log \
             --log /tmp/FindMendelianViolations.log \
-            --pending CheckDuplicateMarking \
-            --pending AccumulateQualityYieldMetrics \
-            --pending GenotypeConcordance \
-            --pending EstimateLibraryComplexity \
-            --pending CollectUmiPrevalenceMetrics \
-            --pending RevertOriginalBaseQualitiesAndAddMateCigar \
-            --pending SamToFastqWithTags \
-            --pending FindMendelianViolations \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -491,8 +483,16 @@ jobs:
             tools/coverage/corpus/CollectDuplicateMetrics.t2.txt \
             tools/coverage/corpus/MarkDuplicatesWithMateCigar.t2.txt \
             tools/coverage/corpus/SimpleMarkDuplicatesWithMateCigar.t2.txt \
+            tools/coverage/corpus/CheckDuplicateMarking.t2.txt \
+            tools/coverage/corpus/AccumulateQualityYieldMetrics.t2.txt \
+            tools/coverage/corpus/GenotypeConcordance.t2.txt \
+            tools/coverage/corpus/EstimateLibraryComplexity.t2.txt \
+            tools/coverage/corpus/CollectUmiPrevalenceMetrics.t2.txt \
+            tools/coverage/corpus/RevertOriginalBaseQualitiesAndAddMateCigar.t2.txt \
             tools/coverage/corpus/CollectJumpingLibraryMetrics.t2.txt \
-            tools/coverage/corpus/MarkIlluminaAdapters.t2.txt)
+            tools/coverage/corpus/MarkIlluminaAdapters.t2.txt \
+            tools/coverage/corpus/SamToFastqWithTags.t2.txt \
+            tools/coverage/corpus/FindMendelianViolations.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
