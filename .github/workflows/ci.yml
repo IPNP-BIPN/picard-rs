@@ -369,6 +369,7 @@ jobs:
             --port target/release/mark-illumina-adapters \
             | tee /tmp/MarkIlluminaAdapters.log
           python3 tools/coverage/run_array.py --tool SamToFastqWithTags --t 2 \
+            --fixtures-dir /tmp/corpus \
             --port target/release/sam-to-fastq-with-tags --output-name CB.fastq \
             | tee /tmp/SamToFastqWithTags.log
           python3 tools/coverage/measure.py --log /tmp/AddOATag.log \
