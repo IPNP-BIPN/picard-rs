@@ -310,6 +310,82 @@ public class MakeFixtures {
                 400, 400, 50, 20000, 20000, 10547, 10547, 5200, 5200, 20456, 20456);
         writeQualityYield(new File(dir, "quality_yield_two.metrics"),
                 150, 120, 60, 9000, 7200, 4100, 3300, 2000, 1600, 8800, 7000);
+        // Reads carrying a UMI, for `CollectUmiPrevalenceMetrics`. The tool groups the file into
+        // duplicate sets and counts the DISTINCT barcodes in each, so a corpus needs reads that
+        // duplicate one another and carry different barcodes when they do.
+        //
+        // The barcode quality filter is the reason for the `BQ` values here. It drops a read whose
+        // barcode has NO base under the floor, which is the reverse of what its name says, so a
+        // file of well-formed barcodes reports nothing at all. One base at twenty is what keeps a
+        // read at the default floor of thirty and drops it at fifteen; a barcode with no low base
+        // is dropped either way; and a read with no `BQ` tag at all is never dropped, because the
+        // filter returns before it looks.
+        //
+        // Mapping qualities straddle the default floor of thirty, and every third family is
+        // written unpaired, so FILTER_UNPAIRED_READS decides something too.
+        SAMFileHeader umiHeader = header(SAMFileHeader.SortOrder.coordinate);
+        java.util.List<SAMRecord> umiReads = new java.util.ArrayList<>();
+        String[] umis = {"AACCGGTT", "TTGGCCAA", "ACACGTGT"};
+        for (int family = 0; family < 18; family++) {
+            int copies = 1 + (family % 3);
+            int start = 100 + family * 40;
+            boolean unpaired = family % 3 == 2;
+            for (int copy = 0; copy < copies; copy++) {
+                SAMRecord read = new SAMRecord(umiHeader);
+                byte[] bases = new byte[READ_LENGTH];
+                byte[] quals = new byte[READ_LENGTH];
+                for (int b = 0; b < READ_LENGTH; b++) {
+                    bases[b] = (byte) "ACGT".charAt((family + b) % 4);
+                    quals[b] = 35;
+                }
+                read.setReadName(String.format("umi%04d_%d", family, copy));
+                read.setReadBases(bases);
+                read.setBaseQualities(quals);
+                read.setReferenceIndex(0);
+                read.setAlignmentStart(start);
+                read.setCigarString(READ_LENGTH + "M");
+                // Every fourth family is mapped under the default floor of thirty.
+                read.setMappingQuality(family % 4 == 3 ? 25 : 60);
+                read.setAttribute("RG", family % 2 == 0 ? "rg1" : "rg2");
+                read.setAttribute("RX", umis[copy % umis.length]);
+                if (copy == 1) {
+                    // One base at twenty: kept at the default floor, dropped at a lower one.
+                    read.setAttribute("BQ", "I5IIIIII");
+                } else if (copy == 2) {
+                    // No base under any floor the array uses, so this read is always dropped.
+                    read.setAttribute("BQ", "IIIIIIII");
+                }
+                umiReads.add(read);
+                if (!unpaired) {
+                    // The mate is written too: the duplicate-set iterator reads the mate's cigar
+                    // out of the `MC` tag, and refuses a paired read that has none.
+                    SAMRecord mate = new SAMRecord(umiHeader);
+                    mate.setReadName(read.getReadName());
+                    mate.setReadBases(bases.clone());
+                    mate.setBaseQualities(quals.clone());
+                    mate.setReferenceIndex(0);
+                    mate.setAlignmentStart(start + 200);
+                    mate.setCigarString(READ_LENGTH + "M");
+                    mate.setMappingQuality(read.getMappingQuality());
+                    mate.setAttribute("RG", read.getStringAttribute("RG"));
+                    mate.setAttribute("RX", read.getStringAttribute("RX"));
+                    if (read.getStringAttribute("BQ") != null) {
+                        mate.setAttribute("BQ", read.getStringAttribute("BQ"));
+                    }
+                    mate.setReadNegativeStrandFlag(true);
+                    read.setReadPairedFlag(true);
+                    mate.setReadPairedFlag(true);
+                    read.setFirstOfPairFlag(true);
+                    mate.setSecondOfPairFlag(true);
+                    read.setProperPairFlag(true);
+                    mate.setProperPairFlag(true);
+                    SamPairUtil.setMateInfo(read, mate, true);
+                    umiReads.add(mate);
+                }
+            }
+        }
+        umiReads.sort(new SAMRecordCoordinateComparator());
+        writeBam(new File(dir, "umi.bam"), umiHeader, umiReads, false);
 
         // Reads carrying cell and molecular barcodes, for `SamToFastqWithTags`. That tool writes
         // the ordinary read FASTQ and, beside it, one FASTQ per SEQUENCE_TAG_GROUP whose reads are

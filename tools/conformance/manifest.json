@@ -325,6 +325,12 @@
         "status": "pending"
       },
       {
+        "tool": "CollectUmiPrevalenceMetrics",
+        "port": "collect-umi-prevalence-metrics",
+        "t": 2,
+        "status": "pending"
+      },
+      {
         "tool": "CollectJumpingLibraryMetrics",
         "port": "collect-jumping-library-metrics",
         "t": 2,

@@ -219,6 +219,112 @@ fn compare(
 /// closed set, every record whose read NAME differs from the representative's is a duplicate, and
 /// the first record after sorting never is: the marking is by TEMPLATE, so both ends of the
 /// representative's pair survive.
+/// One set's records in the order `DuplicateSet.getRecords` returns them, which is the FULL
+/// comparator's and not the file's.
+fn sorted_set(
+    set: &[usize],
+    _representative: usize,
+    records: &[Record],
+    library_of: &[i32],
+    options: &Options,
+) -> Vec<usize> {
+    let mut sorted = set.to_vec();
+    sorted.sort_by(|a, b| {
+        compare(
+            &records[*a],
+            &records[*b],
+            library_of[*a],
+            library_of[*b],
+            options.scoring,
+        )
+    });
+    sorted
+}
+
+/// The duplicate sets themselves, as indices into `records`, in the order the iterator yields
+/// them and with each set's records in the order it returns them.
+///
+/// `mark_duplicate_sets` is the same walk with a verdict written at the end of each set; a tool
+/// that reads the SETS -- `CollectUmiPrevalenceMetrics` counts the distinct barcodes in one --
+/// needs the grouping and not the flags.
+pub fn duplicate_sets(records: &[Record], options: &Options) -> Vec<Vec<usize>> {
+    let mut libraries: Vec<String> = Vec::new();
+    let mut library_of: Vec<i32> = Vec::with_capacity(records.len());
+    for record in records {
+        let id = match libraries.iter().position(|known| *known == record.library) {
+            Some(at) => at as i32,
+            None => {
+                libraries.push(record.library.clone());
+                (libraries.len() - 1) as i32
+            }
+        };
+        library_of.push(id);
+    }
+    // The same whole-file re-sort `mark_duplicate_sets` does, by the FULL comparator: the
+    // iterator is built with `preSorted = false`.
+    let mut order: Vec<usize> = (0..records.len()).collect();
+    order.sort_by(|a, b| {
+        compare(
+            &records[*a],
+            &records[*b],
+            library_of[*a],
+            library_of[*b],
+            options.scoring,
+        )
+    });
+
+    let mut out: Vec<Vec<usize>> = Vec::new();
+    let mut set: Vec<usize> = Vec::new();
+    let mut representative: usize = 0;
+    for index in order {
+        let record = &records[index];
+        if set.is_empty() {
+            set.push(index);
+            representative = index;
+            continue;
+        }
+        let head = &records[representative];
+        let same = !head.unmapped()
+            && !head.secondary_or_supplementary()
+            && duplicate_set_compare(head, record, library_of[representative], library_of[index])
+                == Ordering::Equal;
+        if same {
+            if compare(
+                head,
+                record,
+                library_of[representative],
+                library_of[index],
+                options.scoring,
+            ) == Ordering::Greater
+            {
+                representative = index;
+            }
+            set.push(index);
+        } else {
+            out.push(sorted_set(
+                &set,
+                representative,
+                records,
+                &library_of,
+                options,
+            ));
+            set.clear();
+            set.push(index);
+            representative = index;
+        }
+    }
+    if !set.is_empty() {
+        out.push(sorted_set(
+            &set,
+            representative,
+            records,
+            &library_of,
+            options,
+        ));
+    }
+    out
+}
+
 pub fn mark_duplicate_sets(records: &[Record], options: &Options) -> Vec<bool> {
     let mut duplicate = vec![false; records.len()];
     let mut libraries: Vec<String> = Vec::new();
@@ -256,16 +362,7 @@ pub fn mark_duplicate_sets(records: &[Record], options: &Options) -> Vec<bool> {
         if set.is_empty() {
             return;
         }
-        let mut sorted = set.clone();
-        sorted.sort_by(|a, b| {
-            compare(
-                &records[*a],
-                &records[*b],
-                library_of[*a],
-                library_of[*b],
-                options.scoring,
-            )
-        });
+        let sorted = sorted_set(set, representative, records, &library_of, options);
         let name = records[representative].name.clone();
         for index in &sorted {
             let record = &records[*index];
