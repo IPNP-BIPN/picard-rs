@@ -167,6 +167,27 @@
         "15"
       ]
     },
+    "CollectVariantCallingMetrics": {
+      "$why": [
+        "INPUT is a VCF here and a BAM in the shared values, so the tool needs its own; DBSNP is",
+        "the sites-only file the corpus writes beside it, every other site of which is in the",
+        "input, so the known and novel partitions are both non-empty. Its second value is the",
+        "input itself, under which every site is known and the novel partition empties.",
+        "TARGET_INTERVALS decides which sites are counted at all, and the two lists cover",
+        "different ones, so it is the argument that moves the totals."
+      ],
+      "--INPUT": [
+        "/work/fixtures/variants.vcf"
+      ],
+      "--DBSNP": [
+        "/work/fixtures/dbsnp.vcf",
+        "/work/fixtures/variants.vcf"
+      ],
+      "--TARGET_INTERVALS": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ]
+    },
     "BedToIntervalList": {
       "--INPUT": [
         "/work/fixtures/targets.bed",
