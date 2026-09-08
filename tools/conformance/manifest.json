@@ -331,8 +331,8 @@
         "status": "pending"
       },
       {
-        "tool": "FindMendelianViolations",
-        "port": "find-mendelian-violations",
+        "tool": "RevertOriginalBaseQualitiesAndAddMateCigar",
+        "port": "revert-original-base-qualities-and-add-mate-cigar",
         "t": 2,
         "status": "pending"
       },
@@ -354,6 +354,12 @@
         "t": 2,
         "status": "pending",
         "output_name": "CB.fastq"
+      },
+      {
+        "tool": "FindMendelianViolations",
+        "port": "find-mendelian-violations",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },

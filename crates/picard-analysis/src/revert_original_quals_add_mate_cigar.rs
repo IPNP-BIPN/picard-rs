@@ -35,29 +35,106 @@ const SECONDARY_ALIGNMENT: u16 = 0x100;
 const SUPPLEMENTARY_ALIGNMENT: u16 = 0x800;
 const FIRST_OF_PAIR: u16 = 0x40;
 const SECOND_OF_PAIR: u16 = 0x80;
+const MATE_UNMAPPED: u16 = 0x8;
 
-/// The output sort orders this port writes.
+/// The output sort orders, which are `SAMFileHeader.SortOrder`'s five.
+///
+/// The writer is built with `presorted = false`, so it SORTS into the order the header names --
+/// and two of the five name no comparator at all, which is not "leave it alone by accident" but
+/// the documented behaviour of `SortOrder.getComparatorInstance` answering null.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SortOrder {
-    Coordinate,
+pub enum SortOrder {
+    Unsorted,
     Queryname,
+    Coordinate,
+    Duplicate,
+    Unknown,
 }
 
 impl SortOrder {
-    fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
-            SortOrder::Coordinate => "coordinate",
+            SortOrder::Unsorted => "unsorted",
             SortOrder::Queryname => "queryname",
+            SortOrder::Coordinate => "coordinate",
+            SortOrder::Duplicate => "duplicate",
+            SortOrder::Unknown => "unknown",
         }
     }
 
-    fn from_str(s: &str) -> Option<SortOrder> {
+    pub fn parse(s: &str) -> Option<SortOrder> {
         match s {
-            "coordinate" => Some(SortOrder::Coordinate),
+            "unsorted" => Some(SortOrder::Unsorted),
             "queryname" => Some(SortOrder::Queryname),
+            "coordinate" => Some(SortOrder::Coordinate),
+            "duplicate" => Some(SortOrder::Duplicate),
+            "unknown" => Some(SortOrder::Unknown),
             _ => None,
         }
     }
+}
+
+/// `RevertOriginalBaseQualitiesAndAddMateCigar`'s own arguments.
+#[derive(Debug, Clone)]
+pub struct Options {
+    pub restore_original_qualities: bool,
+    /// `null` means the input header's order, which is what the tool substitutes before it writes.
+    pub sort_order: Option<SortOrder>,
+    pub max_records_to_examine: i32,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Options {
+            restore_original_qualities: true,
+            sort_order: None,
+            max_records_to_examine: 10_000,
+        }
+    }
+}
+
+/// `CanSkipSamFile`: what the first records of the input say about whether there is work to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CanSkip {
+    /// A record with no `OQ` whose mate is mapped and whose `MC` is already there: nothing to do,
+    /// and the tool returns having written NO output file at all.
+    CanSkip,
+    FoundOq,
+    FoundNoMateCigar,
+    FoundNoEvidence,
+}
+
+impl CanSkip {
+    pub fn skips(self) -> bool {
+        self == CanSkip::CanSkip
+    }
+}
+
+/// `canSkipSAMFile`, which decides on the FIRST record that answers either way.
+///
+/// The loop stops at the first record carrying an `OQ` (cannot skip), and otherwise at the first
+/// paired record whose mate is mapped: that record's `MC` decides it for the whole file. Only
+/// records that answer neither count against `MAX_RECORDS_TO_EXAMINE`, so a file whose first
+/// record is unpaired and has no `OQ` is examined further while one whose first record is a mapped
+/// pair is decided immediately.
+pub fn can_skip(records: &[BamRecord], options: &Options) -> CanSkip {
+    // Only records that answer neither question count against the limit, and the loop stops at
+    // the first that answers either.
+    for record in records
+        .iter()
+        .take(options.max_records_to_examine.max(0) as usize)
+    {
+        if options.restore_original_qualities && record.tags.get(Tag::new(b"OQ")).is_some() {
+            return CanSkip::FoundOq;
+        }
+        if record.flags & READ_PAIRED != 0 && record.flags & MATE_UNMAPPED == 0 {
+            return match record.tags.get(Tag::new(b"MC")) {
+                Some(_) => CanSkip::CanSkip,
+                None => CanSkip::FoundNoMateCigar,
+            };
+        }
+    }
+    CanSkip::FoundNoEvidence
 }
 
 fn is_primary(rec: &BamRecord) -> bool {
@@ -129,30 +206,127 @@ pub fn revert_original_base_qualities_and_add_mate_cigar(
 fn revert_original_records(
     input_sam: &str,
 ) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
+    revert_original_records_with(input_sam, &Options::default())
+}
+
+/// The transform with the tool's own arguments.
+///
+/// `SORT_ORDER` is the header's when the caller names none, and it decides TWO things: the `SO`
+/// the output header carries, and how the records are ordered -- the writer is built with
+/// `presorted = false`, so it sorts. `unsorted` and `unknown` name no comparator, and the records
+/// then come out in the order the mate-info pass left them, which is query name.
+pub fn revert_original_records_with(
+    input_sam: &str,
+    options: &Options,
+) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
     // The tool opens the input EAGERLY_DECODE at whatever VALIDATION_STRINGENCY; stringency does not
     // reach the bytes.
     let (mut header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
 
-    // SORT_ORDER defaults to the input header's sort order.
-    let output_order = header
-        .attributes
-        .get("SO")
-        .and_then(SortOrder::from_str)
-        .unwrap_or(SortOrder::Coordinate);
+    let output_order = options.sort_order.unwrap_or_else(|| {
+        header
+            .attributes
+            .get("SO")
+            .and_then(SortOrder::parse)
+            .unwrap_or(SortOrder::Unsorted)
+    });
 
     // Restore original qualities: independent per record, so parallel (decision 0006).
-    records.par_iter_mut().for_each(restore_original_qualities);
+    if options.restore_original_qualities {
+        records.par_iter_mut().for_each(restore_original_qualities);
+    }
 
     // Queryname sort to group templates, add mate info + mate cigar, then re-sort to the output order.
     records.sort_by(query_name::compare);
     add_mate_info(&mut records);
     match output_order {
         SortOrder::Coordinate => records.sort_by(coordinate::compare),
-        SortOrder::Queryname => {} // already queryname-sorted
+        // `SO:duplicate`'s comparator is htsjdk's `SAMRecordDuplicateComparator`, the same one the
+        // duplicate-set iterator orders a set by.
+        SortOrder::Duplicate => sort_by_duplicate_order(&header, &mut records),
+        // Already query-name sorted, and the two orders that name no comparator leave it there.
+        SortOrder::Queryname | SortOrder::Unsorted | SortOrder::Unknown => {}
     }
 
     header.set_sort_order(output_order.name());
     Ok((header, records))
+}
+
+/// `SO:duplicate`: htsjdk's duplicate comparator over the records, which needs each record's
+/// library and read group as well as its own fields.
+fn sort_by_duplicate_order(header: &htsjdk_bam::header::SamHeader, records: &mut [BamRecord]) {
+    use crate::mark_duplicates::{Record, ScoringStrategy};
+    let library_of = |record: &BamRecord| -> (String, i32) {
+        let id = match record.tags.get(Tag::new(b"RG")) {
+            Some(TagValue::Str(value)) => Some(value.clone()),
+            _ => None,
+        };
+        match id.and_then(|id| {
+            header
+                .read_groups
+                .iter()
+                .position(|group| group.id == id)
+                .map(|position| (position, &header.read_groups[position]))
+        }) {
+            Some((position, group)) => (
+                group
+                    .attributes
+                    .get("LB")
+                    .unwrap_or("Unknown Library")
+                    .to_string(),
+                position as i32,
+            ),
+            None => ("Unknown Library".to_string(), -1),
+        }
+    };
+    let as_record = |record: &BamRecord| -> Record {
+        let (library, read_group) = library_of(record);
+        Record {
+            name: record.read_name.clone(),
+            flags: record.flags,
+            reference_index: record.reference_index,
+            alignment_start: record.alignment_start,
+            cigar: record.cigar.clone(),
+            qualities: record.base_qualities.clone(),
+            mate_reference_index: record.mate_reference_index,
+            library,
+            read_group,
+            barcode: None,
+            existing_dt: None,
+            mate_cigar: match record.tags.get(Tag::new(b"MC")) {
+                Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text).ok(),
+                _ => None,
+            },
+            mate_alignment_start: record.mate_alignment_start,
+        }
+    };
+    let mut libraries: Vec<String> = Vec::new();
+    let decorated: Vec<(Record, i32)> = records
+        .iter()
+        .map(|record| {
+            let converted = as_record(record);
+            let library = match libraries.iter().position(|k| *k == converted.library) {
+                Some(at) => at as i32,
+                None => {
+                    libraries.push(converted.library.clone());
+                    (libraries.len() - 1) as i32
+                }
+            };
+            (converted, library)
+        })
+        .collect();
+    let mut order: Vec<usize> = (0..records.len()).collect();
+    order.sort_by(|a, b| {
+        crate::duplicate_set::compare(
+            &decorated[*a].0,
+            &decorated[*b].0,
+            decorated[*a].1,
+            decorated[*b].1,
+            ScoringStrategy::SumOfBaseQualities,
+        )
+    });
+    let sorted: Vec<BamRecord> = order.iter().map(|index| records[*index].clone()).collect();
+    records.clone_from_slice(&sorted);
 }
 
 /// The same transform for **BAM** output, byte-identical to Picard with `USE_JDK_DEFLATER=true` via

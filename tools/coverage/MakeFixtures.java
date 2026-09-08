@@ -407,6 +407,62 @@ public class MakeFixtures {
         }
         writeBam(new File(dir, "tagged.bam"), taggedHeader, taggedReads, false);
 
+        // Reads carrying `OQ` and no `MC`, for `RevertOriginalBaseQualitiesAndAddMateCigar`. The
+        // tool skips a file outright when its first informative record has no OQ and its mate
+        // cigar is already there, so a corpus needs a file it cannot skip: these carry original
+        // qualities that differ from the current ones, and no mate cigar at all.
+        //
+        // Every record is primary. The tool's mate-info pass has a separate path for secondary and
+        // supplementary records, and a corpus that mixed them in would measure that path here
+        // instead of this one.
+        SAMFileHeader originalQualsHeader = header(SAMFileHeader.SortOrder.coordinate);
+        java.util.List<SAMRecord> originalQualsReads = new java.util.ArrayList<>();
+        for (int pair = 0; pair < 30; pair++) {
+            SAMRecord first = new SAMRecord(originalQualsHeader);
+            SAMRecord second = new SAMRecord(originalQualsHeader);
+            int start = 100 + pair * 30;
+            for (SAMRecord r : new SAMRecord[] {first, second}) {
+                byte[] bases = new byte[READ_LENGTH];
+                byte[] quals = new byte[READ_LENGTH];
+                StringBuilder original = new StringBuilder();
+                for (int b = 0; b < READ_LENGTH; b++) {
+                    bases[b] = (byte) "ACGT".charAt((pair + b) % 4);
+                    quals[b] = (byte) (20 + (b % 10));
+                    // The original qualities are five higher, so a reverted read is a different
+                    // read and the argument that reverts them is observable.
+                    original.append((char) (33 + 25 + (b % 10)));
+                }
+                r.setReadName(String.format("oq%04d", pair));
+                r.setReadBases(bases);
+                r.setBaseQualities(quals);
+                r.setReferenceIndex(0);
+                r.setCigarString(READ_LENGTH + "M");
+                r.setMappingQuality(60);
+                r.setAttribute("RG", pair % 2 == 0 ? "rg1" : "rg2");
+                // Every third pair keeps its current qualities, so RESTORE_ORIGINAL_QUALITIES is
+                // not all-or-nothing over the file.
+                if (pair % 3 != 2) r.setAttribute("OQ", original.toString());
+                r.setReadPairedFlag(true);
+                r.setProperPairFlag(true);
+            }
+            first.setFirstOfPairFlag(true);
+            second.setSecondOfPairFlag(true);
+            first.setAlignmentStart(start);
+            second.setAlignmentStart(start + 150);
+            second.setReadNegativeStrandFlag(true);
+            first.setMateNegativeStrandFlag(true);
+            first.setMateReferenceIndex(0);
+            second.setMateReferenceIndex(0);
+            first.setMateAlignmentStart(second.getAlignmentStart());
+            second.setMateAlignmentStart(first.getAlignmentStart());
+            first.setInferredInsertSize(150 + READ_LENGTH);
+            second.setInferredInsertSize(-(150 + READ_LENGTH));
+            originalQualsReads.add(first);
+            originalQualsReads.add(second);
+        }
+        originalQualsReads.sort(new SAMRecordCoordinateComparator());
+        writeBam(new File(dir, "original_quals.bam"), originalQualsHeader, originalQualsReads, false);
+
         // A trio and its pedigree, for `FindMendelianViolations`. The sites are chosen for the
         // classes the tool counts: a de novo heterozygote in a child of two reference parents, a
         // heterozygote from two homozygous-variant parents, a homozygote from a reference parent
