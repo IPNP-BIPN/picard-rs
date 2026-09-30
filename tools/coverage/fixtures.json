@@ -543,6 +543,30 @@
         "0.95",
         "0.3"
       ]
+    },
+    "MakeSitesOnlyVcf": {
+      "$why": [
+        "INPUT is a VCF, and the two orders of the same samples are two answers: in a file whose",
+        "sample names are sorted the codec keeps each genotype block lazy, and a block that is never",
+        "decoded is copied, while in the other it is decoded and re-encoded. The file without contig",
+        "lines is what CREATE_INDEX refuses. SAMPLE is the set of samples kept: `null` clears it to",
+        "the default empty set (a sites-only file), sampleA keeps one column, and sampleZ names a",
+        "sample the file does not have, which the writer still gives a column of no-calls. OUTPUT",
+        "ends in .vcf because the writer infers its format from the extension and refuses output.txt."
+      ],
+      "--INPUT": [
+        "/work/fixtures/vcf_sorted_samples.vcf",
+        "/work/fixtures/vcf_unsorted_samples.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--SAMPLE": [
+        "null",
+        "sampleA",
+        "sampleZ"
+      ]
     }
   },
   "constraints": [

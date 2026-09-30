@@ -195,6 +195,7 @@ dependencies = [
  "htsjdk-bam",
  "htsjdk-bgzf",
  "htsjdk-metrics",
+ "htsjdk-tribble",
  "htsjdk-vcf",
  "jmath",
  "md-5",
