@@ -118,6 +118,7 @@ pub mod umi_duplicates;
 pub mod validate_sam_file;
 pub mod vcf_io;
 pub mod vcf_to_adpc;
+pub mod vcf_to_interval_list;
 pub mod view_sam;
 
 pub use cycle::{

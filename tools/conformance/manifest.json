@@ -395,6 +395,12 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.vcf"
+      },
+      {
+        "tool": "VcfToIntervalList",
+        "port": "vcf-to-interval-list",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },

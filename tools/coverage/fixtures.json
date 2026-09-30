@@ -594,6 +594,19 @@
         "null",
         "sampleA"
       ]
+    },
+    "VcfToIntervalList": {
+      "$why": [
+        "INPUT is a VCF. The hand-written one has filtered sites, overlapping and abutting sites,",
+        "IDs on some and not others, and a symbolic deletion with an END, so INCLUDE_FILTERED and",
+        "VARIANT_ID_METHOD both change the file; variants.vcf is the htsjdk-written one, and the",
+        "file without contig lines has no dictionary for the output header, which is a refusal."
+      ],
+      "--INPUT": [
+        "/work/fixtures/vcf_sorted_samples.vcf",
+        "/work/fixtures/variants.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf"
+      ]
     }
   },
   "constraints": [
