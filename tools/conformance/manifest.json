@@ -383,6 +383,24 @@
         "exit_code_is_a_result": true
       },
       {
+        "tool": "BuildBamIndex",
+        "port": "build-bam-index",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "AddCommentsToBam",
+        "port": "add-comments-to-bam",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "GatherBamFiles",
+        "port": "gather-bam-files",
+        "t": 2,
+        "status": "measured"
+      },
+      {
         "tool": "LiftOverHaplotypeMap",
         "port": "lift-over-haplotype-map",
         "t": 2,

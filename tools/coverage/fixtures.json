@@ -544,6 +544,49 @@
         "0.3"
       ]
     },
+    "BuildBamIndex": {
+      "$why": [
+        "Three coordinate-sorted BAMs with different contents, so the index is an answer rather than a",
+        "constant; a SAM text file, which the tool refuses by type; and a queryname-sorted and an",
+        "unsorted BAM, which it refuses by the header's SO before it reads a record."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/tiled.bam",
+        "/work/fixtures/mate_cigar.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/unmapped.bam"
+      ]
+    },
+    "AddCommentsToBam": {
+      "$why": [
+        "Two BAMs of different sort orders, which the tool copies alike, and a SAM file it refuses by",
+        "name. COMMENT is required and holds one comment per row; the values carry no space because",
+        "the oracle's command line is split by a shell."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/small.sam"
+      ],
+      "--COMMENT": [
+        "reviewed_by_qc",
+        "batch:2026-09"
+      ]
+    },
+    "GatherBamFiles": {
+      "$why": [
+        "Two BAMs, which take the block-copying path, and a SAM, which takes gatherNormally and is",
+        "written as a BAM, because makeWriter writes SAM text only for a .sam name. One input per row:",
+        "INPUT is a list, and the array holds one of its values per row."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/tiled.bam",
+        "/work/fixtures/small.sam"
+      ]
+    },
     "CompareSAMs": {
       "$why": [
         "The two files are positional, so they are held: small.bam against inconsistent_duplicates.bam,",

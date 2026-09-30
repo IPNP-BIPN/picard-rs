@@ -1,0 +1,19 @@
+# BuildBamIndex t=2 rows=18 from BuildBamIndex.t2.json
+row	0:CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=STRICT	BINARY sha256=d09fc9611b95d8de76c754588f571d3741c65cda90f045cb37a00c3aa3e73120 bytes=176
+row	1:CREATE_INDEX=true,INPUT=fixture[1],VALIDATION_STRINGENCY=LENIENT	BINARY sha256=ebac0cd32c507b9ac787819fb521ec0f6302f5ca2ef4e353676c20db31a5f669 bytes=176
+row	2:CREATE_INDEX=true,INPUT=fixture[2],VALIDATION_STRINGENCY=SILENT	BINARY sha256=b065b2e457e368adc5319a2304a13fe55b83b4d554064050c8eb75912954eb9f bytes=176
+row	3:CREATE_INDEX=true,INPUT=fixture[3],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: Input file must be bam file, not sam file.
+row	4:CREATE_INDEX=true,INPUT=fixture[4],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: Input bam file must be sorted by coordinate
+row	5:CREATE_INDEX=true,INPUT=fixture[5],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: Input bam file must be sorted by coordinate
+row	6:CREATE_INDEX=false,INPUT=fixture[0],VALIDATION_STRINGENCY=LENIENT	BINARY sha256=d09fc9611b95d8de76c754588f571d3741c65cda90f045cb37a00c3aa3e73120 bytes=176
+row	7:CREATE_INDEX=false,INPUT=fixture[1],VALIDATION_STRINGENCY=STRICT	BINARY sha256=ebac0cd32c507b9ac787819fb521ec0f6302f5ca2ef4e353676c20db31a5f669 bytes=176
+row	8:CREATE_INDEX=false,INPUT=fixture[2],VALIDATION_STRINGENCY=STRICT	BINARY sha256=b065b2e457e368adc5319a2304a13fe55b83b4d554064050c8eb75912954eb9f bytes=176
+row	9:CREATE_INDEX=false,INPUT=fixture[3],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: Input file must be bam file, not sam file.
+row	10:CREATE_INDEX=false,INPUT=fixture[4],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: Input bam file must be sorted by coordinate
+row	11:CREATE_INDEX=false,INPUT=fixture[5],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: Input bam file must be sorted by coordinate
+row	12:CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=SILENT	BINARY sha256=d09fc9611b95d8de76c754588f571d3741c65cda90f045cb37a00c3aa3e73120 bytes=176
+row	13:CREATE_INDEX=true,INPUT=fixture[1],VALIDATION_STRINGENCY=SILENT	BINARY sha256=ebac0cd32c507b9ac787819fb521ec0f6302f5ca2ef4e353676c20db31a5f669 bytes=176
+row	14:CREATE_INDEX=true,INPUT=fixture[2],VALIDATION_STRINGENCY=LENIENT	BINARY sha256=b065b2e457e368adc5319a2304a13fe55b83b4d554064050c8eb75912954eb9f bytes=176
+row	15:CREATE_INDEX=true,INPUT=fixture[3],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: Input file must be bam file, not sam file.
+row	16:CREATE_INDEX=true,INPUT=fixture[4],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: Input bam file must be sorted by coordinate
+row	17:CREATE_INDEX=true,INPUT=fixture[5],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: Input bam file must be sorted by coordinate
