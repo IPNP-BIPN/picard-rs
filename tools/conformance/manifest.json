@@ -376,6 +376,12 @@
         "exit_code_is_a_result": true
       },
       {
+        "tool": "CollectInsertSizeMetrics",
+        "port": "collect-insert-size-metrics",
+        "t": 2,
+        "status": "pending"
+      },
+      {
         "tool": "BuildBamIndex",
         "port": "build-bam-index",
         "t": 2,
