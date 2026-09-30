@@ -631,6 +631,31 @@
         "/work/fixtures/ref.dict",
         "/work/fixtures/other.dict"
       ]
+    },
+    "UpdateVcfSequenceDictionary": {
+      "$why": [
+        "INPUT is a VCF under both sample orders, plus the one with no contig lines to replace.",
+        "SEQUENCE_DICTIONARY goes through SAMSequenceDictionaryExtractor, which picks a reader by",
+        "extension: the FASTA (whose .dict beside it is read), a .dict that disagrees with the",
+        "corpus and carries an assembly, a VCF's contig lines, an interval list's header, and a VCF",
+        "with no contig lines, whose dictionary is null: refused by the writer when it is to index",
+        "and by setSequenceDictionary when it is not."
+      ],
+      "--INPUT": [
+        "/work/fixtures/vcf_sorted_samples.vcf",
+        "/work/fixtures/vcf_unsorted_samples.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/other.dict",
+        "/work/fixtures/variants.vcf",
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/vcf_no_contigs.vcf"
+      ]
     }
   },
   "constraints": [

@@ -408,6 +408,13 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.vcf"
+      },
+      {
+        "tool": "UpdateVcfSequenceDictionary",
+        "port": "update-vcf-sequence-dictionary",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
       }
     ]
   },

@@ -445,8 +445,9 @@ pub fn assert_same_dictionary(this: &[Sequence], that: &[Sequence]) -> Result<()
 /// `SAMSequenceDictionaryExtractor.extractDictionary`, for the shapes this repository's corpus has.
 ///
 /// A FASTA is not read: `ReferenceSequenceFileFactory` looks for the `.dict` beside it. A VCF
-/// contributes its contig lines, and a `.dict` or an interval list its `@SQ` lines.
-pub fn extract_dictionary(path: &str) -> std::io::Result<Vec<Sequence>> {
+/// contributes its contig lines -- and `null` when it has none, which is the one shape that comes
+/// back empty-handed -- and a `.dict` or an interval list its `@SQ` lines.
+pub fn extract_dictionary(path: &str) -> std::io::Result<Option<Vec<Sequence>>> {
     let candidate = std::path::Path::new(path);
     let extension = candidate
         .extension()
@@ -455,16 +456,16 @@ pub fn extract_dictionary(path: &str) -> std::io::Result<Vec<Sequence>> {
     match extension {
         "fasta" | "fa" | "fna" => {
             let text = std::fs::read_to_string(candidate.with_extension("dict"))?;
-            Ok(parse_sam_dictionary(&text))
+            Ok(Some(parse_sam_dictionary(&text)))
         }
         "vcf" => {
             let text = std::fs::read_to_string(path)?;
             let file = read_vcf(&text).map_err(|failure| {
                 std::io::Error::new(std::io::ErrorKind::InvalidData, failure.error.message())
             })?;
-            Ok(header_dictionary(&file.header).unwrap_or_default())
+            Ok(header_dictionary(&file.header))
         }
-        _ => Ok(parse_sam_dictionary(&std::fs::read_to_string(path)?)),
+        _ => Ok(Some(parse_sam_dictionary(&std::fs::read_to_string(path)?))),
     }
 }
 
