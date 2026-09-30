@@ -379,19 +379,19 @@
         "tool": "BuildBamIndex",
         "port": "build-bam-index",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "AddCommentsToBam",
         "port": "add-comments-to-bam",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "GatherBamFiles",
         "port": "gather-bam-files",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "LiftOverHaplotypeMap",

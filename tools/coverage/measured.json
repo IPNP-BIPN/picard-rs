@@ -20,6 +20,16 @@
       "t": 2,
       "share": 1.0
     },
+    "AddCommentsToBam": {
+      "rows": 10,
+      "accepted": 0,
+      "rejected": 10,
+      "distinct_outputs": 0,
+      "distinct_rejections": 3,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
     "AddOATag": {
       "rows": 9,
       "accepted": 9,
@@ -57,6 +67,16 @@
       "distinct_outputs": 4,
       "distinct_rejections": 0,
       "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
+    "BuildBamIndex": {
+      "rows": 18,
+      "accepted": 9,
+      "rejected": 9,
+      "distinct_outputs": 3,
+      "distinct_rejections": 2,
+      "matched": 18,
       "t": 2,
       "share": 1.0
     },
@@ -237,6 +257,16 @@
       "distinct_outputs": 4,
       "distinct_rejections": 3,
       "matched": 12,
+      "t": 2,
+      "share": 1.0
+    },
+    "GatherBamFiles": {
+      "rows": 9,
+      "accepted": 9,
+      "rejected": 0,
+      "distinct_outputs": 2,
+      "distinct_rejections": 0,
+      "matched": 9,
       "t": 2,
       "share": 1.0
     },
