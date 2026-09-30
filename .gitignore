@@ -67,6 +67,7 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/SamToFastqWithTags.t2.txt
 !tools/coverage/corpus/FindMendelianViolations.t2.txt
 !tools/coverage/corpus/LiftOverIntervalList.t2.txt
+!tools/coverage/corpus/CollectInsertSizeMetrics.t2.txt
 !tools/coverage/corpus/BuildBamIndex.t2.txt
 !tools/coverage/corpus/AddCommentsToBam.t2.txt
 !tools/coverage/corpus/GatherBamFiles.t2.txt

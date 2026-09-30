@@ -379,7 +379,7 @@
         "tool": "CollectInsertSizeMetrics",
         "port": "collect-insert-size-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "BuildBamIndex",
