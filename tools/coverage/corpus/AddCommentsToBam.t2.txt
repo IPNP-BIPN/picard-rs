@@ -1,0 +1,11 @@
+# AddCommentsToBam t=2 rows=10 from AddCommentsToBam.t2.json
+row	0:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/small.bam
+row	1:COMMENT=fixture[0],CREATE_INDEX=false,INPUT=fixture[1],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/queryname.bam
+row	2:COMMENT=fixture[1],CREATE_INDEX=true,INPUT=fixture[1],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/queryname.bam
+row	3:COMMENT=fixture[1],CREATE_INDEX=false,INPUT=fixture[0],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/small.bam
+row	4:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[2],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" picard.PicardException: SAM files are not supported
+row	5:COMMENT=fixture[1],CREATE_INDEX=false,INPUT=fixture[2],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" picard.PicardException: SAM files are not supported
+row	6:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/small.bam
+row	7:COMMENT=fixture[1],CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/small.bam
+row	8:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[1],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/queryname.bam
+row	9:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[2],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" picard.PicardException: SAM files are not supported
