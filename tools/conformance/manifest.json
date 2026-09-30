@@ -401,6 +401,13 @@
         "port": "vcf-to-interval-list",
         "t": 2,
         "status": "pending"
+      },
+      {
+        "tool": "SortVcf",
+        "port": "sort-vcf",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
       }
     ]
   },

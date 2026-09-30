@@ -112,6 +112,7 @@ pub mod single_pass_rejections;
 pub mod snvq;
 pub mod sort_gff;
 pub mod sort_sam;
+pub mod sort_vcf;
 pub mod split_sam_by_library;
 pub mod split_sam_by_number_of_reads;
 pub mod umi_duplicates;

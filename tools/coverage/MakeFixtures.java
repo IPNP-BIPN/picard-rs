@@ -1106,6 +1106,9 @@ public class MakeFixtures {
      * interval's end. `vcf_no_contigs.vcf` is the first file without its contig lines, which is
      * what the tools that need a sequence dictionary refuse. `vcf_one_sample.vcf` is the one
      * sample RenameSampleInVcf accepts and `vcf_sites_only.vcf` the none it also accepts.
+     * The two `##source` lines are two lines to every tool but SortVcf, whose header goes
+     * through `VCFUtils.smartMergeHeaders`: that keys an unstructured line by its key alone and
+     * keeps the first in sorted order, so one of them is dropped.
      * `other.dict` disagrees with the corpus on chr2's length and adds a contig, and carries an
      * assembly, so a header rebuilt from it is visibly a different header.
      */
@@ -1120,7 +1123,8 @@ public class MakeFixtures {
                 "##INFO=<ID=DB,Number=0,Type=Flag,Description=\"dbSNP membership\">",
                 "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position\">",
                 "##ALT=<ID=DEL,Description=\"Deletion\">",
-                "##source=handwritten") + "\n";
+                "##source=handwritten",
+                "##source=a second source line") + "\n";
         String contigs = "##contig=<ID=chr1,length=" + CHR1 + ">\n"
                 + "##contig=<ID=chr2,length=" + CHR2 + ",assembly=test>\n";
         String[] records = {

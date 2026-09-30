@@ -607,6 +607,30 @@
         "/work/fixtures/variants.vcf",
         "/work/fixtures/vcf_no_contigs.vcf"
       ]
+    },
+    "SortVcf": {
+      "$why": [
+        "INPUT is a VCF whose records are out of order on two contigs, under both sample orders",
+        "(the output header's samples are the SORTED names, so the second is rewritten column by",
+        "column), plus the file without contig lines, which needs SEQUENCE_DICTIONARY. That argument",
+        "is `null`, the corpus's own dictionary (which agrees with the VCFs), and other.dict, which",
+        "does not and is refused. It is read through SamReaderFactory, so it is a .dict, not the",
+        "FASTA the shared value names. INPUT is one file per row: a second input would need two",
+        "values in one row, which the harness cannot pass."
+      ],
+      "--INPUT": [
+        "/work/fixtures/vcf_sorted_samples.vcf",
+        "/work/fixtures/vcf_unsorted_samples.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "null",
+        "/work/fixtures/ref.dict",
+        "/work/fixtures/other.dict"
+      ]
     }
   },
   "constraints": [
