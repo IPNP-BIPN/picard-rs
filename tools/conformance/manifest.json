@@ -461,6 +461,13 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.vcf,output.vcf.gz"
+      },
+      {
+        "tool": "FixVcfHeader",
+        "port": "fix-vcf-header",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
       }
     ]
   },

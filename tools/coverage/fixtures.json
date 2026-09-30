@@ -837,6 +837,41 @@
         "/work/out/output.vcf.gz",
         "/work/out/output.txt"
       ]
+    },
+    "FixVcfHeader": {
+      "$why": [
+        "INPUT is fix_missing.vcf, whose records use a FILTER, INFO keys and FORMAT keys its header",
+        "does not define (at most one undefined INFO key per record, so which one the writer names",
+        "first never depends on a HashMap's order), the same under the other column order (its",
+        "genotypes are decoded, so their FORMAT keys are checked when written), vcf_sorted_samples.vcf,",
+        "whose header is complete, and vcf_no_contigs.vcf, which the always-indexing writer refuses.",
+        "HEADER is `null` (the header is rebuilt from the records), fix_header.vcf (complete),",
+        "fix_header_swapped.vcf (the same samples in the other column order, which",
+        "ENFORCE_SAME_SAMPLES lets through) and vcf_one_sample.vcf (one sample, refused unless",
+        "ENFORCE_SAME_SAMPLES is false, and then missing the definitions). CHECK_FIRST_N_RECORDS is",
+        "the default and 1, which scans one record, so a later undefined key reaches the writer, and",
+        "which beside a HEADER is the tool's own command-line refusal. OUTPUT is a .vcf: BCF writing",
+        "is not in htsjdk-rs."
+      ],
+      "--INPUT": [
+        "/work/fixtures/fix_missing.vcf",
+        "/work/fixtures/fix_missing_unsorted.vcf",
+        "/work/fixtures/vcf_sorted_samples.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--HEADER": [
+        "null",
+        "/work/fixtures/fix_header.vcf",
+        "/work/fixtures/fix_header_swapped.vcf",
+        "/work/fixtures/vcf_one_sample.vcf"
+      ],
+      "--CHECK_FIRST_N_RECORDS": [
+        "-1",
+        "1"
+      ]
     }
   },
   "constraints": [

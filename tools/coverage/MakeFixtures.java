@@ -541,6 +541,7 @@ public class MakeFixtures {
         writeVcfGatherFixtures(dir);
         writeVcfSplitFixture(dir);
         writeVcfConverterFixture(dir);
+        writeVcfFixHeaderFixtures(dir);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
 
@@ -1320,6 +1321,62 @@ public class MakeFixtures {
                 out.add(vc);
             }
         }
+    }
+
+    /**
+     * The corpus of FixVcfHeader. `fix_missing.vcf` uses a FILTER, three INFO keys (one a flag)
+     * and three FORMAT keys (one of them GQ, a standard key) that its header does not define, at
+     * most one undefined INFO key per record, so which one the writer names first never depends on
+     * a HashMap's order. `fix_missing_unsorted.vcf` is the same under the other column order, so
+     * its genotypes are decoded and their FORMAT keys checked. `fix_header.vcf` is a header
+     * defining all of them, with no records, for HEADER, and `fix_header_swapped.vcf` the same
+     * with its sample columns in the other order, which ENFORCE_SAME_SAMPLES lets through.
+     */
+    static void writeVcfFixHeaderFixtures(File dir) throws Exception {
+        String contigs = "##contig=<ID=chr1,length=" + CHR1 + ">\n"
+                + "##contig=<ID=chr2,length=" + CHR2 + ">\n";
+        String meta = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+                "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total depth\">",
+                "##source=fix") + "\n" + contigs;
+        String full = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FILTER=<ID=q10,Description=\"Quality below 10\">",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">",
+                "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+                "##FORMAT=<ID=XF,Number=1,Type=String,Description=\"A string\">",
+                "##FORMAT=<ID=XG,Number=1,Type=Integer,Description=\"An integer\">",
+                "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total depth\">",
+                "##INFO=<ID=XA,Number=1,Type=Integer,Description=\"One\">",
+                "##INFO=<ID=XB,Number=2,Type=Integer,Description=\"Two\">",
+                "##INFO=<ID=FLAGX,Number=0,Type=Flag,Description=\"A flag\">",
+                "##source=the replacement header") + "\n" + contigs;
+        String columns = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
+        String[] records = {
+            "chr1\t100\t.\tA\tG\t50\tPASS\tDP=10;XA=1\tGT:GQ:XF\t0/1:30:a\t0/0:.:.",
+            "chr1\t200\t.\tC\tT\t.\tq10\tDP=5;FLAGX\tGT:DP\t1/1:3\t0/1:2",
+            "chr2\t50\t.\tG\tA\t.\tPASS\tXB=2,3\tGT:XG\t0|1:7\t1|1:8",
+        };
+        // The same records with their two sample columns swapped, for the other column order.
+        String[] swapped = new String[records.length];
+        for (int i = 0; i < records.length; i++) {
+            String[] f = records[i].split("\t");
+            String t = f[9];
+            f[9] = f[10];
+            f[10] = t;
+            swapped[i] = String.join("\t", f);
+        }
+        writeVcfText(new File(dir, "fix_missing.vcf"), meta,
+                columns + "\tsampleA\tsampleB", records, 11);
+        writeVcfText(new File(dir, "fix_missing_unsorted.vcf"), meta,
+                columns + "\tsampleB\tsampleA", swapped, 11);
+        writeVcfText(new File(dir, "fix_header.vcf"), full,
+                columns + "\tsampleA\tsampleB", new String[0], 11);
+        writeVcfText(new File(dir, "fix_header_swapped.vcf"), full,
+                columns + "\tsampleB\tsampleA", new String[0], 11);
     }
 
     /** A VCF as text: the meta lines, the column line, and each record cut to its first columns. */
