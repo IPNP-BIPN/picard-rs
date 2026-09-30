@@ -781,6 +781,38 @@
         "null",
         "zeta alpha"
       ]
+    },
+    "SplitVcfs": {
+      "$why": [
+        "Both outputs are compared (the manifest's output_name names the two). split_types.vcf holds",
+        "every VariantContext type, its first odd one MIXED; vcf_sorted_samples.vcf's one odd record",
+        "is a symbolic deletion, and vcf_unsorted_samples.vcf is the same records with genotypes that",
+        "are re-encoded rather than copied; so STRICT decides between two refusals and two splits. gather_1.vcf (copied) and merge_b.vcf (re-encoded) hold SNPs and indels only, which STRICT accepts.",
+        "vcf_no_contigs.vcf is indexable only through SEQUENCE_DICTIONARY, which is read through",
+        "SamReaderFactory, so it is a .dict; other.dict disagrees with the VCFs and is accepted,",
+        "since it only feeds the index. vcf_sites_only.vcf has no samples. The outputs are .vcf:",
+        "BCF writing is not in htsjdk-rs."
+      ],
+      "--INPUT": [
+        "/work/fixtures/split_types.vcf",
+        "/work/fixtures/vcf_sorted_samples.vcf",
+        "/work/fixtures/vcf_unsorted_samples.vcf",
+        "/work/fixtures/gather_1.vcf",
+        "/work/fixtures/merge_b.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf",
+        "/work/fixtures/vcf_sites_only.vcf"
+      ],
+      "--SNP_OUTPUT": [
+        "/work/out/snp.vcf"
+      ],
+      "--INDEL_OUTPUT": [
+        "/work/out/indel.vcf"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "null",
+        "/work/fixtures/ref.dict",
+        "/work/fixtures/other.dict"
+      ]
     }
   },
   "constraints": [

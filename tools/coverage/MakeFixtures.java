@@ -539,6 +539,7 @@ public class MakeFixtures {
         writeVcfUtilityFixtures(dir);
         writeVcfMergeFixtures(dir);
         writeVcfGatherFixtures(dir);
+        writeVcfSplitFixture(dir);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
 
@@ -1262,6 +1263,34 @@ public class MakeFixtures {
         writeVcfText(new File(dir, "gather_empty.vcf"), meta, sorted, new String[0], 11);
         writeVcfText(new File(dir, "gather_overlap.vcf"), meta, sorted, overlap, 11);
         writeVcfText(new File(dir, "gather_2_swapped.vcf"), meta, unsorted, second, 11);
+    }
+
+    /**
+     * The corpus of SplitVcfs beside vcf_sorted_samples.vcf (whose one odd record is SYMBOLIC):
+     * every VariantContext type in one file, in coordinate order. The first record that is
+     * neither a SNP nor an indel is a MIXED site, which is the type STRICT names; the multiallelic
+     * SNP, the MNP, the site with no ALT (NO_VARIATION) and the insertion come after it.
+     */
+    static void writeVcfSplitFixture(File dir) throws Exception {
+        String meta = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+                "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total depth\">",
+                "##contig=<ID=chr1,length=" + CHR1 + ">",
+                "##contig=<ID=chr2,length=" + CHR2 + ">") + "\n";
+        String[] records = {
+            "chr1\t10\t.\tA\tG\t.\t.\tDP=5\tGT:DP\t0/1:5",
+            "chr1\t20\t.\tAC\tA\t.\t.\t.\tGT:DP\t1/1:.",
+            "chr1\t30\t.\tA\tG,AT\t.\t.\t.\tGT\t1/2",
+            "chr1\t40\t.\tC\tA,T\t9\tPASS\tDP=3\tGT:DP\t1/2:3",
+            "chr1\t50\t.\tAC\tGT\t.\t.\t.\tGT\t0/1",
+            "chr1\t60\t.\tT\t.\t.\t.\t.\tGT\t0/0",
+            "chr2\t5\trs5\tG\tGTT\t.\tPASS\t.\tGT:DP\t0|1:7",
+            "chr2\t9\t.\tC\tT\t.\t.\t.\tGT:DP\t./.:.",
+        };
+        writeVcfText(new File(dir, "split_types.vcf"), meta,
+                "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsampleA", records, 10);
     }
 
     /** A VCF as text: the meta lines, the column line, and each record cut to its first columns. */
