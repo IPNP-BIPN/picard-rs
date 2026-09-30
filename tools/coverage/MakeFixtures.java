@@ -537,6 +537,7 @@ public class MakeFixtures {
         // file's sample names are in sorted order and re-encoded when they are not, so the same
         // records are written under both sample orders.
         writeVcfUtilityFixtures(dir);
+        writeVcfMergeFixtures(dir);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
 
@@ -1155,6 +1156,66 @@ public class MakeFixtures {
             p.print("@SQ\tSN:chr2\tLN:" + (CHR2 + 500) + "\n");
             p.print("@SQ\tSN:chr3\tLN:300\tSP:test\n");
         }
+    }
+
+    /**
+     * The corpus of MergeVcfs: two files whose records are each in coordinate order and meet at
+     * three positions (chr1:100, chr1:550, chr2:100), which is where the PriorityQueue inside
+     * htsjdk's MergingIterator decides the order and the input order does not.
+     *
+     * `merge_a.vcf` has its samples in sorted order, so its genotype blocks are copied; `merge_b.vcf`
+     * has them reversed, so its are decoded and re-encoded in the sorted order. The two disagree on
+     * XC's Number, which smartMergeHeaders promotes to `.` (AC would not do: it is a standard line,
+     * which the reader repairs to Number=A before the merge sees it), and b adds an INFO line.
+     * `merge_b_no_contigs.vcf` is b without contig lines, which needs SEQUENCE_DICTIONARY, and
+     * `merge_swapped_contigs.vcf` declares the same contigs in the other order, which the
+     * comparator refuses as incompatible.
+     */
+    static void writeVcfMergeFixtures(File dir) throws Exception {
+        String common = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FILTER=<ID=LowQual,Description=\"Low quality\">",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">",
+                "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+                "##INFO=<ID=DB,Number=0,Type=Flag,Description=\"dbSNP membership\">") + "\n";
+        String metaA = common
+                + "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count\">\n"
+                + "##INFO=<ID=XC,Number=2,Type=Integer,Description=\"Two counts\">\n"
+                + "##source=merge_a\n";
+        String metaB = common
+                + "##INFO=<ID=AC,Number=1,Type=Integer,Description=\"Allele count in b\">\n"
+                + "##INFO=<ID=XB,Number=1,Type=Float,Description=\"Only in b\">\n"
+                + "##INFO=<ID=XC,Number=3,Type=Integer,Description=\"Three counts\">\n"
+                + "##source=merge_b\n";
+        String contigs = "##contig=<ID=chr1,length=" + CHR1 + ">\n"
+                + "##contig=<ID=chr2,length=" + CHR2 + ",assembly=test>\n";
+        String swapped = "##contig=<ID=chr2,length=" + CHR2 + ",assembly=test>\n"
+                + "##contig=<ID=chr1,length=" + CHR1 + ">\n";
+        String columns = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
+        String[] recordsA = {
+            "chr1\t100\trs1\tA\tG\t50\tPASS\tAC=1;DB\tGT:GQ:DP\t0/1:30:8\t0/0:.:.",
+            "chr1\t200\t.\tACGT\tA\t30\tPASS\tAC=1\tGT:GQ:DP\t0/1:.:4\t1/1:9:.",
+            "chr1\t550\trs4\tA\tT\t.\t.\tAC=0\tGT:GQ:DP\t0/0:50:20\t0/0:40:20",
+            "chr2\t100\t.\tA\tG\t.\tLowQual\tAC=1\tGT:GQ:DP\t0/1:30:8\t./.:.:.",
+        };
+        // Columns in b's own order, sampleB first.
+        String[] recordsB = {
+            "chr1\t100\t.\tA\tC\t20\tPASS\tAC=1;XB=0.5\tGT:DP:GQ\t0/0:.:.\t0/1:7:22",
+            "chr1\t150\trs9\tC\tCT\t.\tPASS\tAC=2\tGT:GQ\t1/1:15\t0/1:.",
+            "chr1\t550\t.\tA\tC\t15\tLowQual\tXB=2\tGT:GQ:DP\t0/1:5:.\t0/0:.:3",
+            "chr1\t700\t.\tC\tT\t.\t.\tAC=1\tGT:GQ:DP\t./.:.:.\t0/1:12:3",
+            "chr2\t50\t.\tT\tA\t8\tPASS\t.\tGT\t0|1\t1|0",
+            "chr2\t100\trs7\tA\tT\t.\tPASS\tAC=1\tGT:GQ:DP\t0/1:10:10\t0/0:10:10",
+        };
+        writeVcfText(new File(dir, "merge_a.vcf"), metaA + contigs,
+                columns + "\tsampleA\tsampleB", recordsA, 11);
+        writeVcfText(new File(dir, "merge_b.vcf"), metaB + contigs,
+                columns + "\tsampleB\tsampleA", recordsB, 11);
+        writeVcfText(new File(dir, "merge_b_no_contigs.vcf"), metaB,
+                columns + "\tsampleB\tsampleA", recordsB, 11);
+        writeVcfText(new File(dir, "merge_swapped_contigs.vcf"), metaB + swapped,
+                columns + "\tsampleB\tsampleA", recordsB, 11);
     }
 
     /** A VCF as text: the meta lines, the column line, and each record cut to its first columns. */

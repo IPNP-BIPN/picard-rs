@@ -108,13 +108,45 @@ def row_arguments(row, held):
     return args
 
 
-def as_cli(args):
-    """Barclay long form: `--NAME value`, which is the syntax the claim is defined against."""
+def as_cli(args, lists=()):
+    """Barclay long form: `--NAME value`, which is the syntax the claim is defined against.
+
+    An argument named in `lists` carries a whole list in one value, its elements separated by
+    spaces, and each element is written as its own `--NAME element`; see `list_arguments`.
+    """
     out = []
-    for pair in args:
+    for pair in expand_lists(args, lists):
         name, _, value = pair.partition("=")
         out += [name, value]
     return out
+
+
+def expand_lists(args, lists=()):
+    """Each `NAME=a b` of an argument in `lists` as `NAME=a` and `NAME=b`, in that order."""
+    out = []
+    for pair in args:
+        name, _, value = pair.partition("=")
+        if name in lists:
+            out += [f"{name}={word}" for word in value.split()]
+        else:
+            out.append(pair)
+    return out
+
+
+def list_arguments(tool):
+    """The arguments whose fixture values are whole lists, per tool under `$lists`.
+
+    Barclay collects a repeated argument into one list, and the array assigns one value per
+    argument, so a list the tool reads as a unit can only be varied as a unit: each value is its
+    elements separated by spaces. `MergeVcfs` and `GatherVcfs` are the tools that need it: what
+    they do is combine several INPUTs, and a row with one of them measures the copy and nothing
+    else. Same convention as gatk-rs's run_array.py.
+    """
+    path = REPO / "tools" / "coverage" / "fixtures.json"
+    if not path.exists():
+        return ()
+    fixtures = json.loads(path.read_text())
+    return tuple(fixtures.get("per_tool", {}).get(tool, {}).get("$lists", []))
 
 
 def fresh_directory(workdir, stem):
@@ -138,7 +170,7 @@ def fresh_directory(workdir, stem):
 
 
 def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt",
-               fixtures=None):
+               fixtures=None, lists=()):
     """Run one row in the container. Returns (exit code, output text, stdout tail).
 
     `on_stdout` is for the tools that HAVE no output argument: `ViewSam` and `BamIndexStats` print
@@ -150,7 +182,7 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_
     out_dir = fresh_directory(workdir, "out")
     fixtures = fixtures or workdir / "fixtures"
 
-    cli = " ".join(as_cli(row_args))
+    cli = " ".join(as_cli(row_args, lists))
     # `java -jar picard.jar <Tool> <args>`: the tool name is the first token, and the arguments
     # follow in Barclay long form.
     command = f"mkdir -p /work/tmp /work/out && java -jar $PICARD_JAR {tool} {cli}"
@@ -279,13 +311,13 @@ def first_error(text):
 
 
 def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt",
-             fixtures=None):
+             fixtures=None, lists=()):
     """Run the port binary on the same row, with the fixture paths rewritten to the host."""
     out_dir = fresh_directory(workdir, "port")
     fixtures = fixtures or workdir / "fixtures"
 
     rewritten = []
-    for pair in row_args:
+    for pair in expand_lists(row_args, lists):
         name, _, value = pair.partition("=")
         value = value.replace("/work/fixtures", str(fixtures))
         value = value.replace("/work/out", str(out_dir))
@@ -435,6 +467,7 @@ def main(argv):
             fixtures = build_fixtures(workdir)
 
         results = []
+        lists = list_arguments(args.tool)
         for row in rows:
             row_args = row_arguments(row, array["excluded"])
             code, text, tail = run_oracle(
@@ -445,6 +478,7 @@ def main(argv):
                 args.strip_program_records,
                 args.output_name,
                 fixtures,
+                lists,
             )
             entry = {
                 "row": row["row"],
@@ -465,6 +499,7 @@ def main(argv):
                     args.strip_program_records,
                     args.output_name,
                     fixtures,
+                    lists,
                 )
                 entry["port_exit"] = p_code
                 entry["port_output"] = outcome(

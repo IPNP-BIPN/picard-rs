@@ -699,6 +699,50 @@
         "/work/fixtures/targets.interval_list",
         "/work/fixtures/vcf_no_contigs.vcf"
       ]
+    },
+    "MergeVcfs": {
+      "$why": [
+        "INPUT and COMMENT are whole lists ($lists): what MergeVcfs does is combine several inputs, and",
+        "a row with one of them measures a copy. merge_a.vcf and merge_b.vcf are each in coordinate",
+        "order and meet at three positions, where MergingIterator's heap (not the input order) decides",
+        "which record comes first; b's samples are in the other column order, so its genotypes are",
+        "re-encoded while a's are copied, and its XC line promotes a's count to `.`. The pair is given",
+        "both ways round, and a alone. merge_b_no_contigs.vcf needs SEQUENCE_DICTIONARY (ref.dict makes",
+        "it compatible, other.dict adds chr3 and is refused), and as the FIRST input it takes that",
+        "dictionary as the one the others are checked against. merge_swapped_contigs.vcf declares the",
+        "contigs in the other order, vcf_one_sample.vcf has other samples, and vcf_sorted_samples.vcf",
+        "is out of order, which the merge refuses only when it goes backwards. COMMENT keeps only the",
+        "first comment (addMetaDataLine refuses a second line under one key). A `.list` INPUT is not",
+        "a value: the paths inside it are the container's, and the port runs on the host. OUTPUT is a",
+        ".vcf: BCF writing is not in htsjdk-rs, and a .vcf.gz would be another file to compare."
+      ],
+      "$lists": [
+        "--INPUT",
+        "--COMMENT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/merge_a.vcf /work/fixtures/merge_b.vcf",
+        "/work/fixtures/merge_b.vcf /work/fixtures/merge_a.vcf",
+        "/work/fixtures/merge_a.vcf",
+        "/work/fixtures/merge_a.vcf /work/fixtures/merge_b_no_contigs.vcf",
+        "/work/fixtures/merge_b_no_contigs.vcf /work/fixtures/merge_a.vcf",
+        "/work/fixtures/merge_a.vcf /work/fixtures/merge_swapped_contigs.vcf",
+        "/work/fixtures/merge_a.vcf /work/fixtures/vcf_one_sample.vcf",
+        "/work/fixtures/vcf_sorted_samples.vcf /work/fixtures/merge_b.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "null",
+        "/work/fixtures/ref.dict",
+        "/work/fixtures/other.dict"
+      ],
+      "--COMMENT": [
+        "null",
+        "zeta alpha",
+        "merged"
+      ]
     }
   },
   "constraints": [
