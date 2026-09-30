@@ -440,6 +440,13 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.vcf"
+      },
+      {
+        "tool": "GatherVcfs",
+        "port": "gather-vcfs",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
       }
     ]
   },

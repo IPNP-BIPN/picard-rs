@@ -28,6 +28,7 @@ Two modes, and the difference matters:
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -42,6 +43,9 @@ REPO = Path(__file__).resolve().parents[2]
 ARRAYS = REPO / "tools" / "coverage" / "arrays"
 IMAGE = "picard-rs-oracle:3.4.0"
 PLATFORM = "linux/amd64"
+
+# The level and time fields of an htsjdk `Log` line; see `first_error`.
+LOG_TIME = re.compile(r"(?m)^(ERROR|WARN|INFO|DEBUG)\t\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\t")
 
 # Values that mean "the argument is absent", so a held-at value carrying one must not be passed.
 ABSENT = {"None", "null", "[]", ""}
@@ -295,6 +299,12 @@ def first_error(text):
     # exit with an Exception instead of exiting cleanly", which the scan below matched, so the row
     # recorded a doc line instead of the refusal. For a usage dump the refusal is the block after
     # the last blank line, which is where Barclay prints it.
+    # htsjdk's `Log` stamps each line with the wall-clock second it was written:
+    # `ERROR\t2026-09-30 23:35:16\tGatherVcfs\t...`. A tool that reports a refusal through
+    # `log.error` and returns 1 (GatherVcfs catches every RuntimeException that way) has that
+    # line as its answer, and no two runs share the second. The time field, and only that field,
+    # is removed; the level, the class and the whole message are compared as they were written.
+    text = LOG_TIME.sub(r"\1\t", text)
     if text.lstrip().startswith("USAGE:"):
         tail = text.rstrip().split("\n\n")[-1].strip()
         if tail:

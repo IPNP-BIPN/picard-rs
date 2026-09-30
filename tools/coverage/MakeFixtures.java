@@ -538,6 +538,7 @@ public class MakeFixtures {
         // records are written under both sample orders.
         writeVcfUtilityFixtures(dir);
         writeVcfMergeFixtures(dir);
+        writeVcfGatherFixtures(dir);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
 
@@ -1216,6 +1217,51 @@ public class MakeFixtures {
                 columns + "\tsampleB\tsampleA", recordsB, 11);
         writeVcfText(new File(dir, "merge_swapped_contigs.vcf"), metaB + swapped,
                 columns + "\tsampleB\tsampleA", recordsB, 11);
+    }
+
+    /**
+     * The corpus of GatherVcfs: `gather_1.vcf` and `gather_2.vcf` are two consecutive stretches of
+     * one call set, `gather_empty.vcf` has the header and no records, `gather_overlap.vcf` starts
+     * after gather_1 starts but before it ends (the first-record check passes and the gather's own
+     * check does not), and `gather_2_swapped.vcf` is gather_2 with its sample columns in the
+     * other order, which GatherVcfs compares as a list and refuses beside the others. Alone it is
+     * accepted, and its output keeps its own column order with every genotype re-encoded, where
+     * the other files' sorted columns are copied.
+     */
+    static void writeVcfGatherFixtures(File dir) throws Exception {
+        String meta = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FILTER=<ID=LowQual,Description=\"Low quality\">",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">",
+                "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+                "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count\">",
+                "##source=gather",
+                "##source=a second source line",
+                "##contig=<ID=chr1,length=" + CHR1 + ">",
+                "##contig=<ID=chr2,length=" + CHR2 + ",assembly=test>") + "\n";
+        String columns = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
+        String sorted = columns + "\tsampleA\tsampleB";
+        String unsorted = columns + "\tsampleB\tsampleA";
+        String[] first = {
+            "chr1\t100\trs1\tA\tG\t50\tPASS\tAC=1\tGT:GQ:DP\t0/1:30:8\t0/0:.:.",
+            "chr1\t200\t.\tACGT\tA\t30\tPASS\tAC=1\tGT:GQ:DP\t0/1:.:4\t1/1:9:.",
+            "chr1\t550\trs4\tA\tT\t.\t.\tAC=0\tGT:DP:GQ\t0/0:20:50\t0/0:20:.",
+        };
+        String[] second = {
+            "chr1\t700\t.\tC\tT\t.\tLowQual\tAC=1\tGT:GQ:DP\t./.:.:.\t0/1:12:3",
+            "chr2\t50\t.\tT\tA\t8\tPASS\t.\tGT\t0|1\t1|0",
+            "chr2\t100\trs7\tA\tT\t.\tPASS\tAC=1\tGT:GQ:DP\t0/1:10:10\t0/0:10:.",
+        };
+        String[] overlap = {
+            "chr1\t300\t.\tG\tC\t9\tPASS\tAC=1\tGT:GQ\t0/1:9\t0/0:.",
+            "chr1\t800\t.\tT\tG\t9\tPASS\tAC=1\tGT:GQ\t0/1:9\t0/0:.",
+        };
+        writeVcfText(new File(dir, "gather_1.vcf"), meta, sorted, first, 11);
+        writeVcfText(new File(dir, "gather_2.vcf"), meta, sorted, second, 11);
+        writeVcfText(new File(dir, "gather_empty.vcf"), meta, sorted, new String[0], 11);
+        writeVcfText(new File(dir, "gather_overlap.vcf"), meta, sorted, overlap, 11);
+        writeVcfText(new File(dir, "gather_2_swapped.vcf"), meta, unsorted, second, 11);
     }
 
     /** A VCF as text: the meta lines, the column line, and each record cut to its first columns. */

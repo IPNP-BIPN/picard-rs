@@ -743,6 +743,44 @@
         "zeta alpha",
         "merged"
       ]
+    },
+    "GatherVcfs": {
+      "$why": [
+        "INPUT and COMMENT are whole lists ($lists). gather_1.vcf and gather_2.vcf are consecutive",
+        "stretches, given in order, reversed (refused unless REORDER_INPUT_BY_FIRST_VARIANT puts them",
+        "back) and around gather_empty.vcf, which has no first record and sorts last when reordered.",
+        "gather_overlap.vcf starts after gather_1 starts and before it ends, which only the gather's own",
+        "check refuses; gather_2_swapped.vcf has the samples in the other column order, refused beside",
+        "gather_1 and accepted alone (its genotypes are re-encoded in that order, where gather_1's are",
+        "copied); merge_swapped_contigs.vcf has another dictionary (an AssertionError, which escapes the",
+        "tool's catch); merge_b_no_contigs.vcf has none, refused before the catch when indexing and by",
+        "a NullPointerException inside it when not. COMMENT keeps only the first comment. OUTPUT is a",
+        ".vcf: the block-copying gather needs a .vcf.gz output and every input compressed, and a",
+        ".list INPUT names container paths the host port cannot open."
+      ],
+      "$lists": [
+        "--INPUT",
+        "--COMMENT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/gather_1.vcf /work/fixtures/gather_2.vcf",
+        "/work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "/work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "/work/fixtures/gather_1.vcf /work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf",
+        "/work/fixtures/gather_1.vcf /work/fixtures/gather_overlap.vcf",
+        "/work/fixtures/gather_1.vcf /work/fixtures/gather_2_swapped.vcf",
+        "/work/fixtures/gather_2_swapped.vcf",
+        "/work/fixtures/gather_1.vcf /work/fixtures/merge_swapped_contigs.vcf",
+        "/work/fixtures/merge_b_no_contigs.vcf /work/fixtures/gather_1.vcf",
+        "/work/fixtures/gather_1.vcf /work/fixtures/merge_b_no_contigs.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--COMMENT": [
+        "null",
+        "zeta alpha"
+      ]
     }
   },
   "constraints": [
