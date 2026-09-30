@@ -567,6 +567,33 @@
         "sampleA",
         "sampleZ"
       ]
+    },
+    "RenameSampleInVcf": {
+      "$why": [
+        "The tool accepts at most one sample, so INPUT is two one-sample files (sampleA, hand-written",
+        "so its genotype blocks are not htsjdk's own encoding, and sample1, written by htsjdk), the",
+        "sites-only file (no sample, which is accepted until OLD_SAMPLE_NAME asks for the first one),",
+        "and the two-sample file it refuses. OLD_SAMPLE_NAME is `null` (not checked) or sampleA, which",
+        "one input has and the other is refused for, naming the sample found. OUTPUT ends in .vcf for",
+        "the reason MakeSitesOnlyVcf's does."
+      ],
+      "--INPUT": [
+        "/work/fixtures/vcf_one_sample.vcf",
+        "/work/fixtures/single_sample.vcf",
+        "/work/fixtures/vcf_sites_only.vcf",
+        "/work/fixtures/vcf_sorted_samples.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--NEW_SAMPLE_NAME": [
+        "renamed",
+        "sampleA"
+      ],
+      "--OLD_SAMPLE_NAME": [
+        "null",
+        "sampleA"
+      ]
     }
   },
   "constraints": [
@@ -594,6 +621,16 @@
         "--INPUT": "/work/fixtures/queryname.bam"
       },
       "why": "These collectors require coordinate order, and no value of ASSUME_SORTED makes a queryname input work: false is refused up front ('should be coordinate sorted but the header says the sort order is queryname') and true lets it through until the reference walk fails mid-stream ('Requesting earlier reference sequence: 0 < 1'). This was first declared as two argument-pair clauses and measuring showed that to be the wrong shape: the input itself is invalid for these tools, not a combination of it with something else. The clause is scoped, because the same file is an ordinary input for SortSam or SamToFastq. Both rejection messages are behaviour the port owes and belong in the conformance manifest as their own cases, not as most of a covering array."
+    },
+    {
+      "tools": [
+        "RenameSampleInVcf"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/vcf_sorted_samples.vcf",
+        "--OLD_SAMPLE_NAME": "sampleA"
+      },
+      "why": "The two-sample file is refused as not single-sample before OLD_SAMPLE_NAME is read, so naming an old sample beside it only repeats that refusal. Without this clause the refusals took eight of the first twelve rows and NEW_SAMPLE_NAME's second value never reached an accepted one. The refusal is kept, with OLD_SAMPLE_NAME=null."
     }
   ],
   "exclude": {
