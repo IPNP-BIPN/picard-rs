@@ -587,6 +587,53 @@
         "/work/fixtures/small.sam"
       ]
     },
+    "CollectInsertSizeMetrics": {
+      "$why": [
+        "Paired BAMs of different contents and sort orders, and the SAM form of small.bam.",
+        "MINIMUM_PCT reaches both of its effects: 0.5 discards every orientation that holds less than",
+        "half the pairs, which on a single-orientation input still writes, and 0.6 is refused by the",
+        "tool's own validation. HISTOGRAM_WIDTH and MIN_HISTOGRAM_WIDTH trim and widen the histogram,",
+        "STOP_AFTER cuts the walk short. METRIC_ACCUMULATION_LEVEL is held at ALL_READS, its default:",
+        "the other levels are the port's limitation.",
+        "HISTOGRAM_WIDTH is 300 rather than a width that trims every insert away: that makes R fail on a",
+        "file with no histogram, and the log line it fails with carries the second it ran at."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/tiled.bam",
+        "/work/fixtures/mate_cigar.bam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/small.sam"
+      ],
+      "--MINIMUM_PCT": [
+        "0.05",
+        "0.5",
+        "0.0",
+        "0.6"
+      ],
+      "--DEVIATIONS": [
+        "10.0",
+        "2.0"
+      ],
+      "--HISTOGRAM_WIDTH": [
+        "null",
+        "300"
+      ],
+      "--MIN_HISTOGRAM_WIDTH": [
+        "null",
+        "800"
+      ],
+      "--METRIC_ACCUMULATION_LEVEL": [
+        "ALL_READS"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "50"
+      ],
+      "--Histogram_FILE": [
+        "/work/out/histogram.pdf"
+      ]
+    },
     "CompareSAMs": {
       "$why": [
         "The two files are positional, so they are held: small.bam against inconsistent_duplicates.bam,",
