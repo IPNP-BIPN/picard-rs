@@ -633,6 +633,28 @@
       "--Histogram_FILE": [
         "/work/out/histogram.pdf"
       ]
+    },
+    "CompareSAMs": {
+      "$why": [
+        "The two files are positional, so they are held: small.bam against inconsistent_duplicates.bam,",
+        "which agree on every mapping and differ on sixty-three duplicate marks, so the verdict is the",
+        "exit code one with the file written. LENIENT_HEADER and LENIENT_DUP are held at false: they",
+        "are the port's limitation. The OUTPUT is optional and named, so the rows compare the file."
+      ],
+      "$positional": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/inconsistent_duplicates.bam"
+      ],
+      "--LENIENT_HEADER": [
+        "false"
+      ],
+      "--LENIENT_DUP": [
+        "false"
+      ],
+      "--LOW_MQ_THRESHOLD": [
+        "3",
+        "30"
+      ]
     }
   },
   "constraints": [

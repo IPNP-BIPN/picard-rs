@@ -108,13 +108,34 @@ def row_arguments(row, held):
     return args
 
 
-def as_cli(args):
-    """Barclay long form: `--NAME value`, which is the syntax the claim is defined against."""
+def as_cli(args, lists=()):
+    """Barclay long form: `--NAME value`, which is the syntax the claim is defined against.
+
+    An argument under `$lists` takes a whole list as one fixture value, its elements separated by
+    spaces, and each element is written as its own `--NAME element`.
+    """
     out = []
     for pair in args:
         name, _, value = pair.partition("=")
+        if name in lists:
+            for element in value.split():
+                out += [name, element]
+            continue
         out += [name, value]
     return out
+
+
+def tool_spec(tool):
+    """A tool's `$positional` values and `$lists` arguments, from the fixtures file.
+
+    A positional argument has no name, so no row can assign it: its values are held per tool and
+    go last on both command lines, which is where Barclay reads them. `CompareSAMs` takes its two
+    files that way. A `$lists` argument is one Barclay `List` whose elements the tool reads
+    together, so one fixture value is the whole list.
+    """
+    fixtures = json.loads((REPO / "tools" / "coverage" / "fixtures.json").read_text())
+    spec = fixtures.get("per_tool", {}).get(tool, {})
+    return list(spec.get("$positional", [])), tuple(spec.get("$lists", []))
 
 
 def fresh_directory(workdir, stem):
@@ -150,7 +171,8 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_
     out_dir = fresh_directory(workdir, "out")
     fixtures = fixtures or workdir / "fixtures"
 
-    cli = " ".join(as_cli(row_args))
+    positional, lists = tool_spec(tool)
+    cli = " ".join(as_cli(row_args, lists) + positional)
     # `java -jar picard.jar <Tool> <args>`: the tool name is the first token, and the arguments
     # follow in Barclay long form.
     command = f"mkdir -p /work/tmp /work/out && java -jar $PICARD_JAR {tool} {cli}"
@@ -279,22 +301,26 @@ def first_error(text):
 
 
 def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt",
-             fixtures=None):
+             fixtures=None, tool=None):
     """Run the port binary on the same row, with the fixture paths rewritten to the host."""
     out_dir = fresh_directory(workdir, "port")
     fixtures = fixtures or workdir / "fixtures"
+    positional, lists = tool_spec(tool) if tool else ([], ())
+
+    def host(value):
+        return value.replace("/work/fixtures", str(fixtures)).replace("/work/out", str(out_dir))
 
     rewritten = []
     for pair in row_args:
         name, _, value = pair.partition("=")
-        value = value.replace("/work/fixtures", str(fixtures))
-        value = value.replace("/work/out", str(out_dir))
-        rewritten.append(f"{name}={value}")
+        elements = value.split() if name in lists else [value]
+        for element in elements:
+            rewritten.append(f"{name}={host(element)}")
 
     # The current binaries take `NAME=value` (the legacy form) and were written for the benchmark;
     # the Barclay command line is a later slice. Passing both forms keeps this working when it
     # lands, without pretending the binary understands more than it does.
-    argv = [str(binary)] + [a.lstrip("-") for a in rewritten]
+    argv = [str(binary)] + [a.lstrip("-") for a in rewritten] + [host(p) for p in positional]
     result = subprocess.run(argv, capture_output=True, text=True)
     # The mount points are mapped back BEFORE the message is read, not after: `first_error` caps
     # what it returns, and a host path is longer than the container path it stands for, so mapping
@@ -465,6 +491,7 @@ def main(argv):
                     args.strip_program_records,
                     args.output_name,
                     fixtures,
+                    args.tool,
                 )
                 entry["port_exit"] = p_code
                 entry["port_output"] = outcome(
