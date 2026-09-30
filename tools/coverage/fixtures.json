@@ -543,6 +543,21 @@
         "0.95",
         "0.3"
       ]
+    },
+    "BuildBamIndex": {
+      "$why": [
+        "Three coordinate-sorted BAMs with different contents, so the index is an answer rather than a",
+        "constant; a SAM text file, which the tool refuses by type; and a queryname-sorted and an",
+        "unsorted BAM, which it refuses by the header's SO before it reads a record."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/tiled.bam",
+        "/work/fixtures/mate_cigar.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/unmapped.bam"
+      ]
     }
   },
   "constraints": [

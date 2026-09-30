@@ -376,6 +376,12 @@
         "exit_code_is_a_result": true
       },
       {
+        "tool": "BuildBamIndex",
+        "port": "build-bam-index",
+        "t": 2,
+        "status": "pending"
+      },
+      {
         "tool": "LiftOverHaplotypeMap",
         "port": "lift-over-haplotype-map",
         "t": 2,
