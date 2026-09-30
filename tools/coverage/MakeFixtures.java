@@ -540,6 +540,7 @@ public class MakeFixtures {
         writeVcfMergeFixtures(dir);
         writeVcfGatherFixtures(dir);
         writeVcfSplitFixture(dir);
+        writeVcfConverterFixture(dir);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
 
@@ -1291,6 +1292,34 @@ public class MakeFixtures {
         };
         writeVcfText(new File(dir, "split_types.vcf"), meta,
                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsampleA", records, 10);
+    }
+
+    /**
+     * The corpus of VcfFormatConverter beside variants.vcf (which has its .idx): gather_1.vcf as
+     * a block-compressed file with its tabix index, written by htsjdk's own writer, so the one
+     * compressed input the tool reads with REQUIRE_INDEX has the index it looks for; and
+     * `unsorted_indexed.vcf`, the out-of-order records beside a borrowed `.idx`.
+     */
+    static void writeVcfConverterFixture(File dir) throws Exception {
+        // The unsorted records under an index the reader only needs to find and load, so
+        // REQUIRE_INDEX lets them through to a compressed output, whose tabix index refuses them.
+        java.nio.file.Files.copy(new File(dir, "vcf_unsorted_samples.vcf").toPath(),
+                new File(dir, "unsorted_indexed.vcf").toPath());
+        java.nio.file.Files.copy(new File(dir, "variants.vcf.idx").toPath(),
+                new File(dir, "unsorted_indexed.vcf.idx").toPath());
+        try (htsjdk.variant.vcf.VCFFileReader in =
+                     new htsjdk.variant.vcf.VCFFileReader(new File(dir, "gather_1.vcf"), false);
+             htsjdk.variant.variantcontext.writer.VariantContextWriter out =
+                     new htsjdk.variant.variantcontext.writer.VariantContextWriterBuilder()
+                             .setOutputFile(new File(dir, "gather_1.vcf.gz"))
+                             .setReferenceDictionary(in.getFileHeader().getSequenceDictionary())
+                             .setOption(htsjdk.variant.variantcontext.writer.Options.INDEX_ON_THE_FLY)
+                             .build()) {
+            out.writeHeader(in.getFileHeader());
+            for (htsjdk.variant.variantcontext.VariantContext vc : in) {
+                out.add(vc);
+            }
+        }
     }
 
     /** A VCF as text: the meta lines, the column line, and each record cut to its first columns. */

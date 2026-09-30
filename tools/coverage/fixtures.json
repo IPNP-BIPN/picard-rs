@@ -813,6 +813,30 @@
         "/work/fixtures/ref.dict",
         "/work/fixtures/other.dict"
       ]
+    },
+    "VcfFormatConverter": {
+      "$why": [
+        "INPUT is variants.vcf, which has its .idx, gather_1.vcf.gz, which has its .tbi,",
+        "unsorted_indexed.vcf, whose records are out of coordinate order beside a borrowed .idx (the",
+        "reader only finds and loads it), so REQUIRE_INDEX lets them through to the tabix index of a",
+        "compressed output, which refuses them; and two files with no index, which REQUIRE_INDEX",
+        "refuses: vcf_no_contigs.vcf (which CREATE_INDEX refuses) and gather_1.vcf, gather_1.vcf.gz's",
+        "own text. OUTPUT is a .vcf, a .vcf.gz (compared decompressed) and a name the writer builder",
+        "cannot place; both output names are compared. BCF is not a value on either side: htsjdk-rs",
+        "has no BCF codec, so neither a .bcf input nor a .bcf output is ported."
+      ],
+      "--INPUT": [
+        "/work/fixtures/variants.vcf",
+        "/work/fixtures/gather_1.vcf.gz",
+        "/work/fixtures/unsorted_indexed.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf",
+        "/work/fixtures/gather_1.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf",
+        "/work/out/output.vcf.gz",
+        "/work/out/output.txt"
+      ]
     }
   },
   "constraints": [
