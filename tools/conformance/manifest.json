@@ -382,6 +382,18 @@
         "status": "pending"
       },
       {
+        "tool": "AddCommentsToBam",
+        "port": "add-comments-to-bam",
+        "t": 2,
+        "status": "pending"
+      },
+      {
+        "tool": "GatherBamFiles",
+        "port": "gather-bam-files",
+        "t": 2,
+        "status": "pending"
+      },
+      {
         "tool": "LiftOverHaplotypeMap",
         "port": "lift-over-haplotype-map",
         "t": 2,
