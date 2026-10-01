@@ -161,7 +161,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
 
-      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools --bin position-based-downsample-sam --bin validate-sam-file --bin filter-sam-reads --bin mark-duplicates --bin fastq-to-sam --bin split-sam-by-number-of-reads --bin split-sam-by-library --bin make-vcf-sample-name-map --bin sam-to-fastq --bin collect-duplicate-metrics --bin mark-duplicates-with-mate-cigar --bin simple-mark-duplicates-with-mate-cigar --bin check-duplicate-marking --bin accumulate-quality-yield-metrics --bin genotype-concordance --bin estimate-library-complexity --bin collect-umi-prevalence-metrics --bin revert-original-base-qualities-and-add-mate-cigar --bin collect-variant-calling-metrics --bin collect-jumping-library-metrics --bin mark-illumina-adapters --bin sam-to-fastq-with-tags --bin find-mendelian-violations --bin lift-over-interval-list --bin compare-sams --bin collect-insert-size-metrics --bin build-bam-index --bin add-comments-to-bam --bin gather-bam-files --bin lift-over-haplotype-map --bin make-sites-only-vcf --bin rename-sample-in-vcf --bin vcf-to-interval-list --bin sort-vcf --bin update-vcf-sequence-dictionary --bin merge-vcfs --bin gather-vcfs --bin split-vcfs --bin vcf-format-converter --bin fix-vcf-header --bin collect-sequencing-artifact-metrics --bin convert-sequencing-artifact-to-oxog --bin collect-oxo-g-metrics --bin collect-gc-bias-metrics --bin collect-rrbs-metrics
+      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools --bin position-based-downsample-sam --bin validate-sam-file --bin filter-sam-reads --bin mark-duplicates --bin fastq-to-sam --bin split-sam-by-number-of-reads --bin split-sam-by-library --bin make-vcf-sample-name-map --bin sam-to-fastq --bin collect-duplicate-metrics --bin mark-duplicates-with-mate-cigar --bin simple-mark-duplicates-with-mate-cigar --bin check-duplicate-marking --bin accumulate-quality-yield-metrics --bin genotype-concordance --bin estimate-library-complexity --bin collect-umi-prevalence-metrics --bin revert-original-base-qualities-and-add-mate-cigar --bin collect-variant-calling-metrics --bin collect-jumping-library-metrics --bin mark-illumina-adapters --bin sam-to-fastq-with-tags --bin find-mendelian-violations --bin lift-over-interval-list --bin compare-sams --bin collect-insert-size-metrics --bin build-bam-index --bin add-comments-to-bam --bin gather-bam-files --bin lift-over-haplotype-map --bin make-sites-only-vcf --bin rename-sample-in-vcf --bin vcf-to-interval-list --bin sort-vcf --bin update-vcf-sequence-dictionary --bin merge-vcfs --bin gather-vcfs --bin split-vcfs --bin vcf-format-converter --bin fix-vcf-header --bin collect-wgs-metrics --bin collect-raw-wgs-metrics --bin collect-wgs-metrics-with-non-zero-coverage --bin collect-hs-metrics --bin collect-targeted-pcr-metrics --bin collect-sequencing-artifact-metrics --bin convert-sequencing-artifact-to-oxog --bin collect-oxo-g-metrics --bin collect-gc-bias-metrics --bin collect-rrbs-metrics
 
       - name: Build the corpus once, for every array to share
         # `MakeFixtures` is deterministic, so one build is every array's corpus. Building it per
@@ -452,6 +452,26 @@ jobs:
             --fixtures-dir /tmp/corpus \
             --port target/release/fix-vcf-header --output-name output.vcf \
             | tee /tmp/FixVcfHeader.log
+          python3 tools/coverage/run_array.py --tool CollectWgsMetrics --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/collect-wgs-metrics \
+            | tee /tmp/CollectWgsMetrics.log
+          python3 tools/coverage/run_array.py --tool CollectRawWgsMetrics --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/collect-raw-wgs-metrics \
+            | tee /tmp/CollectRawWgsMetrics.log
+          python3 tools/coverage/run_array.py --tool CollectWgsMetricsWithNonZeroCoverage --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/collect-wgs-metrics-with-non-zero-coverage \
+            | tee /tmp/CollectWgsMetricsWithNonZeroCoverage.log
+          python3 tools/coverage/run_array.py --tool CollectHsMetrics --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/collect-hs-metrics \
+            | tee /tmp/CollectHsMetrics.log
+          python3 tools/coverage/run_array.py --tool CollectTargetedPcrMetrics --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/collect-targeted-pcr-metrics \
+            | tee /tmp/CollectTargetedPcrMetrics.log
           python3 tools/coverage/run_array.py --tool CollectSequencingArtifactMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
             --port target/release/collect-sequencing-artifact-metrics --output-name output.pre_adapter_summary_metrics,output.pre_adapter_detail_metrics,output.bait_bias_summary_metrics,output.bait_bias_detail_metrics,output.error_summary_metrics,output.pre_adapter_summary_metrics.txt,output.pre_adapter_detail_metrics.txt,output.bait_bias_summary_metrics.txt,output.bait_bias_detail_metrics.txt,output.error_summary_metrics.txt \
@@ -540,11 +560,17 @@ jobs:
             --log /tmp/SplitVcfs.log \
             --log /tmp/VcfFormatConverter.log \
             --log /tmp/FixVcfHeader.log \
+            --log /tmp/CollectWgsMetrics.log \
+            --log /tmp/CollectRawWgsMetrics.log \
+            --log /tmp/CollectWgsMetricsWithNonZeroCoverage.log \
+            --log /tmp/CollectHsMetrics.log \
+            --log /tmp/CollectTargetedPcrMetrics.log \
             --log /tmp/CollectSequencingArtifactMetrics.log \
             --log /tmp/ConvertSequencingArtifactToOxoG.log \
             --log /tmp/CollectOxoGMetrics.log \
             --log /tmp/CollectGcBiasMetrics.log \
             --log /tmp/CollectRrbsMetrics.log \
+            --pending CollectRawWgsMetrics \
             --pending CollectSequencingArtifactMetrics \
             --pending ConvertSequencingArtifactToOxoG \
             --pending CollectOxoGMetrics \
@@ -630,7 +656,11 @@ jobs:
             tools/coverage/corpus/GatherVcfs.t2.txt \
             tools/coverage/corpus/SplitVcfs.t2.txt \
             tools/coverage/corpus/VcfFormatConverter.t2.txt \
-            tools/coverage/corpus/FixVcfHeader.t2.txt)
+            tools/coverage/corpus/FixVcfHeader.t2.txt \
+            tools/coverage/corpus/CollectWgsMetrics.t2.txt \
+            tools/coverage/corpus/CollectWgsMetricsWithNonZeroCoverage.t2.txt \
+            tools/coverage/corpus/CollectHsMetrics.t2.txt \
+            tools/coverage/corpus/CollectTargetedPcrMetrics.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"

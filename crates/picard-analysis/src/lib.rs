@@ -117,12 +117,17 @@ pub mod sort_sam;
 pub mod sort_vcf;
 pub mod split_sam_by_library;
 pub mod split_sam_by_number_of_reads;
+pub mod targeted_cli;
+pub mod targeted_metrics;
+pub mod theoretical_sensitivity;
 pub mod umi_duplicates;
 pub mod validate_sam_file;
 pub mod vcf_io;
 pub mod vcf_to_adpc;
 pub mod vcf_to_interval_list;
 pub mod view_sam;
+pub mod wgs_cli;
+pub mod wgs_walk;
 
 pub use cycle::{
     BaseDistributionByCycleMetrics, CollectBaseDistributionByCycle, MeanQualityByCycle,

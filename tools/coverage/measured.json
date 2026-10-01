@@ -140,6 +140,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectHsMetrics": {
+      "rows": 18,
+      "accepted": 13,
+      "rejected": 5,
+      "distinct_outputs": 11,
+      "distinct_rejections": 1,
+      "matched": 18,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectInsertSizeMetrics": {
       "rows": 22,
       "accepted": 13,
@@ -170,6 +180,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectTargetedPcrMetrics": {
+      "rows": 16,
+      "accepted": 11,
+      "rejected": 5,
+      "distinct_outputs": 9,
+      "distinct_rejections": 1,
+      "matched": 16,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectUmiPrevalenceMetrics": {
       "rows": 8,
       "accepted": 8,
@@ -187,6 +207,26 @@
       "distinct_outputs": 2,
       "distinct_rejections": 1,
       "matched": 8,
+      "t": 2,
+      "share": 1.0
+    },
+    "CollectWgsMetrics": {
+      "rows": 21,
+      "accepted": 15,
+      "rejected": 6,
+      "distinct_outputs": 15,
+      "distinct_rejections": 4,
+      "matched": 21,
+      "t": 2,
+      "share": 1.0
+    },
+    "CollectWgsMetricsWithNonZeroCoverage": {
+      "rows": 21,
+      "accepted": 17,
+      "rejected": 4,
+      "distinct_outputs": 17,
+      "distinct_rejections": 1,
+      "matched": 21,
       "t": 2,
       "share": 1.0
     },

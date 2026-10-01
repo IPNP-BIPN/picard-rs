@@ -1,0 +1,840 @@
+{
+  "tool": "CollectWgsMetricsWithNonZeroCoverage",
+  "origin": "picard",
+  "t": 2,
+  "numeric_policy": "strict",
+  "arguments_total": 31,
+  "arguments_in_array": 13,
+  "arguments_excluded": 18,
+  "excluded": [
+    {
+      "argument": "--ALLELE_FRACTION",
+      "type": "List[Double]",
+      "reason": "unmodelled type List[Double]",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--arguments_file",
+      "type": "List[File]",
+      "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CHART_OUTPUT",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/out/chart.pdf",
+      "source": "fixture"
+    },
+    {
+      "argument": "--COMPRESSION_LEVEL",
+      "type": "int",
+      "reason": "excluded by the repository: changes the deflate level of a written BAM. Varying it would make the output bytes differ for a reason that is not the tool's logic, and the deflate pin is asserted by its own suite (htsjdk-rs decision 0001)",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CREATE_MD5_FILE",
+      "type": "boolean",
+      "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--help",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--MAX_RECORDS_IN_RAM",
+      "type": "Integer",
+      "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--OUTPUT",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/out/output.txt",
+      "source": "fixture"
+    },
+    {
+      "argument": "--QUIET",
+      "type": "Boolean",
+      "reason": "excluded by the repository: suppresses the log on stderr; the compared output is stdout and the output file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--READ_LENGTH",
+      "type": "int",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "150",
+      "source": "fixture"
+    },
+    {
+      "argument": "--REFERENCE_SEQUENCE",
+      "type": "PicardHtsPath",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/ref.fasta",
+      "source": "fixture"
+    },
+    {
+      "argument": "--showHidden",
+      "type": "boolean",
+      "reason": "excluded by the repository: changes the usage text only",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--THEORETICAL_SENSITIVITY_OUTPUT",
+      "type": "File",
+      "reason": "File needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--TMP_DIR",
+      "type": "List[File]",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/tmp",
+      "source": "fixture"
+    },
+    {
+      "argument": "--USE_JDK_DEFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract; varying it would compare zlib output against GKL output and call the difference a divergence",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--USE_JDK_INFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--VERBOSITY",
+      "type": "LogLevel",
+      "reason": "excluded by the repository: log level on stderr, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--version",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints the version and exits, same reason",
+      "held_at": null,
+      "source": "none"
+    }
+  ],
+  "rows": 21,
+  "tuples_total": 467,
+  "tuples_covered": 467,
+  "tuples_forbidden": 31,
+  "constraint_notes": [
+    "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
+  ],
+  "coverage": 1.0,
+  "array": [
+    {
+      "row": 0,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[0]",
+        "--INTERVALS": "fixture[0]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[0]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--INTERVALS=null",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=20",
+        "--MINIMUM_MAPPING_QUALITY=20",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 1,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_BQ_HISTOGRAM": "false",
+        "--INPUT": "fixture[1]",
+        "--INTERVALS": "fixture[1]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[1]",
+        "--MINIMUM_BASE_QUALITY": "fixture[1]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[1]",
+        "--SAMPLE_SIZE": "fixture[1]",
+        "--STOP_AFTER": "fixture[1]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=5",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_BQ_HISTOGRAM=false",
+        "--INPUT=/work/fixtures/small.sam",
+        "--INTERVALS=/work/fixtures/targets.interval_list",
+        "--LOCUS_ACCUMULATION_CAP=1",
+        "--MINIMUM_BASE_QUALITY=0",
+        "--MINIMUM_MAPPING_QUALITY=0",
+        "--SAMPLE_SIZE=100",
+        "--STOP_AFTER=1000",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 2,
+      "labels": {
+        "--COUNT_UNPAIRED": "false",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[2]",
+        "--INTERVALS": "fixture[2]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[1]",
+        "--MINIMUM_BASE_QUALITY": "fixture[2]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[2]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=false",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--LOCUS_ACCUMULATION_CAP=1",
+        "--MINIMUM_BASE_QUALITY=30",
+        "--MINIMUM_MAPPING_QUALITY=50",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=1000",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 3,
+      "labels": {
+        "--COUNT_UNPAIRED": "false",
+        "--COVERAGE_CAP": "fixture[1]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "false",
+        "--INPUT": "fixture[3]",
+        "--INTERVALS": "fixture[0]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[2]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[1]",
+        "--SAMPLE_SIZE": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=false",
+        "--COVERAGE_CAP=5",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=false",
+        "--INPUT=/work/fixtures/adapters_coordinate.bam",
+        "--INTERVALS=null",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=30",
+        "--MINIMUM_MAPPING_QUALITY=0",
+        "--SAMPLE_SIZE=100",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 4,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "false",
+        "--INPUT": "fixture[4]",
+        "--INTERVALS": "fixture[2]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[1]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[2]",
+        "--SAMPLE_SIZE": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=false",
+        "--INPUT=/work/fixtures/tiled.bam",
+        "--INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=0",
+        "--MINIMUM_MAPPING_QUALITY=50",
+        "--SAMPLE_SIZE=100",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 5,
+      "labels": {
+        "--COUNT_UNPAIRED": "false",
+        "--COVERAGE_CAP": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[4]",
+        "--INTERVALS": "fixture[1]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[0]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=false",
+        "--COVERAGE_CAP=5",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/tiled.bam",
+        "--INTERVALS=/work/fixtures/targets.interval_list",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=20",
+        "--MINIMUM_MAPPING_QUALITY=20",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=1000",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[1]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "false",
+        "--INPUT": "fixture[2]",
+        "--INTERVALS": "fixture[1]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[0]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[2]",
+        "--SAMPLE_SIZE": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=5",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=false",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--INTERVALS=/work/fixtures/targets.interval_list",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=20",
+        "--MINIMUM_MAPPING_QUALITY=50",
+        "--SAMPLE_SIZE=100",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[3]",
+        "--INTERVALS": "fixture[1]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[1]",
+        "--MINIMUM_BASE_QUALITY": "fixture[0]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[1]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/adapters_coordinate.bam",
+        "--INTERVALS=/work/fixtures/targets.interval_list",
+        "--LOCUS_ACCUMULATION_CAP=1",
+        "--MINIMUM_BASE_QUALITY=20",
+        "--MINIMUM_MAPPING_QUALITY=0",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--COUNT_UNPAIRED": "false",
+        "--COVERAGE_CAP": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_BQ_HISTOGRAM": "false",
+        "--INPUT": "fixture[0]",
+        "--INTERVALS": "fixture[2]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[1]",
+        "--MINIMUM_BASE_QUALITY": "fixture[1]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=false",
+        "--COVERAGE_CAP=5",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_BQ_HISTOGRAM=false",
+        "--INPUT=/work/fixtures/small.bam",
+        "--INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--LOCUS_ACCUMULATION_CAP=1",
+        "--MINIMUM_BASE_QUALITY=0",
+        "--MINIMUM_MAPPING_QUALITY=20",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=1000",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--COUNT_UNPAIRED": "false",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[1]",
+        "--INTERVALS": "fixture[0]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[1]",
+        "--MINIMUM_BASE_QUALITY": "fixture[1]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[2]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=false",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--INTERVALS=null",
+        "--LOCUS_ACCUMULATION_CAP=1",
+        "--MINIMUM_BASE_QUALITY=0",
+        "--MINIMUM_MAPPING_QUALITY=50",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=1000",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[2]",
+        "--INTERVALS": "fixture[0]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[1]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--SAMPLE_SIZE": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--INTERVALS=null",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=0",
+        "--MINIMUM_MAPPING_QUALITY=20",
+        "--SAMPLE_SIZE=100",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 11,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[0]",
+        "--INTERVALS": "fixture[1]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[2]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--SAMPLE_SIZE": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--INTERVALS=/work/fixtures/targets.interval_list",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=30",
+        "--MINIMUM_MAPPING_QUALITY=20",
+        "--SAMPLE_SIZE=100",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[1]",
+        "--INTERVALS": "fixture[2]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[0]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=20",
+        "--MINIMUM_MAPPING_QUALITY=20",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 13,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[3]",
+        "--INTERVALS": "fixture[2]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[1]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/adapters_coordinate.bam",
+        "--INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=0",
+        "--MINIMUM_MAPPING_QUALITY=20",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=1000",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 14,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[4]",
+        "--INTERVALS": "fixture[0]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[1]",
+        "--MINIMUM_BASE_QUALITY": "fixture[2]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[1]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/tiled.bam",
+        "--INTERVALS=null",
+        "--LOCUS_ACCUMULATION_CAP=1",
+        "--MINIMUM_BASE_QUALITY=30",
+        "--MINIMUM_MAPPING_QUALITY=0",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 15,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[1]",
+        "--INTERVALS": "fixture[0]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[2]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--INTERVALS=null",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=30",
+        "--MINIMUM_MAPPING_QUALITY=20",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 16,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[0]",
+        "--INTERVALS": "fixture[2]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[2]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[1]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=30",
+        "--MINIMUM_MAPPING_QUALITY=0",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 17,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[0]",
+        "--INTERVALS": "fixture[0]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[0]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[2]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--INTERVALS=null",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=20",
+        "--MINIMUM_MAPPING_QUALITY=50",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 18,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[2]",
+        "--INTERVALS": "fixture[0]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[0]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[1]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--INTERVALS=null",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=20",
+        "--MINIMUM_MAPPING_QUALITY=0",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 19,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[3]",
+        "--INTERVALS": "fixture[0]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[0]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[2]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/adapters_coordinate.bam",
+        "--INTERVALS=null",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=20",
+        "--MINIMUM_MAPPING_QUALITY=50",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 20,
+      "labels": {
+        "--COUNT_UNPAIRED": "true",
+        "--COVERAGE_CAP": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INPUT": "fixture[4]",
+        "--INTERVALS": "fixture[0]",
+        "--LOCUS_ACCUMULATION_CAP": "fixture[0]",
+        "--MINIMUM_BASE_QUALITY": "fixture[1]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--SAMPLE_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--USE_FAST_ALGORITHM": "false",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--COUNT_UNPAIRED=true",
+        "--COVERAGE_CAP=250",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INPUT=/work/fixtures/tiled.bam",
+        "--INTERVALS=null",
+        "--LOCUS_ACCUMULATION_CAP=100000",
+        "--MINIMUM_BASE_QUALITY=0",
+        "--MINIMUM_MAPPING_QUALITY=20",
+        "--SAMPLE_SIZE=10000",
+        "--STOP_AFTER=-1",
+        "--USE_FAST_ALGORITHM=false",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    }
+  ]
+}
