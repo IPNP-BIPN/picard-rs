@@ -520,8 +520,6 @@ jobs:
             --log /tmp/SplitVcfs.log \
             --log /tmp/VcfFormatConverter.log \
             --log /tmp/FixVcfHeader.log \
-            --pending CompareSAMs \
-            --pending CollectInsertSizeMetrics \
             --pending MergeVcfs \
             --pending GatherVcfs \
             --pending SplitVcfs \
@@ -592,6 +590,8 @@ jobs:
             tools/coverage/corpus/SamToFastqWithTags.t2.txt \
             tools/coverage/corpus/FindMendelianViolations.t2.txt \
             tools/coverage/corpus/LiftOverIntervalList.t2.txt \
+            tools/coverage/corpus/CompareSAMs.t2.txt \
+            tools/coverage/corpus/CollectInsertSizeMetrics.t2.txt \
             tools/coverage/corpus/BuildBamIndex.t2.txt \
             tools/coverage/corpus/AddCommentsToBam.t2.txt \
             tools/coverage/corpus/GatherBamFiles.t2.txt \

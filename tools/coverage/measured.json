@@ -140,6 +140,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectInsertSizeMetrics": {
+      "rows": 22,
+      "accepted": 13,
+      "rejected": 9,
+      "distinct_outputs": 8,
+      "distinct_rejections": 2,
+      "matched": 22,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectJumpingLibraryMetrics": {
       "rows": 9,
       "accepted": 6,
@@ -177,6 +187,16 @@
       "distinct_outputs": 2,
       "distinct_rejections": 1,
       "matched": 8,
+      "t": 2,
+      "share": 1.0
+    },
+    "CompareSAMs": {
+      "rows": 9,
+      "accepted": 0,
+      "rejected": 9,
+      "distinct_outputs": 0,
+      "distinct_rejections": 2,
+      "matched": 9,
       "t": 2,
       "share": 1.0
     },
