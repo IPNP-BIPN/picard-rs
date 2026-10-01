@@ -60,6 +60,16 @@
       "t": 2,
       "share": 1.0
     },
+    "BamToBfq": {
+      "rows": 11,
+      "accepted": 9,
+      "rejected": 2,
+      "distinct_outputs": 8,
+      "distinct_rejections": 2,
+      "matched": 11,
+      "t": 2,
+      "share": 1.0
+    },
     "BedToIntervalList": {
       "rows": 9,
       "accepted": 9,
@@ -297,6 +307,16 @@
       "distinct_outputs": 17,
       "distinct_rejections": 1,
       "matched": 21,
+      "t": 2,
+      "share": 1.0
+    },
+    "CompareMetrics": {
+      "rows": 32,
+      "accepted": 6,
+      "rejected": 26,
+      "distinct_outputs": 3,
+      "distinct_rejections": 10,
+      "matched": 32,
       "t": 2,
       "share": 1.0
     },
@@ -550,6 +570,26 @@
       "t": 2,
       "share": 1.0
     },
+    "MergeBamAlignment": {
+      "rows": 24,
+      "accepted": 18,
+      "rejected": 6,
+      "distinct_outputs": 18,
+      "distinct_rejections": 1,
+      "matched": 24,
+      "t": 2,
+      "share": 1.0
+    },
+    "MergePedIntoVcf": {
+      "rows": 19,
+      "accepted": 19,
+      "rejected": 0,
+      "distinct_outputs": 8,
+      "distinct_rejections": 0,
+      "matched": 19,
+      "t": 2,
+      "share": 1.0
+    },
     "MergeSamFiles": {
       "rows": 17,
       "accepted": 2,
@@ -717,6 +757,16 @@
       "distinct_outputs": 2,
       "distinct_rejections": 2,
       "matched": 20,
+      "t": 2,
+      "share": 1.0
+    },
+    "SortGff": {
+      "rows": 14,
+      "accepted": 5,
+      "rejected": 9,
+      "distinct_outputs": 4,
+      "distinct_rejections": 3,
+      "matched": 14,
       "t": 2,
       "share": 1.0
     },

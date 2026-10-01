@@ -96,6 +96,11 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/CollectIndependentReplicateMetrics.t2.txt
 !tools/coverage/corpus/LiftoverVcf.t2.txt
 !tools/coverage/corpus/CollectMultipleMetrics.t2.txt
+!tools/coverage/corpus/SortGff.t2.txt
+!tools/coverage/corpus/MergePedIntoVcf.t2.txt
+!tools/coverage/corpus/BamToBfq.t2.txt
+!tools/coverage/corpus/CompareMetrics.t2.txt
+!tools/coverage/corpus/MergeBamAlignment.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

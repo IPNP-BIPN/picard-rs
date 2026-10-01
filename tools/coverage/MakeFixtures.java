@@ -598,6 +598,26 @@ public class MakeFixtures {
         SAMFileHeader rrbsHeader = header(SAMFileHeader.SortOrder.coordinate);
         writeBam(new File(dir, "rrbs.bam"), rrbsHeader, rrbsReads(rrbsHeader, chr1, chr2), false);
 
+        // GFF3 for `SortGff`, as text: what the tool writes depends on lines htsjdk's writer never
+        // produces (see writeGffFixtures).
+        writeGffFixtures(dir);
+
+        // A genotyping-array VCF and zCall's PED, MAP and thresholds, for `MergePedIntoVcf`
+        // (see writeZCallFixtures).
+        writeZCallFixtures(dir);
+
+        // Unaligned pairs for `BamToBfq` (see bfqReads).
+        SAMFileHeader bfqHeader = header(SAMFileHeader.SortOrder.queryname);
+        writeBam(new File(dir, "bfq.bam"), bfqHeader, bfqReads(bfqHeader, false), false);
+        SAMFileHeader bfqOddHeader = header(SAMFileHeader.SortOrder.unsorted);
+        writeBam(new File(dir, "bfq_odd.bam"), bfqOddHeader, bfqReads(bfqOddHeader, true), false);
+
+        // Insert-size metrics files that agree and disagree, for `CompareMetrics`.
+        writeCompareMetricsFixtures(dir);
+
+        // An unmapped bam and its alignments, for `MergeBamAlignment` (see writeMbaFixtures).
+        writeMbaFixtures(dir, chr1, chr2);
+
         // Gene annotations in refFlat form, for `CollectRnaSeqMetrics` (0-based half-open, as UCSC
         // writes them). GENE_A has two transcripts on chr1's plus strand, one with a middle exon
         // the other skips, so a base can be coding in one and intronic in the other; GENE_B is on
@@ -1904,5 +1924,557 @@ public class MakeFixtures {
         }
         out.sort(new SAMRecordCoordinateComparator());
         return out;
+    }
+
+    /**
+     * `SortGff`'s inputs. `sort.gff3` has its features out of order across five contigs, two of
+     * which no dictionary in the corpus names and one (chr3) only other.dict does; children before
+     * their parents, a feature with two parents, an ID shared by two CDS lines far apart, and two
+     * features starting together (the sort is stable). Its attribute values need escaping on the
+     * way out (`:`, `,`, `;`, a space), its scores are absent, whole, fractional, negative and in
+     * exponent form, and one strand is `?`. Comments sit before and between features, an unknown
+     * directive is ignored, a flush directive is in the input, and a FASTA section ends it. The
+     * other two are refusals: a feature outside its sequence-region, and a file with directives
+     * and comments but no feature, which `canDecode` rejects.
+     */
+    static void writeGffFixtures(File dir) throws Exception {
+        String t = "\t";
+        try (PrintWriter p = new PrintWriter(new File(dir, "sort.gff3"), "UTF-8")) {
+            p.print("##gff-version 3\n");
+            p.print("# annotation for SortGff\n");
+            p.print("##sequence-region chr2 1 1000\n");
+            p.print("##sequence-region chr1 1 2000\n");
+            p.print("#!genome-build test\n");
+            String[] lines = {
+                "chr2|src|gene|500|900|.|+|.|ID=gene:B;Name=geneB",
+                "chr2|src|mRNA|500|900|.|+|.|ID=tx:B1;Parent=gene:B",
+                "chr2|src|exon|700|900|12|+|.|ID=exon:B2;Parent=tx:B1",
+                "chr2|src|exon|500|600|0.5|+|.|ID=exon:B1;Parent=tx:B1",
+                "chr1|src|CDS|1500|1600|.|-|0|ID=cds:A;Parent=tx:A1,tx:A2",
+                "chr1|src|mRNA|1000|1800|.|-|.|ID=tx:A1;Parent=gene:A",
+                "chr1|src|gene|1000|1900|-3|-|.|ID=gene:A;Name=gene A;Note=a%2Cb%3Bc",
+                "###",
+                "chr10|other|region|1|300|1e8|.|.|.",
+                "chr1|src|mRNA|1000|1700|.|-|.|ID=tx:A2;Parent=gene:A",
+                "# a comment between features",
+                "chr3|src|repeat|50|80|.|?|.|Alias=r1,r2;note= spaced value ",
+                "chrM|src|gene|10|20|0|+|.|ID=gene:M",
+                "chr1|src|exon|100|200|.|+|.|Parent=tx:Z",
+                "chr1|src|gene|100|300|.|+|.|ID=gene:Z",
+                "chr1|src|mRNA|100|250|.|+|.|ID=tx:Z;Parent=gene:Z",
+                "chr1|src|CDS|120|180|.|+|2|ID=cds:Z;Parent=tx:Z",
+                "chr1|src|CDS|400|500|.|+|1|ID=cds:Z;Parent=tx:Z",
+                "##species https://example.org/species",
+                "chr1|src|exon|260|290|.|+|.|Parent=tx:Z",
+                "chr2|src|gene|100|200|.|+|.|ID=gene:C",
+                "##FASTA",
+                ">chr1",
+                "ACGTACGT",
+            };
+            for (String line : lines) {
+                p.print(line.replace("|", t) + "\n");
+            }
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, "gff_bad_region.gff3"), "UTF-8")) {
+            p.print("##gff-version 3\n##sequence-region chr1 1 100\n");
+            p.print("chr1" + t + "src" + t + "gene" + t + "10" + t + "50" + t + "." + t + "+" + t + "." + t + "ID=g1\n");
+            p.print("chr1" + t + "src" + t + "gene" + t + "50" + t + "150" + t + "." + t + "+" + t + "." + t + "ID=g2\n");
+        }
+        // A circular contig: its landmark feature spans the whole sequence-region and says
+        // Is_circular, after which a feature that runs off the region's end only has to overlap
+        // it. The version directive is not the writer's own, which the output does not keep.
+        try (PrintWriter p = new PrintWriter(new File(dir, "gff_circular.gff3"), "UTF-8")) {
+            p.print("##gff-version 3.1.26\n##sequence-region chrC 1 100\n");
+            String[] lines = {
+                "chrC|src|region|1|100|.|+|.|ID=chrC;Is_circular=true",
+                "chrC|src|gene|90|120|.|+|.|ID=wrap;Name=wrapping gene",
+                "chrC|src|gene|5|20|7.25|-|.|ID=early",
+                "chrB|src|gene|5|20|.|.|.|ID=other;Dbxref=db:1,db:2",
+            };
+            for (String line : lines) {
+                p.print(line.replace("|", t) + "\n");
+            }
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, "gff_no_features.gff3"), "UTF-8")) {
+            p.print("##gff-version 3\n# no features here\n##sequence-region chr1 1 2000\n");
+        }
+    }
+
+    /**
+     * `MergePedIntoVcf`'s inputs. `zcall.vcf` is one sample in the shape GtcToVcf writes: ALLELE_A
+     * and ALLELE_B name the two array alleles, the reference one starred, and the genotypes carry
+     * IGC, X and Y beside GT (one also GQ, which the merged genotype drops). Its records cover a
+     * starred A and a starred B, a no-call, an indel, a missing IGC and a site with no ALT.
+     * `zcall.ped` calls every SNP of `zcall.map` in order; `zcall_illegal.ped` calls rs5 with a
+     * letter that is neither A, B nor 0 and `zcall_two_lines.ped` is two samples; `zcall_partial.map`
+     * leaves rs3 out, so the PED pairs shift and rs3 has no call. The thresholds name some SNPs,
+     * NA for both of one, and the second file has one NA alone, which the tool refuses.
+     */
+    static void writeZCallFixtures(File dir) throws Exception {
+        String meta = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FILTER=<ID=LowQual,Description=\"Low quality\">",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">",
+                "##FORMAT=<ID=IGC,Number=1,Type=Float,Description=\"Illumina GenCall Confidence Score\">",
+                "##FORMAT=<ID=X,Number=1,Type=Integer,Description=\"Raw X intensity\">",
+                "##FORMAT=<ID=Y,Number=1,Type=Integer,Description=\"Raw Y intensity\">",
+                "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count\">",
+                "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">",
+                "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Allele number\">",
+                "##INFO=<ID=ALLELE_A,Number=1,Type=String,Description=\"A allele\">",
+                "##INFO=<ID=ALLELE_B,Number=1,Type=String,Description=\"B allele\">",
+                "##autocallVersion=3.0.0",
+                "##contig=<ID=chr1,length=" + CHR1 + ">",
+                "##contig=<ID=chr2,length=" + CHR2 + ">") + "\n";
+        String[] records = {
+            "chr1|100|rs1|C|T|.|PASS|AC=1;AF=0.500;AN=2;ALLELE_A=C*;ALLELE_B=T|GT:IGC:X:Y|0/1:0.8100:1000:950",
+            "chr1|200|rs2|G|A|.|PASS|AC=2;AF=1.00;AN=2;ALLELE_A=A;ALLELE_B=G*|GT:IGC:X:Y|1/1:0.9000:200:1500",
+            "chr1|300|rs3|T|C|.|PASS|AC=0;AF=0.00;AN=2;ALLELE_A=T*;ALLELE_B=C|GT:IGC:X:Y|0/0:0.7000:1800:100",
+            "chr1|900|rs4|A|G|50|LowQual|AC=0;AF=0.00;AN=0;ALLELE_A=A*;ALLELE_B=G|GT:IGC:X:Y|./.:.:300:310",
+            "chr2|50|rs5|AT|A|.|PASS|AC=1;AF=0.500;AN=2;ALLELE_A=AT*;ALLELE_B=A|GT:IGC:X:Y|0/1:0.5500:700:720",
+            "chr2|400|rs6|C|T|.|PASS|AC=1;AF=0.500;AN=2;ALLELE_A=C*;ALLELE_B=T|GT:GQ:IGC:X:Y|0/1:30:0.6000:640:660",
+            "chr2|600|rs7|G|.|.|PASS|AN=2;ALLELE_A=G*;ALLELE_B=G|GT:IGC:X:Y|0/0:0.9500:900:50",
+        };
+        try (PrintWriter p = new PrintWriter(new File(dir, "zcall.vcf"), "UTF-8")) {
+            p.print(meta);
+            p.print("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1\n");
+            for (String record : records) {
+                p.print(record.replace("|", "\t") + "\n");
+            }
+        }
+        String[] calls = {"A\tB", "B\tB", "0\t0", "A\tA", "A\tB", "B\tA", "A\tA"};
+        String prefix = "FAM1\tSAMPLE1\t0\t0\t2\t-9";
+        try (PrintWriter p = new PrintWriter(new File(dir, "zcall.ped"), "UTF-8")) {
+            p.print(prefix + "\t" + String.join("\t", calls) + "\n");
+        }
+        String[] illegal = calls.clone();
+        illegal[4] = "A\tC";
+        try (PrintWriter p = new PrintWriter(new File(dir, "zcall_illegal.ped"), "UTF-8")) {
+            p.print(prefix + "\t" + String.join("\t", illegal) + "\n");
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, "zcall_two_lines.ped"), "UTF-8")) {
+            p.print(prefix + "\t" + String.join("\t", calls) + "\n");
+            p.print("FAM1\tSAMPLE2\t0\t0\t1\t-9\t" + String.join("\t", calls) + "\n");
+        }
+        int[] positions = {100, 200, 300, 900, 50, 400, 600};
+        try (PrintWriter all = new PrintWriter(new File(dir, "zcall.map"), "UTF-8");
+             PrintWriter partial = new PrintWriter(new File(dir, "zcall_partial.map"), "UTF-8")) {
+            for (int i = 0; i < positions.length; i++) {
+                String line = (i < 4 ? "1" : "2") + "\trs" + (i + 1) + "\t0\t" + positions[i] + "\n";
+                all.print(line);
+                if (i != 2) partial.print(line);
+            }
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, "zcall_thresholds.txt"), "UTF-8")) {
+            p.print("Name\tThr_X\tThr_Y\nrs1\t1.5\t2.5\nrs2\tNA\tNA\nrs3\t0.25\t3.0\nrs6\t10\t20\nrs7\t1e-3\t0\n");
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, "zcall_thresholds_half_na.txt"), "UTF-8")) {
+            p.print("rs1\t1.5\tNA\nrs2\t0.5\t0.5\n");
+        }
+    }
+
+    /**
+     * `BamToBfq`'s reads: sixteen unaligned pairs, adjacent and in name order, most named under a
+     * `RUN1:` prefix the tool can strip. Pair 1 is noise on both reads (XN=1) and pair 2 on one;
+     * pair 3 carries XN=2, which the writer keeps and READS_TO_ALIGN's count does not; one read of
+     * pair 4 fails vendor QC; pair 5 is wholly clipped (XT=1) on one read; pairs 6 and 7 mark an
+     * adapter at XT=40 and XT=10; pair 8 has four no-calls, three of them in the seed region; pair
+     * 9 has qualities above 63; pair 11 is thirty bases long; pair 15 is under another prefix. `odd` leaves pair 13 a single read and keeps the header
+     * unsorted, which the paired path and READS_TO_ALIGN's sort check both refuse.
+     */
+    static java.util.List<SAMRecord> bfqReads(SAMFileHeader header, boolean odd) {
+        Random rng = new Random(20261002L);
+        java.util.List<SAMRecord> out = new java.util.ArrayList<>();
+        for (int i = 0; i < 16; i++) {
+            String name = (i == 15 ? "RUN2:" : "RUN1:") + String.format("frag%02d", i);
+            int length = i == 11 ? 30 : READ_LENGTH;
+            SAMRecord[] pair = new SAMRecord[2];
+            for (int end = 0; end < 2; end++) {
+                byte[] bases = new byte[length];
+                byte[] quals = new byte[length];
+                for (int b = 0; b < length; b++) {
+                    bases[b] = (byte) "ACGT".charAt(rng.nextInt(4));
+                    quals[b] = (byte) (i == 9 ? 50 + rng.nextInt(44) : 2 + rng.nextInt(39));
+                }
+                if (i == 8) {
+                    for (int b : new int[] {0, 5, 10, 35}) bases[b] = 'N';
+                }
+                SAMRecord r = new SAMRecord(header);
+                r.setReadName(name);
+                r.setReadBases(bases);
+                r.setBaseQualities(quals);
+                r.setReadUnmappedFlag(true);
+                r.setReferenceIndex(SAMRecord.NO_ALIGNMENT_REFERENCE_INDEX);
+                r.setAlignmentStart(SAMRecord.NO_ALIGNMENT_START);
+                r.setMappingQuality(0);
+                r.setReadPairedFlag(true);
+                r.setMateUnmappedFlag(true);
+                r.setFirstOfPairFlag(end == 0);
+                r.setSecondOfPairFlag(end == 1);
+                r.setAttribute("RG", "rg1");
+                pair[end] = r;
+            }
+            if (i == 1) { pair[0].setAttribute("XN", 1); pair[1].setAttribute("XN", 1); }
+            if (i == 2) pair[0].setAttribute("XN", 1);
+            if (i == 3) { pair[0].setAttribute("XN", 2); pair[1].setAttribute("XN", 2); }
+            if (i == 4) pair[1].setReadFailsVendorQualityCheckFlag(true);
+            if (i == 5) pair[0].setAttribute("XT", 1);
+            if (i == 6) { pair[0].setAttribute("XT", 40); pair[1].setAttribute("XT", 40); }
+            if (i == 7) pair[1].setAttribute("XT", 10);
+            if (odd && i == 13) {
+                out.add(pair[0]);
+            } else {
+                out.add(pair[0]);
+                out.add(pair[1]);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * `CompareMetrics`' inputs: InsertSizeMetrics tables of three rows (all reads, a sample, a read
+     * group) with a two-column histogram, written through Picard's own bean and `MetricsFile`
+     * with no header. `ism_b` changes one value of each kind (a double by 1%, a long by 0.5%, an
+     * int by 20%, the enum) and one histogram bin; `ism_c` is `ism_a` with its rows in another
+     * order; `ism_d` lacks the WIDTH_OF_99_PERCENT column; `ism_e` keeps only the first row. The
+     * changes are ratios a double holds exactly enough that `Double.toString` prints them short.
+     */
+    static void writeCompareMetricsFixtures(File dir) throws Exception {
+        java.util.List<picard.analysis.InsertSizeMetrics> a = insertSizeRows(false);
+        java.util.List<picard.analysis.InsertSizeMetrics> b = insertSizeRows(true);
+        writeInsertSizeMetrics(new File(dir, "ism_a.txt"), a, false, null);
+        writeInsertSizeMetrics(new File(dir, "ism_b.txt"), b, true, null);
+        java.util.List<picard.analysis.InsertSizeMetrics> c = new java.util.ArrayList<>();
+        c.add(a.get(2));
+        c.add(a.get(0));
+        c.add(a.get(1));
+        writeInsertSizeMetrics(new File(dir, "ism_c.txt"), c, false, null);
+        writeInsertSizeMetrics(new File(dir, "ism_d.txt"), a, false, "WIDTH_OF_99_PERCENT");
+        writeInsertSizeMetrics(new File(dir, "ism_e.txt"), a.subList(0, 1), false, null);
+    }
+
+    static java.util.List<picard.analysis.InsertSizeMetrics> insertSizeRows(boolean changed) {
+        java.util.List<picard.analysis.InsertSizeMetrics> rows = new java.util.ArrayList<>();
+        String[][] levels = {{null, null, null}, {"sample1", null, null}, {"sample1", "lib1", "rg1"}};
+        double[] means = {200.0, 210.0, 205.0};
+        long[] pairs = {1000, 600, 400};
+        for (int i = 0; i < 3; i++) {
+            picard.analysis.InsertSizeMetrics m = new picard.analysis.InsertSizeMetrics();
+            m.SAMPLE = levels[i][0];
+            m.LIBRARY = levels[i][1];
+            m.READ_GROUP = levels[i][2];
+            m.MEDIAN_INSERT_SIZE = 200.0 + i;
+            m.MODE_INSERT_SIZE = 198.0;
+            m.MEDIAN_ABSOLUTE_DEVIATION = 20.0;
+            m.MIN_INSERT_SIZE = 50;
+            m.MAX_INSERT_SIZE = 400;
+            m.MEAN_INSERT_SIZE = (changed && i == 0) ? 202.0 : means[i];
+            m.STANDARD_DEVIATION = 30.5;
+            m.READ_PAIRS = (changed && i == 1) ? 603 : pairs[i];
+            m.PAIR_ORIENTATION = (changed && i == 2) ? SamPairUtil.PairOrientation.RF
+                    : SamPairUtil.PairOrientation.FR;
+            m.WIDTH_OF_10_PERCENT = (changed && i == 2) ? 12 : 10;
+            m.WIDTH_OF_20_PERCENT = 20;
+            m.WIDTH_OF_30_PERCENT = 30;
+            m.WIDTH_OF_40_PERCENT = 40;
+            m.WIDTH_OF_50_PERCENT = 50;
+            m.WIDTH_OF_60_PERCENT = 60;
+            m.WIDTH_OF_70_PERCENT = 70;
+            m.WIDTH_OF_80_PERCENT = 80;
+            m.WIDTH_OF_90_PERCENT = 90;
+            m.WIDTH_OF_95_PERCENT = 95;
+            m.WIDTH_OF_99_PERCENT = 99;
+            rows.add(m);
+        }
+        return rows;
+    }
+
+    static void writeInsertSizeMetrics(File f, java.util.List<picard.analysis.InsertSizeMetrics> rows,
+                                       boolean changed, String dropColumn) throws Exception {
+        htsjdk.samtools.metrics.MetricsFile<picard.analysis.InsertSizeMetrics, Integer> file =
+                new htsjdk.samtools.metrics.MetricsFile<>();
+        for (picard.analysis.InsertSizeMetrics m : rows) file.addMetric(m);
+        htsjdk.samtools.util.Histogram<Integer> all = new htsjdk.samtools.util.Histogram<>("insert_size", "All_Reads.fr_count");
+        htsjdk.samtools.util.Histogram<Integer> sample = new htsjdk.samtools.util.Histogram<>("insert_size", "sample1.fr_count");
+        for (int size = 100; size <= 300; size += 50) {
+            all.increment(size, size == 150 && changed ? 41 : size / 5);
+            sample.increment(size, size / 10);
+        }
+        file.addHistogram(all);
+        file.addHistogram(sample);
+        java.io.StringWriter text = new java.io.StringWriter();
+        file.write(text);
+        String out = text.toString();
+        if (dropColumn != null) {
+            StringBuilder kept = new StringBuilder();
+            int drop = -1;
+            boolean inTable = false;
+            for (String line : out.split("\n", -1)) {
+                if (line.startsWith("## METRICS CLASS")) {
+                    inTable = true;
+                } else if (inTable && line.isEmpty()) {
+                    inTable = false;
+                } else if (inTable) {
+                    java.util.List<String> cells = new java.util.ArrayList<>(java.util.Arrays.asList(line.split("\t", -1)));
+                    if (drop < 0) drop = cells.indexOf(dropColumn);
+                    cells.remove(drop);
+                    line = String.join("\t", cells);
+                }
+                kept.append(line).append("\n");
+            }
+            out = kept.substring(0, kept.length() - 1);
+        }
+        try (PrintWriter p = new PrintWriter(f, "UTF-8")) {
+            p.print(out);
+        }
+    }
+
+    /**
+     * `MergeBamAlignment`'s inputs: `mba_unmapped.bam`, queryname-sorted reads as they came off the
+     * sequencer (four fragments, then seventeen pairs), and `mba_aligned.bam`, what an aligner made
+     * of them. Each template is one case of the merge: a plain proper pair (t00), an overlapping
+     * one the merge clips (t01), a pair with one end unaligned (t02) and with neither aligned
+     * (t03), two hits with the aligner's primary marked by HI (t04) and two with none marked
+     * (t05), a supplementary alignment (t06), an end that runs off chr2 (t07), two indels against
+     * MAX_INSERTIONS_OR_DELETIONS (t08), aligner hard clips (t09), a short doubly clipped
+     * alignment the contamination filter takes (t10), adapter positions in XT (t11), an aligned
+     * read shorter than the original (t12), aligner tags of every kind against the retain and
+     * remove lists (t13), OQ and E2 on a negative-strand end (t14), ends on two contigs (t15) and
+     * an RF pair (t16). The fragments have one hit, two unmarked hits, none, and a negative hit.
+     * `mba_aligned_simple.bam` keeps one hit per paired end, has two @PG lines (so none is
+     * adopted) and is out of queryname order (so the merge retries with the aligned reads sorted).
+     * Read bases are the reference's at the true location with two substitutions, so NM, MD and
+     * UQ have something to count.
+     */
+    static void writeMbaFixtures(File dir, String chr1, String chr2) throws Exception {
+        String[] refs = {chr1, chr2};
+        // name, end (0 fragment, 1 first, 2 second), contig, start, cigar, strand, mapq, flags, HI
+        String[][] hits = {
+            {"f00", "0", "0", "50", "50M", "+", "60", "", ""},
+            {"f01", "0", "0", "150", "5S45M", "+", "20", "sec", ""},
+            {"f01", "0", "1", "500", "50M", "+", "20", "sec", ""},
+            {"f03", "0", "1", "700", "50M", "-", "50", "", ""},
+            {"t00", "1", "0", "100", "50M", "+", "60", "", ""},
+            {"t00", "2", "0", "300", "50M", "-", "60", "", ""},
+            {"t01", "1", "0", "400", "50M", "+", "60", "", ""},
+            {"t01", "2", "0", "390", "50M", "-", "55", "", ""},
+            {"t02", "1", "1", "200", "50M", "+", "37", "", ""},
+            {"t02", "2", "1", "200", "*", "+", "0", "unm", ""},
+            {"t04", "1", "0", "600", "50M", "+", "30", "", "0"},
+            {"t04", "2", "0", "750", "50M", "-", "30", "", "0"},
+            {"t04", "1", "1", "600", "50M", "+", "5", "sec", "1"},
+            {"t04", "2", "1", "750", "50M", "-", "5", "sec", "1"},
+            {"t05", "1", "0", "900", "50M", "+", "20", "sec", "0"},
+            {"t05", "2", "0", "1050", "50M", "-", "20", "sec", "0"},
+            {"t05", "1", "0", "1200", "50M", "+", "40", "sec", "1"},
+            {"t05", "2", "0", "1350", "50M", "-", "40", "sec", "1"},
+            {"t06", "1", "0", "1500", "30M20S", "+", "60", "", ""},
+            {"t06", "1", "1", "800", "30S20M", "+", "20", "sup", ""},
+            {"t06", "2", "0", "1650", "50M", "-", "60", "", ""},
+            {"t07", "1", "1", "960", "50M", "+", "60", "", ""},
+            {"t07", "2", "1", "900", "50M", "-", "60", "", ""},
+            {"t08", "1", "0", "1700", "20M1I10M1D19M", "+", "60", "", ""},
+            {"t08", "2", "0", "1800", "50M", "-", "60", "", ""},
+            {"t09", "1", "0", "200", "5H45M", "+", "60", "", ""},
+            {"t09", "2", "0", "350", "45M5H", "-", "60", "", ""},
+            {"t10", "1", "1", "300", "10S20M20S", "+", "25", "", ""},
+            {"t10", "2", "1", "420", "50M", "-", "60", "", ""},
+            {"t11", "1", "0", "1000", "50M", "+", "60", "", ""},
+            {"t11", "2", "0", "1100", "50M", "-", "60", "", ""},
+            {"t12", "1", "0", "500", "45M", "+", "60", "", ""},
+            {"t12", "2", "0", "560", "50M", "-", "60", "", ""},
+            {"t13", "1", "1", "100", "50M", "+", "60", "", ""},
+            {"t13", "2", "1", "250", "50M", "-", "60", "", ""},
+            {"t14", "1", "0", "1300", "50M", "+", "60", "", ""},
+            {"t14", "2", "0", "1450", "50M", "-", "60", "", ""},
+            {"t15", "1", "0", "1900", "50M", "+", "60", "", ""},
+            {"t15", "2", "1", "50", "50M", "-", "60", "", ""},
+            {"t16", "1", "0", "1600", "50M", "-", "60", "", ""},
+            {"t16", "2", "0", "1700", "50M", "+", "60", "", ""},
+        };
+        String[] fragments = {"f00", "f01", "f02", "f03"};
+        String[] pairs = new String[17];
+        for (int i = 0; i < 17; i++) pairs[i] = String.format("t%02d", i);
+
+        Random rng = new Random(20261003L);
+        SAMFileHeader unmappedHeader = header(SAMFileHeader.SortOrder.queryname);
+        java.util.List<SAMRecord> unmapped = new java.util.ArrayList<>();
+        java.util.Map<String, byte[]> sequenced = new java.util.HashMap<>();
+        java.util.List<String> names = new java.util.ArrayList<>();
+        for (String f : fragments) names.add(f);
+        for (String p : pairs) names.add(p);
+        for (String name : names) {
+            int ends = name.startsWith("f") ? 1 : 2;
+            for (int end = (ends == 1 ? 0 : 1); end <= (ends == 1 ? 0 : 2); end++) {
+                String[] truth = null;
+                for (String[] h : hits) {
+                    if (h[0].equals(name) && Integer.parseInt(h[1]) == end && !h[4].equals("*")) {
+                        truth = h;
+                        break;
+                    }
+                }
+                byte[] bases = new byte[READ_LENGTH];
+                if (truth == null) {
+                    for (int b = 0; b < READ_LENGTH; b++) bases[b] = (byte) "ACGT".charAt(rng.nextInt(4));
+                } else {
+                    String contig = refs[Integer.parseInt(truth[2])];
+                    int start = Integer.parseInt(truth[3]);
+                    // Leading clips and hard clips are read bases before the aligned start.
+                    int lead = 0;
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(\\d+)[SH]").matcher(truth[4]);
+                    if (truth[5].equals("+") && m.find()) lead = Integer.parseInt(m.group(1));
+                    java.util.regex.Matcher t = java.util.regex.Pattern.compile("(\\d+)[SH]$").matcher(truth[4]);
+                    if (truth[5].equals("-") && t.find()) lead = Integer.parseInt(t.group(1));
+                    for (int b = 0; b < READ_LENGTH; b++) {
+                        int pos = start - 1 - (truth[5].equals("+") ? lead : 0) + b;
+                        bases[b] = (pos >= 0 && pos < contig.length()) ? (byte) contig.charAt(pos) : (byte) 'A';
+                        if (bases[b] == 'N') bases[b] = 'A';
+                    }
+                    bases[7] = mutateBase(bases[7]);
+                    bases[33] = mutateBase(bases[33]);
+                    if (truth[5].equals("-")) SequenceUtil.reverseComplement(bases);
+                }
+                byte[] quals = new byte[READ_LENGTH];
+                for (int b = 0; b < READ_LENGTH; b++) quals[b] = (byte) (2 + rng.nextInt(39));
+                SAMRecord r = new SAMRecord(unmappedHeader);
+                r.setReadName(name);
+                r.setReadBases(bases);
+                r.setBaseQualities(quals);
+                r.setReadUnmappedFlag(true);
+                r.setReferenceIndex(SAMRecord.NO_ALIGNMENT_REFERENCE_INDEX);
+                r.setAlignmentStart(SAMRecord.NO_ALIGNMENT_START);
+                r.setMappingQuality(0);
+                if (end > 0) {
+                    r.setReadPairedFlag(true);
+                    r.setMateUnmappedFlag(true);
+                    r.setFirstOfPairFlag(end == 1);
+                    r.setSecondOfPairFlag(end == 2);
+                }
+                r.setAttribute("RG", name.compareTo("t08") < 0 ? "rg1" : "rg2");
+                if (name.equals("t11")) r.setAttribute("XT", end == 1 ? 40 : 30);
+                if ((name.equals("t14") && end == 2) || name.equals("f03")) {
+                    StringBuilder oq = new StringBuilder();
+                    for (int b = 0; b < READ_LENGTH; b++) oq.append((char) (33 + 10 + (b % 30)));
+                    r.setAttribute("OQ", oq.toString());
+                    r.setAttribute("E2", new String(bases, 0, READ_LENGTH).replace('A', 'C'));
+                }
+                if (name.equals("t13")) r.setAttribute("XU", "kept-" + end);
+                sequenced.put(name + "/" + end, bases);
+                unmapped.add(r);
+            }
+        }
+        writeBam(new File(dir, "mba_unmapped.bam"), unmappedHeader, unmapped, false);
+
+        for (int variant = 0; variant < 2; variant++) {
+            boolean simple = variant == 1;
+            SAMFileHeader alignedHeader = header(simple ? SAMFileHeader.SortOrder.unsorted : SAMFileHeader.SortOrder.queryname);
+            SAMProgramRecord bwa = new SAMProgramRecord("bwa");
+            bwa.setProgramName("bwa");
+            bwa.setProgramVersion("0.7.17-r1188");
+            bwa.setCommandLine("bwa mem ref.fasta reads.fq");
+            alignedHeader.addProgramRecord(bwa);
+            if (simple) {
+                SAMProgramRecord other = new SAMProgramRecord("samtools");
+                other.setProgramName("samtools");
+                other.setPreviousProgramGroupId("bwa");
+                alignedHeader.addProgramRecord(other);
+            }
+            java.util.List<SAMRecord> aligned = new java.util.ArrayList<>();
+            java.util.Map<String, SAMRecord> byKey = new java.util.LinkedHashMap<>();
+            for (String[] h : hits) {
+                if (simple && (h[7].equals("sec") && !h[0].startsWith("f"))) continue;
+                int end = Integer.parseInt(h[1]);
+                byte[] read = sequenced.get(h[0] + "/" + end).clone();
+                boolean negative = h[5].equals("-");
+                if (negative) SequenceUtil.reverseComplement(read);
+                SAMRecord r = new SAMRecord(alignedHeader);
+                r.setReadName(h[0]);
+                String cigar = h[4];
+                int hardLead = 0, hardTail = 0;
+                java.util.regex.Matcher lead = java.util.regex.Pattern.compile("^(\\d+)H").matcher(cigar);
+                if (lead.find()) hardLead = Integer.parseInt(lead.group(1));
+                java.util.regex.Matcher tail = java.util.regex.Pattern.compile("(\\d+)H$").matcher(cigar);
+                if (tail.find()) hardTail = Integer.parseInt(tail.group(1));
+                int length = cigar.equals("*") ? READ_LENGTH : TextCigarCodec.decode(cigar).getReadLength();
+                if (cigar.equals("*")) {
+                    r.setReadBases(read);
+                } else {
+                    r.setReadBases(java.util.Arrays.copyOfRange(read, hardLead, hardLead + length));
+                }
+                byte[] quals = new byte[r.getReadBases().length];
+                for (int b = 0; b < quals.length; b++) quals[b] = (byte) (20 + (b % 15));
+                r.setBaseQualities(quals);
+                if (end > 0) {
+                    r.setReadPairedFlag(true);
+                    r.setFirstOfPairFlag(end == 1);
+                    r.setSecondOfPairFlag(end == 2);
+                }
+                r.setReferenceIndex(Integer.parseInt(h[2]));
+                r.setAlignmentStart(Integer.parseInt(h[3]));
+                if (h[7].equals("unm")) {
+                    r.setReadUnmappedFlag(true);
+                    r.setMappingQuality(0);
+                } else {
+                    r.setCigarString(cigar);
+                    r.setMappingQuality(Integer.parseInt(h[6]));
+                    r.setReadNegativeStrandFlag(negative);
+                    r.setAttribute("NM", 2);
+                    r.setAttribute("AS", 40);
+                    r.setAttribute("XS", 12);
+                }
+                r.setNotPrimaryAlignmentFlag(h[7].equals("sec"));
+                r.setSupplementaryAlignmentFlag(h[7].equals("sup"));
+                if (!h[8].isEmpty()) r.setAttribute("HI", Integer.parseInt(h[8]));
+                r.setAttribute("RG", h[0].compareTo("t08") < 0 ? "rg1" : "rg2");
+                if (h[0].equals("t13")) {
+                    r.setAttribute("X0", 1);
+                    r.setAttribute("ZZ", "zz-" + end);
+                    r.setAttribute("YY", 7);
+                    r.setAttribute("PG", "bwa");
+                    r.setAttribute("MD", "50");
+                    r.setAttribute("xa", "lower");
+                }
+                aligned.add(r);
+                String key = h[0] + "/" + end + "/" + h[8] + "/" + h[7];
+                byKey.put(key, r);
+            }
+            // Mate information as an aligner writes it: each hit with the other end's same hit.
+            for (SAMRecord r : aligned) {
+                if (!r.getReadPairedFlag() || !r.getFirstOfPairFlag() || r.getSupplementaryAlignmentFlag()) continue;
+                Integer hi = r.getIntegerAttribute("HI");
+                for (SAMRecord mate : aligned) {
+                    if (mate.getReadName().equals(r.getReadName()) && mate.getSecondOfPairFlag()
+                            && !mate.getSupplementaryAlignmentFlag()
+                            && java.util.Objects.equals(hi, mate.getIntegerAttribute("HI"))
+                            && mate.getNotPrimaryAlignmentFlag() == r.getNotPrimaryAlignmentFlag()) {
+                        SamPairUtil.setMateInfo(r, mate, true);
+                        SamPairUtil.setProperPairFlags(r, mate, java.util.Collections.singletonList(SamPairUtil.PairOrientation.FR));
+                    }
+                }
+            }
+            for (SAMRecord r : aligned) {
+                if (!r.getSupplementaryAlignmentFlag()) continue;
+                for (SAMRecord mate : aligned) {
+                    if (mate.getReadName().equals(r.getReadName()) && mate.getSecondOfPairFlag()
+                            && !mate.isSecondaryOrSupplementary()) {
+                        SamPairUtil.setMateInformationOnSupplementalAlignment(r, mate, true);
+                    }
+                }
+            }
+            if (simple) {
+                // Out of queryname order: the first template's records go last.
+                java.util.List<SAMRecord> moved = new java.util.ArrayList<>();
+                for (SAMRecord r : aligned) if (r.getReadName().equals("f00")) moved.add(r);
+                aligned.removeAll(moved);
+                aligned.addAll(moved);
+                writeBam(new File(dir, "mba_aligned_simple.bam"), alignedHeader, aligned, false);
+            } else {
+                SAMFileWriterFactory factory = new SAMFileWriterFactory().setUseAsyncIo(false);
+                try (SAMFileWriter w = factory.makeBAMWriter(alignedHeader, false, new File(dir, "mba_aligned.bam"))) {
+                    for (SAMRecord r : aligned) w.addAlignment(r);
+                }
+            }
+        }
     }
 }

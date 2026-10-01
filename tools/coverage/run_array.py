@@ -217,11 +217,20 @@ def read_output(out_dir, strip_program_records=False, output_name="output.txt"):
     # A tool that writes two files names both, separated by a comma: `SplitVcfs` writes its SNPs
     # and its indels to two outputs, and comparing either alone would let the port put a record in
     # the wrong one and still match. Each file is compared under its own name, in the order given.
+    #
+    # A run that wrote NONE of them answers nothing, and says so with the empty string, exactly as
+    # a single missing file does. Without this a refusal of a tool whose exit code is a result
+    # (`CompareMetrics` exits 1 for "the files differ" and writes its report, and exits 1 for an
+    # unknown METRICS_TO_IGNORE name and writes nothing) was recorded as the file headers alone,
+    # and every refusal looked like every other one.
     if "," in output_name:
-        return "".join(
-            f"== {name}\n{read_output(out_dir, strip_program_records, name)}\n"
+        parts = [
+            (name, read_output(out_dir, strip_program_records, name))
             for name in output_name.split(",")
-        )
+        ]
+        if all(not text for _, text in parts):
+            return ""
+        return "".join(f"== {name}\n{text}\n" for name, text in parts)
     produced = out_dir / output_name
     if not produced.exists():
         return ""

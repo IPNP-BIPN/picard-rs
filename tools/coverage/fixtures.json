@@ -1713,6 +1713,302 @@
         "null",
         "chr2"
       ]
+    },
+    "SortGff": {
+      "$why": [
+        "INPUT is sort.gff3 (MakeFixtures: five contigs out of order, comments, sequence-regions,",
+        "children before parents, values that need escaping), gff_circular.gff3 (a circular region a",
+        "feature runs off) and two refusals: a feature outside its sequence-region, and a file with no",
+        "feature, which canDecode rejects like a file that is not GFF3. SEQUENCE_DICTIONARY is none",
+        "(contigs sort as strings), the corpus's FASTA (its .dict: chr1, chr2) and other.dict (chr1,",
+        "chr2, chr3); a contig the dictionary does not name sorts first. OUTPUT's extension decides the",
+        "writer: .gff3 is text, .gff3.gz is BGZF, and .txt is refused after the input has been read.",
+        "nRecordsInMemory 3 spills to TMP_DIR and merges back, which must not change the order.",
+        "VALIDATION_STRINGENCY and CREATE_INDEX are held at their defaults: the tool opens no SAM or",
+        "BAM, so neither is read, and varying them only multiplied the refusal rows (16 rows, 2",
+        "accepted)."
+      ],
+      "--INPUT": [
+        "/work/fixtures/sort.gff3",
+        "/work/fixtures/gff_circular.gff3",
+        "/work/fixtures/gff_bad_region.gff3",
+        "/work/fixtures/gff_no_features.gff3"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.gff3",
+        "/work/out/output.gff3.gz",
+        "/work/out/output.txt"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "null",
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/other.dict"
+      ],
+      "--nRecordsInMemory": [
+        "50000",
+        "3"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT"
+      ],
+      "--CREATE_INDEX": [
+        "false"
+      ]
+    },
+    "MergePedIntoVcf": {
+      "$why": [
+        "zcall.vcf, zcall.ped, zcall.map and the thresholds are MakeFixtures' (see writeZCallFixtures).",
+        "doWork catches every exception, prints it and returns 0, so a refusal is exit 0 with no file",
+        "(thresholds with one NA alone, a PED of two lines, a VCF of two samples) or with the records",
+        "written before the one that threw (an illegal PED letter at rs5, a MAP without rs3, and",
+        "vcf_one_sample.vcf, whose genotypes carry no extended attribute, so the first record throws",
+        "and only the header is written). ZCALL_VERSION is written into the header as given."
+      ],
+      "--ORIGINAL_VCF": [
+        "/work/fixtures/zcall.vcf",
+        "/work/fixtures/vcf_one_sample.vcf",
+        "/work/fixtures/vcf_sorted_samples.vcf"
+      ],
+      "--PED_FILE": [
+        "/work/fixtures/zcall.ped",
+        "/work/fixtures/zcall_illegal.ped",
+        "/work/fixtures/zcall_two_lines.ped"
+      ],
+      "--MAP_FILE": [
+        "/work/fixtures/zcall.map",
+        "/work/fixtures/zcall_partial.map"
+      ],
+      "--ZCALL_THRESHOLDS_FILE": [
+        "/work/fixtures/zcall_thresholds.txt",
+        "/work/fixtures/zcall_thresholds_half_na.txt"
+      ],
+      "--ZCALL_VERSION": [
+        "1.0.0.0",
+        "zCall_2"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ]
+    },
+    "BamToBfq": {
+      "$why": [
+        "bfq.bam is MakeFixtures' (see bfqReads): sixteen queryname-sorted unaligned pairs carrying",
+        "every filter the writer applies (XN noise on one or both reads, vendor QC, XT whole-read",
+        "clipping and adapter positions), no-calls in and out of the seed region, qualities above 63, a",
+        "short pair and a name outside the RUN1: prefix. bfq_odd.bam is the same reads, unsorted, with one",
+        "pair broken: the paired path refuses it, READS_TO_ALIGN's sort check refuses it, single-end",
+        "reads it. Barclay counts an argument given as `null` as set, so of each mutex pair only one can",
+        "be varied: FLOWCELL_BARCODE is held at FC1 with LANE 3 or null (the prefix is FC1.3 or",
+        "FC1.null), OUTPUT_FILE_PREFIX is left out, and RUN_BARCODE (null or RUN1, which strips",
+        "`RUN1:`) stands for READ_NAME_PREFIX. READ_CHUNK_SIZE 10 splits the output into numbered",
+        "files; output_name lists the indices 0 to 3 of both reads under both prefixes. BASES_TO_WRITE",
+        "is shorter and longer than the reads. VALIDATION_STRINGENCY and CREATE_INDEX are held: the",
+        "fixture's records are valid and the tool writes no BAM."
+      ],
+      "--INPUT": [
+        "/work/fixtures/bfq.bam",
+        "/work/fixtures/bfq_odd.bam"
+      ],
+      "--ANALYSIS_DIR": [
+        "/work/out"
+      ],
+      "--FLOWCELL_BARCODE": [
+        "FC1"
+      ],
+      "--LANE": [
+        "3",
+        "null"
+      ],
+      "--RUN_BARCODE": [
+        "null",
+        "RUN1"
+      ],
+      "--READS_TO_ALIGN": [
+        "null",
+        "7"
+      ],
+      "--READ_CHUNK_SIZE": [
+        "2000000",
+        "10"
+      ],
+      "--BASES_TO_WRITE": [
+        "null",
+        "20",
+        "60"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT"
+      ],
+      "--CREATE_INDEX": [
+        "false"
+      ]
+    },
+    "CompareMetrics": {
+      "$why": [
+        "INPUT is the two-element list ($lists), over MakeFixtures' InsertSizeMetrics tables: a file",
+        "against itself (equal, exit 0), against ism_b (one double, long, int and enum changed and one",
+        "histogram bin) in both orders, since the relative change is measured against the first file,",
+        "against ism_c (the rows reordered, which only KEY matches up), ism_d (a column missing, which",
+        "only METRICS_NOT_REQUIRED forgives) and ism_e (fewer rows). The verdict is the exit code, 1",
+        "for a difference, with OUTPUT written, so the exit code is part of the answer. METRICS_TO_IGNORE",
+        "names a compared column or one the file lacks (refused once the files differ);",
+        "METRIC_ALLOWABLE_RELATIVE_CHANGE is a tolerance that forgives the 1% change, one that does not",
+        "(the comparison is >=), a non-positive one and one with no colon, both refused by",
+        "customCommandLineValidation. KEY matches rows by MEDIAN_INSERT_SIZE (a double, printed as 200.0)",
+        "or by SAMPLE and READ_GROUP ($lists), which are null on the first row, and StringUtil.join's",
+        "toString() on a null is the NullPointerException the tool rethrows. OUTPUT_TABLE is the",
+        "differences as a metrics file. VALIDATION_STRINGENCY and CREATE_INDEX are held: the tool reads",
+        "no SAM."
+      ],
+      "$lists": [
+        "--INPUT",
+        "--KEY"
+      ],
+      "--INPUT": [
+        "/work/fixtures/ism_a.txt /work/fixtures/ism_a.txt",
+        "/work/fixtures/ism_a.txt /work/fixtures/ism_b.txt",
+        "/work/fixtures/ism_b.txt /work/fixtures/ism_a.txt",
+        "/work/fixtures/ism_a.txt /work/fixtures/ism_c.txt",
+        "/work/fixtures/ism_a.txt /work/fixtures/ism_d.txt",
+        "/work/fixtures/ism_a.txt /work/fixtures/ism_e.txt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt"
+      ],
+      "--OUTPUT_TABLE": [
+        "null",
+        "/work/out/table.txt"
+      ],
+      "--METRICS_TO_IGNORE": [
+        "null",
+        "MEAN_INSERT_SIZE",
+        "NOT_A_METRIC"
+      ],
+      "--METRICS_NOT_REQUIRED": [
+        "null",
+        "WIDTH_OF_99_PERCENT"
+      ],
+      "--METRIC_ALLOWABLE_RELATIVE_CHANGE": [
+        "null",
+        "MEAN_INSERT_SIZE:0.02",
+        "MEAN_INSERT_SIZE:0.01",
+        "READ_PAIRS:0",
+        "MEAN_INSERT_SIZE"
+      ],
+      "--KEY": [
+        "null",
+        "MEDIAN_INSERT_SIZE",
+        "SAMPLE READ_GROUP"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT"
+      ],
+      "--CREATE_INDEX": [
+        "false"
+      ]
+    },
+    "MergeBamAlignment": {
+      "$why": [
+        "mba_unmapped.bam and mba_aligned.bam are MakeFixtures' (see writeMbaFixtures): one template per",
+        "case of the merge. mba_aligned_simple.bam drops the paired multi-hits (so EarliestFragment, which",
+        "refuses a paired read with more than one hit, can run), carries two @PG lines (so none is",
+        "adopted) and is out of queryname order (so the merge throws, sorts the aligned reads and runs",
+        "again). VALIDATION_STRINGENCY is LENIENT or SILENT: STRICT refuses the alignment that runs off",
+        "chr2 (t07) as the aligned file is read, which is the case the merge exists to clip. JUMP_SIZE",
+        "and READ1/READ2_ALIGNED_BAM are left out: Barclay counts an argument given as `null` as set,",
+        "and each is mutually exclusive with one that is always given. The program-group arguments are",
+        "held absent: ID, VERSION and COMMAND_LINE must come together, which left free made a partial",
+        "set (one refusal) most of the array, and tied by constraints left the generator either",
+        "uncovered tuples or rows that break the constraints; the aligned file's own @PG is what the",
+        "rows adopt. READ1_TRIM and READ2_TRIM are held at 0: a trim is only consistent with an aligned",
+        "file whose reads were all trimmed, and on this one every other read becomes an invalid cigar;",
+        "t12's aligned read, shorter than its original, takes the same soft-clipping path. The",
+        "attribute lists and EXPECTED_ORIENTATIONS are $lists; ATTRIBUTES_TO_REVERSE(_COMPLEMENT)",
+        "append to their defaults, so OQ (E2) keeps the default and `null` empties it.",
+        "MATCHING_DICTIONARY_TAGS keeps its default, PAIRED_RUN is ignored by the tool and CREATE_INDEX",
+        "writes a side file only."
+      ],
+      "$lists": [
+        "--ATTRIBUTES_TO_RETAIN",
+        "--ATTRIBUTES_TO_REMOVE",
+        "--ATTRIBUTES_TO_REVERSE",
+        "--ATTRIBUTES_TO_REVERSE_COMPLEMENT",
+        "--EXPECTED_ORIENTATIONS"
+      ],
+      "--UNMAPPED_BAM": [
+        "/work/fixtures/mba_unmapped.bam"
+      ],
+      "--ALIGNED_BAM": [
+        "/work/fixtures/mba_aligned.bam",
+        "/work/fixtures/mba_aligned_simple.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.bam"
+      ],
+      "--SORT_ORDER": [
+        "coordinate",
+        "queryname",
+        "unsorted"
+      ],
+      "--MAX_INSERTIONS_OR_DELETIONS": [
+        "1",
+        "-1"
+      ],
+      "--MIN_UNCLIPPED_BASES": [
+        "32",
+        "10"
+      ],
+      "--ATTRIBUTES_TO_RETAIN": [
+        "null",
+        "XS",
+        "X0 ZZ"
+      ],
+      "--ATTRIBUTES_TO_REMOVE": [
+        "null",
+        "AS",
+        "XS"
+      ],
+      "--ATTRIBUTES_TO_REVERSE": [
+        "OQ",
+        "null"
+      ],
+      "--ATTRIBUTES_TO_REVERSE_COMPLEMENT": [
+        "E2",
+        "null"
+      ],
+      "--READ1_TRIM": [
+        "0"
+      ],
+      "--READ2_TRIM": [
+        "0"
+      ],
+      "--EXPECTED_ORIENTATIONS": [
+        "null",
+        "RF",
+        "FR TANDEM"
+      ],
+      "--PROGRAM_RECORD_ID": [
+        "null"
+      ],
+      "--PROGRAM_GROUP_VERSION": [
+        "null"
+      ],
+      "--PROGRAM_GROUP_COMMAND_LINE": [
+        "null"
+      ],
+      "--PROGRAM_GROUP_NAME": [
+        "null"
+      ],
+      "--PAIRED_RUN": [
+        "true"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "LENIENT",
+        "SILENT"
+      ],
+      "--CREATE_INDEX": [
+        "false"
+      ]
     }
   },
   "constraints": [
@@ -1830,6 +2126,206 @@
         "--METRIC_ACCUMULATION_LEVEL": "SAMPLE LIBRARY"
       },
       "why": "These PROGRAM values keep the default set, which runs CollectInsertSizeMetrics, and that collector's port runs at ALL_READS alone (its own array holds the level there for the same reason)."
+    },
+    {
+      "tools": [
+        "SortGff"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/gff_bad_region.gff3",
+        "--OUTPUT": "/work/out/output.txt"
+      },
+      "why": "Two refusals in one row: only the first is observable (the input is checked and read before SortingCollection is built, and the writer is opened last), so the pair only repeats a refusal another row already makes and crowds out accepted rows."
+    },
+    {
+      "tools": [
+        "SortGff"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/gff_no_features.gff3",
+        "--OUTPUT": "/work/out/output.txt"
+      },
+      "why": "Two refusals in one row: only the first is observable (the input is checked and read before SortingCollection is built, and the writer is opened last), so the pair only repeats a refusal another row already makes and crowds out accepted rows."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--ORIGINAL_VCF": "/work/fixtures/vcf_one_sample.vcf",
+        "--PED_FILE": "/work/fixtures/zcall_illegal.ped"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--ORIGINAL_VCF": "/work/fixtures/vcf_one_sample.vcf",
+        "--PED_FILE": "/work/fixtures/zcall_two_lines.ped"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--ORIGINAL_VCF": "/work/fixtures/vcf_one_sample.vcf",
+        "--MAP_FILE": "/work/fixtures/zcall_partial.map"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--ORIGINAL_VCF": "/work/fixtures/vcf_one_sample.vcf",
+        "--ZCALL_THRESHOLDS_FILE": "/work/fixtures/zcall_thresholds_half_na.txt"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--ORIGINAL_VCF": "/work/fixtures/vcf_sorted_samples.vcf",
+        "--PED_FILE": "/work/fixtures/zcall_illegal.ped"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--ORIGINAL_VCF": "/work/fixtures/vcf_sorted_samples.vcf",
+        "--PED_FILE": "/work/fixtures/zcall_two_lines.ped"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--ORIGINAL_VCF": "/work/fixtures/vcf_sorted_samples.vcf",
+        "--MAP_FILE": "/work/fixtures/zcall_partial.map"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--ORIGINAL_VCF": "/work/fixtures/vcf_sorted_samples.vcf",
+        "--ZCALL_THRESHOLDS_FILE": "/work/fixtures/zcall_thresholds_half_na.txt"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--PED_FILE": "/work/fixtures/zcall_illegal.ped",
+        "--MAP_FILE": "/work/fixtures/zcall_partial.map"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--PED_FILE": "/work/fixtures/zcall_illegal.ped",
+        "--ZCALL_THRESHOLDS_FILE": "/work/fixtures/zcall_thresholds_half_na.txt"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--PED_FILE": "/work/fixtures/zcall_two_lines.ped",
+        "--MAP_FILE": "/work/fixtures/zcall_partial.map"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--PED_FILE": "/work/fixtures/zcall_two_lines.ped",
+        "--ZCALL_THRESHOLDS_FILE": "/work/fixtures/zcall_thresholds_half_na.txt"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "MergePedIntoVcf"
+      ],
+      "forbid": {
+        "--MAP_FILE": "/work/fixtures/zcall_partial.map",
+        "--ZCALL_THRESHOLDS_FILE": "/work/fixtures/zcall_thresholds_half_na.txt"
+      },
+      "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "CompareMetrics"
+      ],
+      "forbid": {
+        "--METRICS_TO_IGNORE": "NOT_A_METRIC",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "READ_PAIRS:0"
+      },
+      "why": "Two refusals in one row: the tolerance is refused by customCommandLineValidation before either file is read, so a missing METRICS_TO_IGNORE name beside it is never reached and the row only repeats the refusal."
+    },
+    {
+      "tools": [
+        "CompareMetrics"
+      ],
+      "forbid": {
+        "--METRICS_TO_IGNORE": "NOT_A_METRIC",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "MEAN_INSERT_SIZE"
+      },
+      "why": "Two refusals in one row: the tolerance is refused by customCommandLineValidation before either file is read, so a missing METRICS_TO_IGNORE name beside it is never reached and the row only repeats the refusal."
+    },
+    {
+      "tools": [
+        "CompareMetrics"
+      ],
+      "forbid": {
+        "--METRICS_TO_IGNORE": "NOT_A_METRIC",
+        "--KEY": "SAMPLE READ_GROUP"
+      },
+      "why": "Two refusals in one row: a key with a null in it fails only once both files are read and compared, so a refusal that comes earlier hides it and the row only repeats that refusal."
+    },
+    {
+      "tools": [
+        "CompareMetrics"
+      ],
+      "forbid": {
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "READ_PAIRS:0",
+        "--KEY": "SAMPLE READ_GROUP"
+      },
+      "why": "Two refusals in one row: a key with a null in it fails only once both files are read and compared, so a refusal that comes earlier hides it and the row only repeats that refusal."
+    },
+    {
+      "tools": [
+        "CompareMetrics"
+      ],
+      "forbid": {
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "MEAN_INSERT_SIZE",
+        "--KEY": "SAMPLE READ_GROUP"
+      },
+      "why": "Two refusals in one row: a key with a null in it fails only once both files are read and compared, so a refusal that comes earlier hides it and the row only repeats that refusal."
     }
   ],
   "exclude": {
