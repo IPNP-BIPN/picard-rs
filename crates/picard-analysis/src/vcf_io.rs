@@ -276,10 +276,101 @@ pub fn write_output(
 }
 
 /// `VCFFileReader(file, false)` on a path, with a read failure as the exception it was upstream.
+///
+/// A gzip file is a `.vcf.gz`, which the reader inflates whatever its name.
 pub fn read_path(path: &str) -> Result<LazyVcf, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("java.io.IOException: {e}"))?;
+    let bytes = std::fs::read(path).map_err(|e| format!("java.io.IOException: {e}"))?;
+    let bytes = if bytes.starts_with(&[0x1f, 0x8b]) {
+        htsjdk_bgzf::read::decompress_all(&bytes)
+            .map_err(|e| format!("htsjdk.samtools.SAMException: {e:?}"))?
+    } else {
+        bytes
+    };
+    let text = String::from_utf8(bytes).map_err(|e| format!("java.io.IOException: {e}"))?;
     read_lazy(&text)
         .map_err(|failure| format!("{}: {}", failure.error.class(), failure.error.message()))
+}
+
+/// `FileExtensions.VCF_LIST`: what `IOUtil.unrollPaths` takes as a variant file rather than a list.
+pub const VCF_LIST: [&str; 4] = [".vcf", ".vcf.gz", ".vcf.bgz", ".bcf"];
+
+/// `IOUtil.unrollPaths(paths, VCF_LIST)`: a path whose file name ends in a VCF extension is itself,
+/// and any other is read as a list of paths, one per non-blank trimmed line, recursively.
+///
+/// The Java walks a stack and reverses what it collected, which is the input order, lists
+/// expanded in place.
+pub fn unroll_paths(inputs: &[String]) -> Result<Vec<String>, String> {
+    let mut stack: Vec<String> = inputs.to_vec();
+    let mut output: Vec<String> = Vec::new();
+    while let Some(path) = stack.pop() {
+        let name = std::path::Path::new(&path)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        if VCF_LIST.iter().any(|ext| name.ends_with(ext)) {
+            output.push(path);
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).map_err(|_| {
+            let absolute = std::path::absolute(&path).unwrap_or_else(|_| path.clone().into());
+            format!(
+                "java.lang.IllegalArgumentException: had trouble reading from file://{}",
+                absolute.display()
+            )
+        })?;
+        stack.extend(
+            text.lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .map(str::to_string),
+        );
+    }
+    output.reverse();
+    Ok(output)
+}
+
+/// `VCFHeader.addMetaDataLine` for an unstructured line: it goes in only when no line of the
+/// "other" kind (anything but INFO, FORMAT, FILTER and contig) already has its key, so of two
+/// comments with one key the first is the one that stays.
+pub fn add_other_meta_data_line(header: &mut VcfHeader, key: &str, value: &str) {
+    let taken = header.lines.iter().any(|line| match line {
+        HeaderLine::Unstructured { key: k, .. } | HeaderLine::Structured { key: k, .. } => k == key,
+        _ => false,
+    });
+    if !taken {
+        header.lines.push(HeaderLine::Unstructured {
+            key: key.to_string(),
+            value: value.to_string(),
+        });
+    }
+}
+
+/// The line htsjdk's `Log.error` prints: level, time, the tool's class name and the message parts
+/// run together, a throwable among them by its `toString()`.
+///
+/// The time is `yyyy-MM-dd HH:mm:ss` in the JVM's zone, which the oracle image leaves at UTC.
+pub fn log_error(tool: &str, message: &str) {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let (days, seconds) = (now.div_euclid(86_400), now.rem_euclid(86_400));
+    // Howard Hinnant's `civil_from_days`.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    eprintln!(
+        "ERROR\t{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02}\t{tool}\t{message}",
+        seconds / 3_600,
+        seconds % 3_600 / 60,
+        seconds % 60
+    );
 }
 
 /// Print the line the JVM prints for an uncaught exception, and exit the way it does.

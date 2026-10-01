@@ -446,6 +446,41 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.vcf"
+      },
+      {
+        "tool": "MergeVcfs",
+        "port": "merge-vcfs",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
+      },
+      {
+        "tool": "GatherVcfs",
+        "port": "gather-vcfs",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
+      },
+      {
+        "tool": "SplitVcfs",
+        "port": "split-vcfs",
+        "t": 2,
+        "status": "pending",
+        "output_name": "snp.vcf,indel.vcf"
+      },
+      {
+        "tool": "VcfFormatConverter",
+        "port": "vcf-format-converter",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf,output.vcf.gz"
+      },
+      {
+        "tool": "FixVcfHeader",
+        "port": "fix-vcf-header",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
       }
     ]
   },
