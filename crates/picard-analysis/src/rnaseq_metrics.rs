@@ -2,10 +2,10 @@
 //!
 //! Ported from `picard.analysis.directed.RnaSeqMetricsCollector` (its inner
 //! `PerUnitRnaSeqMetricsCollector`), `picard.analysis.RnaSeqMetrics`, and the setup in
-//! `picard.analysis.CollectRnaSeqMetrics`, all at tag 3.4.0. Only the **ALL_READS** accumulation
-//! level is ported: the corpora drive `METRIC_ACCUMULATION_LEVEL=[ALL_READS]`, so sample, library
-//! and read group are null and the coverage prefix is `All_Reads.`. The multi-level fan-out
-//! (`SAMRecordMultiLevelCollector`) is a separate symbol and is not claimed here.
+//! `picard.analysis.CollectRnaSeqMetrics`, all at tag 3.4.0. One collector is one unit: the
+//! ALL_READS unit by default, or a sample, library or read group named with
+//! [`RnaSeqMetricsCollector::for_unit`]. The fan-out over units (`MultiLevelCollector`) is the
+//! binary's, `collect-rna-seq-metrics`.
 //!
 //! ## The one ordering subtlety, and what measurement said about it
 //!
@@ -105,6 +105,10 @@ pub struct RnaSeqMetrics {
     pub median_5prime_bias: f64,
     pub median_3prime_bias: f64,
     pub median_5prime_to_3prime_bias: f64,
+    /// `MultilevelMetrics.SAMPLE`, `LIBRARY` and `READ_GROUP`: null at the ALL_READS level.
+    pub sample: Option<String>,
+    pub library: Option<String>,
+    pub read_group: Option<String>,
 }
 
 const COLUMNS: &[&str] = &[
@@ -151,6 +155,7 @@ impl MetricBean for RnaSeqMetrics {
     fn values(&self) -> Vec<Value> {
         let long = |v: i64| Value::Long(v);
         let dbl = |v: f64| Value::Double(v);
+        let text = |v: &Option<String>| v.clone().map(Value::Str).unwrap_or(Value::Null);
         vec![
             long(self.pf_bases),
             long(self.pf_aligned_bases),
@@ -181,10 +186,9 @@ impl MetricBean for RnaSeqMetrics {
             dbl(self.median_5prime_bias),
             dbl(self.median_3prime_bias),
             dbl(self.median_5prime_to_3prime_bias),
-            // SAMPLE, LIBRARY, READ_GROUP are null at the ALL_READS level.
-            Value::Null,
-            Value::Null,
-            Value::Null,
+            text(&self.sample),
+            text(&self.library),
+            text(&self.read_group),
         ]
     }
 }
@@ -234,6 +238,20 @@ impl<'a> RnaSeqMetricsCollector<'a> {
             },
             coverage_by_transcript: HashMap::new(),
         }
+    }
+
+    /// The unit this collector accumulates: `MultiLevelCollector.makeChildCollector(sample,
+    /// library, readGroup)`. The ALL_READS unit leaves all three null.
+    pub fn for_unit(
+        mut self,
+        sample: Option<String>,
+        library: Option<String>,
+        read_group: Option<String>,
+    ) -> Self {
+        self.metrics.sample = sample;
+        self.metrics.library = library;
+        self.metrics.read_group = read_group;
+        self
     }
 
     fn reference_name(&self, index: i32) -> &str {
@@ -471,7 +489,18 @@ impl<'a> RnaSeqMetricsCollector<'a> {
         let mut five_prime_skews = Histogram::new("", "");
         let mut three_prime_skews = Histogram::new("", "");
         let mut five_to_three_skews = Histogram::new("", "");
-        let mut normalized = Histogram::new("normalized_position", "All_Reads.normalized_coverage");
+        // The histogram's prefix: the read group, else the library, else the sample, else
+        // `All_Reads`.
+        let prefix = self
+            .metrics
+            .read_group
+            .as_ref()
+            .or(self.metrics.library.as_ref())
+            .or(self.metrics.sample.as_ref())
+            .map(|unit| format!("{unit}."))
+            .unwrap_or_else(|| "All_Reads.".to_string());
+        let value_label = format!("{prefix}normalized_coverage");
+        let mut normalized = Histogram::new("normalized_position", &value_label);
 
         for tx in &picked {
             // promote(int[]) then reverse when the gene is on the negative strand.
@@ -520,7 +549,7 @@ impl<'a> RnaSeqMetricsCollector<'a> {
         bins.sort_by_key(|(k, _)| *k);
         OutHistogram {
             bin_label: "normalized_position".to_string(),
-            value_label: "All_Reads.normalized_coverage".to_string(),
+            value_label,
             key_class: "java.lang.Integer".to_string(),
             bins: bins.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
         }

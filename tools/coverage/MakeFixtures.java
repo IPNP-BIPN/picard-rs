@@ -598,6 +598,22 @@ public class MakeFixtures {
         SAMFileHeader rrbsHeader = header(SAMFileHeader.SortOrder.coordinate);
         writeBam(new File(dir, "rrbs.bam"), rrbsHeader, rrbsReads(rrbsHeader, chr1, chr2), false);
 
+        // Gene annotations in refFlat form, for `CollectRnaSeqMetrics` (0-based half-open, as UCSC
+        // writes them). GENE_A has two transcripts on chr1's plus strand, one with a middle exon
+        // the other skips, so a base can be coding in one and intronic in the other; GENE_B is on
+        // the minus strand and 450 bases long, under the default MINIMUM_LENGTH; GENE_C is a
+        // non-coding single exon overlapping both, so reads there hit two genes and are left out
+        // of the strand counts; GENE_D sits on chr2's minus strand, and GENE_E on a contig the
+        // corpus does not have, which the reader drops.
+        try (PrintWriter out = new PrintWriter(new File(dir, "refflat.txt"), "UTF-8")) {
+            out.print("GENE_A\ttxA1\tchr1\t+\t50\t1300\t200\t1100\t3\t50,600,1000,\t400,900,1300,\n");
+            out.print("GENE_A\ttxA2\tchr1\t+\t50\t1300\t250\t1000\t2\t50,1000,\t400,1300,\n");
+            out.print("GENE_B\ttxB1\tchr1\t-\t1400\t1950\t1500\t1900\t2\t1400,1700,\t1600,1950,\n");
+            out.print("GENE_C\ttxC1\tchr1\t+\t1250\t1500\t1500\t1500\t1\t1250,\t1500,\n");
+            out.print("GENE_D\ttxD1\tchr2\t-\t100\t900\t150\t850\t2\t100,400,\t300,900,\n");
+            out.print("GENE_E\ttxE1\tchr9\t+\t0\t100\t0\t100\t1\t0,\t100,\n");
+        }
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());

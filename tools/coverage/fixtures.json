@@ -1473,6 +1473,76 @@
         "READ_GROUP",
         "null"
       ]
+    },
+    "CollectRnaSeqMetrics": {
+      "$why": [
+        "refflat.txt is the corpus's own annotation (MakeFixtures): two transcripts of one gene that",
+        "disagree on a middle exon, a minus-strand gene under the default MINIMUM_LENGTH, a non-coding",
+        "gene overlapping two others, one on chr2 and one on a contig the corpus lacks.",
+        "RIBOSOMAL_INTERVALS reuses the target lists: targets.interval_list is sorted, and",
+        "targets_mixed overlaps itself and is uniqued. RRNA_FRAGMENT_PERCENTAGE 0.3 widens what counts",
+        "as ribosomal, and 0.0 is refused without a ribosomal list and makes every paired fragment",
+        "ribosomal with one. MINIMUM_LENGTH 100 lets GENE_B into the coverage metrics; END_BIAS_BASES 10",
+        "moves the biases. IGNORE_SEQUENCE is a set of one: chr2 drops a quarter of the reads.",
+        "Two refusals were measured and are left out because together they took eleven of the first",
+        "28 rows: a ribosomal list whose dictionary differs (other.dict: 'Sequence dictionaries differ",
+        "in ...') and an IGNORE_SEQUENCE the header lacks (chrX: 'Unrecognized sequence chrX passed as",
+        "argument to IGNORE_SEQUENCE'). The port reproduced both on every such row.",
+        "REFERENCE_SEQUENCE is optional here and null drops the reference walker, which is what refuses",
+        "a queryname input. METRIC_ACCUMULATION_LEVEL appends to its ALL_READS default ($lists), and",
+        "null empties it. The chart is R's and is not compared; OUTPUT and CHART_OUTPUT are held in",
+        "the output directory."
+      ],
+      "$lists": [
+        "--METRIC_ACCUMULATION_LEVEL"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/one_read_group.bam",
+        "/work/fixtures/mate_cigar.bam",
+        "/work/fixtures/unmapped.bam"
+      ],
+      "--REF_FLAT": [
+        "/work/fixtures/refflat.txt"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta",
+        "null"
+      ],
+      "--RIBOSOMAL_INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--RRNA_FRAGMENT_PERCENTAGE": [
+        "0.8",
+        "0.3",
+        "0.0"
+      ],
+      "--MINIMUM_LENGTH": [
+        "500",
+        "100"
+      ],
+      "--END_BIAS_BASES": [
+        "100",
+        "10"
+      ],
+      "--IGNORE_SEQUENCE": [
+        "null",
+        "chr2"
+      ],
+      "--METRIC_ACCUMULATION_LEVEL": [
+        "ALL_READS",
+        "SAMPLE LIBRARY",
+        "READ_GROUP",
+        "null"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "150"
+      ]
     }
   },
   "constraints": [

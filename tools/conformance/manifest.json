@@ -545,6 +545,12 @@
         "t": 2,
         "status": "measured",
         "output_name": "output.rrbs_summary_metrics,output.rrbs_detail_metrics"
+      },
+      {
+        "tool": "CollectRnaSeqMetrics",
+        "port": "collect-rna-seq-metrics",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
