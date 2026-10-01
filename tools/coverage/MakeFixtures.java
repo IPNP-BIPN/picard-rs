@@ -545,6 +545,21 @@ public class MakeFixtures {
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
 
+        // Detail tables in the shape `CollectSequencingArtifactMetrics` writes them, for
+        // `ConvertSequencingArtifactToOxoG`, which reads two of them and nothing else. Written
+        // through Picard's own beans and `MetricsFile`, with no header, so the bytes do not carry
+        // the command line or the second they were made. `artifacts` is the whole table for two
+        // libraries, where CCG, its reverse complement CGG, and GCA count nothing at all, which
+        // is what puts an infinite rate and a NaN one in the output; `artifacts_subset` is one
+        // library and the four contexts a CONTEXTS_TO_PRINT run leaves, each with its reverse
+        // complement; and `artifacts_broken` keeps `ACA` without `TGT`, the reverse complement
+        // the tool looks up.
+        writeArtifactTables(dir, "artifacts", new String[] {"lib1", "lib2"}, "sample1,sample2", null);
+        writeArtifactTables(dir, "artifacts_subset", new String[] {"lib1"}, "sample1",
+                new String[] {"ACA", "CCC", "GGG", "TGT"});
+        writeArtifactTables(dir, "artifacts_broken", new String[] {"lib1"}, "sample1",
+                new String[] {"ACA", "CCC", "GGG"});
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
@@ -1419,5 +1434,61 @@ public class MakeFixtures {
                 p.printf("@fq%04d/%d%n%s%n+%n%s%n", i, end, bases, quals);
             }
         }
+    }
+
+    /** The pre-adapter and bait-bias detail tables of one artifact run; see the call site. */
+    static void writeArtifactTables(File dir, String base, String[] libraries, String sample,
+                                    String[] keep) throws Exception {
+        Random rng = new Random(20260930L + base.length());
+        htsjdk.samtools.metrics.MetricsFile<picard.analysis.artifacts.SequencingArtifactMetrics.PreAdapterDetailMetrics, Integer> pre =
+                new htsjdk.samtools.metrics.MetricsFile<>();
+        htsjdk.samtools.metrics.MetricsFile<picard.analysis.artifacts.SequencingArtifactMetrics.BaitBiasDetailMetrics, Integer> bait =
+                new htsjdk.samtools.metrics.MetricsFile<>();
+        String bases = "ACGT";
+        java.util.List<String> contexts = new java.util.ArrayList<>();
+        for (char a : bases.toCharArray())
+            for (char b : bases.toCharArray())
+                for (char c : bases.toCharArray()) contexts.add("" + a + b + c);
+        for (String library : libraries) {
+            for (char ref : bases.toCharArray()) {
+                for (char alt : bases.toCharArray()) {
+                    if (ref == alt) continue;
+                    for (int i = 0; i < contexts.size(); i++) {
+                        String context = contexts.get(i);
+                        if (context.charAt(1) != ref) continue;
+                        if (keep != null && !java.util.Arrays.asList(keep).contains(context)) continue;
+                        boolean empty = context.equals("CCG") || context.equals("CGG") || context.equals("GCA");
+                        picard.analysis.artifacts.SequencingArtifactMetrics.PreAdapterDetailMetrics p =
+                                new picard.analysis.artifacts.SequencingArtifactMetrics.PreAdapterDetailMetrics();
+                        p.SAMPLE_ALIAS = sample;
+                        p.LIBRARY = library;
+                        p.REF_BASE = ref;
+                        p.ALT_BASE = alt;
+                        p.CONTEXT = context;
+                        p.PRO_REF_BASES = empty ? 0 : 50 + rng.nextInt(200);
+                        p.PRO_ALT_BASES = empty ? 0 : rng.nextInt(30);
+                        p.CON_REF_BASES = empty ? 0 : 50 + rng.nextInt(200);
+                        p.CON_ALT_BASES = empty ? 0 : rng.nextInt(30);
+                        p.calculateDerivedStatistics();
+                        pre.addMetric(p);
+                        picard.analysis.artifacts.SequencingArtifactMetrics.BaitBiasDetailMetrics b =
+                                new picard.analysis.artifacts.SequencingArtifactMetrics.BaitBiasDetailMetrics();
+                        b.SAMPLE_ALIAS = sample;
+                        b.LIBRARY = library;
+                        b.REF_BASE = ref;
+                        b.ALT_BASE = alt;
+                        b.CONTEXT = context;
+                        b.FWD_CXT_REF_BASES = empty ? 0 : 50 + rng.nextInt(200);
+                        b.FWD_CXT_ALT_BASES = empty ? 0 : rng.nextInt(30);
+                        b.REV_CXT_REF_BASES = empty ? 0 : 50 + rng.nextInt(200);
+                        b.REV_CXT_ALT_BASES = empty ? 0 : rng.nextInt(30);
+                        b.calculateDerivedStatistics();
+                        bait.addMetric(b);
+                    }
+                }
+            }
+        }
+        pre.write(new File(dir, base + ".pre_adapter_detail_metrics"));
+        bait.write(new File(dir, base + ".bait_bias_detail_metrics"));
     }
 }

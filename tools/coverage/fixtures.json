@@ -1010,6 +1010,38 @@
         "0",
         "200"
       ]
+    },
+    "ConvertSequencingArtifactToOxoG": {
+      "$why": [
+        "The inputs are detail tables MakeFixtures writes through Picard's own beans: artifacts (two",
+        "libraries, every context, some counting nothing), artifacts_subset (one library, four",
+        "contexts) and artifacts_broken (ACA without its reverse complement TGT). INPUT_BASE names a",
+        "pair, PRE_ADAPTER_IN and BAIT_BIAS_IN override either half, and a pair whose libraries or",
+        "contexts do not line up is the NullPointerException Picard throws. OUTPUT_BASE and OXOG_OUT",
+        "both name a file in the output directory; see the constraint for why they are never both null."
+      ],
+      "--INPUT_BASE": [
+        "null",
+        "/work/fixtures/artifacts",
+        "/work/fixtures/artifacts_subset"
+      ],
+      "--PRE_ADAPTER_IN": [
+        "null",
+        "/work/fixtures/artifacts.pre_adapter_detail_metrics",
+        "/work/fixtures/artifacts_broken.pre_adapter_detail_metrics"
+      ],
+      "--BAIT_BIAS_IN": [
+        "null",
+        "/work/fixtures/artifacts.bait_bias_detail_metrics"
+      ],
+      "--OUTPUT_BASE": [
+        "/work/out/output",
+        "null"
+      ],
+      "--OXOG_OUT": [
+        "null",
+        "/work/out/oxog.txt"
+      ]
     }
   },
   "constraints": [
@@ -1047,6 +1079,16 @@
         "--OLD_SAMPLE_NAME": "sampleA"
       },
       "why": "The two-sample file is refused as not single-sample before OLD_SAMPLE_NAME is read, so naming an old sample beside it only repeats that refusal. Without this clause the refusals took eight of the first twelve rows and NEW_SAMPLE_NAME's second value never reached an accepted one. The refusal is kept, with OLD_SAMPLE_NAME=null."
+    },
+    {
+      "tools": [
+        "ConvertSequencingArtifactToOxoG"
+      ],
+      "forbid": {
+        "--OUTPUT_BASE": "null",
+        "--OXOG_OUT": "null"
+      },
+      "why": "With neither, the output defaults to INPUT_BASE + '.oxog_metrics', which is inside the fixture directory: the oracle refuses it as unwritable (the mount is read-only) while the port, on the host, would write into the shared corpus. The refusal it would measure is the harness's mount, not the tool, and the write would corrupt the corpus for every later row."
     }
   ],
   "exclude": {
