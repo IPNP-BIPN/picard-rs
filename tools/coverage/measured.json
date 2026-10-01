@@ -320,6 +320,16 @@
       "t": 2,
       "share": 1.0
     },
+    "MakeSitesOnlyVcf": {
+      "rows": 10,
+      "accepted": 8,
+      "rejected": 2,
+      "distinct_outputs": 5,
+      "distinct_rejections": 1,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
     "MakeVcfSampleNameMap": {
       "rows": 6,
       "accepted": 3,
@@ -417,6 +427,16 @@
       "distinct_outputs": 4,
       "distinct_rejections": 2,
       "matched": 12,
+      "t": 2,
+      "share": 1.0
+    },
+    "RenameSampleInVcf": {
+      "rows": 13,
+      "accepted": 8,
+      "rejected": 5,
+      "distinct_outputs": 5,
+      "distinct_rejections": 3,
+      "matched": 13,
       "t": 2,
       "share": 1.0
     },
@@ -530,6 +550,16 @@
       "t": 2,
       "share": 1.0
     },
+    "SortVcf": {
+      "rows": 10,
+      "accepted": 7,
+      "rejected": 3,
+      "distinct_outputs": 4,
+      "distinct_rejections": 2,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
     "SplitSamByLibrary": {
       "rows": 9,
       "accepted": 9,
@@ -550,6 +580,16 @@
       "t": 2,
       "share": 1.0
     },
+    "UpdateVcfSequenceDictionary": {
+      "rows": 17,
+      "accepted": 14,
+      "rejected": 3,
+      "distinct_outputs": 4,
+      "distinct_rejections": 2,
+      "matched": 17,
+      "t": 2,
+      "share": 1.0
+    },
     "ValidateSamFile": {
       "rows": 13,
       "accepted": 5,
@@ -557,6 +597,16 @@
       "distinct_outputs": 1,
       "distinct_rejections": 5,
       "matched": 13,
+      "t": 2,
+      "share": 1.0
+    },
+    "VcfToIntervalList": {
+      "rows": 11,
+      "accepted": 8,
+      "rejected": 3,
+      "distinct_outputs": 6,
+      "distinct_rejections": 1,
+      "matched": 11,
       "t": 2,
       "share": 1.0
     },

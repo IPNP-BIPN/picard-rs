@@ -71,6 +71,11 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/AddCommentsToBam.t2.txt
 !tools/coverage/corpus/GatherBamFiles.t2.txt
 !tools/coverage/corpus/LiftOverHaplotypeMap.t2.txt
+!tools/coverage/corpus/MakeSitesOnlyVcf.t2.txt
+!tools/coverage/corpus/RenameSampleInVcf.t2.txt
+!tools/coverage/corpus/VcfToIntervalList.t2.txt
+!tools/coverage/corpus/SortVcf.t2.txt
+!tools/coverage/corpus/UpdateVcfSequenceDictionary.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

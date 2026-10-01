@@ -417,34 +417,34 @@
         "tool": "MakeSitesOnlyVcf",
         "port": "make-sites-only-vcf",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "RenameSampleInVcf",
         "port": "rename-sample-in-vcf",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "VcfToIntervalList",
         "port": "vcf-to-interval-list",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "SortVcf",
         "port": "sort-vcf",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "UpdateVcfSequenceDictionary",
         "port": "update-vcf-sequence-dictionary",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.vcf"
       }
     ]
