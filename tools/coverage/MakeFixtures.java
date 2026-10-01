@@ -641,6 +641,10 @@ public class MakeFixtures {
         // A chain and two VCFs for `LiftoverVcf`; see writeLiftoverFixtures.
         writeLiftoverFixtures(dir, chr1, chr2);
 
+        // Duplicate sets split by UMI, for `UmiAwareMarkDuplicatesWithMateCigar`; see
+        // writeUmiAwareFixtures.
+        writeUmiAwareFixtures(dir);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
@@ -2476,5 +2480,153 @@ public class MakeFixtures {
                 }
             }
         }
+    }
+
+    /**
+     * Two inputs for `UmiAwareMarkDuplicatesWithMateCigar`, one read group each (the tool keeps
+     * one UMI length per RUN rather than per library, so a second library is refused with
+     * "UMIs of differing lengths were found." -- umi.bam is that case).
+     *
+     * umi_dup.bam carries duplex-form UMIs (`XXXX-YYYY`) in RX and a second, differently
+     * clustered set in BX, so UMI_TAG_NAME, DUPLEX_UMI and MAX_EDIT_DISTANCE_TO_JOIN each move
+     * the answer: a set at chr1:100 with a one-error UMI, an N, a lowercase UMI and a distinct
+     * molecule; a set at chr1:400 holding a top-strand and a bottom-strand pair whose UMIs are
+     * each other's halves swapped (one molecule only under DUPLEX_UMI); a pair whose mate is on
+     * chr2; reads with an unmapped mate (which join the mapped ends' set); a secondary alignment;
+     * an unplaced unmapped pair; qualities and soft clips that make SUM_OF_BASE_QUALITIES and
+     * TOTAL_MAPPED_REFERENCE_LENGTH keep different reads; a pre-existing MI tag the tool
+     * overwrites in place; a PG tag the tool strips; and a duplicate flag set on input. Every
+     * mapped pair carries MC.
+     *
+     * umi_missing.bam has unpaired fragments (DUPLEX_UMI asks an unpaired read for its mate's
+     * flags and htsjdk refuses), one position whose reads carry no RX at all (refused unless
+     * ALLOW_MISSING_UMIS) and an ordinary pair.
+     */
+    static void writeUmiAwareFixtures(File dir) throws Exception {
+        SAMFileHeader h = header(SAMFileHeader.SortOrder.coordinate);
+        h.setReadGroups(java.util.Collections.singletonList(h.getReadGroup("rg1")));
+        java.util.List<SAMRecord> reads = new java.util.ArrayList<>();
+        // name, first start, first cigar, first reverse, mate contig, mate start, mate cigar,
+        // mate reverse, RX, BX, quality, first-is-read-one
+        Object[][] pairs = {
+            {"ua01", 100, "50M", false, 0, 300, "50M", true, "AACC-GGTT", "ACGT-ACGT", 30, true},
+            {"ua02", 105, "5S45M", false, 0, 300, "50M", true, "AACC-GGTT", "ACGT-ACGA", 36, true},
+            {"ua03", 100, "50M", false, 0, 300, "50M", true, "AACC-GGTA", "TTTT-AAAA", 25, true},
+            {"ua04", 100, "50M", false, 0, 300, "50M", true, "TTGG-CCAA", "ACGT-ACGT", 38, true},
+            {"ua05", 100, "50M", false, 0, 300, "45M5S", true, "AACN-GGTT", "ACGT-ACGT", 20, true},
+            {"ua06", 100, "50M", false, 0, 300, "50M", true, "aacc-ggtt", "ACGT-ACGG", 33, true},
+            {"ub01", 400, "50M", false, 0, 600, "50M", true, "CCAA-GGTT", "GATC-CTAG", 30, true},
+            {"ub02", 400, "50M", false, 0, 600, "50M", true, "GGTT-CCAA", "CTAG-GATC", 34, false},
+            {"ub03", 400, "48M2S", false, 0, 600, "50M", true, "CCAA-GGTC", "GATC-CTAA", 37, true},
+            {"ub04", 400, "50M", false, 0, 600, "50M", true, "NNAA-GGTT", "GATC-CTAG", 39, true},
+            {"uc01", 1500, "50M", false, 1, 100, "50M", true, "GATC-GATC", "AAAA-AAAA", 30, true},
+            {"uc02", 1500, "50M", false, 1, 100, "50M", true, "GATC-GATG", "AAAA-AAAT", 31, true},
+            {"ud01", 800, "50M", true, 0, 820, "50M", false, "CGCG-ATAT", "CCCC-GGGG", 30, true},
+            {"ud02", 800, "50M", true, 0, 820, "50M", false, "CGCG-ATAA", "CCCC-GGGG", 30, false},
+        };
+        for (Object[] p : pairs) {
+            SAMRecord one = umiRead(h, (String) p[0], 0, (Integer) p[1], (String) p[2], (Boolean) p[3],
+                    (String) p[8], (String) p[9], (Integer) p[10]);
+            SAMRecord two = umiRead(h, (String) p[0], (Integer) p[4], (Integer) p[5], (String) p[6],
+                    (Boolean) p[7], (String) p[8], (String) p[9], (Integer) p[10] - 3);
+            boolean firstIsOne = (Boolean) p[11];
+            for (SAMRecord r : new SAMRecord[] {one, two}) r.setReadPairedFlag(true);
+            (firstIsOne ? one : two).setFirstOfPairFlag(true);
+            (firstIsOne ? two : one).setSecondOfPairFlag(true);
+            SamPairUtil.setMateInfo(one, two, true);
+            reads.add(one);
+            reads.add(two);
+        }
+        // Mapped reads whose mates are unmapped and placed beside them: the unmapped mates fall
+        // into the mapped ends' duplicate set.
+        for (int copy = 0; copy < 2; copy++) {
+            String name = "ue0" + (copy + 1);
+            SAMRecord one = umiRead(h, name, 0, 1700, "50M", false, "TGCA-TGCA", "TGCA-TGCA", 30 + copy);
+            SAMRecord two = umiRead(h, name, 0, 1700, "*", false, "TGCA-TGCA", "TGCA-TGCT", 30);
+            two.setReadUnmappedFlag(true);
+            two.setMappingQuality(0);
+            if (copy == 1) two.setDuplicateReadFlag(true);
+            for (SAMRecord r : new SAMRecord[] {one, two}) r.setReadPairedFlag(true);
+            one.setFirstOfPairFlag(true);
+            two.setSecondOfPairFlag(true);
+            SamPairUtil.setMateInfo(one, two, true);
+            reads.add(one);
+            reads.add(two);
+        }
+        // A secondary alignment of ua01's first read, mate information copied from the primary.
+        SAMRecord secondary = umiRead(h, "ua01", 0, 1200, "50M", false, "AACC-GGTT", "ACGT-ACGT", 30);
+        secondary.setReadPairedFlag(true);
+        secondary.setFirstOfPairFlag(true);
+        secondary.setNotPrimaryAlignmentFlag(true);
+        secondary.setDuplicateReadFlag(true);
+        secondary.setMateReferenceIndex(0);
+        secondary.setMateAlignmentStart(300);
+        secondary.setMateNegativeStrandFlag(true);
+        secondary.setAttribute("MC", "50M");
+        reads.add(secondary);
+        // An unplaced unmapped pair.
+        for (boolean first : new boolean[] {true, false}) {
+            SAMRecord r = umiRead(h, "uf01", -1, 0, "*", false, "AAAA-CCCC", "AAAA-CCCC", 30);
+            r.setReadUnmappedFlag(true);
+            r.setMappingQuality(0);
+            r.setReadPairedFlag(true);
+            r.setMateUnmappedFlag(true);
+            r.setFirstOfPairFlag(first);
+            r.setSecondOfPairFlag(!first);
+            reads.add(r);
+        }
+        for (SAMRecord r : reads) {
+            if (r.getReadName().equals("ua04")) r.setAttribute("MI", "old");
+            if (r.getReadName().equals("ua03") && r.getFirstOfPairFlag()) r.setAttribute("PG", "aligner");
+            if (r.getReadName().equals("ub03") && r.getFirstOfPairFlag()) r.setDuplicateReadFlag(true);
+        }
+        reads.sort(new SAMRecordCoordinateComparator());
+        writeBam(new File(dir, "umi_dup.bam"), h, reads, false);
+
+        java.util.List<SAMRecord> missing = new java.util.ArrayList<>();
+        String[] fragmentUmis = {"ACGT-ACGT", "ACGT-ACGA", "TTTT-CCCC"};
+        for (int copy = 0; copy < 3; copy++) {
+            missing.add(umiRead(h, "ug0" + copy, 0, copy == 1 ? 103 : 100, copy == 1 ? "3S47M" : "50M", false,
+                    fragmentUmis[copy], null, 30 + copy));
+        }
+        for (int t = 0; t < 4; t++) {
+            String name = "uh0" + t;
+            int start = t < 2 ? 300 : 700;
+            String umi = t < 2 ? null : (t == 2 ? "GGCC-AATT" : "GGCC-AATA");
+            SAMRecord one = umiRead(h, name, 0, start, "50M", false, umi, null, 30 + t);
+            SAMRecord two = umiRead(h, name, 0, start + 200, "50M", true, umi, null, 30);
+            for (SAMRecord r : new SAMRecord[] {one, two}) r.setReadPairedFlag(true);
+            one.setFirstOfPairFlag(true);
+            two.setSecondOfPairFlag(true);
+            SamPairUtil.setMateInfo(one, two, true);
+            missing.add(one);
+            missing.add(two);
+        }
+        missing.sort(new SAMRecordCoordinateComparator());
+        writeBam(new File(dir, "umi_missing.bam"), h, missing, false);
+    }
+
+    /** One read of the UMI fixtures: fixed bases, flat qualities, rg1. */
+    static SAMRecord umiRead(SAMFileHeader h, String name, int contig, int start, String cigar,
+                             boolean reverse, String rx, String bx, int quality) {
+        SAMRecord r = new SAMRecord(h);
+        byte[] bases = new byte[READ_LENGTH];
+        byte[] quals = new byte[READ_LENGTH];
+        for (int b = 0; b < READ_LENGTH; b++) {
+            bases[b] = (byte) "ACGT".charAt((b * 7 + name.length() + start) % 4);
+            quals[b] = (byte) (b % 10 == 9 ? 12 : quality);
+        }
+        r.setReadName(name);
+        r.setReadBases(bases);
+        r.setBaseQualities(quals);
+        r.setReferenceIndex(contig);
+        r.setAlignmentStart(start);
+        r.setCigarString(cigar);
+        r.setMappingQuality(60);
+        r.setReadNegativeStrandFlag(reverse);
+        r.setAttribute("RG", "rg1");
+        if (rx != null) r.setAttribute("RX", rx);
+        if (bx != null) r.setAttribute("BX", bx);
+        return r;
     }
 }

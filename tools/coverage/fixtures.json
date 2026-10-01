@@ -2009,6 +2009,49 @@
       "--CREATE_INDEX": [
         "false"
       ]
+    },
+    "UmiAwareMarkDuplicatesWithMateCigar": {
+      "$why": [
+        "umi_dup.bam and umi_missing.bam are MakeFixtures' (see writeUmiAwareFixtures), one read group",
+        "each. umi_dup.bam carries duplex-form UMIs in RX and a differently clustered set in BX, so",
+        "UMI_TAG_NAME, DUPLEX_UMI and MAX_EDIT_DISTANCE_TO_JOIN (0, 1 and 3 straddle its one-, two- and",
+        "N-errors) each move the answer; umi_missing.bam has unpaired fragments (DUPLEX_UMI is htsjdk's",
+        "IllegalStateException on them) and a position whose reads carry no UMI (refused unless",
+        "ALLOW_MISSING_UMIS). umi.bam has two libraries, which the tool refuses as 'UMIs of differing",
+        "lengths were found.' because the first-UMI flag is per run, not per library.",
+        "MOLECULAR_IDENTIFIER_TAG is absent or MI (umi_dup.bam carries an MI to overwrite).",
+        "ASSUME_SORT_ORDER is absent or coordinate: every other value is the one refusal 'This",
+        "program requires inputs in coordinate SortOrder', SimpleMarkDuplicatesWithMateCigar's check,",
+        "which measured as a third of the rows; ASSUME_SORTED is left out because it is Barclay-mutex with",
+        "ASSUME_SORT_ORDER, which every row gives. The output BAM and UMI_METRICS_FILE are compared;",
+        "the duplication METRICS_FILE is not."
+      ],
+      "--INPUT": [
+        "/work/fixtures/umi_dup.bam",
+        "/work/fixtures/umi_missing.bam",
+        "/work/fixtures/umi.bam"
+      ],
+      "--UMI_METRICS_FILE": [
+        "/work/out/umi_metrics.txt"
+      ],
+      "--UMI_TAG_NAME": [
+        "RX",
+        "BX"
+      ],
+      "--MOLECULAR_IDENTIFIER_TAG": [
+        "null",
+        "MI"
+      ],
+      "--MAX_EDIT_DISTANCE_TO_JOIN": [
+        "1",
+        "0",
+        "3"
+      ],
+      "--ASSUME_SORT_ORDER": [
+        "null",
+        "coordinate"
+      ],
+      "--ASSUME_SORTED": []
     }
   },
   "constraints": [

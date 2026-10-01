@@ -608,6 +608,14 @@
         "t": 2,
         "status": "measured",
         "output_name": "output.bam"
+      },
+      {
+        "tool": "UmiAwareMarkDuplicatesWithMateCigar",
+        "port": "umi-aware-mark-duplicates-with-mate-cigar",
+        "t": 2,
+        "status": "pending",
+        "strip_program_records": true,
+        "output_name": "output.txt,umi_metrics.txt"
       }
     ]
   },
