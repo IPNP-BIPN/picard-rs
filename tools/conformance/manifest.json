@@ -625,6 +625,13 @@
         "exit_code_is_a_result": true,
         "cwd_out": true,
         "output_name": "errors.count"
+      },
+      {
+        "tool": "CollectIlluminaLaneMetrics",
+        "port": "collect-illumina-lane-metrics",
+        "t": 2,
+        "status": "pending",
+        "output_name": "lane.illumina_lane_metrics,lane.illumina_phasing_metrics,lane.illumina_lane_metrics.txt,lane.illumina_phasing_metrics.txt"
       }
     ]
   },

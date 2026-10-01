@@ -2098,6 +2098,38 @@
       "--LINK_LOCS": [
         "false"
       ]
+    },
+    "CollectIlluminaLaneMetrics": {
+      "$why": [
+        "illumina/run and illumina/bad are MakeFixtures' (see writeIlluminaFixtures). run's tile",
+        "metrics cover lanes 1 and 2 with a repeated record (the last one counts) and carry phasing",
+        "for template descriptors 0 and 2; bad's tile 1103 has no phasing for its second template",
+        "read, which STRICT refuses and LENIENT and SILENT report as zero, and bad has no RunInfo.xml.",
+        "READ_STRUCTURE is absent (RunInfo.xml's 4T4B4T), the same structure given, a structure",
+        "whose second template read has no phasing codes at all (4T8T), and one with a single",
+        "template read after a barcode (6B6T). FILE_EXTENSION renames both outputs, so output_name",
+        "lists both spellings."
+      ],
+      "--RUN_DIRECTORY": [
+        "/work/fixtures/illumina/run",
+        "/work/fixtures/illumina/bad"
+      ],
+      "--OUTPUT_DIRECTORY": [
+        "/work/out"
+      ],
+      "--OUTPUT_PREFIX": [
+        "lane"
+      ],
+      "--READ_STRUCTURE": [
+        "null",
+        "4T4B4T",
+        "4T8T",
+        "6B6T"
+      ],
+      "--FILE_EXTENSION": [
+        "null",
+        ".txt"
+      ]
     }
   },
   "constraints": [

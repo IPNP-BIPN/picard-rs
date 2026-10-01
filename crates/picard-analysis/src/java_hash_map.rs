@@ -149,6 +149,87 @@ impl<V> JavaHashMap<V> {
     }
 }
 
+/// A `java.util.HashMap` over any key, given the key's Java `hashCode`: the same table, spread,
+/// growth and split as [`JavaHashMap`], for maps keyed by an `Integer` or by an object whose
+/// `hashCode` the caller computes.
+pub struct JavaHashMapBy<K, V> {
+    table: Vec<Vec<(K, u32, V)>>,
+    size: usize,
+}
+
+impl<K: PartialEq, V> Default for JavaHashMapBy<K, V> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K: PartialEq, V> JavaHashMapBy<K, V> {
+    pub fn new() -> Self {
+        JavaHashMapBy {
+            table: Vec::new(),
+            size: 0,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.size
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.size == 0
+    }
+
+    fn spread(hash: i32) -> u32 {
+        let h = hash as u32;
+        h ^ (h >> 16)
+    }
+
+    /// `HashMap.get`.
+    pub fn get_mut(&mut self, key: &K, hash: i32) -> Option<&mut V> {
+        if self.table.is_empty() {
+            return None;
+        }
+        let index = Self::spread(hash) as usize & (self.table.len() - 1);
+        self.table[index]
+            .iter_mut()
+            .find(|(k, _, _)| k == key)
+            .map(|(_, _, v)| v)
+    }
+
+    /// `HashMap.put`: replace in place, else append and grow past three quarters.
+    pub fn put(&mut self, key: K, hash: i32, value: V) {
+        if self.table.is_empty() {
+            self.table = (0..16).map(|_| Vec::new()).collect();
+        }
+        let spread = Self::spread(hash);
+        let index = spread as usize & (self.table.len() - 1);
+        if let Some(slot) = self.table[index].iter_mut().find(|(k, _, _)| *k == key) {
+            slot.2 = value;
+            return;
+        }
+        self.table[index].push((key, spread, value));
+        self.size += 1;
+        if self.size > self.table.len() * 3 / 4 {
+            let old = self.table.len();
+            let mut grown: Vec<Vec<(K, u32, V)>> = (0..old * 2).map(|_| Vec::new()).collect();
+            for (j, bucket) in std::mem::take(&mut self.table).into_iter().enumerate() {
+                for entry in bucket {
+                    let high = entry.1 as usize & old != 0;
+                    grown[if high { j + old } else { j }].push(entry);
+                }
+            }
+            self.table = grown;
+        }
+    }
+
+    /// The entries in iteration order.
+    pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
+        self.table
+            .iter()
+            .flat_map(|bucket| bucket.iter().map(|(k, _, v)| (k, v)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
