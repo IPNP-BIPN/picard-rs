@@ -516,34 +516,34 @@
         "tool": "CollectSequencingArtifactMetrics",
         "port": "collect-sequencing-artifact-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.pre_adapter_summary_metrics,output.pre_adapter_detail_metrics,output.bait_bias_summary_metrics,output.bait_bias_detail_metrics,output.error_summary_metrics,output.pre_adapter_summary_metrics.txt,output.pre_adapter_detail_metrics.txt,output.bait_bias_summary_metrics.txt,output.bait_bias_detail_metrics.txt,output.error_summary_metrics.txt"
       },
       {
         "tool": "ConvertSequencingArtifactToOxoG",
         "port": "convert-sequencing-artifact-to-oxog",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.oxog_metrics,oxog.txt"
       },
       {
         "tool": "CollectOxoGMetrics",
         "port": "collect-oxo-g-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectGcBiasMetrics",
         "port": "collect-gc-bias-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt,summary.txt"
       },
       {
         "tool": "CollectRrbsMetrics",
         "port": "collect-rrbs-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.rrbs_summary_metrics,output.rrbs_detail_metrics"
       }
     ]

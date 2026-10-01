@@ -571,11 +571,6 @@ jobs:
             --log /tmp/CollectGcBiasMetrics.log \
             --log /tmp/CollectRrbsMetrics.log \
             --pending CollectRawWgsMetrics \
-            --pending CollectSequencingArtifactMetrics \
-            --pending ConvertSequencingArtifactToOxoG \
-            --pending CollectOxoGMetrics \
-            --pending CollectGcBiasMetrics \
-            --pending CollectRrbsMetrics \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -660,7 +655,12 @@ jobs:
             tools/coverage/corpus/CollectWgsMetrics.t2.txt \
             tools/coverage/corpus/CollectWgsMetricsWithNonZeroCoverage.t2.txt \
             tools/coverage/corpus/CollectHsMetrics.t2.txt \
-            tools/coverage/corpus/CollectTargetedPcrMetrics.t2.txt)
+            tools/coverage/corpus/CollectTargetedPcrMetrics.t2.txt \
+            tools/coverage/corpus/CollectSequencingArtifactMetrics.t2.txt \
+            tools/coverage/corpus/ConvertSequencingArtifactToOxoG.t2.txt \
+            tools/coverage/corpus/CollectOxoGMetrics.t2.txt \
+            tools/coverage/corpus/CollectGcBiasMetrics.t2.txt \
+            tools/coverage/corpus/CollectRrbsMetrics.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
