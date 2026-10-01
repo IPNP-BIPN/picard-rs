@@ -645,6 +645,9 @@ public class MakeFixtures {
         // writeUmiAwareFixtures.
         writeUmiAwareFixtures(dir);
 
+        // An Illumina run folder, written byte by byte; see writeIlluminaFixtures.
+        writeIlluminaFixtures(dir);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
@@ -2628,5 +2631,198 @@ public class MakeFixtures {
         if (rx != null) r.setAttribute("RX", rx);
         if (bx != null) r.setAttribute("BX", bx);
         return r;
+    }
+
+    /**
+     * Two Illumina run folders for the basecalling tools, which read a DIRECTORY of formats htsjdk
+     * has no writer for, so the bytes are written here following Picard 3.4.0's readers:
+     *
+     *   - a `.bcl` is a little-endian uint32 cluster count and one byte per cluster: base in the low
+     *     two bits (A, C, G, T), quality in the high six, and a zero byte is a no-call;
+     *   - a `.filter` is a zero int, the version (3), the cluster count, and a byte per cluster;
+     *   - `s.locs` is an int 1, a float 1.0, the cluster count and two floats per cluster;
+     *   - `InterOp/TileMetricsOut.bin` (version 2) is a version byte, a record-size byte (10) and
+     *     records of lane, tile and code (uint16) and a float value.
+     *
+     * illumina/run is complete: lane 1, tiles 1101 and 1102, six clusters each, twelve cycles
+     * (4T4B4T in RunInfo.xml), a filter per tile with failing clusters, a per-run s.locs, barcode
+     * files in BaseCalls as ExtractIlluminaBarcodes writes them, and tile metrics for lane 1 and
+     * a lane 2 that has no basecalls (with a repeated record, of which the last one counts). The
+     * clusters carry no-calls, exact, one-off and unmatched barcodes, and quality tails that the
+     * EAMSS filter masks.
+     *
+     * illumina/bad is what the tools refuse or count: tile metrics naming a tile 1103 that has no
+     * files and no phasing for its second template read, ten cycle directories instead of twelve,
+     * a missing BCL, a BCL one byte too long, a quality-zero call, a filter for one tile only, a
+     * per-tile locs for one tile and no s.locs, no barcode files and no RunInfo.xml.
+     *
+     * illumina/barcodes.txt is the barcode list ExtractIlluminaBarcodes reads.
+     */
+    static void writeIlluminaFixtures(File dir) throws Exception {
+        File root = new File(dir, "illumina");
+        // tile -> clusters: twelve bases (N is a no-call) and twelve Phred+33 qualities.
+        String[][] t1101 = {
+            {"ACGTAACCGGTT", "????????????", "1"},
+            {"TTGAAACGCAGG", "IIIIIIIIIIII", "1"},
+            {"GGGGCCTTGGGG", "IIII????++++", "1"},
+            {"ACNACCTTTTTT", "??#?????????", "0"},
+            {"CATGNNCCACGT", "????##??????", "1"},
+            {"GTCAGGAATGCA", "55555555++55", "1"},
+        };
+        String[][] t1102 = {
+            {"AAAACCTTCCCC", "IIIIIIIIIIII", "1"},
+            {"CGCGGGAAGCGC", "????????????", "0"},
+            {"TTTTAACCAAAA", "++++????????", "1"},
+            {"GATCGGTAGATC", "IIII?????III", "1"},
+            {"NNNNNNNNNNNN", "############", "0"},
+            {"ACGTAACTTGCA", "????????????", "1"},
+        };
+        java.util.Map<Integer, String[][]> tiles = new java.util.TreeMap<>();
+        tiles.put(1101, t1101);
+        tiles.put(1102, t1102);
+
+        File run = new File(root, "run");
+        File intensities = new File(run, "Data/Intensities");
+        File basecalls = new File(intensities, "BaseCalls");
+        File lane = new File(basecalls, "L001");
+        for (java.util.Map.Entry<Integer, String[][]> e : tiles.entrySet()) {
+            String[][] clusters = e.getValue();
+            for (int cycle = 1; cycle <= 12; cycle++) {
+                writeIlluminaBcl(new File(lane, "C" + cycle + ".1/s_1_" + e.getKey() + ".bcl"),
+                        clusters, cycle, 0);
+            }
+            boolean[] pf = new boolean[clusters.length];
+            for (int c = 0; c < clusters.length; c++) pf[c] = clusters[c][2].equals("1");
+            writeIlluminaFilter(new File(lane, "s_1_" + e.getKey() + ".filter"), pf);
+        }
+        writeIlluminaLocs(new File(intensities, "s.locs"), 6);
+        // What ExtractIlluminaBarcodes writes for these clusters against barcodes.txt.
+        writeText(new File(basecalls, "s_1_1101_barcode.txt"),
+                "AACC\tY\tAACC\t0\t3\n"
+                + "AACG\tY\tAACC\t1\t3\n"
+                + "CCTT\tY\tCCTT\t0\t4\n"
+                + "CCTT\tY\tCCTT\t0\t4\n"
+                + "NNCC\tN\t\t2\t0\n"
+                + "GGAA\tY\tGGAA\t0\t4\n");
+        writeText(new File(basecalls, "s_1_1102_barcode.txt"),
+                "CCTT\tY\tCCTT\t0\t4\n"
+                + "GGAA\tY\tGGAA\t0\t4\n"
+                + "AACC\tY\tAACC\t0\t3\n"
+                + "GGTA\tY\tGGAA\t1\t3\n"
+                + "NNNN\tN\t\t4\t0\n"
+                + "AACT\tY\tAACC\t1\t2\n");
+        writeText(new File(run, "RunInfo.xml"),
+                "<?xml version=\"1.0\"?>\n<RunInfo>\n  <Run Id=\"RUN1\" Number=\"1\">\n    <Reads>\n"
+                + "      <Read Number=\"1\" NumCycles=\"4\" IsIndexedRead=\"N\" />\n"
+                + "      <Read Number=\"2\" NumCycles=\"4\" IsIndexedRead=\"Y\" />\n"
+                + "      <Read Number=\"3\" NumCycles=\"4\" IsIndexedRead=\"N\" />\n"
+                + "    </Reads>\n  </Run>\n</RunInfo>\n");
+        writeIlluminaTileMetrics(new File(run, "InterOp/TileMetricsOut.bin"), new float[][] {
+            {1, 1101, 100, 125000.5f}, {1, 1101, 101, 100000.0f}, {1, 1101, 102, 6f},
+            {1, 1101, 103, 5f}, {1, 1101, 200, 0.15f}, {1, 1101, 201, 0.10f},
+            {1, 1101, 204, 0.20f}, {1, 1101, 205, 0.05f},
+            {1, 1102, 100, 110000.25f}, {1, 1102, 102, 6f}, {1, 1102, 200, 0.12f},
+            {1, 1102, 201, 0.11f}, {1, 1102, 204, 0.25f}, {1, 1102, 205, 0.07f},
+            {2, 1101, 100, 90000f}, {2, 1101, 102, 4f}, {2, 1101, 200, 0.3f},
+            {2, 1101, 201, 0.2f}, {2, 1101, 204, 0.1f}, {2, 1101, 205, 0.4f},
+            {1, 1102, 100, 120000f},
+        });
+
+        File bad = new File(root, "bad");
+        File badIntensities = new File(bad, "Data/Intensities");
+        File badLane = new File(badIntensities, "BaseCalls/L001");
+        for (java.util.Map.Entry<Integer, String[][]> e : tiles.entrySet()) {
+            for (int cycle = 1; cycle <= 10; cycle++) {
+                if (e.getKey() == 1102 && cycle == 3) continue;
+                // One BCL a byte too long, and one call of quality zero (a C with no quality bits).
+                int extra = (e.getKey() == 1101 && cycle == 5) ? 1 : 0;
+                File f = new File(badLane, "C" + cycle + ".1/s_1_" + e.getKey() + ".bcl");
+                writeIlluminaBcl(f, e.getValue(), cycle, extra);
+                if (e.getKey() == 1101 && cycle == 2) {
+                    byte[] bytes = java.nio.file.Files.readAllBytes(f.toPath());
+                    bytes[4] = 1;
+                    java.nio.file.Files.write(f.toPath(), bytes);
+                }
+            }
+        }
+        boolean[] badPf = new boolean[6];
+        for (int c = 0; c < 6; c++) badPf[c] = t1101[c][2].equals("1");
+        writeIlluminaFilter(new File(badLane, "s_1_1101.filter"), badPf);
+        writeIlluminaLocs(new File(badIntensities, "L001/s_1_1101.locs"), 6);
+        writeIlluminaTileMetrics(new File(bad, "InterOp/TileMetricsOut.bin"), new float[][] {
+            {1, 1101, 100, 125000.5f}, {1, 1101, 102, 6f}, {1, 1101, 200, 0.15f},
+            {1, 1101, 201, 0.10f}, {1, 1101, 204, 0.20f}, {1, 1101, 205, 0.05f},
+            {1, 1102, 100, 110000.25f}, {1, 1102, 102, 6f}, {1, 1102, 200, 0.12f},
+            {1, 1102, 201, 0.11f}, {1, 1102, 204, 0.25f}, {1, 1102, 205, 0.07f},
+            {1, 1103, 100, 100000f}, {1, 1103, 102, 5f}, {1, 1103, 200, 0.14f},
+            {1, 1103, 201, 0.09f},
+        });
+
+        writeText(new File(root, "barcodes.txt"),
+                "barcode_sequence_1\tbarcode_name\tlibrary_name\n"
+                + "AACC\tbcA\tlibA\n"
+                + "CCTT\tbcB\tlibB\n"
+                + "GGAA\tbcC\tlibC\n");
+    }
+
+    static void writeText(File f, String text) throws Exception {
+        f.getParentFile().mkdirs();
+        java.nio.file.Files.write(f.toPath(), text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /** One cycle's BCL: the count, then base | quality << 2 per cluster (0 for an N). */
+    static void writeIlluminaBcl(File f, String[][] clusters, int cycle, int extraBytes) throws Exception {
+        java.nio.ByteBuffer b = java.nio.ByteBuffer.allocate(4 + clusters.length + extraBytes)
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        b.putInt(clusters.length);
+        for (String[] c : clusters) {
+            char base = c[0].charAt(cycle - 1);
+            int quality = c[1].charAt(cycle - 1) - 33;
+            b.put(base == 'N' ? 0 : (byte) ("ACGT".indexOf(base) | (quality << 2)));
+        }
+        for (int i = 0; i < extraBytes; i++) b.put((byte) 0x7c);
+        f.getParentFile().mkdirs();
+        java.nio.file.Files.write(f.toPath(), b.array());
+    }
+
+    static void writeIlluminaFilter(File f, boolean[] passed) throws Exception {
+        java.nio.ByteBuffer b = java.nio.ByteBuffer.allocate(12 + passed.length)
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        b.putInt(0);
+        b.putInt(3);
+        b.putInt(passed.length);
+        for (boolean p : passed) b.put((byte) (p ? 1 : 0));
+        f.getParentFile().mkdirs();
+        java.nio.file.Files.write(f.toPath(), b.array());
+    }
+
+    /** Positions whose Illumina coordinates (round(10 * p + 1000)) are exact. */
+    static void writeIlluminaLocs(File f, int clusters) throws Exception {
+        java.nio.ByteBuffer b = java.nio.ByteBuffer.allocate(12 + clusters * 8)
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        b.putInt(1);
+        b.putFloat(1.0f);
+        b.putInt(clusters);
+        for (int c = 0; c < clusters; c++) {
+            b.putFloat(100.5f * (c + 1));
+            b.putFloat(2000.25f - 150.0f * c);
+        }
+        f.getParentFile().mkdirs();
+        java.nio.file.Files.write(f.toPath(), b.array());
+    }
+
+    static void writeIlluminaTileMetrics(File f, float[][] records) throws Exception {
+        java.nio.ByteBuffer b = java.nio.ByteBuffer.allocate(2 + records.length * 10)
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        b.put((byte) 2);
+        b.put((byte) 10);
+        for (float[] r : records) {
+            b.putShort((short) r[0]);
+            b.putShort((short) r[1]);
+            b.putShort((short) r[2]);
+            b.putFloat(r[3]);
+        }
+        f.getParentFile().mkdirs();
+        java.nio.file.Files.write(f.toPath(), b.array());
     }
 }

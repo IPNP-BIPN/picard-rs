@@ -616,6 +616,15 @@
         "status": "pending",
         "strip_program_records": true,
         "output_name": "output.txt,umi_metrics.txt"
+      },
+      {
+        "tool": "CheckIlluminaDirectory",
+        "port": "check-illumina-directory",
+        "t": 2,
+        "status": "pending",
+        "exit_code_is_a_result": true,
+        "cwd_out": true,
+        "output_name": "errors.count"
       }
     ]
   },

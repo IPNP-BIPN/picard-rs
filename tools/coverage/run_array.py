@@ -163,7 +163,7 @@ def fresh_directory(workdir, stem):
 
 
 def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt",
-               fixtures=None):
+               fixtures=None, cwd_out=False):
     """Run one row in the container. Returns (exit code, output text, stdout tail).
 
     `on_stdout` is for the tools that HAVE no output argument: `ViewSam` and `BamIndexStats` print
@@ -185,7 +185,10 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_
             "docker", "run", "--rm", "--platform", PLATFORM,
             "-v", f"{fixtures}:/work/fixtures:ro",
             "-v", f"{out_dir}:/work/out",
-            "-w", "/work", IMAGE, command,
+            # A tool that writes into its working directory (`CheckIlluminaDirectory` leaves
+            # `./errors.count` there) runs inside the row's output directory, so what it writes is
+            # compared and not left in the shared tree.
+            "-w", "/work/out" if cwd_out else "/work", IMAGE, command,
         ],
         capture_output=True,
         text=True,
@@ -329,7 +332,7 @@ def first_error(text):
 
 
 def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt",
-             fixtures=None, tool=None):
+             fixtures=None, tool=None, cwd_out=False):
     """Run the port binary on the same row, with the fixture paths rewritten to the host."""
     out_dir = fresh_directory(workdir, "port")
     fixtures = fixtures or workdir / "fixtures"
@@ -348,8 +351,8 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_
     # The current binaries take `NAME=value` (the legacy form) and were written for the benchmark;
     # the Barclay command line is a later slice. Passing both forms keeps this working when it
     # lands, without pretending the binary understands more than it does.
-    argv = [str(binary)] + [a.lstrip("-") for a in rewritten] + [host(p) for p in positional]
-    result = subprocess.run(argv, capture_output=True, text=True)
+    argv = [str(Path(binary).resolve())] + [a.lstrip("-") for a in rewritten] + [host(p) for p in positional]
+    result = subprocess.run(argv, capture_output=True, text=True, cwd=out_dir if cwd_out else None)
     # The mount points are mapped back BEFORE the message is read, not after: `first_error` caps
     # what it returns, and a host path is longer than the container path it stands for, so mapping
     # afterwards left a message that had been truncated mid-path.
@@ -447,6 +450,12 @@ def main(argv):
         help="build the corpus into this directory and exit, for a suite that will share it",
     )
     ap.add_argument(
+        "--cwd-out",
+        action="store_true",
+        help="run both sides with the row's output directory as the working directory, for a tool "
+        "that writes into its working directory",
+    )
+    ap.add_argument(
         "--stdout",
         action="store_true",
         help="compare standard output rather than the output file, for a tool that writes no file",
@@ -500,6 +509,7 @@ def main(argv):
                 args.strip_program_records,
                 args.output_name,
                 fixtures,
+                args.cwd_out,
             )
             entry = {
                 "row": row["row"],
@@ -521,6 +531,7 @@ def main(argv):
                     args.output_name,
                     fixtures,
                     args.tool,
+                    args.cwd_out,
                 )
                 entry["port_exit"] = p_code
                 entry["port_output"] = outcome(

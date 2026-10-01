@@ -206,6 +206,8 @@ def coverage_job(manifest):
         f"{' --strip-program-records' if t.get('strip_program_records') else ''}"
         # A tool whose exit code says what it FOUND rather than that it failed.
         f"{' --exit-code-is-a-result' if t.get('exit_code_is_a_result') else ''}"
+        # A tool that writes into its working directory: see run_array.py.
+        f"{' --cwd-out' if t.get('cwd_out') else ''}"
         # A tool that writes `<OUTPUT>.<suffix>` rather than the file it was given.
         f"{' --output-name ' + t['output_name'] if t.get('output_name') else ''} \\\n"
         f"            | tee /tmp/{t['tool']}.log"

@@ -2052,6 +2052,52 @@
         "coordinate"
       ],
       "--ASSUME_SORTED": []
+    },
+    "CheckIlluminaDirectory": {
+      "$why": [
+        "illumina/run and illumina/bad are MakeFixtures' (see writeIlluminaFixtures). The tool's answer",
+        "is its exit status and the failure count it writes to ./errors.count, which the array reads",
+        "with the row's output directory as the working directory (cwd_out). READ_STRUCTURE asks for",
+        "the twelve cycles the runs are written for, for fourteen, and for twelve with skipped cycles.",
+        "TILE_NUMBERS, LANES and DATA_TYPES are $lists; lane 2 has tile metrics but no basecalls",
+        "directory. FAKE_FILES and LINK_LOCS are held false: both write into the run directory, which",
+        "is the shared fixture tree."
+      ],
+      "$lists": [
+        "--LANES",
+        "--TILE_NUMBERS",
+        "--DATA_TYPES"
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/illumina/run/Data/Intensities/BaseCalls",
+        "/work/fixtures/illumina/bad/Data/Intensities/BaseCalls"
+      ],
+      "--READ_STRUCTURE": [
+        "4T4B4T",
+        "4T4B6T",
+        "3T4S5T"
+      ],
+      "--LANES": [
+        "1",
+        "1 2"
+      ],
+      "--TILE_NUMBERS": [
+        "null",
+        "1101",
+        "1102 1103"
+      ],
+      "--DATA_TYPES": [
+        "null",
+        "BaseCalls PF",
+        "Position",
+        "Barcodes QualityScores"
+      ],
+      "--FAKE_FILES": [
+        "false"
+      ],
+      "--LINK_LOCS": [
+        "false"
+      ]
     }
   },
   "constraints": [

@@ -66,6 +66,7 @@ pub mod gtc_to_vcf;
 pub mod haplotype_map;
 pub mod illumina_arrays;
 pub mod illumina_basecalls;
+pub mod illumina_dir;
 pub mod illumina_files;
 pub mod illumina_lane_metrics;
 pub mod illumina_run_metrics;
