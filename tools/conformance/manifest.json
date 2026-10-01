@@ -495,6 +495,12 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.oxog_metrics,oxog.txt"
+      },
+      {
+        "tool": "CollectOxoGMetrics",
+        "port": "collect-oxo-g-metrics",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },

@@ -1042,6 +1042,64 @@
         "null",
         "/work/out/oxog.txt"
       ]
+    },
+    "CollectOxoGMetrics": {
+      "$why": [
+        "original_quals.bam carries OQ on two pairs in three, which is what makes USE_OQ observable;",
+        "one_read_group.bam has a single library and sample. INTERVALS and DB_SNP each take null and a",
+        "file. The insert-size bounds reach the filter (0 and 0 remove it, which lets unpaired reads",
+        "in) and the tool's own validation (a maximum under the minimum). CONTEXT_SIZE 0 makes the",
+        "contexts single bases; AGT fails the middle-base check, or the length check at size 0.",
+        "STOP_AFTER 100 ends the walk after a hundred sites of interest."
+      ],
+      "$lists": [
+        "--CONTEXTS"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/one_read_group.bam",
+        "/work/fixtures/original_quals.bam"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list"
+      ],
+      "--DB_SNP": [
+        "null",
+        "/work/fixtures/dbsnp.vcf"
+      ],
+      "--MINIMUM_QUALITY_SCORE": [
+        "20",
+        "30"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "30",
+        "50"
+      ],
+      "--MINIMUM_INSERT_SIZE": [
+        "60",
+        "0"
+      ],
+      "--MAXIMUM_INSERT_SIZE": [
+        "600",
+        "0",
+        "100"
+      ],
+      "--CONTEXT_SIZE": [
+        "1",
+        "0"
+      ],
+      "--CONTEXTS": [
+        "null",
+        "ACA TCG",
+        "AGT"
+      ],
+      "--STOP_AFTER": [
+        "2147483647",
+        "100"
+      ]
     }
   },
   "constraints": [
@@ -1089,6 +1147,16 @@
         "--OXOG_OUT": "null"
       },
       "why": "With neither, the output defaults to INPUT_BASE + '.oxog_metrics', which is inside the fixture directory: the oracle refuses it as unwritable (the mount is read-only) while the port, on the host, would write into the shared corpus. The refusal it would measure is the harness's mount, not the tool, and the write would corrupt the corpus for every later row."
+    },
+    {
+      "tools": [
+        "CollectOxoGMetrics"
+      ],
+      "forbid": {
+        "--CONTEXT_SIZE": "0",
+        "--CONTEXTS": "ACA TCG"
+      },
+      "why": "Contexts of three bases are refused at a context size of nought before the tool runs. AGT keeps that refusal (and the middle-base one) as a case; without this clause the pair took a quarter of the first array's rows, which then measured the validator instead of the counters."
     }
   ],
   "exclude": {

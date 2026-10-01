@@ -259,8 +259,11 @@ pub fn finish(counts: &Counts) -> Metrics {
     let g_ref_alt_bases = counts.ref_g_control_a + counts.ref_g_oxidated_a;
     let c_rate = c_ref_alt_bases as f64 / (c_ref_alt_bases + c_ref_ref_bases) as f64;
     let g_rate = g_ref_alt_bases as f64 / (g_ref_alt_bases + g_ref_ref_bases) as f64;
-    let c_ref_oxo_error_rate = (c_rate - g_rate).max(MINIMUM_REFERENCE_BIAS_RATE);
-    let g_ref_oxo_error_rate = (g_rate - c_rate).max(MINIMUM_REFERENCE_BIAS_RATE);
+    // `Math.max` answers NaN when either side is NaN, which is what an uncovered context's
+    // nought over nought gives; `f64::max` would answer the floor instead.
+    let java_max = |a: f64, b: f64| if a.is_nan() { a } else { a.max(b) };
+    let c_ref_oxo_error_rate = java_max(c_rate - g_rate, MINIMUM_REFERENCE_BIAS_RATE);
+    let g_ref_oxo_error_rate = java_max(g_rate - c_rate, MINIMUM_REFERENCE_BIAS_RATE);
     Metrics {
         total_bases,
         ref_oxo_bases,
