@@ -1651,15 +1651,30 @@ public class MakeFixtures {
         writeArrayVcf(new File(dir, "array_moved.vcf"), chr1, chr2, new String[] {"chipC"}, 5, true, null, 8, 3, null);
         writeArrayVcf(new File(dir, "array_gc.vcf"), chr1, chr2, new String[] {"chipD"}, 6, true, null, 8, -1, "0.9999");
         writeArrayVcf(new File(dir, "array_no_contigs.vcf"), chr1, chr2, new String[] {"chipC"}, 7, false, null, 8, -1, null);
-        String bad = new String(java.nio.file.Files.readAllBytes(new File(dir, "array_b.vcf").toPath()), "UTF-8");
         // The second locus's A allele renamed: the call no longer matches either Illumina allele.
-        String[] lines = bad.split("\n", -1);
+        editArrayLine(dir, "array_b.vcf", "array_bad_allele.vcf", "chr1\t300\t",
+                "ALLELE_A=[ACGT]+", "ALLELE_A=T", "ALLELE_B=[ACGT*]+", "ALLELE_B=C*");
+        // For CombineGenotypingArrayVcfs, each one more way for a locus to disagree with array_a's:
+        // its ID, its ALT allele, and a depth, which is the one attribute the merge adds up.
+        editArrayLine(dir, "array_b.vcf", "array_id.vcf", "chr1\t300\t", "\t\\.\t", "\trs77\t");
+        editArrayLine(dir, "array_b.vcf", "array_alt.vcf", "chr1\t500\t",
+                "^(chr1\t500\t[^\t]*\t[ACGT]+\t)[ACGT]+", "$1T");
+        editArrayLine(dir, "array_b.vcf", "array_dp.vcf", "chr1\t500\t", "AN=4;", "AN=4;DP=5;");
+    }
+
+    /** A copy of an array fixture with one record edited by regular-expression replacements. */
+    static void editArrayLine(File dir, String from, String to, String prefix, String... edits)
+            throws Exception {
+        String text = new String(java.nio.file.Files.readAllBytes(new File(dir, from).toPath()), "UTF-8");
+        String[] lines = text.split("\n", -1);
         for (int l = 0; l < lines.length; l++) {
-            if (lines[l].startsWith("chr1\t300\t")) {
-                lines[l] = lines[l].replaceFirst("ALLELE_A=[ACGT]+", "ALLELE_A=T").replaceFirst("ALLELE_B=[ACGT*]+", "ALLELE_B=C*");
+            if (lines[l].startsWith(prefix)) {
+                for (int e = 0; e < edits.length; e += 2) {
+                    lines[l] = lines[l].replaceFirst(edits[e], edits[e + 1]);
+                }
             }
         }
-        try (PrintWriter p = new PrintWriter(new File(dir, "array_bad_allele.vcf"), "UTF-8")) {
+        try (PrintWriter p = new PrintWriter(new File(dir, to), "UTF-8")) {
             p.print(String.join("\n", lines));
         }
     }

@@ -1508,6 +1508,41 @@
       "--NUM_MARKERS_FILE": [
         "/work/out/num_markers.txt"
       ]
+    },
+    "CombineGenotypingArrayVcfs": {
+      "$why": [
+        "INPUT is a whole list ($lists): the tool walks its inputs in lockstep, the nth record of each",
+        "merged with the nth of every other. array_a and array_b are one chip each over the same loci;",
+        "array_cd is two chips in unsorted column order, whose samples join the list sorted.",
+        "array_no_contigs has no contig lines: second, the first file's dictionary serves; first, there",
+        "is none, which doWork refuses under CREATE_INDEX and the writer builder refuses without it",
+        "(INDEX_ON_THE_FLY is a default option). The rest are one refusal each: a repeated sample,",
+        "too few records, a moved locus, a disagreeing GC_SCORE, ID and ALT, and a DP, which the merge",
+        "adds up and writes back into an unmodifiable map when it comes first, and refuses as missing",
+        "when it does not. Every input's kept header lines agree, because the headers are merged from a",
+        "HashSet whose order is their identity hashes. OUTPUT is a .vcf, the one file compared."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/array_a.vcf /work/fixtures/array_b.vcf",
+        "/work/fixtures/array_cd.vcf /work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_no_contigs.vcf",
+        "/work/fixtures/array_no_contigs.vcf /work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_short.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_moved.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_gc.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_id.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_alt.vcf",
+        "/work/fixtures/array_dp.vcf /work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_dp.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ]
     }
   },
   "constraints": [

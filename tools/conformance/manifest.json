@@ -552,6 +552,13 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.adpc.bin,samples.txt,num_markers.txt"
+      },
+      {
+        "tool": "CombineGenotypingArrayVcfs",
+        "port": "combine-genotyping-array-vcfs",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
       }
     ]
   },
