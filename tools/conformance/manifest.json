@@ -458,6 +458,12 @@
         "port": "collect-raw-wgs-metrics",
         "t": 2,
         "status": "pending"
+      },
+      {
+        "tool": "CollectWgsMetricsWithNonZeroCoverage",
+        "port": "collect-wgs-metrics-with-non-zero-coverage",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },

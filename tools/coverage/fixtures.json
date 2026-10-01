@@ -878,6 +878,54 @@
         "10000",
         "100"
       ]
+    },
+    "CollectWgsMetricsWithNonZeroCoverage": {
+      "$why": [
+        "CollectWgsMetrics' domain (see its $why), minus USE_FAST_ALGORITHM=true (see the constraint).",
+        "READ_LENGTH is held: only the fast collector reads it, and this tool never builds one.",
+        "CHART_OUTPUT is held: the chart is R's rendering of the metrics file and is not compared."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/adapters_coordinate.bam",
+        "/work/fixtures/tiled.bam"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "20",
+        "0",
+        "50"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "20",
+        "0",
+        "30"
+      ],
+      "--COVERAGE_CAP": [
+        "250",
+        "5"
+      ],
+      "--LOCUS_ACCUMULATION_CAP": [
+        "100000",
+        "1"
+      ],
+      "--STOP_AFTER": [
+        "-1",
+        "1000"
+      ],
+      "--READ_LENGTH": [
+        "150"
+      ],
+      "--SAMPLE_SIZE": [
+        "10000",
+        "100"
+      ]
     }
   },
   "constraints": [
@@ -915,6 +963,15 @@
         "--OLD_SAMPLE_NAME": "sampleA"
       },
       "why": "The two-sample file is refused as not single-sample before OLD_SAMPLE_NAME is read, so naming an old sample beside it only repeats that refusal. Without this clause the refusals took eight of the first twelve rows and NEW_SAMPLE_NAME's second value never reached an accepted one. The refusal is kept, with OLD_SAMPLE_NAME=null."
+    },
+    {
+      "tools": [
+        "CollectWgsMetricsWithNonZeroCoverage"
+      ],
+      "forbid": {
+        "--USE_FAST_ALGORITHM": "true"
+      },
+      "why": "This tool always builds the slow collector, and the fast iterator hands it edge records, so every row with USE_FAST_ALGORITHM=true ends in the same ClassCastException at the first covered locus (htsjdk.samtools.util.EdgingRecordAndOffset$StartEdgingRecordAndOffset cannot be cast to SamLocusIterator$RecordAndOffset). Measured unconstrained, that one refusal took eleven of 21 rows and left five accepted. The port reproduces it (it is a branch of wgs_cli/wgs_walk and matched on every such row of the unconstrained array); it is kept out of the pairwise array so the rows measure the walk."
     }
   ],
   "exclude": {
