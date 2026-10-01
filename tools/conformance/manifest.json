@@ -547,6 +547,41 @@
         "output_name": "output.rrbs_summary_metrics,output.rrbs_detail_metrics"
       },
       {
+        "tool": "VcfToAdpc",
+        "port": "vcf-to-adpc",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.adpc.bin,samples.txt,num_markers.txt"
+      },
+      {
+        "tool": "CombineGenotypingArrayVcfs",
+        "port": "combine-genotyping-array-vcfs",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
+      },
+      {
+        "tool": "CreateVerifyIDIntensityContaminationMetricsFile",
+        "port": "create-verify-id-intensity-contamination-metrics-file",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.verifyidintensity_metrics"
+      },
+      {
+        "tool": "CreateBafRegressMetricsFile",
+        "port": "create-baf-regress-metrics-file",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.bafregress_metrics"
+      },
+      {
+        "tool": "CollectArraysVariantCallingMetrics",
+        "port": "collect-arrays-variant-calling-metrics",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.arrays_variant_calling_detail_metrics,output.arrays_variant_calling_summary_metrics,output.arrays_control_code_summary_metrics"
+      },
+      {
         "tool": "CollectRnaSeqMetrics",
         "port": "collect-rna-seq-metrics",
         "t": 2,

@@ -646,6 +646,13 @@ public class MakeFixtures {
         // A chain and two VCFs for `LiftoverVcf`; see writeLiftoverFixtures.
         writeLiftoverFixtures(dir, chr1, chr2);
 
+        // Genotyping-array VCFs, in the shape GtcToVcf writes them, for the picard.arrays tools;
+        // see writeArrayFixtures. Every file is new, so no existing fixture's bytes move.
+        writeArrayFixtures(dir, chr1, chr2);
+        writeVerifyIdFixtures(dir);
+        writeBafRegressFixtures(dir);
+        writeArrayMetricsFixtures(dir);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
@@ -1790,6 +1797,321 @@ public class MakeFixtures {
                 p.print(String.join("\t", java.util.Arrays.copyOf(fields, keep)) + "\n");
             }
         }
+    }
+
+    // The loci every array fixture is built from: contig, position, and whether it is an indel.
+    // chr1:100, chr1:500 and chr2:200 are sites of dbsnp.vcf.
+    static final String[] ARRAY_CONTIGS = {"chr1", "chr1", "chr1", "chr1", "chr1", "chr2", "chr2", "chr2"};
+    static final int[] ARRAY_POSITIONS = {100, 300, 500, 700, 900, 200, 400, 600};
+
+    /** The genotypes of one array sample, one Illumina code (AA, AB, BB, NN) per locus. */
+    static final java.util.Map<String, String[]> ARRAY_CALLS = new java.util.LinkedHashMap<>();
+    static {
+        ARRAY_CALLS.put("chipA", new String[] {"AA", "AB", "BB", "AB", "NN", "BB", "AA", "AB"});
+        ARRAY_CALLS.put("chipB", new String[] {"AB", "AA", "NN", "BB", "AA", "AB", "BB", "AA"});
+        ARRAY_CALLS.put("chipC", new String[] {"BB", "BB", "AB", "AA", "NN", "AA", "AB", "NN"});
+        ARRAY_CALLS.put("chipD", new String[] {"NN", "AB", "AA", "AB", "BB", "AB", "AA", "BB"});
+    }
+
+    /**
+     * The header of an array VCF: the lines GtcToVcf writes, the per-sample ones (which differ
+     * between samples) and the ones that describe the chip (which do not). `drop` names a line
+     * to leave out, for the tools that refuse a file without it.
+     */
+    static String arrayHeader(String sample, int index, boolean contigs, String drop) {
+        StringBuilder h = new StringBuilder();
+        h.append("##fileformat=VCFv4.2\n");
+        h.append("##FILTER=<ID=DUPE,Description=\"Duplicate assay at same position with lower GenTrain Score\">\n");
+        h.append("##FILTER=<ID=TRIALLELIC,Description=\"Tri-allelic assay\">\n");
+        h.append("##FILTER=<ID=ZEROED_OUT_ASSAY,Description=\"Assay is zeroed out (or not in the cluster file)\">\n");
+        h.append("##FORMAT=<ID=BAF,Number=1,Type=Float,Description=\"B Allele Frequency\">\n");
+        h.append("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n");
+        h.append("##FORMAT=<ID=GTA,Number=1,Type=String,Description=\"Illumina Autocall Genotype\">\n");
+        h.append("##FORMAT=<ID=GTZ,Number=1,Type=String,Description=\"Illumina zCall Genotype\">\n");
+        h.append("##FORMAT=<ID=IGC,Number=1,Type=Float,Description=\"Illumina GenCall Confidence Score\">\n");
+        h.append("##FORMAT=<ID=LRR,Number=1,Type=Float,Description=\"Log R Ratio\">\n");
+        h.append("##FORMAT=<ID=NORMX,Number=1,Type=Float,Description=\"Normalized X intensity\">\n");
+        h.append("##FORMAT=<ID=NORMY,Number=1,Type=Float,Description=\"Normalized Y intensity\">\n");
+        h.append("##FORMAT=<ID=X,Number=1,Type=Integer,Description=\"Raw X intensity\">\n");
+        h.append("##FORMAT=<ID=Y,Number=1,Type=Integer,Description=\"Raw Y intensity\">\n");
+        h.append("##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count in genotypes\">\n");
+        h.append("##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele Frequency\">\n");
+        h.append("##INFO=<ID=ALLELE_A,Number=1,Type=String,Description=\"A allele\">\n");
+        h.append("##INFO=<ID=ALLELE_B,Number=1,Type=String,Description=\"B allele\">\n");
+        h.append("##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of alleles in called genotypes\">\n");
+        h.append("##INFO=<ID=GC_SCORE,Number=1,Type=Float,Description=\"Gentrain Score\">\n");
+        h.append("##INFO=<ID=SOURCE,Number=1,Type=String,Description=\"Probe source\">\n");
+        h.append("##INFO=<ID=devX_AB,Number=1,Type=Float,Description=\"Standard deviation of normalized X for AB genotype\">\n");
+        h.append("##INFO=<ID=refSNP,Number=1,Type=String,Description=\"dbSNP rs ID\">\n");
+        String[] perSample = {
+            "analysisVersionNumber=" + (index + 1),
+            "arrayType=GSA-24v1-0_A1",
+            "autocallDate=04/1" + index + "/2019 20:5" + index,
+            "autocallGender=" + (index % 2 == 0 ? "M" : "F"),
+            "autocallVersion=3.0.0",
+            "chipWellBarcode=" + sample,
+            "clusterFile=GSA-24v1-0_A1_ClusterFile.egt",
+            "expectedGender=" + (index % 2 == 0 ? "Male" : "Female"),
+            "extendedIlluminaManifestVersion=1.3",
+            "fingerprintGender=" + (index % 2 == 0 ? "M" : "U"),
+            "gtcCallRate=0.98" + index,
+            "imagingDate=04/1" + index + "/2019 " + (index + 3) + ":12:31 PM",
+            "manifestFile=GSA-24v1-0_A1.bpm",
+            "p95Green=" + (4321 + index),
+            "p95Red=" + (8765 + index),
+            "pipelineVersion=1.2." + index,
+            "sampleAlias=NA1287" + index,
+            "scannerName=N370",
+            "zcallThresholds=thresholds.txt",
+            "zcallVersion=1.0.0.0",
+        };
+        for (String line : perSample) {
+            if (drop == null || !line.startsWith(drop + "=")) h.append("##").append(line).append("\n");
+        }
+        String[] controls = {"DNP(High)|Staining", "DNP(Bgnd)|Staining", "Biotin(High)|Staining",
+            "Biotin(Bgnd)|Staining", "Extension(A)|Extension", "Extension(T)|Extension",
+            "Extension(C)|Extension", "Extension(G)|Extension", "TargetRemoval|TargetRemoval",
+            "Hyb(High)|Hybridization", "Hyb(Medium)|Hybridization", "Hyb(Low)|Hybridization",
+            "String(PM)|Stringency", "String(MM)|Stringency", "NSB(Bgnd)Red|Non-SpecificBinding",
+            "NSB(Bgnd)Purple|Non-SpecificBinding", "NSB(Bgnd)Blue|Non-SpecificBinding",
+            "NSB(Bgnd)Green|Non-SpecificBinding", "NP(A)|Non-Polymorphic", "NP(T)|Non-Polymorphic",
+            "NP(C)|Non-Polymorphic", "NP(G)|Non-Polymorphic", "Restore|Restoration"};
+        for (int c = 0; c < controls.length; c++) {
+            String name = controls[c].substring(0, controls[c].indexOf('|'));
+            if (drop != null && drop.equals(name)) continue;
+            h.append("##").append(name).append("=").append(controls[c]).append("|")
+                    .append(1000 + 37 * c + index).append("|").append(500 + 11 * c).append("\n");
+        }
+        if (contigs) {
+            h.append("##contig=<ID=chr1,length=").append(CHR1).append(",assembly=GRCh37>\n");
+            h.append("##contig=<ID=chr2,length=").append(CHR2).append(",assembly=GRCh37>\n");
+        }
+        return h.toString();
+    }
+
+    /**
+     * One array record. The A allele is the reference at even loci and the alternate at odd ones,
+     * and whichever is the reference carries GtcToVcf's trailing `*`, so the same `0/0` is an AA
+     * at one locus and a BB at the next. Locus 3 is an indel, locus 4 is zeroed out and locus 6 a
+     * DUPE (filtered, but counted as passing). Locus 1 has a call autocall did not make (GTA
+     * `./.`) and locus 7 has no GTA at all, so its autocall answer falls back to the call; locus 2
+     * has a raw X past the unsigned-short range, which the ADPC writer truncates; locus 5 has its
+     * normalized intensities missing and `?`, which the writer turns into NaN.
+     */
+    static String arrayRecord(String chr1, String chr2, int i, String[] samples, String gcScore,
+                              int position) {
+        String contig = ARRAY_CONTIGS[i];
+        String base = String.valueOf((contig.equals("chr1") ? chr1 : chr2).charAt(position - 1));
+        String ref = i == 3 ? base + "AT" : base;
+        String alt = i == 3 ? base : (base.equals("A") ? "G" : "A");
+        boolean aIsRef = i % 2 == 0;
+        String alleleA = aIsRef ? ref + "*" : alt;
+        String alleleB = aIsRef ? alt : ref + "*";
+        String filter = i == 4 ? "ZEROED_OUT_ASSAY" : (i == 6 ? "DUPE" : "PASS");
+        String id = (i % 3 == 0) ? "rs" + (1000 + i) : ".";
+        StringBuilder info = new StringBuilder();
+        info.append("AC=1;AF=0.250;ALLELE_A=").append(alleleA).append(";ALLELE_B=").append(alleleB)
+                .append(";AN=4;GC_SCORE=").append(gcScore).append(";SOURCE=probe").append(i);
+        if (i % 2 == 1) info.append(";devX_AB=0.0").append(i);
+        if (!id.equals(".")) info.append(";refSNP=").append(id);
+        StringBuilder line = new StringBuilder();
+        line.append(contig).append('\t').append(position).append('\t').append(id).append('\t')
+                .append(ref).append('\t').append(alt).append('\t').append('.').append('\t')
+                .append(filter).append('\t').append(info)
+                .append("\tGT:GTA:GTZ:IGC:X:Y:NORMX:NORMY:BAF:LRR");
+        for (int s = 0; s < samples.length; s++) {
+            String code = ARRAY_CALLS.get(samples[s])[i];
+            String a = aIsRef ? "0" : "1";
+            String b = aIsRef ? "1" : "0";
+            String gt;
+            switch (code) {
+                case "AA": gt = a + "/" + a; break;
+                case "AB": gt = aIsRef ? "0/1" : "0/1"; break;
+                case "BB": gt = b + "/" + b; break;
+                default: gt = "./.";
+            }
+            String gta = i == 1 && !gt.equals("./.") ? "./." : (i == 7 ? "." : gt);
+            int x = 900 + 131 * i + 17 * s;
+            if (i == 2) x = 70000 + s;
+            int y = 300 + 59 * i + 23 * s;
+            String normX = i == 5 ? "." : String.format(java.util.Locale.ROOT, "%.3f", 0.1 + 0.137 * i + 0.01 * s);
+            String normY = i == 5 ? "?" : String.format(java.util.Locale.ROOT, "%.3f", 0.9 - 0.071 * i + 0.02 * s);
+            line.append('\t').append(gt).append(':').append(gta).append(':').append(gt)
+                    .append(':').append(String.format(java.util.Locale.ROOT, "%.4f", 0.5 + 0.041 * i + 0.003 * s))
+                    .append(':').append(x).append(':').append(y)
+                    .append(':').append(normX).append(':').append(normY)
+                    .append(':').append(String.format(java.util.Locale.ROOT, "%.4f", 0.05 * i))
+                    .append(':').append(String.format(java.util.Locale.ROOT, "%.4f", -0.2 + 0.03 * i));
+        }
+        return line.toString();
+    }
+
+    static void writeArrayVcf(File f, String chr1, String chr2, String[] samples, int index,
+                              boolean contigs, String drop, int loci, int moved, String gcAt)
+            throws Exception {
+        try (PrintWriter p = new PrintWriter(f, "UTF-8")) {
+            p.print(arrayHeader(samples[0], index, contigs, drop));
+            p.print("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t"
+                    + String.join("\t", samples) + "\n");
+            for (int i = 0; i < loci; i++) {
+                int position = ARRAY_POSITIONS[i] + (i == moved ? 50 : 0);
+                String gc = String.format(java.util.Locale.ROOT, "%.4f", 0.6 + 0.045 * i);
+                if (i == 2 && gcAt != null) gc = gcAt;
+                p.print(arrayRecord(chr1, chr2, i, samples, gc, position) + "\n");
+            }
+        }
+    }
+
+    /**
+     * The genotyping-array corpus. `array_a.vcf` and `array_b.vcf` are one chip each over the same
+     * eight loci (CombineGenotypingArrayVcfs puts them side by side, VcfToAdpc writes one block per
+     * sample); `array_cd.vcf` is two chips in unsorted column order. The rest are each one thing
+     * wrong: `array_short.vcf` stops after five loci, `array_empty.vcf` has none,
+     * `array_moved.vcf` has its fourth locus fifty bases along, `array_gc.vcf` disagrees on one
+     * GC_SCORE, `array_no_contigs.vcf` has no contig lines, and `array_bad_allele.vcf` calls an
+     * allele its ALLELE_A and ALLELE_B do not name.
+     */
+    static void writeArrayFixtures(File dir, String chr1, String chr2) throws Exception {
+        writeArrayVcf(new File(dir, "array_a.vcf"), chr1, chr2, new String[] {"chipA"}, 0, true, null, 8, -1, null);
+        writeArrayVcf(new File(dir, "array_b.vcf"), chr1, chr2, new String[] {"chipB"}, 1, true, null, 8, -1, null);
+        writeArrayVcf(new File(dir, "array_cd.vcf"), chr1, chr2, new String[] {"chipD", "chipC"}, 2, true, null, 8, -1, null);
+        writeArrayVcf(new File(dir, "array_short.vcf"), chr1, chr2, new String[] {"chipC"}, 3, true, null, 5, -1, null);
+        writeArrayVcf(new File(dir, "array_empty.vcf"), chr1, chr2, new String[] {"chipD"}, 4, true, null, 0, -1, null);
+        writeArrayVcf(new File(dir, "array_moved.vcf"), chr1, chr2, new String[] {"chipC"}, 5, true, null, 8, 3, null);
+        writeArrayVcf(new File(dir, "array_gc.vcf"), chr1, chr2, new String[] {"chipD"}, 6, true, null, 8, -1, "0.9999");
+        writeArrayVcf(new File(dir, "array_no_contigs.vcf"), chr1, chr2, new String[] {"chipC"}, 7, false, null, 8, -1, null);
+        // The second locus's A allele renamed: the call no longer matches either Illumina allele.
+        editArrayLine(dir, "array_b.vcf", "array_bad_allele.vcf", "chr1\t300\t",
+                "ALLELE_A=[ACGT]+", "ALLELE_A=T", "ALLELE_B=[ACGT*]+", "ALLELE_B=C*");
+        // For CombineGenotypingArrayVcfs, each one more way for a locus to disagree with array_a's:
+        // its ID, its ALT allele, and a depth, which is the one attribute the merge adds up.
+        editArrayLine(dir, "array_b.vcf", "array_id.vcf", "chr1\t300\t", "\t\\.\t", "\trs77\t");
+        editArrayLine(dir, "array_b.vcf", "array_alt.vcf", "chr1\t500\t",
+                "^(chr1\t500\t[^\t]*\t[ACGT]+\t)[ACGT]+", "$1T");
+        editArrayLine(dir, "array_b.vcf", "array_dp.vcf", "chr1\t500\t", "AN=4;", "AN=4;DP=5;");
+    }
+
+    /** A copy of an array fixture with one record edited by regular-expression replacements. */
+    static void editArrayLine(File dir, String from, String to, String prefix, String... edits)
+            throws Exception {
+        String text = new String(java.nio.file.Files.readAllBytes(new File(dir, from).toPath()), "UTF-8");
+        String[] lines = text.split("\n", -1);
+        for (int l = 0; l < lines.length; l++) {
+            if (lines[l].startsWith(prefix)) {
+                for (int e = 0; e < edits.length; e += 2) {
+                    lines[l] = lines[l].replaceFirst(edits[e], edits[e + 1]);
+                }
+            }
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, to), "UTF-8")) {
+            p.print(String.join("\n", lines));
+        }
+    }
+
+    /**
+     * VerifyIDIntensity's stdout, for CreateVerifyIDIntensityContaminationMetricsFile, which
+     * matches each line against one of three patterns. `verifyid.txt` is a header, its dashes and
+     * four rows separated by spaces and tabs, with a mixture written from its dot, signed and
+     * zero likelihoods and a trailing space; `verifyid_crlf.txt` is the same with CRLF line ends.
+     * The rest are one refusal each: no rows at all (a table with nothing in it), a row with a
+     * fifth column, a likelihood the pattern accepts and `Double.parseDouble` does not (`1-2`), an
+     * ID past `Integer.MAX_VALUE`, a header with a column missing, a file that stops after its
+     * header, and an empty file.
+     */
+    static void writeVerifyIdFixtures(File dir) throws Exception {
+        String header = "ID\t%Mix\tLLK\tLLK0\n";
+        String dashes = "------------------------------------\n";
+        String rows = "0\t0.0015\t-6043.4812\t-6045.1290\n"
+                + "1   .25   12.5   -3\n"
+                + "2\t0.99999987\t0\t0.000001 \n"
+                + "13\t100\t-0.5\t-.75\n";
+        writeText(new File(dir, "verifyid.txt"), header + dashes + rows);
+        writeText(new File(dir, "verifyid_crlf.txt"),
+                (header + dashes + rows).replace("\n", "\r\n"));
+        writeText(new File(dir, "verifyid_no_rows.txt"), header + dashes);
+        writeText(new File(dir, "verifyid_extra_column.txt"), header + dashes + "0\t0.1\t-1\t-2\t-3\n");
+        writeText(new File(dir, "verifyid_bad_number.txt"), header + dashes + "0\t0.1\t1-2\t-3\n");
+        writeText(new File(dir, "verifyid_big_id.txt"), header + dashes + "4294967296\t0.1\t-1\t-3\n");
+        writeText(new File(dir, "verifyid_bad_header.txt"), "ID\t%Mix\tLLK\n" + dashes + rows);
+        writeText(new File(dir, "verifyid_header_only.txt"), header);
+        writeText(new File(dir, "verifyid_empty.txt"), "");
+    }
+
+    /**
+     * bafRegress's stdout, for CreateBafRegressMetricsFile, whose header is compared as one whole
+     * string and whose rows are split on runs of whitespace. `bafregress.txt` has a row separated
+     * by spaces, one with a trailing tab, a p-value of zero (whose log is negative infinity), one
+     * in exponent notation and a NaN estimate. The rest are one refusal each: no rows (a table with
+     * nothing in it), a header with spaces for tabs, a row with a column missing, a row opening on
+     * whitespace (split keeps the empty first field, so it has eight), a blank line, an estimate of
+     * `NA`, a homozygote count of `12.0`, and an empty file.
+     */
+    static void writeBafRegressFixtures(File dir) throws Exception {
+        String header = "sample\testimate\tstderr\ttval\tpval\tcallrate\tNhom\n";
+        String rows = "NA12878\t0.0012\t0.00031\t3.871\t0.000108\t0.9934\t412233\n"
+                + "NA12891 -0.0004 0.0002 -2 0.0455 0.98 400100\n"
+                + "NA12892\t0.25\t0.01\t25\t0\t0.5\t17\t\n"
+                + "chipC\tNaN\t1.5e-3\t0.0\t1E-300\t1\t0\n";
+        writeText(new File(dir, "bafregress.txt"), header + rows);
+        writeText(new File(dir, "bafregress_no_rows.txt"), header);
+        writeText(new File(dir, "bafregress_bad_header.txt"), header.replace('\t', ' ') + rows);
+        writeText(new File(dir, "bafregress_missing_column.txt"), header + "NA12878\t0.0012\t0.00031\t3.871\t0.000108\t0.9934\n");
+        writeText(new File(dir, "bafregress_leading_space.txt"), header + " " + rows);
+        writeText(new File(dir, "bafregress_blank_line.txt"), header + "\n" + rows);
+        writeText(new File(dir, "bafregress_bad_number.txt"), header + "NA12878\tNA\t0.1\t1\t0.5\t0.9\t3\n");
+        writeText(new File(dir, "bafregress_bad_count.txt"), header + "NA12878\t0.1\t0.1\t1\t0.5\t0.9\t12.0\n");
+        writeText(new File(dir, "bafregress_empty.txt"), "");
+    }
+
+    /**
+     * The corpus of CollectArraysVariantCallingMetrics, which opens its input with an index
+     * required. `array_a.vcf` and `array_cd.vcf` get the `.idx` htsjdk builds for them (beside
+     * them, so their own bytes do not move). `array_x.vcf` is array_b with no optional header
+     * line (no pipeline, analysis or zCall version, no thresholds, no GTC call rate), single-digit
+     * date fields, an imaging date in New York winter time and genders that disagree (autocall
+     * male, reported and fingerprinted female). The rest are array_x with one thing wrong: no
+     * sampleAlias, no Hyb(Low) control, an imaging date in ISO form, an autocall gender of `X`, a
+     * p95Red that is not a number, and (array_x_no_index.vcf) no index at all.
+     */
+    static void writeArrayMetricsFixtures(File dir) throws Exception {
+        String[] fromB = {
+            "(?m)^##autocallGender=.*$", "##autocallGender=M",
+            "(?m)^##expectedGender=.*$", "##expectedGender=Female",
+            "(?m)^##fingerprintGender=.*$", "##fingerprintGender=F",
+            "(?m)^##autocallDate=.*$", "##autocallDate=4/2/2019 0:07",
+            "(?m)^##imagingDate=.*$", "##imagingDate=12/05/2019 12:05:00 AM",
+            "(?m)^##(pipelineVersion|analysisVersionNumber|gtcCallRate|zcallVersion|zcallThresholds)=.*\n", "",
+        };
+        editArrayText(dir, "array_b.vcf", "array_x.vcf", fromB);
+        String[][] broken = {
+            {"array_x_no_sample_alias.vcf", "(?m)^##sampleAlias=.*\n", ""},
+            {"array_x_no_control.vcf", "(?m)^##Hyb\\(Low\\)=.*\n", ""},
+            {"array_x_bad_date.vcf", "(?m)^##imagingDate=.*$", "##imagingDate=2019-12-05T00:05:00"},
+            {"array_x_bad_gender.vcf", "(?m)^##autocallGender=.*$", "##autocallGender=X"},
+            {"array_x_bad_p95.vcf", "(?m)^##p95Red=.*$", "##p95Red=high"},
+        };
+        for (String[] b : broken) editArrayText(dir, "array_x.vcf", b[0], b[1], b[2]);
+        java.nio.file.Files.copy(new File(dir, "array_x.vcf").toPath(),
+                new File(dir, "array_x_no_index.vcf").toPath());
+        for (String name : new String[] {"array_a.vcf", "array_cd.vcf", "array_x.vcf",
+                "array_x_no_sample_alias.vcf", "array_x_no_control.vcf", "array_x_bad_date.vcf",
+                "array_x_bad_gender.vcf", "array_x_bad_p95.vcf"}) {
+            File vcf = new File(dir, name);
+            htsjdk.tribble.index.Index index = htsjdk.tribble.index.IndexFactory.createDynamicIndex(
+                    vcf, new htsjdk.variant.vcf.VCFCodec());
+            index.write(new File(dir, name + ".idx"));
+        }
+    }
+
+    /** A copy of an array fixture with regular-expression replacements over its whole text. */
+    static void editArrayText(File dir, String from, String to, String... edits) throws Exception {
+        String text = new String(java.nio.file.Files.readAllBytes(new File(dir, from).toPath()), "UTF-8");
+        for (int e = 0; e < edits.length; e += 2) text = text.replaceAll(edits[e], edits[e + 1]);
+        writeText(new File(dir, to), text);
+    }
+
+    static void writeText(File f, String text) throws Exception {
+        java.nio.file.Files.write(f.toPath(), text.getBytes("UTF-8"));
     }
 
     static void writeDict(File f, String chr1, String chr2) throws Exception {

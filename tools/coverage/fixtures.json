@@ -1474,6 +1474,182 @@
         "null"
       ]
     },
+    "VcfToAdpc": {
+      "$why": [
+        "VCF is a whole list ($lists): the tool writes one block per sample of every file, and the",
+        "loci of each walk must agree with the first. array_a and array_b are one chip each over the",
+        "same eight loci; array_cd is two chips in unsorted column order, which the file keeps (header",
+        "order, not sorted); array_short stops after five loci, so beside array_a it is the",
+        "differing-loci refusal; array_empty has no records; array_bad_allele calls an allele neither",
+        "ALLELE_A nor ALLELE_B names; dbsnp.vcf has no samples at all, so nothing is written and the",
+        "marker count is the null it was initialised to. The loci carry a raw X past 65535 (truncated),",
+        "missing and `?` normalized intensities (NaN), and reference alleles on both the A and B side.",
+        "Every refusal inside the tool is its own log.error and exit 1, so the three refusals share one",
+        "message. The three outputs are compared together."
+      ],
+      "$lists": [
+        "--VCF"
+      ],
+      "--VCF": [
+        "/work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_b.vcf",
+        "/work/fixtures/array_cd.vcf /work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_short.vcf",
+        "/work/fixtures/array_empty.vcf",
+        "/work/fixtures/array_bad_allele.vcf",
+        "/work/fixtures/dbsnp.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.adpc.bin"
+      ],
+      "--SAMPLES_FILE": [
+        "/work/out/samples.txt"
+      ],
+      "--NUM_MARKERS_FILE": [
+        "/work/out/num_markers.txt"
+      ]
+    },
+    "CombineGenotypingArrayVcfs": {
+      "$why": [
+        "INPUT is a whole list ($lists): the tool walks its inputs in lockstep, the nth record of each",
+        "merged with the nth of every other. array_a and array_b are one chip each over the same loci;",
+        "array_cd is two chips in unsorted column order, whose samples join the list sorted.",
+        "array_no_contigs has no contig lines: second, the first file's dictionary serves; first, there",
+        "is none, which doWork refuses under CREATE_INDEX and the writer builder refuses without it",
+        "(INDEX_ON_THE_FLY is a default option). The rest are one refusal each: a repeated sample,",
+        "too few records, a moved locus, a disagreeing GC_SCORE, ID and ALT, and a DP, which the merge",
+        "adds up and writes back into an unmodifiable map when it comes first, and refuses as missing",
+        "when it does not. Every input's kept header lines agree, because the headers are merged from a",
+        "HashSet whose order is their identity hashes. OUTPUT is a .vcf, the one file compared."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/array_a.vcf /work/fixtures/array_b.vcf",
+        "/work/fixtures/array_cd.vcf /work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_no_contigs.vcf",
+        "/work/fixtures/array_no_contigs.vcf /work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_short.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_moved.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_gc.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_id.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_alt.vcf",
+        "/work/fixtures/array_dp.vcf /work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_dp.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ]
+    },
+    "CreateVerifyIDIntensityContaminationMetricsFile": {
+      "$why": [
+        "INPUT is VerifyIDIntensity's stdout, which the tool matches line by line against a header, a",
+        "run of dashes and a row pattern. verifyid.txt has four rows mixing tabs and spaces, a mixture",
+        "written from its dot, signed and zero likelihoods, a trailing space and a mixture that rounds",
+        "to 1 at six digits; verifyid_crlf.txt is the same with CRLF line ends (readLine strips them).",
+        "verifyid_no_rows.txt is a header and dashes, a metrics file with no table. The rest are one",
+        "refusal each, three exception classes between them: a fifth column and a missing header",
+        "column (unrecognised line), a likelihood of 1-2, which the pattern accepts and parseDouble",
+        "does not, and an ID past Integer.MAX_VALUE (NumberFormatException, uncaught), and a file that",
+        "stops after its header or is empty (the matcher handed readLine's null). OUTPUT is a basename;",
+        "the file compared is <OUTPUT>.verifyidintensity_metrics."
+      ],
+      "--INPUT": [
+        "/work/fixtures/verifyid.txt",
+        "/work/fixtures/verifyid_crlf.txt",
+        "/work/fixtures/verifyid_no_rows.txt",
+        "/work/fixtures/verifyid_extra_column.txt",
+        "/work/fixtures/verifyid_bad_number.txt",
+        "/work/fixtures/verifyid_big_id.txt",
+        "/work/fixtures/verifyid_bad_header.txt",
+        "/work/fixtures/verifyid_header_only.txt",
+        "/work/fixtures/verifyid_empty.txt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ]
+    },
+    "CreateBafRegressMetricsFile": {
+      "$why": [
+        "INPUT is bafRegress's stdout: a header compared as one exact string, then rows split on runs",
+        "of whitespace. bafregress.txt has a row separated by spaces, one with a trailing tab, a",
+        "p-value of zero (LOG10_PVAL is negative infinity, written -?), exponent notation and a NaN.",
+        "bafregress_no_rows.txt is the header alone, a metrics file with no table. The rest are one",
+        "refusal each, four exception classes between them: the header with spaces for tabs",
+        "(PicardException), a missing column, a row opening on a space (split keeps the empty first",
+        "field) and a blank line (an IOException the tool wraps), NA and 12.0 where parseDouble and",
+        "parseInt want numbers (NumberFormatException, uncaught), and an empty file (equals on null).",
+        "OUTPUT is a basename; the file compared is <OUTPUT>.bafregress_metrics."
+      ],
+      "--INPUT": [
+        "/work/fixtures/bafregress.txt",
+        "/work/fixtures/bafregress_no_rows.txt",
+        "/work/fixtures/bafregress_bad_header.txt",
+        "/work/fixtures/bafregress_missing_column.txt",
+        "/work/fixtures/bafregress_leading_space.txt",
+        "/work/fixtures/bafregress_blank_line.txt",
+        "/work/fixtures/bafregress_bad_number.txt",
+        "/work/fixtures/bafregress_bad_count.txt",
+        "/work/fixtures/bafregress_empty.txt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ]
+    },
+    "CollectArraysVariantCallingMetrics": {
+      "$why": [
+        "INPUT is an array VCF with its .idx, which the tool requires. array_a is one chip with every",
+        "header line; array_cd two chips, so singletons are per sample and the detail rows come out in",
+        "HashMap order; array_x has no optional line (nulls, IS_ZCALLED N), single-digit date fields,",
+        "a New York winter imaging date and discordant genders. The other array_x files are one refusal",
+        "each: a missing required line, a missing control code, an ISO imaging date, a gender of X, a",
+        "p95Red that is not a number, and no index. DBSNP is dbsnp.vcf (three of the loci) or",
+        "variants.vcf (five); SEQUENCE_DICTIONARY other.dict disagrees with dbSNP's and is refused.",
+        "CALL_RATE_PF_THRESHOLD decides AUTOCALL_PF against the float call rate: 0.7142857 is below",
+        "5/7 as a float widened to a double, and 0 and 1.5 are refused by customCommandLineValidation.",
+        "NUM_PROCESSORS splits the walk between accumulators whose rows are summed, so it changes",
+        "nothing. OUTPUT is a prefix; the three files it names are compared together."
+      ],
+      "--INPUT": [
+        "/work/fixtures/array_a.vcf",
+        "/work/fixtures/array_cd.vcf",
+        "/work/fixtures/array_x.vcf",
+        "/work/fixtures/array_x_no_sample_alias.vcf",
+        "/work/fixtures/array_x_no_control.vcf",
+        "/work/fixtures/array_x_bad_date.vcf",
+        "/work/fixtures/array_x_bad_gender.vcf",
+        "/work/fixtures/array_x_bad_p95.vcf",
+        "/work/fixtures/array_x_no_index.vcf"
+      ],
+      "--DBSNP": [
+        "/work/fixtures/dbsnp.vcf",
+        "/work/fixtures/variants.vcf"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "null",
+        "/work/fixtures/ref.dict",
+        "/work/fixtures/other.dict"
+      ],
+      "--CALL_RATE_PF_THRESHOLD": [
+        "0.98",
+        "0.5",
+        "0.7142857",
+        "1.0",
+        "0",
+        "1.5"
+      ],
+      "--NUM_PROCESSORS": [
+        "0",
+        "1",
+        "3"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ]
+    },
     "CollectRnaSeqMetrics": {
       "$why": [
         "refflat.txt is the corpus's own annotation (MakeFixtures): two transcripts of one gene that",
