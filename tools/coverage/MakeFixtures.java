@@ -598,6 +598,11 @@ public class MakeFixtures {
         SAMFileHeader rrbsHeader = header(SAMFileHeader.SortOrder.coordinate);
         writeBam(new File(dir, "rrbs.bam"), rrbsHeader, rrbsReads(rrbsHeader, chr1, chr2), false);
 
+        // The fingerprinting corpus: a haplotype map whose alleles agree with the reference, reads
+        // drawn from two individuals' genotypes at its sites, and VCFs of those genotypes. See
+        // writeFingerprintFixtures.
+        writeFingerprintFixtures(dir, chr1, chr2);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
@@ -1603,5 +1608,240 @@ public class MakeFixtures {
         }
         out.sort(new SAMRecordCoordinateComparator());
         return out;
+    }
+
+    // The fingerprint sites: name, contig index, position, anchor (null starts a block), whether
+    // the reference base is the MAJOR allele, and the minor-allele frequency. Three blocks of
+    // more than one SNP (one of them close enough for a read to span all three), clear of the GC
+    // stretch and the runs of Ns. fp13 is a block no read reaches.
+    static final Object[][] FP_SNPS = {
+        {"fp1", 0, 150, null, true, 0.30},
+        {"fp2", 0, 170, "fp1", false, 0.25},
+        {"fp3", 0, 190, "fp1", true, 0.40},
+        {"fp4", 0, 400, null, false, 0.20},
+        {"fp5", 0, 600, null, true, 0.35},
+        {"fp6", 0, 900, "fp5", true, 0.10},
+        {"fp7", 0, 1200, null, true, 0.45},
+        {"fp8", 0, 1500, null, false, 0.15},
+        {"fp9", 1, 100, null, true, 0.50},
+        {"fp10", 1, 300, null, false, 0.30},
+        {"fp11", 1, 320, "fp10", true, 0.20},
+        {"fp12", 1, 650, null, true, 0.25},
+        {"fp13", 1, 800, null, false, 0.40},
+    };
+    // Each individual's genotype per SNP, as the number of MINOR (allele2) alleles. The SNPs of a
+    // block share a haplotype, so they share a genotype.
+    static final int[] FP_GENOTYPES_A = {1, 1, 1, 0, 2, 2, 1, 1, 0, 1, 1, 2, 1};
+    static final int[] FP_GENOTYPES_B = {0, 0, 0, 1, 1, 1, 2, 0, 1, 2, 2, 0, 0};
+    static final int[] FP_GENOTYPES_C = {2, 2, 2, 2, 0, 0, 0, 1, 2, 0, 0, 1, 2};
+
+    static byte fpRef(String chr1, String chr2, int snp) {
+        String contig = ((int) FP_SNPS[snp][1]) == 0 ? chr1 : chr2;
+        return (byte) contig.charAt((int) FP_SNPS[snp][2] - 1);
+    }
+
+    /** allele1 (major) and allele2 (minor) of a site. */
+    static byte[] fpAlleles(String chr1, String chr2, int snp) {
+        byte ref = fpRef(chr1, chr2, snp);
+        byte other = mutateBase(ref);
+        return ((boolean) FP_SNPS[snp][4]) ? new byte[] {ref, other} : new byte[] {other, ref};
+    }
+
+    static SAMFileHeader fpHeader(SAMFileHeader.SortOrder order, String[][] groups) {
+        SAMFileHeader h = new SAMFileHeader();
+        SAMSequenceDictionary d = new SAMSequenceDictionary();
+        d.addSequence(new SAMSequenceRecord("chr1", CHR1));
+        d.addSequence(new SAMSequenceRecord("chr2", CHR2));
+        h.setSequenceDictionary(d);
+        h.setSortOrder(order);
+        for (String[] rg : groups) {
+            SAMReadGroupRecord r = new SAMReadGroupRecord(rg[0]);
+            r.setSample(rg[1]);
+            r.setLibrary(rg[2]);
+            r.setPlatformUnit(rg[3]);
+            r.setPlatform("ILLUMINA");
+            h.addReadGroup(r);
+        }
+        return h;
+    }
+
+    /**
+     * Reads for one read group, drawn from an individual's genotypes.
+     *
+     * Each fragment covers one site from a random offset, so a read near fp1 also covers fp2 and
+     * fp3 (the tool uses one base per read name, wherever it is first seen). One in three is a
+     * pair whose mate covers the next site on the contig, which is the same name again. The bases
+     * copy the reference except at the sites, where the individual's alleles are drawn and one
+     * base in twelve is neither allele. Qualities straddle the minimum base quality (20) and one
+     * read in ten has a mapping quality under the minimum (10); one in eleven is a duplicate, one
+     * in thirteen secondary and one in seventeen supplementary, which ALLOW_DUPLICATE_READS
+     * (supplementary too, since only the secondary filter remains) brings back.
+     */
+    static java.util.List<SAMRecord> fpReads(SAMFileHeader header, String chr1, String chr2,
+            String group, int[] genotypes, int perSite, long seed, String prefix) {
+        Random rng = new Random(seed);
+        java.util.List<SAMRecord> out = new java.util.ArrayList<>();
+        int fragment = 0;
+        for (int snp = 0; snp < FP_SNPS.length; snp++) {
+            if (snp == FP_SNPS.length - 1) continue;
+            for (int k = 0; k < perSite; k++) {
+                String name = String.format("%s%04d", prefix, fragment++);
+                int contig = (int) FP_SNPS[snp][1];
+                int pos = (int) FP_SNPS[snp][2];
+                SAMRecord first = fpRead(header, chr1, chr2, group, genotypes, rng, name, contig,
+                        pos - 5 - rng.nextInt(40));
+                out.add(first);
+                int next = snp + 1;
+                if (k % 3 == 0 && next < FP_SNPS.length - 1 && (int) FP_SNPS[next][1] == contig
+                        && (int) FP_SNPS[next][2] - pos < 400) {
+                    int mateSite = (int) FP_SNPS[next][2];
+                    SAMRecord second = fpRead(header, chr1, chr2, group, genotypes, rng, name,
+                            contig, mateSite - 5 - rng.nextInt(40));
+                    first.setReadPairedFlag(true);
+                    second.setReadPairedFlag(true);
+                    first.setFirstOfPairFlag(true);
+                    second.setSecondOfPairFlag(true);
+                    second.setReadNegativeStrandFlag(true);
+                    first.setNotPrimaryAlignmentFlag(false);
+                    first.setSupplementaryAlignmentFlag(false);
+                    second.setNotPrimaryAlignmentFlag(false);
+                    second.setSupplementaryAlignmentFlag(false);
+                    SamPairUtil.setMateInfo(first, second, false);
+                    out.add(second);
+                }
+            }
+        }
+        return out;
+    }
+
+    static SAMRecord fpRead(SAMFileHeader header, String chr1, String chr2, String group,
+            int[] genotypes, Random rng, String name, int contig, int start) {
+        String bases = contig == 0 ? chr1 : chr2;
+        byte[] read = bases.substring(start - 1, start - 1 + READ_LENGTH).getBytes();
+        byte[] quals = new byte[READ_LENGTH];
+        for (int b = 0; b < READ_LENGTH; b++) quals[b] = (byte) (25 + rng.nextInt(16));
+        for (int snp = 0; snp < FP_SNPS.length; snp++) {
+            int pos = (int) FP_SNPS[snp][2];
+            if ((int) FP_SNPS[snp][1] != contig || pos < start || pos >= start + READ_LENGTH) continue;
+            byte[] alleles = fpAlleles(chr1, chr2, snp);
+            int g = genotypes[snp];
+            byte base = g == 0 ? alleles[0] : g == 2 ? alleles[1] : alleles[rng.nextInt(2)];
+            if (rng.nextInt(12) == 0) base = mutateBase(mutateBase(base));
+            read[pos - start] = base;
+            quals[pos - start] = (byte) (8 + rng.nextInt(33));
+        }
+        SAMRecord r = new SAMRecord(header);
+        r.setReadName(name);
+        r.setReadBases(read);
+        r.setBaseQualities(quals);
+        r.setReferenceIndex(contig);
+        r.setAlignmentStart(start);
+        r.setCigarString(READ_LENGTH + "M");
+        r.setMappingQuality(rng.nextInt(10) == 0 ? 5 : 60);
+        if (group != null) r.setAttribute("RG", group);
+        int flag = rng.nextInt(221);
+        if (flag % 11 == 0) r.setDuplicateReadFlag(true);
+        else if (flag % 13 == 0) r.setNotPrimaryAlignmentFlag(true);
+        else if (flag % 17 == 0) r.setSupplementaryAlignmentFlag(true);
+        return r;
+    }
+
+    static String fpGt(String chr1, String chr2, int snp, int g, boolean phasedOrder) {
+        // REF is the reference base; allele1 is REF exactly when the reference is the major.
+        boolean refIsMajor = (boolean) FP_SNPS[snp][4];
+        int alt = refIsMajor ? g : 2 - g;
+        return alt == 0 ? "0/0" : alt == 1 ? (phasedOrder ? "1/0" : "0/1") : "1/1";
+    }
+
+    static void writeFingerprintFixtures(File dir, String chr1, String chr2) throws Exception {
+        try (PrintWriter out = new PrintWriter(new File(dir, "fp_haplotypes.txt"), "UTF-8")) {
+            out.print("@HD\tVN:1.6\n");
+            out.print("@SQ\tSN:chr1\tLN:" + CHR1 + "\n");
+            out.print("@SQ\tSN:chr2\tLN:" + CHR2 + "\n");
+            out.print("#CHROMOSOME\tPOSITION\tNAME\tMAJOR_ALLELE\tMINOR_ALLELE\tMAF\tANCHOR_SNP\tPANELS\n");
+            for (int snp = 0; snp < FP_SNPS.length; snp++) {
+                byte[] alleles = fpAlleles(chr1, chr2, snp);
+                Object[] s = FP_SNPS[snp];
+                out.print((((int) s[1]) == 0 ? "chr1" : "chr2") + "\t" + s[2] + "\t" + s[0] + "\t"
+                        + (char) alleles[0] + "\t" + (char) alleles[1] + "\t" + s[5] + "\t"
+                        + (s[3] == null ? "" : s[3]) + "\t\n");
+            }
+        }
+
+        String[][] groupsA = {{"rgA1", "sA", "libA1", "HFCA.1.ACGT"}, {"rgA2", "sA", "libA2", "HFCA.2"}};
+        String[][] groupsB = {{"rgB1", "sB", "libB1", "HFCB.1.TTGA"}};
+        String[][] groupsMixed = {{"rgA3", "sA", "libA1", "HFCC.3.GGCA"}, {"rgB2", "sB", "libB2", "unit-b2"}};
+
+        SAMFileHeader a = fpHeader(SAMFileHeader.SortOrder.coordinate, groupsA);
+        java.util.List<SAMRecord> aReads = new java.util.ArrayList<>();
+        aReads.addAll(fpReads(a, chr1, chr2, "rgA1", FP_GENOTYPES_A, 6, 20261101L, "a1_"));
+        aReads.addAll(fpReads(a, chr1, chr2, "rgA2", FP_GENOTYPES_A, 4, 20261102L, "a2_"));
+        aReads.sort(new SAMRecordCoordinateComparator());
+        writeBam(new File(dir, "fp_sampleA.bam"), a, aReads, true);
+        writeSam(new File(dir, "fp_sampleA.sam"), a, aReads);
+
+        SAMFileHeader b = fpHeader(SAMFileHeader.SortOrder.coordinate, groupsB);
+        java.util.List<SAMRecord> bReads = fpReads(b, chr1, chr2, "rgB1", FP_GENOTYPES_B, 7, 20261103L, "b1_");
+        bReads.sort(new SAMRecordCoordinateComparator());
+        writeBam(new File(dir, "fp_sampleB.bam"), b, bReads, true);
+
+        SAMFileHeader bq = fpHeader(SAMFileHeader.SortOrder.queryname, groupsB);
+        java.util.List<SAMRecord> bqReads = new java.util.ArrayList<>(bReads);
+        bqReads.sort(new SAMRecordQueryNameComparator());
+        writeBam(new File(dir, "fp_queryname.bam"), bq, bqReads, false);
+
+        // Two samples in one file, and two reads with no read group at all, which STRICT refuses
+        // and the other stringencies file under an <UNKNOWN> fingerprint.
+        SAMFileHeader m = fpHeader(SAMFileHeader.SortOrder.coordinate, groupsMixed);
+        java.util.List<SAMRecord> mReads = new java.util.ArrayList<>();
+        mReads.addAll(fpReads(m, chr1, chr2, "rgA3", FP_GENOTYPES_A, 3, 20261104L, "a3_"));
+        mReads.addAll(fpReads(m, chr1, chr2, "rgB2", FP_GENOTYPES_B, 3, 20261105L, "b2_"));
+        Random nrg = new Random(20261106L);
+        mReads.add(fpRead(m, chr1, chr2, null, FP_GENOTYPES_C, nrg, "norg_1", 0, 380));
+        mReads.add(fpRead(m, chr1, chr2, null, FP_GENOTYPES_C, nrg, "norg_2", 1, 290));
+        mReads.sort(new SAMRecordCoordinateComparator());
+        writeBam(new File(dir, "fp_mixed.bam"), m, mReads, true);
+
+        // Genotypes of the three individuals at every site. sC is nobody's reads. One record is
+        // filtered, one carries an ALT that is neither of the map's alleles, and some genotypes
+        // are missing; the PL file gives sA and sB likelihoods instead of calls, with the
+        // reference's PL order (REF/REF, REF/ALT, ALT/ALT).
+        String contigs = "##contig=<ID=chr1,length=" + CHR1 + ">\n"
+                + "##contig=<ID=chr2,length=" + CHR2 + ">\n";
+        String meta = "##fileformat=VCFv4.2\n"
+                + "##FILTER=<ID=LowQual,Description=\"Low quality\">\n"
+                + "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+                + "##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Phred-scaled likelihoods\">\n"
+                + contigs;
+        String columns = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
+        java.util.List<String> gtRecords = new java.util.ArrayList<>();
+        java.util.List<String> plRecords = new java.util.ArrayList<>();
+        for (int snp = 0; snp < FP_SNPS.length; snp++) {
+            Object[] s = FP_SNPS[snp];
+            String chrom = ((int) s[1]) == 0 ? "chr1" : "chr2";
+            byte ref = fpRef(chr1, chr2, snp);
+            byte alt = mutateBase(ref);
+            String altText = snp == 7 ? String.valueOf((char) mutateBase(alt)) : String.valueOf((char) alt);
+            String filter = snp == 4 ? "LowQual" : "PASS";
+            String gtA = snp == 9 ? "./." : fpGt(chr1, chr2, snp, FP_GENOTYPES_A[snp], false);
+            String gtB = fpGt(chr1, chr2, snp, FP_GENOTYPES_B[snp], snp == 2);
+            String gtC = snp == 0 ? "./." : fpGt(chr1, chr2, snp, FP_GENOTYPES_C[snp], false);
+            gtRecords.add(chrom + "\t" + s[2] + "\t" + s[0] + "\t" + (char) ref + "\t" + altText
+                    + "\t50\t" + filter + "\t.\tGT\t" + gtA + "\t" + gtB + "\t" + gtC);
+            String[] pls = {"0,30,300", "25,0,280", "310,40,0"};
+            String[] weak = {"0,3,20", "4,0,9", "18,2,0"};
+            int altA = ((boolean) s[4]) ? FP_GENOTYPES_A[snp] : 2 - FP_GENOTYPES_A[snp];
+            int altB = ((boolean) s[4]) ? FP_GENOTYPES_B[snp] : 2 - FP_GENOTYPES_B[snp];
+            String plA = snp % 4 == 3 ? "./.:." : fpGt(chr1, chr2, snp, FP_GENOTYPES_A[snp], false)
+                    + ":" + (snp % 3 == 0 ? weak[altA] : pls[altA]);
+            String plB = fpGt(chr1, chr2, snp, FP_GENOTYPES_B[snp], false) + ":"
+                    + (snp % 5 == 1 ? weak[altB] : pls[altB]);
+            plRecords.add(chrom + "\t" + s[2] + "\t" + s[0] + "\t" + (char) ref + "\t" + (char) alt
+                    + "\t50\tPASS\t.\tGT:PL\t" + plA + "\t" + plB);
+        }
+        writeVcfText(new File(dir, "fp_genotypes.vcf"), meta, columns + "\tsA\tsB\tsC",
+                gtRecords.toArray(new String[0]), 12);
+        writeVcfText(new File(dir, "fp_likelihoods.vcf"), meta, columns + "\tsA\tsB",
+                plRecords.toArray(new String[0]), 11);
     }
 }

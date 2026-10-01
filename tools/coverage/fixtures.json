@@ -1473,6 +1473,46 @@
         "READ_GROUP",
         "null"
       ]
+    },
+    "ExtractFingerprint": {
+      "$why": [
+        "fp_haplotypes.txt is a map whose alleles agree with the reference, and the fp_* BAMs are reads",
+        "drawn from two individuals' genotypes at its sites (MakeFixtures). fp_sampleA is one sample in",
+        "two read groups, as BAM and as SAM; fp_sampleB another sample; fp_mixed two samples plus two",
+        "reads with no read group (refused under STRICT, an <UNKNOWN> sample otherwise), so it is the",
+        "'exactly 1 fingerprint' refusal; fp_queryname the locus iterator's sort refusal. haplotypes.txt",
+        "has alleles the reference does not carry, which leaves a header and no records. LOCUS_MAX_READS",
+        "3 is under every site's depth, so the checker's Random(42) picks the reads; 0 turns sampling off.",
+        "OUTPUT is a .vcf, which is what the writer is chosen by."
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_sampleA.bam",
+        "/work/fixtures/fp_sampleA.sam",
+        "/work/fixtures/fp_sampleB.bam",
+        "/work/fixtures/fp_mixed.bam",
+        "/work/fixtures/fp_queryname.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--HAPLOTYPE_MAP": [
+        "/work/fixtures/fp_haplotypes.txt",
+        "/work/fixtures/haplotypes.txt"
+      ],
+      "--CONTAMINATION": [
+        "0.0",
+        "0.05",
+        "0.3"
+      ],
+      "--SAMPLE_ALIAS": [
+        "null",
+        "aliasX"
+      ],
+      "--LOCUS_MAX_READS": [
+        "50",
+        "3",
+        "0"
+      ]
     }
   },
   "constraints": [

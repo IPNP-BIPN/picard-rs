@@ -58,6 +58,7 @@ pub mod fastq_to_sam;
 pub mod fifo_buffer;
 pub mod filter_sam_reads;
 pub mod find_mendelian_violations;
+pub mod fingerprinting;
 pub mod fix_mate_information;
 pub mod gather_bam_files;
 pub mod gc;

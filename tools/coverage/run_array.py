@@ -28,6 +28,7 @@ Two modes, and the difference matters:
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -340,7 +341,15 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_
     # the Barclay command line is a later slice. Passing both forms keeps this working when it
     # lands, without pretending the binary understands more than it does.
     argv = [str(binary)] + [a.lstrip("-") for a in rewritten] + [host(p) for p in positional]
-    result = subprocess.run(argv, capture_output=True, text=True)
+    # The same mapping, handed to the port the other way round. A path can be part of a tool's
+    # LOGIC and not only of its text: the fingerprint tools key each read group by an identity
+    # whose hash includes the file's URI, and write their rows in that hash's order, so a port
+    # that hashed the host path it was given would order its rows by a different number than the
+    # reference did. `PICARD_RS_REFERENCE_PATHS` tells it which path the reference saw for each
+    # host path; a port that never consults it is unaffected.
+    env = dict(os.environ)
+    env["PICARD_RS_REFERENCE_PATHS"] = f"{fixtures}=/work/fixtures;{out_dir}=/work/out"
+    result = subprocess.run(argv, capture_output=True, text=True, env=env)
     # The mount points are mapped back BEFORE the message is read, not after: `first_error` caps
     # what it returns, and a host path is longer than the container path it stands for, so mapping
     # afterwards left a message that had been truncated mid-path.
@@ -392,9 +401,16 @@ def outcome(code, text, error, tool, exit_code_is_a_result=False):
 
 def canonical(text, tool):
     """Strip the two lines every metrics file carries that no two runs can share."""
+    # `##fileDate=` is a VCF header line holding `new Date().toString()`: `ExtractFingerprint`
+    # stamps the second it ran into every fingerprint it writes, so no two runs share the line,
+    # oracle against oracle included. Only that line goes; the other header lines and every record
+    # are compared as written.
     spec = {
         "rules": [
-            {"rule": "strip_line_prefixes", "prefixes": [f"# {tool}", "# Started on:"]}
+            {
+                "rule": "strip_line_prefixes",
+                "prefixes": [f"# {tool}", "# Started on:", "##fileDate="],
+            }
         ]
     }
     payload = "\\n".join(text.split("\n"))

@@ -99,6 +99,27 @@ impl<V> JavaHashMap<V> {
         Some(self.table[index].remove(position).1)
     }
 
+    pub fn get(&self, key: &str) -> Option<&V> {
+        if self.table.is_empty() {
+            return None;
+        }
+        self.table[self.index(key)]
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v)
+    }
+
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut V> {
+        if self.table.is_empty() {
+            return None;
+        }
+        let index = self.index(key);
+        self.table[index]
+            .iter_mut()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v)
+    }
+
     pub fn contains_key(&self, key: &str) -> bool {
         !self.table.is_empty() && self.table[self.index(key)].iter().any(|(k, _)| k == key)
     }
