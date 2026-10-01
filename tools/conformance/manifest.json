@@ -560,6 +560,14 @@
         "status": "pending",
         "exit_code_is_a_result": true,
         "output_name": "output.fingerprinting_summary_metrics,output.fingerprinting_detail_metrics"
+      },
+      {
+        "tool": "CrosscheckFingerprints",
+        "port": "crosscheck-fingerprints",
+        "t": 2,
+        "status": "pending",
+        "exit_code_is_a_result": true,
+        "output_name": "output.txt"
       }
     ]
   },

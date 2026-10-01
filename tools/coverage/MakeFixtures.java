@@ -1843,5 +1843,18 @@ public class MakeFixtures {
                 gtRecords.toArray(new String[0]), 12);
         writeVcfText(new File(dir, "fp_likelihoods.vcf"), meta, columns + "\tsA\tsB",
                 plRecords.toArray(new String[0]), 11);
+
+        // The crosscheck tools' sample maps. fp_individuals puts sA and sB in one individual, so
+        // their comparison is expected to match; fp_sample_map renames sA on either side; and
+        // fp_sample_file_map names fp_sampleB.bam's sample by its (container) path.
+        try (PrintWriter out = new PrintWriter(new File(dir, "fp_individuals.tsv"), "UTF-8")) {
+            out.print("sA\tind1\nsB\tind1\n");
+        }
+        try (PrintWriter out = new PrintWriter(new File(dir, "fp_sample_map.tsv"), "UTF-8")) {
+            out.print("sA\tsampleOne\n");
+        }
+        try (PrintWriter out = new PrintWriter(new File(dir, "fp_sample_file_map.tsv"), "UTF-8")) {
+            out.print("sampleFromFile\t/work/fixtures/fp_sampleB.bam\n");
+        }
     }
 }

@@ -1451,10 +1451,23 @@ pub fn merge_fingerprints_by(
     by: DataType,
     map: &HaplotypeMap,
 ) -> Result<FingerprintMap, Thrown> {
+    let entries: Vec<(IdDetails, Fingerprint)> = fingerprints
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    merge_entries_by(&entries, by, map)
+}
+
+/// [`merge_fingerprints_by`] over entries already in their source map's iteration order.
+pub fn merge_entries_by(
+    fingerprints: &[(IdDetails, Fingerprint)],
+    by: DataType,
+    map: &HaplotypeMap,
+) -> Result<FingerprintMap, Thrown> {
     let mut index: crate::java_hash_map::JavaHashMap<usize> =
         crate::java_hash_map::JavaHashMap::new();
     let mut lists: Vec<Vec<(IdDetails, Fingerprint)>> = Vec::new();
-    for (id, fp) in fingerprints.iter() {
+    for (id, fp) in fingerprints {
         let key = group_of(id, by);
         let slot = match index.get(&key) {
             Some(&i) => i,
@@ -2214,4 +2227,131 @@ pub fn uri_of(path: &str) -> String {
         }
     }
     out
+}
+
+// ---------------------------------------------------------------------------------------------
+// Many files.
+// ---------------------------------------------------------------------------------------------
+
+/// `CheckFingerprint.fileContainsReads`: by the URI's path, so by extension.
+pub fn file_contains_reads(path: &str) -> bool {
+    path.ends_with(".bam") || path.ends_with(".sam") || path.ends_with(".cram")
+}
+
+/// Whether `getSamReader` would open a queryable reader: `SamFiles.findIndex` looks for `x.bai`
+/// (the data extension replaced) or `x.bam.bai`, and the CSI equivalents, beside a BAM; a SAM
+/// text file is never queryable, index or not.
+fn has_sam_index(path: &str) -> bool {
+    if !path.ends_with(".bam") {
+        return false;
+    }
+    let stem = &path[..path.len() - 4];
+    [".bai", ".csi"].iter().any(|ext| {
+        std::path::Path::new(&format!("{stem}{ext}")).is_file()
+            || std::path::Path::new(&format!("{path}{ext}")).is_file()
+    })
+}
+
+/// `FingerprintChecker.fingerprintVcf`: one fingerprint per sample of the file, keyed by an
+/// identity that carries only the sample and the file.
+pub fn fingerprint_vcf(
+    path: &str,
+    map: &HaplotypeMap,
+    require_index: bool,
+) -> Result<FingerprintMap, Thrown> {
+    let uri = uri_of(path);
+    if require_index && !std::path::Path::new(&format!("{path}.idx")).exists() {
+        return Err((
+            "htsjdk.tribble.TribbleException".into(),
+            format!(
+                "An index is required, but none found with file ending .idx, for input source: {uri}"
+            ),
+        ));
+    }
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| ("java.io.IOException".to_string(), e.to_string()))?;
+    let file = read_genotype_file(&text)?;
+    let by_sample = load_fingerprints(&file, &uri, map, None, 0.01)?;
+    let mut out: FingerprintMap = JavaMap::new();
+    for (sample, fp) in by_sample.iter() {
+        let id = IdDetails {
+            sample: Some(sample.to_string()),
+            file: Some(uri.clone()),
+            ..IdDetails::default()
+        };
+        out.put(id.hash(), id, fp.clone());
+    }
+    Ok(out)
+}
+
+/// `FingerprintChecker.fingerprintFiles` with one thread: every file in order, each file's map
+/// `putAll` into a `ConcurrentHashMap` sized for the file count, and the entries handed back in
+/// that map's iteration order. A failure is the executor's `Failed to fingerprint`.
+pub fn fingerprint_files(
+    paths: &[String],
+    map: &HaplotypeMap,
+    options: &SamOptions,
+    require_index: bool,
+) -> Result<Vec<(IdDetails, Fingerprint)>, Thrown> {
+    let failed = || {
+        (
+            "picard.PicardException".to_string(),
+            "Failed to fingerprint".to_string(),
+        )
+    };
+    let mut all: JavaConcurrentMap<IdDetails, Fingerprint> =
+        JavaConcurrentMap::with_capacity(paths.len());
+    let mut random = JavaRandom::new(42);
+    for path in paths {
+        let one = if file_contains_reads(path) {
+            if require_index && !has_sam_index(path) {
+                return Err(failed());
+            }
+            let (header, records) = read_reads(path).map_err(|_| failed())?;
+            fingerprint_sam(
+                &header,
+                &records,
+                path,
+                &uri_of(path),
+                map,
+                options,
+                &mut random,
+                &Probabilities::sequence,
+            )
+            .map_err(|_| failed())?
+        } else {
+            fingerprint_vcf(path, map, require_index).map_err(|_| failed())?
+        };
+        if one.is_empty() {
+            log(
+                "WARN",
+                "FingerprintChecker",
+                &format!("No fingerprint data was found in file:{path}"),
+            );
+        }
+        all.put_all(one.into_entries());
+    }
+    Ok(all
+        .into_entries()
+        .into_iter()
+        .map(|(_, k, v)| (k, v))
+        .collect())
+}
+
+/// A BAM or SAM file, decoded.
+pub fn read_reads(path: &str) -> Result<(SamHeader, Vec<BamRecord>), String> {
+    let raw = std::fs::read(path).map_err(|e| e.to_string())?;
+    if raw.starts_with(&[0x1f, 0x8b]) {
+        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+        let reader = htsjdk_bam::reader::BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+        let header = reader.header.text.clone();
+        let mut records = Vec::new();
+        for r in reader {
+            records.push(r.map_err(|e| format!("{e:?}"))?);
+        }
+        Ok((header, records))
+    } else {
+        let text = String::from_utf8(raw).map_err(|e| e.to_string())?;
+        htsjdk_bam::sam_file::read_sam(&text).map_err(|e| format!("{e:?}"))
+    }
 }

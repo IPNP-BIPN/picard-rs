@@ -1569,6 +1569,80 @@
         "2",
         "0"
       ]
+    },
+    "CrosscheckFingerprints": {
+      "$why": [
+        "The fingerprint corpus (MakeFixtures). INPUT and SECOND_INPUT are whole lists ($lists): two",
+        "individuals' BAMs together, the two-sample fp_mixed (with reads lacking a read group, refused",
+        "under STRICT), the three-sample genotypes VCF alone and with a BAM, and the unindexed SAM, which",
+        "REQUIRE_INDEX_FILES refuses. No list puts more than two fingerprints in one group under any",
+        "CROSSCHECK_BY: mergeFingerprintsBy merges a group through a HashSet<Fingerprint>, whose order is",
+        "identity hashes, and only two members merge the same way whatever that order. The sample maps",
+        "rename sA (INPUT's applies with or without SECOND_INPUT: the validation meant to refuse it tests",
+        "a list for null) and put sA and sB in one individual.",
+        "Barclay counts an argument given as `null` as given, so of a mutually exclusive pair only one can",
+        "be varied: SECOND_INPUT is, MATRIX_OUTPUT is not (CrosscheckReadGroupFingerprints' roll-ups",
+        "write the matrix); INPUT_SAMPLE_MAP is, INPUT_SAMPLE_FILE_MAP is not (that array varies it).",
+        "INPUT_INDEX_MAP and SECOND_INPUT_INDEX_MAP hold container paths the port, on the host, cannot open."
+      ],
+      "$lists": [
+        "--INPUT",
+        "--SECOND_INPUT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_sampleA.bam /work/fixtures/fp_sampleB.bam",
+        "/work/fixtures/fp_mixed.bam",
+        "/work/fixtures/fp_genotypes.vcf",
+        "/work/fixtures/fp_sampleB.bam /work/fixtures/fp_genotypes.vcf",
+        "/work/fixtures/fp_sampleA.sam"
+      ],
+      "--SECOND_INPUT": [
+        "null",
+        "/work/fixtures/fp_genotypes.vcf",
+        "/work/fixtures/fp_sampleB.bam /work/fixtures/fp_sampleA.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt"
+      ],
+      "--MATRIX_OUTPUT": [],
+      "--HAPLOTYPE_MAP": [
+        "/work/fixtures/fp_haplotypes.txt"
+      ],
+      "--LOD_THRESHOLD": [
+        "0.0",
+        "-3.0",
+        "2.0"
+      ],
+      "--LOSS_OF_HET_RATE": [
+        "0.5",
+        "0.1"
+      ],
+      "--MAX_EFFECT_OF_EACH_HAPLOTYPE_BLOCK": [
+        "3.0",
+        "1.0",
+        "10.0"
+      ],
+      "--EXIT_CODE_WHEN_MISMATCH": [
+        "1",
+        "5"
+      ],
+      "--EXIT_CODE_WHEN_NO_VALID_CHECKS": [
+        "1",
+        "3"
+      ],
+      "--SAMPLE_INDIVIDUAL_MAP": [
+        "null",
+        "/work/fixtures/fp_individuals.tsv"
+      ],
+      "--INPUT_SAMPLE_MAP": [
+        "null",
+        "/work/fixtures/fp_sample_map.tsv"
+      ],
+      "--SECOND_INPUT_SAMPLE_MAP": [
+        "null",
+        "/work/fixtures/fp_sample_map.tsv"
+      ],
+      "--INPUT_SAMPLE_FILE_MAP": []
     }
   },
   "constraints": [
@@ -1725,6 +1799,26 @@
         "--OBSERVED_SAMPLE_ALIAS": "null"
       },
       "why": "OBSERVED_SAMPLE_ALIAS with a reads INPUT is refused by customCommandLineValidation, and so is IGNORE_READ_GROUPS with a VCF one, as is a multi-sample VCF INPUT without the alias. Each refusal is kept once (fp_sampleA.bam with sA, fp_genotypes.vcf with IGNORE_READ_GROUPS and without the alias); the other pairings would only repeat it, and the first array was 27 refusals in 32 rows."
+    },
+    {
+      "tools": [
+        "CrosscheckFingerprints"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_genotypes.vcf",
+        "--REQUIRE_INDEX_FILES": "true"
+      },
+      "why": "REQUIRE_INDEX_FILES refuses every input without an index; the refusal is kept for the SAM and the other pairings would only repeat it."
+    },
+    {
+      "tools": [
+        "CrosscheckFingerprints"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_sampleB.bam /work/fixtures/fp_genotypes.vcf",
+        "--REQUIRE_INDEX_FILES": "true"
+      },
+      "why": "REQUIRE_INDEX_FILES refuses every input without an index; the refusal is kept for the SAM and the other pairings would only repeat it."
     }
   ],
   "exclude": {
