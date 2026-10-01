@@ -1602,6 +1602,70 @@
       "--CREATE_INDEX": [
         "false"
       ]
+    },
+    "CompareMetrics": {
+      "$why": [
+        "INPUT is the two-element list ($lists), over MakeFixtures' InsertSizeMetrics tables: a file",
+        "against itself (equal, exit 0), against ism_b (one double, long, int and enum changed and one",
+        "histogram bin) in both orders, since the relative change is measured against the first file,",
+        "against ism_c (the rows reordered, which only KEY matches up), ism_d (a column missing, which",
+        "only METRICS_NOT_REQUIRED forgives) and ism_e (fewer rows). The verdict is the exit code, 1",
+        "for a difference, with OUTPUT written, so the exit code is part of the answer. METRICS_TO_IGNORE",
+        "names a compared column or one the file lacks (refused once the files differ);",
+        "METRIC_ALLOWABLE_RELATIVE_CHANGE is a tolerance that forgives the 1% change, one that does not",
+        "(the comparison is >=), a non-positive one and one with no colon, both refused by",
+        "customCommandLineValidation. KEY matches rows by MEDIAN_INSERT_SIZE (a double, printed as 200.0)",
+        "or by SAMPLE and READ_GROUP ($lists), which are null on the first row, and StringUtil.join's",
+        "toString() on a null is the NullPointerException the tool rethrows. OUTPUT_TABLE is the",
+        "differences as a metrics file. VALIDATION_STRINGENCY and CREATE_INDEX are held: the tool reads",
+        "no SAM."
+      ],
+      "$lists": [
+        "--INPUT",
+        "--KEY"
+      ],
+      "--INPUT": [
+        "/work/fixtures/ism_a.txt /work/fixtures/ism_a.txt",
+        "/work/fixtures/ism_a.txt /work/fixtures/ism_b.txt",
+        "/work/fixtures/ism_b.txt /work/fixtures/ism_a.txt",
+        "/work/fixtures/ism_a.txt /work/fixtures/ism_c.txt",
+        "/work/fixtures/ism_a.txt /work/fixtures/ism_d.txt",
+        "/work/fixtures/ism_a.txt /work/fixtures/ism_e.txt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt"
+      ],
+      "--OUTPUT_TABLE": [
+        "null",
+        "/work/out/table.txt"
+      ],
+      "--METRICS_TO_IGNORE": [
+        "null",
+        "MEAN_INSERT_SIZE",
+        "NOT_A_METRIC"
+      ],
+      "--METRICS_NOT_REQUIRED": [
+        "null",
+        "WIDTH_OF_99_PERCENT"
+      ],
+      "--METRIC_ALLOWABLE_RELATIVE_CHANGE": [
+        "null",
+        "MEAN_INSERT_SIZE:0.02",
+        "MEAN_INSERT_SIZE:0.01",
+        "READ_PAIRS:0",
+        "MEAN_INSERT_SIZE"
+      ],
+      "--KEY": [
+        "null",
+        "MEDIAN_INSERT_SIZE",
+        "SAMPLE READ_GROUP"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT"
+      ],
+      "--CREATE_INDEX": [
+        "false"
+      ]
     }
   },
   "constraints": [
@@ -1818,6 +1882,56 @@
         "--ZCALL_THRESHOLDS_FILE": "/work/fixtures/zcall_thresholds_half_na.txt"
       },
       "why": "Two failing inputs in one row: doWork stops at the first exception, so the second is never reached and the row repeats a failure another row makes. Unconstrained, nine of twelve rows failed and the whole merge was written by three."
+    },
+    {
+      "tools": [
+        "CompareMetrics"
+      ],
+      "forbid": {
+        "--METRICS_TO_IGNORE": "NOT_A_METRIC",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "READ_PAIRS:0"
+      },
+      "why": "Two refusals in one row: the tolerance is refused by customCommandLineValidation before either file is read, so a missing METRICS_TO_IGNORE name beside it is never reached and the row only repeats the refusal."
+    },
+    {
+      "tools": [
+        "CompareMetrics"
+      ],
+      "forbid": {
+        "--METRICS_TO_IGNORE": "NOT_A_METRIC",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "MEAN_INSERT_SIZE"
+      },
+      "why": "Two refusals in one row: the tolerance is refused by customCommandLineValidation before either file is read, so a missing METRICS_TO_IGNORE name beside it is never reached and the row only repeats the refusal."
+    },
+    {
+      "tools": [
+        "CompareMetrics"
+      ],
+      "forbid": {
+        "--METRICS_TO_IGNORE": "NOT_A_METRIC",
+        "--KEY": "SAMPLE READ_GROUP"
+      },
+      "why": "Two refusals in one row: a key with a null in it fails only once both files are read and compared, so a refusal that comes earlier hides it and the row only repeats that refusal."
+    },
+    {
+      "tools": [
+        "CompareMetrics"
+      ],
+      "forbid": {
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "READ_PAIRS:0",
+        "--KEY": "SAMPLE READ_GROUP"
+      },
+      "why": "Two refusals in one row: a key with a null in it fails only once both files are read and compared, so a refusal that comes earlier hides it and the row only repeats that refusal."
+    },
+    {
+      "tools": [
+        "CompareMetrics"
+      ],
+      "forbid": {
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "MEAN_INSERT_SIZE",
+        "--KEY": "SAMPLE READ_GROUP"
+      },
+      "why": "Two refusals in one row: a key with a null in it fails only once both files are read and compared, so a refusal that comes earlier hides it and the row only repeats that refusal."
     }
   ],
   "exclude": {

@@ -612,6 +612,9 @@ public class MakeFixtures {
         SAMFileHeader bfqOddHeader = header(SAMFileHeader.SortOrder.unsorted);
         writeBam(new File(dir, "bfq_odd.bam"), bfqOddHeader, bfqReads(bfqOddHeader, true), false);
 
+        // Insert-size metrics files that agree and disagree, for `CompareMetrics`.
+        writeCompareMetricsFixtures(dir);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
@@ -1823,5 +1826,103 @@ public class MakeFixtures {
             }
         }
         return out;
+    }
+
+    /**
+     * `CompareMetrics`' inputs: InsertSizeMetrics tables of three rows (all reads, a sample, a read
+     * group) with a two-column histogram, written through Picard's own bean and `MetricsFile`
+     * with no header. `ism_b` changes one value of each kind (a double by 1%, a long by 0.5%, an
+     * int by 20%, the enum) and one histogram bin; `ism_c` is `ism_a` with its rows in another
+     * order; `ism_d` lacks the WIDTH_OF_99_PERCENT column; `ism_e` keeps only the first row. The
+     * changes are ratios a double holds exactly enough that `Double.toString` prints them short.
+     */
+    static void writeCompareMetricsFixtures(File dir) throws Exception {
+        java.util.List<picard.analysis.InsertSizeMetrics> a = insertSizeRows(false);
+        java.util.List<picard.analysis.InsertSizeMetrics> b = insertSizeRows(true);
+        writeInsertSizeMetrics(new File(dir, "ism_a.txt"), a, false, null);
+        writeInsertSizeMetrics(new File(dir, "ism_b.txt"), b, true, null);
+        java.util.List<picard.analysis.InsertSizeMetrics> c = new java.util.ArrayList<>();
+        c.add(a.get(2));
+        c.add(a.get(0));
+        c.add(a.get(1));
+        writeInsertSizeMetrics(new File(dir, "ism_c.txt"), c, false, null);
+        writeInsertSizeMetrics(new File(dir, "ism_d.txt"), a, false, "WIDTH_OF_99_PERCENT");
+        writeInsertSizeMetrics(new File(dir, "ism_e.txt"), a.subList(0, 1), false, null);
+    }
+
+    static java.util.List<picard.analysis.InsertSizeMetrics> insertSizeRows(boolean changed) {
+        java.util.List<picard.analysis.InsertSizeMetrics> rows = new java.util.ArrayList<>();
+        String[][] levels = {{null, null, null}, {"sample1", null, null}, {"sample1", "lib1", "rg1"}};
+        double[] means = {200.0, 210.0, 205.0};
+        long[] pairs = {1000, 600, 400};
+        for (int i = 0; i < 3; i++) {
+            picard.analysis.InsertSizeMetrics m = new picard.analysis.InsertSizeMetrics();
+            m.SAMPLE = levels[i][0];
+            m.LIBRARY = levels[i][1];
+            m.READ_GROUP = levels[i][2];
+            m.MEDIAN_INSERT_SIZE = 200.0 + i;
+            m.MODE_INSERT_SIZE = 198.0;
+            m.MEDIAN_ABSOLUTE_DEVIATION = 20.0;
+            m.MIN_INSERT_SIZE = 50;
+            m.MAX_INSERT_SIZE = 400;
+            m.MEAN_INSERT_SIZE = (changed && i == 0) ? 202.0 : means[i];
+            m.STANDARD_DEVIATION = 30.5;
+            m.READ_PAIRS = (changed && i == 1) ? 603 : pairs[i];
+            m.PAIR_ORIENTATION = (changed && i == 2) ? SamPairUtil.PairOrientation.RF
+                    : SamPairUtil.PairOrientation.FR;
+            m.WIDTH_OF_10_PERCENT = (changed && i == 2) ? 12 : 10;
+            m.WIDTH_OF_20_PERCENT = 20;
+            m.WIDTH_OF_30_PERCENT = 30;
+            m.WIDTH_OF_40_PERCENT = 40;
+            m.WIDTH_OF_50_PERCENT = 50;
+            m.WIDTH_OF_60_PERCENT = 60;
+            m.WIDTH_OF_70_PERCENT = 70;
+            m.WIDTH_OF_80_PERCENT = 80;
+            m.WIDTH_OF_90_PERCENT = 90;
+            m.WIDTH_OF_95_PERCENT = 95;
+            m.WIDTH_OF_99_PERCENT = 99;
+            rows.add(m);
+        }
+        return rows;
+    }
+
+    static void writeInsertSizeMetrics(File f, java.util.List<picard.analysis.InsertSizeMetrics> rows,
+                                       boolean changed, String dropColumn) throws Exception {
+        htsjdk.samtools.metrics.MetricsFile<picard.analysis.InsertSizeMetrics, Integer> file =
+                new htsjdk.samtools.metrics.MetricsFile<>();
+        for (picard.analysis.InsertSizeMetrics m : rows) file.addMetric(m);
+        htsjdk.samtools.util.Histogram<Integer> all = new htsjdk.samtools.util.Histogram<>("insert_size", "All_Reads.fr_count");
+        htsjdk.samtools.util.Histogram<Integer> sample = new htsjdk.samtools.util.Histogram<>("insert_size", "sample1.fr_count");
+        for (int size = 100; size <= 300; size += 50) {
+            all.increment(size, size == 150 && changed ? 41 : size / 5);
+            sample.increment(size, size / 10);
+        }
+        file.addHistogram(all);
+        file.addHistogram(sample);
+        java.io.StringWriter text = new java.io.StringWriter();
+        file.write(text);
+        String out = text.toString();
+        if (dropColumn != null) {
+            StringBuilder kept = new StringBuilder();
+            int drop = -1;
+            boolean inTable = false;
+            for (String line : out.split("\n", -1)) {
+                if (line.startsWith("## METRICS CLASS")) {
+                    inTable = true;
+                } else if (inTable && line.isEmpty()) {
+                    inTable = false;
+                } else if (inTable) {
+                    java.util.List<String> cells = new java.util.ArrayList<>(java.util.Arrays.asList(line.split("\t", -1)));
+                    if (drop < 0) drop = cells.indexOf(dropColumn);
+                    cells.remove(drop);
+                    line = String.join("\t", cells);
+                }
+                kept.append(line).append("\n");
+            }
+            out = kept.substring(0, kept.length() - 1);
+        }
+        try (PrintWriter p = new PrintWriter(f, "UTF-8")) {
+            p.print(out);
+        }
     }
 }

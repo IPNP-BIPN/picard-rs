@@ -1,0 +1,805 @@
+{
+  "tool": "CompareMetrics",
+  "origin": "picard",
+  "t": 2,
+  "numeric_policy": "strict",
+  "arguments_total": 23,
+  "arguments_in_array": 7,
+  "arguments_excluded": 16,
+  "excluded": [
+    {
+      "argument": "--arguments_file",
+      "type": "List[File]",
+      "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--COMPRESSION_LEVEL",
+      "type": "int",
+      "reason": "excluded by the repository: changes the deflate level of a written BAM. Varying it would make the output bytes differ for a reason that is not the tool's logic, and the deflate pin is asserted by its own suite (htsjdk-rs decision 0001)",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CREATE_INDEX",
+      "type": "Boolean",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "false",
+      "source": "fixture"
+    },
+    {
+      "argument": "--CREATE_MD5_FILE",
+      "type": "boolean",
+      "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--help",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--MAX_RECORDS_IN_RAM",
+      "type": "Integer",
+      "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--OUTPUT",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/out/output.txt",
+      "source": "fixture"
+    },
+    {
+      "argument": "--QUIET",
+      "type": "Boolean",
+      "reason": "excluded by the repository: suppresses the log on stderr; the compared output is stdout and the output file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--REFERENCE_SEQUENCE",
+      "type": "PicardHtsPath",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/ref.fasta",
+      "source": "fixture"
+    },
+    {
+      "argument": "--showHidden",
+      "type": "boolean",
+      "reason": "excluded by the repository: changes the usage text only",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--TMP_DIR",
+      "type": "List[File]",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/tmp",
+      "source": "fixture"
+    },
+    {
+      "argument": "--USE_JDK_DEFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract; varying it would compare zlib output against GKL output and call the difference a divergence",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--USE_JDK_INFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--VALIDATION_STRINGENCY",
+      "type": "ValidationStringency",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "STRICT",
+      "source": "fixture"
+    },
+    {
+      "argument": "--VERBOSITY",
+      "type": "LogLevel",
+      "reason": "excluded by the repository: log level on stderr, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--version",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints the version and exits, same reason",
+      "held_at": null,
+      "source": "none"
+    }
+  ],
+  "rows": 32,
+  "tuples_total": 214,
+  "tuples_covered": 214,
+  "tuples_forbidden": 5,
+  "constraint_notes": [
+    "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
+  ],
+  "coverage": 1.0,
+  "array": [
+    {
+      "row": 0,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[0]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[0]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_a.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=null",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 1,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[1]",
+        "--KEY": "fixture[1]",
+        "--METRICS_NOT_REQUIRED": "fixture[1]",
+        "--METRICS_TO_IGNORE": "fixture[1]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[1]",
+        "--OUTPUT_TABLE": "fixture[1]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_b.txt",
+        "--KEY=MEDIAN_INSERT_SIZE",
+        "--METRICS_NOT_REQUIRED=WIDTH_OF_99_PERCENT",
+        "--METRICS_TO_IGNORE=MEAN_INSERT_SIZE",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE:0.02",
+        "--OUTPUT_TABLE=/work/out/table.txt"
+      ]
+    },
+    {
+      "row": 2,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[2]",
+        "--KEY": "fixture[2]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[1]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[2]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_b.txt /work/fixtures/ism_a.txt",
+        "--KEY=SAMPLE READ_GROUP",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=MEAN_INSERT_SIZE",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE:0.01",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 3,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[3]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[1]",
+        "--METRICS_TO_IGNORE": "fixture[2]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[2]",
+        "--OUTPUT_TABLE": "fixture[1]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_c.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=WIDTH_OF_99_PERCENT",
+        "--METRICS_TO_IGNORE=NOT_A_METRIC",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE:0.01",
+        "--OUTPUT_TABLE=/work/out/table.txt"
+      ]
+    },
+    {
+      "row": 4,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[4]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[1]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[3]",
+        "--OUTPUT_TABLE": "fixture[1]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_d.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=MEAN_INSERT_SIZE",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=READ_PAIRS:0",
+        "--OUTPUT_TABLE=/work/out/table.txt"
+      ]
+    },
+    {
+      "row": 5,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[5]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[2]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[1]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_e.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=NOT_A_METRIC",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE:0.02",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "false",
+        "--INPUT": "fixture[0]",
+        "--KEY": "fixture[1]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[2]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[0]",
+        "--OUTPUT_TABLE": "fixture[1]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=false",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_a.txt",
+        "--KEY=MEDIAN_INSERT_SIZE",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=NOT_A_METRIC",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=null",
+        "--OUTPUT_TABLE=/work/out/table.txt"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "false",
+        "--INPUT": "fixture[1]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[4]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=false",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_b.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "false",
+        "--INPUT": "fixture[2]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[1]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[3]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=false",
+        "--INPUT=/work/fixtures/ism_b.txt /work/fixtures/ism_a.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=WIDTH_OF_99_PERCENT",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=READ_PAIRS:0",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "false",
+        "--INPUT": "fixture[3]",
+        "--KEY": "fixture[2]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[1]",
+        "--OUTPUT_TABLE": "fixture[1]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=false",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_c.txt",
+        "--KEY=SAMPLE READ_GROUP",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE:0.02",
+        "--OUTPUT_TABLE=/work/out/table.txt"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "false",
+        "--INPUT": "fixture[4]",
+        "--KEY": "fixture[1]",
+        "--METRICS_NOT_REQUIRED": "fixture[1]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[2]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=false",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_d.txt",
+        "--KEY=MEDIAN_INSERT_SIZE",
+        "--METRICS_NOT_REQUIRED=WIDTH_OF_99_PERCENT",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE:0.01",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 11,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "false",
+        "--INPUT": "fixture[5]",
+        "--KEY": "fixture[1]",
+        "--METRICS_NOT_REQUIRED": "fixture[1]",
+        "--METRICS_TO_IGNORE": "fixture[1]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[4]",
+        "--OUTPUT_TABLE": "fixture[1]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=false",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_e.txt",
+        "--KEY=MEDIAN_INSERT_SIZE",
+        "--METRICS_NOT_REQUIRED=WIDTH_OF_99_PERCENT",
+        "--METRICS_TO_IGNORE=MEAN_INSERT_SIZE",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE",
+        "--OUTPUT_TABLE=/work/out/table.txt"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[0]",
+        "--KEY": "fixture[2]",
+        "--METRICS_NOT_REQUIRED": "fixture[1]",
+        "--METRICS_TO_IGNORE": "fixture[1]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[0]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_a.txt",
+        "--KEY=SAMPLE READ_GROUP",
+        "--METRICS_NOT_REQUIRED=WIDTH_OF_99_PERCENT",
+        "--METRICS_TO_IGNORE=MEAN_INSERT_SIZE",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=null",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 13,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[1]",
+        "--KEY": "fixture[2]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[0]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_b.txt",
+        "--KEY=SAMPLE READ_GROUP",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=null",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 14,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[2]",
+        "--KEY": "fixture[1]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[2]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[0]",
+        "--OUTPUT_TABLE": "fixture[1]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_b.txt /work/fixtures/ism_a.txt",
+        "--KEY=MEDIAN_INSERT_SIZE",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=NOT_A_METRIC",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=null",
+        "--OUTPUT_TABLE=/work/out/table.txt"
+      ]
+    },
+    {
+      "row": 15,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[3]",
+        "--KEY": "fixture[1]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[1]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[3]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_c.txt",
+        "--KEY=MEDIAN_INSERT_SIZE",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=MEAN_INSERT_SIZE",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=READ_PAIRS:0",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 16,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[4]",
+        "--KEY": "fixture[2]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[0]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_d.txt",
+        "--KEY=SAMPLE READ_GROUP",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=null",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 17,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[5]",
+        "--KEY": "fixture[2]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[0]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_e.txt",
+        "--KEY=SAMPLE READ_GROUP",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=null",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 18,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[1]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[2]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[2]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_b.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=NOT_A_METRIC",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE:0.01",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 19,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[4]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[2]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[1]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_d.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=NOT_A_METRIC",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE:0.02",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 20,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[0]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[4]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_a.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 21,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[0]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[1]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_a.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE:0.02",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 22,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[0]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[2]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_a.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE:0.01",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 23,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[0]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[3]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_a.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=READ_PAIRS:0",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 24,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[1]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[3]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_b.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=READ_PAIRS:0",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 25,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[2]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[1]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_b.txt /work/fixtures/ism_a.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE:0.02",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 26,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[2]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[4]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_b.txt /work/fixtures/ism_a.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 27,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[3]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[0]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_c.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=null",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 28,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[3]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[4]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_c.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 29,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[4]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[4]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_d.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 30,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[5]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[2]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_e.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=MEAN_INSERT_SIZE:0.01",
+        "--OUTPUT_TABLE=null"
+      ]
+    },
+    {
+      "row": 31,
+      "labels": {
+        "--IGNORE_HISTOGRAM_DIFFERENCES": "true",
+        "--INPUT": "fixture[5]",
+        "--KEY": "fixture[0]",
+        "--METRICS_NOT_REQUIRED": "fixture[0]",
+        "--METRICS_TO_IGNORE": "fixture[0]",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE": "fixture[3]",
+        "--OUTPUT_TABLE": "fixture[0]"
+      },
+      "arguments": [
+        "--IGNORE_HISTOGRAM_DIFFERENCES=true",
+        "--INPUT=/work/fixtures/ism_a.txt /work/fixtures/ism_e.txt",
+        "--KEY=null",
+        "--METRICS_NOT_REQUIRED=null",
+        "--METRICS_TO_IGNORE=null",
+        "--METRIC_ALLOWABLE_RELATIVE_CHANGE=READ_PAIRS:0",
+        "--OUTPUT_TABLE=null"
+      ]
+    }
+  ]
+}
