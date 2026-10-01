@@ -552,6 +552,13 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.gff3,output.gff3.gz"
+      },
+      {
+        "tool": "MergePedIntoVcf",
+        "port": "merge-ped-into-vcf",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
       }
     ]
   },

@@ -602,6 +602,10 @@ public class MakeFixtures {
         // produces (see writeGffFixtures).
         writeGffFixtures(dir);
 
+        // A genotyping-array VCF and zCall's PED, MAP and thresholds, for `MergePedIntoVcf`
+        // (see writeZCallFixtures).
+        writeZCallFixtures(dir);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
@@ -1680,6 +1684,80 @@ public class MakeFixtures {
         }
         try (PrintWriter p = new PrintWriter(new File(dir, "gff_no_features.gff3"), "UTF-8")) {
             p.print("##gff-version 3\n# no features here\n##sequence-region chr1 1 2000\n");
+        }
+    }
+
+    /**
+     * `MergePedIntoVcf`'s inputs. `zcall.vcf` is one sample in the shape GtcToVcf writes: ALLELE_A
+     * and ALLELE_B name the two array alleles, the reference one starred, and the genotypes carry
+     * IGC, X and Y beside GT (one also GQ, which the merged genotype drops). Its records cover a
+     * starred A and a starred B, a no-call, an indel, a missing IGC and a site with no ALT.
+     * `zcall.ped` calls every SNP of `zcall.map` in order; `zcall_illegal.ped` calls rs5 with a
+     * letter that is neither A, B nor 0 and `zcall_two_lines.ped` is two samples; `zcall_partial.map`
+     * leaves rs3 out, so the PED pairs shift and rs3 has no call. The thresholds name some SNPs,
+     * NA for both of one, and the second file has one NA alone, which the tool refuses.
+     */
+    static void writeZCallFixtures(File dir) throws Exception {
+        String meta = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FILTER=<ID=LowQual,Description=\"Low quality\">",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">",
+                "##FORMAT=<ID=IGC,Number=1,Type=Float,Description=\"Illumina GenCall Confidence Score\">",
+                "##FORMAT=<ID=X,Number=1,Type=Integer,Description=\"Raw X intensity\">",
+                "##FORMAT=<ID=Y,Number=1,Type=Integer,Description=\"Raw Y intensity\">",
+                "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count\">",
+                "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">",
+                "##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Allele number\">",
+                "##INFO=<ID=ALLELE_A,Number=1,Type=String,Description=\"A allele\">",
+                "##INFO=<ID=ALLELE_B,Number=1,Type=String,Description=\"B allele\">",
+                "##autocallVersion=3.0.0",
+                "##contig=<ID=chr1,length=" + CHR1 + ">",
+                "##contig=<ID=chr2,length=" + CHR2 + ">") + "\n";
+        String[] records = {
+            "chr1|100|rs1|C|T|.|PASS|AC=1;AF=0.500;AN=2;ALLELE_A=C*;ALLELE_B=T|GT:IGC:X:Y|0/1:0.8100:1000:950",
+            "chr1|200|rs2|G|A|.|PASS|AC=2;AF=1.00;AN=2;ALLELE_A=A;ALLELE_B=G*|GT:IGC:X:Y|1/1:0.9000:200:1500",
+            "chr1|300|rs3|T|C|.|PASS|AC=0;AF=0.00;AN=2;ALLELE_A=T*;ALLELE_B=C|GT:IGC:X:Y|0/0:0.7000:1800:100",
+            "chr1|900|rs4|A|G|50|LowQual|AC=0;AF=0.00;AN=0;ALLELE_A=A*;ALLELE_B=G|GT:IGC:X:Y|./.:.:300:310",
+            "chr2|50|rs5|AT|A|.|PASS|AC=1;AF=0.500;AN=2;ALLELE_A=AT*;ALLELE_B=A|GT:IGC:X:Y|0/1:0.5500:700:720",
+            "chr2|400|rs6|C|T|.|PASS|AC=1;AF=0.500;AN=2;ALLELE_A=C*;ALLELE_B=T|GT:GQ:IGC:X:Y|0/1:30:0.6000:640:660",
+            "chr2|600|rs7|G|.|.|PASS|AN=2;ALLELE_A=G*;ALLELE_B=G|GT:IGC:X:Y|0/0:0.9500:900:50",
+        };
+        try (PrintWriter p = new PrintWriter(new File(dir, "zcall.vcf"), "UTF-8")) {
+            p.print(meta);
+            p.print("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE1\n");
+            for (String record : records) {
+                p.print(record.replace("|", "\t") + "\n");
+            }
+        }
+        String[] calls = {"A\tB", "B\tB", "0\t0", "A\tA", "A\tB", "B\tA", "A\tA"};
+        String prefix = "FAM1\tSAMPLE1\t0\t0\t2\t-9";
+        try (PrintWriter p = new PrintWriter(new File(dir, "zcall.ped"), "UTF-8")) {
+            p.print(prefix + "\t" + String.join("\t", calls) + "\n");
+        }
+        String[] illegal = calls.clone();
+        illegal[4] = "A\tC";
+        try (PrintWriter p = new PrintWriter(new File(dir, "zcall_illegal.ped"), "UTF-8")) {
+            p.print(prefix + "\t" + String.join("\t", illegal) + "\n");
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, "zcall_two_lines.ped"), "UTF-8")) {
+            p.print(prefix + "\t" + String.join("\t", calls) + "\n");
+            p.print("FAM1\tSAMPLE2\t0\t0\t1\t-9\t" + String.join("\t", calls) + "\n");
+        }
+        int[] positions = {100, 200, 300, 900, 50, 400, 600};
+        try (PrintWriter all = new PrintWriter(new File(dir, "zcall.map"), "UTF-8");
+             PrintWriter partial = new PrintWriter(new File(dir, "zcall_partial.map"), "UTF-8")) {
+            for (int i = 0; i < positions.length; i++) {
+                String line = (i < 4 ? "1" : "2") + "\trs" + (i + 1) + "\t0\t" + positions[i] + "\n";
+                all.print(line);
+                if (i != 2) partial.print(line);
+            }
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, "zcall_thresholds.txt"), "UTF-8")) {
+            p.print("Name\tThr_X\tThr_Y\nrs1\t1.5\t2.5\nrs2\tNA\tNA\nrs3\t0.25\t3.0\nrs6\t10\t20\nrs7\t1e-3\t0\n");
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, "zcall_thresholds_half_na.txt"), "UTF-8")) {
+            p.print("rs1\t1.5\tNA\nrs2\t0.5\t0.5\n");
         }
     }
 }
