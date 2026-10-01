@@ -1654,6 +1654,65 @@
         "null",
         "DP"
       ]
+    },
+    "CollectMultipleMetrics": {
+      "$why": [
+        "PROGRAM is a set appended to the default five ($lists): CollectAlignmentSummaryMetrics names",
+        "one of them (the default run), CollectQualityYieldMetrics adds a sixth, and the two lists that",
+        "begin with null replace the set with programs that need a reference, a refFlat, intervals and",
+        "dbSNP; null alone is refused. The domain is restricted to programs this repository runs end",
+        "to end as binaries, which is all nine (CollectMultipleMetrics runs each through its port).",
+        "METRIC_ACCUMULATION_LEVEL appends to ALL_READS ($lists); its other levels are kept away from",
+        "the program sets that hold CollectInsertSizeMetrics, whose port runs ALL_READS alone.",
+        "INTERVALS reaches the artifact metrics and is RnaSeqMetrics' ribosomal list; DB_SNP reaches the",
+        "artifact metrics; REF_FLAT null is refused where RnaSeqMetrics runs; IGNORE_SEQUENCE chr2 drops",
+        "its reads from RnaSeqMetrics. FILE_EXTENSION moves every metrics file, and the manifest",
+        "compares all fourteen names under both spellings. queryname.bam is left out: every row with",
+        "it is the sort refusal or the reference walker's, which the single-program arrays measure."
+      ],
+      "$lists": [
+        "--PROGRAM",
+        "--METRIC_ACCUMULATION_LEVEL"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/one_read_group.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ],
+      "--PROGRAM": [
+        "CollectAlignmentSummaryMetrics",
+        "CollectQualityYieldMetrics",
+        "null CollectGcBiasMetrics RnaSeqMetrics",
+        "null CollectSequencingArtifactMetrics QualityScoreDistribution",
+        "null"
+      ],
+      "--METRIC_ACCUMULATION_LEVEL": [
+        "ALL_READS",
+        "SAMPLE LIBRARY"
+      ],
+      "--FILE_EXTENSION": [
+        "null",
+        ".txt"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list"
+      ],
+      "--DB_SNP": [
+        "null",
+        "/work/fixtures/dbsnp.vcf"
+      ],
+      "--REF_FLAT": [
+        "/work/fixtures/refflat.txt",
+        "null"
+      ],
+      "--IGNORE_SEQUENCE": [
+        "null",
+        "chr2"
+      ]
     }
   },
   "constraints": [
@@ -1751,6 +1810,26 @@
         "--ALLOW_MISSING_FIELDS_IN_HEADER": "false"
       },
       "why": "OriginalAlleles is declared in the output header only under WRITE_ORIGINAL_POSITION, so a reverse-complemented record written with it and without that header line is refused by the writer ('Key OriginalAlleles found in VariantContext field INFO at chr2:700 but this key isn't defined in the VCFHeader...'), after the sort, or at the record under DISABLE_SORT. Measured and matched on both; the triple is forbidden so the rows measure the lift rather than the writer's check."
+    },
+    {
+      "tools": [
+        "CollectMultipleMetrics"
+      ],
+      "forbid": {
+        "--PROGRAM": "CollectAlignmentSummaryMetrics",
+        "--METRIC_ACCUMULATION_LEVEL": "SAMPLE LIBRARY"
+      },
+      "why": "These PROGRAM values keep the default set, which runs CollectInsertSizeMetrics, and that collector's port runs at ALL_READS alone (its own array holds the level there for the same reason)."
+    },
+    {
+      "tools": [
+        "CollectMultipleMetrics"
+      ],
+      "forbid": {
+        "--PROGRAM": "CollectQualityYieldMetrics",
+        "--METRIC_ACCUMULATION_LEVEL": "SAMPLE LIBRARY"
+      },
+      "why": "These PROGRAM values keep the default set, which runs CollectInsertSizeMetrics, and that collector's port runs at ALL_READS alone (its own array holds the level there for the same reason)."
     }
   ],
   "exclude": {

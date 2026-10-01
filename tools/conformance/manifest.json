@@ -565,6 +565,13 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.vcf,reject.vcf"
+      },
+      {
+        "tool": "CollectMultipleMetrics",
+        "port": "collect-multiple-metrics",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.alignment_summary_metrics,output.base_distribution_by_cycle_metrics,output.insert_size_metrics,output.quality_by_cycle_metrics,output.quality_distribution_metrics,output.gc_bias.detail_metrics,output.gc_bias.summary_metrics,output.rna_metrics,output.quality_yield_metrics,output.pre_adapter_summary_metrics,output.pre_adapter_detail_metrics,output.bait_bias_summary_metrics,output.bait_bias_detail_metrics,output.error_summary_metrics,output.alignment_summary_metrics.txt,output.base_distribution_by_cycle_metrics.txt,output.insert_size_metrics.txt,output.quality_by_cycle_metrics.txt,output.quality_distribution_metrics.txt,output.gc_bias.detail_metrics.txt,output.gc_bias.summary_metrics.txt,output.rna_metrics.txt,output.quality_yield_metrics.txt,output.pre_adapter_summary_metrics.txt,output.pre_adapter_detail_metrics.txt,output.bait_bias_summary_metrics.txt,output.bait_bias_detail_metrics.txt,output.error_summary_metrics.txt"
       }
     ]
   },
