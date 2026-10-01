@@ -528,6 +528,15 @@ public class MakeFixtures {
         writeMixedIntervals(new File(dir, "targets_mixed.interval_list"));
         writeDescribedFasta(new File(dir, "described.fasta"), chr2);
         writeDict(new File(dir, "ref.dict"), chr1, chr2);
+
+        // Hand-written VCFs for the picard.vcf manipulation tools (MakeSitesOnlyVcf,
+        // RenameSampleInVcf, VcfToIntervalList, SortVcf, UpdateVcfSequenceDictionary). These are
+        // text on purpose, unlike variants.vcf: what these tools write depends on bytes htsjdk's
+        // own writer never produces. A genotype block whose FORMAT is not `GT` first and the rest
+        // sorted, or whose missing trailing fields were not trimmed, is copied verbatim when the
+        // file's sample names are in sorted order and re-encoded when they are not, so the same
+        // records are written under both sample orders.
+        writeVcfUtilityFixtures(dir);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
 
@@ -1082,6 +1091,81 @@ public class MakeFixtures {
                     builder.genotypes(genotypes);
                 }
                 writer.add(builder.make());
+            }
+        }
+    }
+
+    /**
+     * The corpus of the picard.vcf manipulation tools.
+     *
+     * `vcf_sorted_samples.vcf` and `vcf_unsorted_samples.vcf` are the same nine records under the
+     * two sample orders. The records are out of coordinate order and on both contigs, so SortVcf
+     * has work to do; two of them are filtered, so VcfToIntervalList's INCLUDE_FILTERED decides
+     * something; they overlap and abut, so its merge does; some have IDs (one of them two) and
+     * some do not, so VARIANT_ID_METHOD does; and one is a symbolic deletion whose END is the
+     * interval's end. `vcf_no_contigs.vcf` is the first file without its contig lines, which is
+     * what the tools that need a sequence dictionary refuse. `vcf_one_sample.vcf` is the one
+     * sample RenameSampleInVcf accepts and `vcf_sites_only.vcf` the none it also accepts.
+     * The two `##source` lines are two lines to every tool but SortVcf, whose header goes
+     * through `VCFUtils.smartMergeHeaders`: that keys an unstructured line by its key alone and
+     * keeps the first in sorted order, so one of them is dropped.
+     * `other.dict` disagrees with the corpus on chr2's length and adds a contig, and carries an
+     * assembly, so a header rebuilt from it is visibly a different header.
+     */
+    static void writeVcfUtilityFixtures(File dir) throws Exception {
+        String meta = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FILTER=<ID=LowQual,Description=\"Low quality\">",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">",
+                "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+                "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count\">",
+                "##INFO=<ID=DB,Number=0,Type=Flag,Description=\"dbSNP membership\">",
+                "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position\">",
+                "##ALT=<ID=DEL,Description=\"Deletion\">",
+                "##source=handwritten",
+                "##source=a second source line") + "\n";
+        String contigs = "##contig=<ID=chr1,length=" + CHR1 + ">\n"
+                + "##contig=<ID=chr2,length=" + CHR2 + ",assembly=test>\n";
+        String[] records = {
+            "chr2\t300\trs5\tG\tT\t12.5\tPASS\tAC=1\tGT:GQ:DP\t0/1:30:8\t0/0:.:.",
+            "chr1\t700\t.\tC\tT\t.\tLowQual\tAC=2\tGT:GQ:DP\t1/1:12:3\t./.:.:.",
+            "chr1\t100\trs1\tA\tG\t50\tPASS\tAC=1;DB\tGT:GQ:DP\t0/1:30:8\t0/0:.:.",
+            "chr1\t101\t.\tT\tC\t40\t.\tAC=1\tGT:GQ:DP\t0/1:25:9\t0|1:20:7",
+            "chr1\t200\trs2;rs3\tACGT\tA\t30\tPASS\tAC=1\tGT:GQ:DP\t0/1:.:4\t1/1:9:.",
+            "chr1\t202\t.\tG\tA,C\t.\tPASS\tAC=1,1\tGT:GQ:DP\t1/2:5:5\t0/0:5:5",
+            "chr1\t500\t.\tN\t<DEL>\t.\t.\tEND=560;AC=1\tGT\t0/1\t0/0",
+            "chr1\t550\trs4\tA\tT\t.\t.\tAC=0\tGT:GQ:DP\t0/0:50:20\t0/0:40:20",
+            "chr2\t100\t.\tA\tG\t.\tLowQual\tAC=1\tGT:GQ:DP\t0/1:30:8\t./.:.:.",
+        };
+        String columns = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO";
+        writeVcfText(new File(dir, "vcf_sorted_samples.vcf"), meta + contigs,
+                columns + "\tFORMAT\tsampleA\tsampleB", records, 11);
+        writeVcfText(new File(dir, "vcf_unsorted_samples.vcf"), meta + contigs,
+                columns + "\tFORMAT\tsampleB\tsampleA", records, 11);
+        writeVcfText(new File(dir, "vcf_no_contigs.vcf"), meta,
+                columns + "\tFORMAT\tsampleA\tsampleB", records, 11);
+        writeVcfText(new File(dir, "vcf_one_sample.vcf"), meta + contigs,
+                columns + "\tFORMAT\tsampleA", records, 10);
+        writeVcfText(new File(dir, "vcf_sites_only.vcf"), meta + contigs, columns, records, 8);
+
+        try (PrintWriter p = new PrintWriter(new File(dir, "other.dict"), "UTF-8")) {
+            p.print("@HD\tVN:1.6\n");
+            p.print("@SQ\tSN:chr1\tLN:" + CHR1 + "\tAS:other\tM5:0123456789abcdef0123456789abcdef\n");
+            p.print("@SQ\tSN:chr2\tLN:" + (CHR2 + 500) + "\n");
+            p.print("@SQ\tSN:chr3\tLN:300\tSP:test\n");
+        }
+    }
+
+    /** A VCF as text: the meta lines, the column line, and each record cut to its first columns. */
+    static void writeVcfText(File f, String meta, String columns, String[] records, int keep)
+            throws Exception {
+        try (PrintWriter p = new PrintWriter(f, "UTF-8")) {
+            p.print(meta);
+            p.print(columns + "\n");
+            for (String record : records) {
+                String[] fields = record.split("\t");
+                p.print(String.join("\t", java.util.Arrays.copyOf(fields, keep)) + "\n");
             }
         }
     }

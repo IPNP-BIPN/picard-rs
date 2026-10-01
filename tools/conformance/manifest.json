@@ -412,6 +412,40 @@
         "t": 2,
         "status": "measured",
         "exit_code_is_a_result": true
+      },
+      {
+        "tool": "MakeSitesOnlyVcf",
+        "port": "make-sites-only-vcf",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
+      },
+      {
+        "tool": "RenameSampleInVcf",
+        "port": "rename-sample-in-vcf",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
+      },
+      {
+        "tool": "VcfToIntervalList",
+        "port": "vcf-to-interval-list",
+        "t": 2,
+        "status": "pending"
+      },
+      {
+        "tool": "SortVcf",
+        "port": "sort-vcf",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
+      },
+      {
+        "tool": "UpdateVcfSequenceDictionary",
+        "port": "update-vcf-sequence-dictionary",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
       }
     ]
   },

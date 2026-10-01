@@ -655,6 +655,119 @@
         "3",
         "30"
       ]
+    },
+    "MakeSitesOnlyVcf": {
+      "$why": [
+        "INPUT is a VCF, and the two orders of the same samples are two answers: in a file whose",
+        "sample names are sorted the codec keeps each genotype block lazy, and a block that is never",
+        "decoded is copied, while in the other it is decoded and re-encoded. The file without contig",
+        "lines is what CREATE_INDEX refuses. SAMPLE is the set of samples kept: `null` clears it to",
+        "the default empty set (a sites-only file), sampleA keeps one column, and sampleZ names a",
+        "sample the file does not have, which the writer still gives a column of no-calls. OUTPUT",
+        "ends in .vcf because the writer infers its format from the extension and refuses output.txt."
+      ],
+      "--INPUT": [
+        "/work/fixtures/vcf_sorted_samples.vcf",
+        "/work/fixtures/vcf_unsorted_samples.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--SAMPLE": [
+        "null",
+        "sampleA",
+        "sampleZ"
+      ]
+    },
+    "RenameSampleInVcf": {
+      "$why": [
+        "The tool accepts at most one sample, so INPUT is two one-sample files (sampleA, hand-written",
+        "so its genotype blocks are not htsjdk's own encoding, and sample1, written by htsjdk), the",
+        "sites-only file (no sample, which is accepted until OLD_SAMPLE_NAME asks for the first one),",
+        "and the two-sample file it refuses. OLD_SAMPLE_NAME is `null` (not checked) or sampleA, which",
+        "one input has and the other is refused for, naming the sample found. OUTPUT ends in .vcf for",
+        "the reason MakeSitesOnlyVcf's does."
+      ],
+      "--INPUT": [
+        "/work/fixtures/vcf_one_sample.vcf",
+        "/work/fixtures/single_sample.vcf",
+        "/work/fixtures/vcf_sites_only.vcf",
+        "/work/fixtures/vcf_sorted_samples.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--NEW_SAMPLE_NAME": [
+        "renamed",
+        "sampleA"
+      ],
+      "--OLD_SAMPLE_NAME": [
+        "null",
+        "sampleA"
+      ]
+    },
+    "VcfToIntervalList": {
+      "$why": [
+        "INPUT is a VCF. The hand-written one has filtered sites, overlapping and abutting sites,",
+        "IDs on some and not others, and a symbolic deletion with an END, so INCLUDE_FILTERED and",
+        "VARIANT_ID_METHOD both change the file; variants.vcf is the htsjdk-written one, and the",
+        "file without contig lines has no dictionary for the output header, which is a refusal."
+      ],
+      "--INPUT": [
+        "/work/fixtures/vcf_sorted_samples.vcf",
+        "/work/fixtures/variants.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf"
+      ]
+    },
+    "SortVcf": {
+      "$why": [
+        "INPUT is a VCF whose records are out of order on two contigs, under both sample orders",
+        "(the output header's samples are the SORTED names, so the second is rewritten column by",
+        "column), plus the file without contig lines, which needs SEQUENCE_DICTIONARY. That argument",
+        "is `null`, the corpus's own dictionary (which agrees with the VCFs), and other.dict, which",
+        "does not and is refused. It is read through SamReaderFactory, so it is a .dict, not the",
+        "FASTA the shared value names. INPUT is one file per row: a second input would need two",
+        "values in one row, which the harness cannot pass."
+      ],
+      "--INPUT": [
+        "/work/fixtures/vcf_sorted_samples.vcf",
+        "/work/fixtures/vcf_unsorted_samples.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "null",
+        "/work/fixtures/ref.dict",
+        "/work/fixtures/other.dict"
+      ]
+    },
+    "UpdateVcfSequenceDictionary": {
+      "$why": [
+        "INPUT is a VCF under both sample orders, plus the one with no contig lines to replace.",
+        "SEQUENCE_DICTIONARY goes through SAMSequenceDictionaryExtractor, which picks a reader by",
+        "extension: the FASTA (whose .dict beside it is read), a .dict that disagrees with the",
+        "corpus and carries an assembly, a VCF's contig lines, an interval list's header, and a VCF",
+        "with no contig lines, whose dictionary is null: refused by the writer when it is to index",
+        "and by setSequenceDictionary when it is not."
+      ],
+      "--INPUT": [
+        "/work/fixtures/vcf_sorted_samples.vcf",
+        "/work/fixtures/vcf_unsorted_samples.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/other.dict",
+        "/work/fixtures/variants.vcf",
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/vcf_no_contigs.vcf"
+      ]
     }
   },
   "constraints": [
@@ -682,6 +795,16 @@
         "--INPUT": "/work/fixtures/queryname.bam"
       },
       "why": "These collectors require coordinate order, and no value of ASSUME_SORTED makes a queryname input work: false is refused up front ('should be coordinate sorted but the header says the sort order is queryname') and true lets it through until the reference walk fails mid-stream ('Requesting earlier reference sequence: 0 < 1'). This was first declared as two argument-pair clauses and measuring showed that to be the wrong shape: the input itself is invalid for these tools, not a combination of it with something else. The clause is scoped, because the same file is an ordinary input for SortSam or SamToFastq. Both rejection messages are behaviour the port owes and belong in the conformance manifest as their own cases, not as most of a covering array."
+    },
+    {
+      "tools": [
+        "RenameSampleInVcf"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/vcf_sorted_samples.vcf",
+        "--OLD_SAMPLE_NAME": "sampleA"
+      },
+      "why": "The two-sample file is refused as not single-sample before OLD_SAMPLE_NAME is read, so naming an old sample beside it only repeats that refusal. Without this clause the refusals took eight of the first twelve rows and NEW_SAMPLE_NAME's second value never reached an accepted one. The refusal is kept, with OLD_SAMPLE_NAME=null."
     }
   ],
   "exclude": {
