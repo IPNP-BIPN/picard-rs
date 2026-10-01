@@ -926,6 +926,73 @@
         "10000",
         "100"
       ]
+    },
+    "CollectHsMetrics": {
+      "$why": [
+        "Inputs need no sort order here (the collector reads records, not loci), so queryname.bam is an",
+        "ordinary input; adapters_coordinate.bam is the one with mapping-quality-zero adapter reads.",
+        "BAIT_INTERVALS and TARGET_INTERVALS are lists: baits.interval_list overhangs two targets, misses",
+        "the third and adds a bait over nothing, so ON_/NEAR_/OFF_BAIT_BASES all move; the two-file value",
+        "is uniqued across files and names the bait set 'baits.targets_mixed'. targets_mixed overlaps",
+        "itself, so ZERO_CVG_TARGETS_PCT divides by its four raw intervals, not its three uniqued ones.",
+        "METRIC_ACCUMULATION_LEVEL is appended to ALL_READS, and the depth histograms are the collector's",
+        "rather than the unit's, so READ_GROUP ends in the reference's own consistency exception; it is",
+        "kept once. REFERENCE_SEQUENCE null leaves AT_ and GC_DROPOUT at zero. COVERAGE_CAP=2 and",
+        "SAMPLE_SIZE move HET_SNP_SENSITIVITY; NEAR_DISTANCE=0 empties the near-bait band.",
+        "PER_TARGET_COVERAGE, PER_BASE_COVERAGE and THEORETICAL_SENSITIVITY_OUTPUT write side files this",
+        "harness does not compare, and have no fixture; the port refuses them."
+      ],
+      "$lists": [
+        "--BAIT_INTERVALS",
+        "--TARGET_INTERVALS"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/adapters_coordinate.bam"
+      ],
+      "--BAIT_INTERVALS": [
+        "/work/fixtures/baits.interval_list",
+        "/work/fixtures/targets_mixed.interval_list",
+        "/work/fixtures/baits.interval_list /work/fixtures/targets_mixed.interval_list"
+      ],
+      "--TARGET_INTERVALS": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--BAIT_SET_NAME": [
+        "null",
+        "panel1"
+      ],
+      "--METRIC_ACCUMULATION_LEVEL": [
+        "ALL_READS",
+        "READ_GROUP"
+      ],
+      "--NEAR_DISTANCE": [
+        "250",
+        "0"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "20",
+        "0"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "20",
+        "0"
+      ],
+      "--COVERAGE_CAP": [
+        "200",
+        "2"
+      ],
+      "--SAMPLE_SIZE": [
+        "10000",
+        "100"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta",
+        "null"
+      ]
     }
   },
   "constraints": [

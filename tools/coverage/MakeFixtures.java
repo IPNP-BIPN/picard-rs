@@ -551,6 +551,7 @@ public class MakeFixtures {
         writeBed(new File(dir, "targets.bed"));
         writeMixedBed(new File(dir, "targets_mixed.bed"));
         writeMixedIntervals(new File(dir, "targets_mixed.interval_list"));
+        writeBaits(new File(dir, "baits.interval_list"));
         writeDescribedFasta(new File(dir, "described.fasta"), chr2);
         writeDict(new File(dir, "ref.dict"), chr1, chr2);
 
@@ -914,6 +915,27 @@ public class MakeFixtures {
             p.println("chr1\t300\t500\t+\ttargetC");
             p.println("chr1\t100\t400\t+\ttargetA");
             p.println("chr1\t600\t700\t-\ttargetD");
+        }
+    }
+
+    /**
+     * Baits for the hybrid-selection tools, against targets.interval_list's targets.
+     *
+     * Using the targets as their own baits makes every on-target base on-bait and leaves the
+     * near-bait band empty, so the bait columns would only restate the target ones. These overhang
+     * two targets, fall short of the third, and add one bait over no target at all, so ON_, NEAR_
+     * and OFF_BAIT_BASES and BAIT_DESIGN_EFFICIENCY all move. The file name is what the tool
+     * reports as BAIT_SET when none is given.
+     */
+    static void writeBaits(File f) throws Exception {
+        try (PrintWriter p = new PrintWriter(f)) {
+            p.println("@HD\tVN:1.6");
+            p.printf("@SQ\tSN:chr1\tLN:%d%n", CHR1);
+            p.printf("@SQ\tSN:chr2\tLN:%d%n", CHR2);
+            p.println("chr1\t80\t420\t+\tbait1");
+            p.println("chr1\t950\t1180\t+\tbait2");
+            p.println("chr1\t1500\t1560\t+\tbait3");
+            p.println("chr2\t60\t190\t-\tbait4");
         }
     }
 

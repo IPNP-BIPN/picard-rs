@@ -115,6 +115,8 @@ pub mod sort_sam;
 pub mod sort_vcf;
 pub mod split_sam_by_library;
 pub mod split_sam_by_number_of_reads;
+pub mod targeted_cli;
+pub mod targeted_metrics;
 pub mod theoretical_sensitivity;
 pub mod umi_duplicates;
 pub mod validate_sam_file;

@@ -464,6 +464,12 @@
         "port": "collect-wgs-metrics-with-non-zero-coverage",
         "t": 2,
         "status": "pending"
+      },
+      {
+        "tool": "CollectHsMetrics",
+        "port": "collect-hs-metrics",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
