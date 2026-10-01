@@ -83,6 +83,10 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/SplitVcfs.t2.txt
 !tools/coverage/corpus/VcfFormatConverter.t2.txt
 !tools/coverage/corpus/FixVcfHeader.t2.txt
+!tools/coverage/corpus/CollectWgsMetrics.t2.txt
+!tools/coverage/corpus/CollectWgsMetricsWithNonZeroCoverage.t2.txt
+!tools/coverage/corpus/CollectHsMetrics.t2.txt
+!tools/coverage/corpus/CollectTargetedPcrMetrics.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

@@ -481,6 +481,36 @@
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
+      },
+      {
+        "tool": "CollectWgsMetrics",
+        "port": "collect-wgs-metrics",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "CollectRawWgsMetrics",
+        "port": "collect-raw-wgs-metrics",
+        "t": 2,
+        "status": "pending"
+      },
+      {
+        "tool": "CollectWgsMetricsWithNonZeroCoverage",
+        "port": "collect-wgs-metrics-with-non-zero-coverage",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "CollectHsMetrics",
+        "port": "collect-hs-metrics",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "CollectTargetedPcrMetrics",
+        "port": "collect-targeted-pcr-metrics",
+        "t": 2,
+        "status": "measured"
       }
     ]
   },

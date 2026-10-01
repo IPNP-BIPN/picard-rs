@@ -941,6 +941,288 @@
         "-1",
         "1"
       ]
+    },
+    "CollectWgsMetrics": {
+      "$why": [
+        "The locus walk reads every base of the reference, so the inputs are the coordinate-sorted BAMs,",
+        "indexed (small.bam, adapters_coordinate.bam) and not (tiled.bam, small.sam): with INTERVALS the",
+        "indexed ones are queried and the others scanned, and the two disagree about unmapped reads placed",
+        "at their mate. adapters_coordinate.bam is the only input on which PCT_EXC_ADAPTER is not zero;",
+        "queryname.bam is the iterator's refusal, kept once.",
+        "INTERVALS null walks the whole genome; targets_mixed.interval_list overlaps itself and is uniqued.",
+        "The two quality floors move reads and bases between the PCT_EXC_ columns. COVERAGE_CAP=5 is below",
+        "this corpus's deepest loci, so it caps and its LOCUS_ACCUMULATION_CAP=1 is raised to it, which then",
+        "caps what the iterator accumulates. STOP_AFTER=1000 ends the walk mid-contig, where the exclusion",
+        "counters count what the iterator had already pulled. READ_LENGTH=0 sizes the fast collector's",
+        "counters to nothing, which it refuses; the slow one never reads it. SAMPLE_SIZE moves",
+        "HET_SNP_SENSITIVITY, a Monte-Carlo estimate.",
+        "THEORETICAL_SENSITIVITY_OUTPUT and ALLELE_FRACTION are left out: they write a second file this",
+        "harness does not compare, and the port refuses that argument rather than writing it."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/adapters_coordinate.bam",
+        "/work/fixtures/tiled.bam"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "20",
+        "0",
+        "50"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "20",
+        "0",
+        "30"
+      ],
+      "--COVERAGE_CAP": [
+        "250",
+        "5"
+      ],
+      "--LOCUS_ACCUMULATION_CAP": [
+        "100000",
+        "1"
+      ],
+      "--STOP_AFTER": [
+        "-1",
+        "1000"
+      ],
+      "--READ_LENGTH": [
+        "150",
+        "0"
+      ],
+      "--SAMPLE_SIZE": [
+        "10000",
+        "100"
+      ]
+    },
+    "CollectRawWgsMetrics": {
+      "$why": [
+        "CollectWgsMetrics' domain (see its $why), around this tool's own defaults: no mapping-quality",
+        "floor, a base-quality floor of 3, COVERAGE_CAP 100000 and LOCUS_ACCUMULATION_CAP 200000. The",
+        "default cap is kept although every row holding it writes a histogram of 100001 bins: it is the",
+        "tool's default and the HET_SNP_SENSITIVITY estimate then samples a thousand and one depths."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/adapters_coordinate.bam",
+        "/work/fixtures/tiled.bam"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "0",
+        "20",
+        "50"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "3",
+        "20",
+        "0"
+      ],
+      "--COVERAGE_CAP": [
+        "100000",
+        "5"
+      ],
+      "--LOCUS_ACCUMULATION_CAP": [
+        "200000",
+        "1"
+      ],
+      "--STOP_AFTER": [
+        "-1",
+        "1000"
+      ],
+      "--READ_LENGTH": [
+        "150",
+        "0"
+      ],
+      "--SAMPLE_SIZE": [
+        "10000",
+        "100"
+      ]
+    },
+    "CollectWgsMetricsWithNonZeroCoverage": {
+      "$why": [
+        "CollectWgsMetrics' domain (see its $why), minus USE_FAST_ALGORITHM=true (see the constraint).",
+        "READ_LENGTH is held: only the fast collector reads it, and this tool never builds one.",
+        "CHART_OUTPUT is held: the chart is R's rendering of the metrics file and is not compared."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/adapters_coordinate.bam",
+        "/work/fixtures/tiled.bam"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "20",
+        "0",
+        "50"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "20",
+        "0",
+        "30"
+      ],
+      "--COVERAGE_CAP": [
+        "250",
+        "5"
+      ],
+      "--LOCUS_ACCUMULATION_CAP": [
+        "100000",
+        "1"
+      ],
+      "--STOP_AFTER": [
+        "-1",
+        "1000"
+      ],
+      "--READ_LENGTH": [
+        "150"
+      ],
+      "--SAMPLE_SIZE": [
+        "10000",
+        "100"
+      ]
+    },
+    "CollectHsMetrics": {
+      "$why": [
+        "Inputs need no sort order here (the collector reads records, not loci), so queryname.bam is an",
+        "ordinary input; adapters_coordinate.bam is the one with mapping-quality-zero adapter reads.",
+        "BAIT_INTERVALS and TARGET_INTERVALS are lists: baits.interval_list overhangs two targets, misses",
+        "the third and adds a bait over nothing, so ON_/NEAR_/OFF_BAIT_BASES all move; the two-file value",
+        "is uniqued across files and names the bait set 'baits.targets_mixed'. targets_mixed overlaps",
+        "itself, so ZERO_CVG_TARGETS_PCT divides by its four raw intervals, not its three uniqued ones.",
+        "METRIC_ACCUMULATION_LEVEL is appended to ALL_READS, and the depth histograms are the collector's",
+        "rather than the unit's, so READ_GROUP ends in the reference's own consistency exception; it is",
+        "kept once. REFERENCE_SEQUENCE null leaves AT_ and GC_DROPOUT at zero. COVERAGE_CAP=2 and",
+        "SAMPLE_SIZE move HET_SNP_SENSITIVITY; NEAR_DISTANCE=0 empties the near-bait band.",
+        "PER_TARGET_COVERAGE, PER_BASE_COVERAGE and THEORETICAL_SENSITIVITY_OUTPUT write side files this",
+        "harness does not compare, and have no fixture; the port refuses them."
+      ],
+      "$lists": [
+        "--BAIT_INTERVALS",
+        "--TARGET_INTERVALS"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/adapters_coordinate.bam"
+      ],
+      "--BAIT_INTERVALS": [
+        "/work/fixtures/baits.interval_list",
+        "/work/fixtures/targets_mixed.interval_list",
+        "/work/fixtures/baits.interval_list /work/fixtures/targets_mixed.interval_list"
+      ],
+      "--TARGET_INTERVALS": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--BAIT_SET_NAME": [
+        "null",
+        "panel1"
+      ],
+      "--METRIC_ACCUMULATION_LEVEL": [
+        "ALL_READS",
+        "READ_GROUP"
+      ],
+      "--NEAR_DISTANCE": [
+        "250",
+        "0"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "20",
+        "0"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "20",
+        "0"
+      ],
+      "--COVERAGE_CAP": [
+        "200",
+        "2"
+      ],
+      "--SAMPLE_SIZE": [
+        "10000",
+        "100"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta",
+        "null"
+      ]
+    },
+    "CollectTargetedPcrMetrics": {
+      "$why": [
+        "CollectHsMetrics' domain (see its $why) with the amplicons in the baits' place: AMPLICON_INTERVALS is",
+        "a single file, so there is no two-file value, and the name comes from CUSTOM_AMPLICON_SET_NAME or",
+        "the file. The floors vary around this tool's own defaults: mapping quality 1, base quality 0, and",
+        "CLIP_OVERLAPPING_READS false."
+      ],
+      "$lists": [
+        "--TARGET_INTERVALS"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/adapters_coordinate.bam"
+      ],
+      "--AMPLICON_INTERVALS": [
+        "/work/fixtures/baits.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--TARGET_INTERVALS": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--CUSTOM_AMPLICON_SET_NAME": [
+        "null",
+        "amplicons1"
+      ],
+      "--METRIC_ACCUMULATION_LEVEL": [
+        "ALL_READS",
+        "READ_GROUP"
+      ],
+      "--NEAR_DISTANCE": [
+        "250",
+        "0"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "1",
+        "20"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "0",
+        "20"
+      ],
+      "--COVERAGE_CAP": [
+        "200",
+        "2"
+      ],
+      "--SAMPLE_SIZE": [
+        "10000",
+        "100"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta",
+        "null"
+      ]
     }
   },
   "constraints": [
@@ -978,6 +1260,15 @@
         "--OLD_SAMPLE_NAME": "sampleA"
       },
       "why": "The two-sample file is refused as not single-sample before OLD_SAMPLE_NAME is read, so naming an old sample beside it only repeats that refusal. Without this clause the refusals took eight of the first twelve rows and NEW_SAMPLE_NAME's second value never reached an accepted one. The refusal is kept, with OLD_SAMPLE_NAME=null."
+    },
+    {
+      "tools": [
+        "CollectWgsMetricsWithNonZeroCoverage"
+      ],
+      "forbid": {
+        "--USE_FAST_ALGORITHM": "true"
+      },
+      "why": "This tool always builds the slow collector, and the fast iterator hands it edge records, so every row with USE_FAST_ALGORITHM=true ends in the same ClassCastException at the first covered locus (htsjdk.samtools.util.EdgingRecordAndOffset$StartEdgingRecordAndOffset cannot be cast to SamLocusIterator$RecordAndOffset). Measured unconstrained, that one refusal took eleven of 21 rows and left five accepted. The port reproduces it (it is a branch of wgs_cli/wgs_walk and matched on every such row of the unconstrained array); it is kept out of the pairwise array so the rows measure the walk."
     }
   ],
   "exclude": {
