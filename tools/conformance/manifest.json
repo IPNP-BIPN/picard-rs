@@ -545,6 +545,13 @@
         "t": 2,
         "status": "measured",
         "output_name": "output.rrbs_summary_metrics,output.rrbs_detail_metrics"
+      },
+      {
+        "tool": "SortGff",
+        "port": "sort-gff",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.gff3,output.gff3.gz"
       }
     ]
   },

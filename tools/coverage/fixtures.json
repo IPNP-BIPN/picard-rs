@@ -1473,6 +1473,47 @@
         "READ_GROUP",
         "null"
       ]
+    },
+    "SortGff": {
+      "$why": [
+        "INPUT is sort.gff3 (MakeFixtures: five contigs out of order, comments, sequence-regions,",
+        "children before parents, values that need escaping), gff_circular.gff3 (a circular region a",
+        "feature runs off) and two refusals: a feature outside its sequence-region, and a file with no",
+        "feature, which canDecode rejects like a file that is not GFF3. SEQUENCE_DICTIONARY is none",
+        "(contigs sort as strings), the corpus's FASTA (its .dict: chr1, chr2) and other.dict (chr1,",
+        "chr2, chr3); a contig the dictionary does not name sorts first. OUTPUT's extension decides the",
+        "writer: .gff3 is text, .gff3.gz is BGZF, and .txt is refused after the input has been read.",
+        "nRecordsInMemory 3 spills to TMP_DIR and merges back, which must not change the order.",
+        "VALIDATION_STRINGENCY and CREATE_INDEX are held at their defaults: the tool opens no SAM or",
+        "BAM, so neither is read, and varying them only multiplied the refusal rows (16 rows, 2",
+        "accepted)."
+      ],
+      "--INPUT": [
+        "/work/fixtures/sort.gff3",
+        "/work/fixtures/gff_circular.gff3",
+        "/work/fixtures/gff_bad_region.gff3",
+        "/work/fixtures/gff_no_features.gff3"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.gff3",
+        "/work/out/output.gff3.gz",
+        "/work/out/output.txt"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "null",
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/other.dict"
+      ],
+      "--nRecordsInMemory": [
+        "50000",
+        "3"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT"
+      ],
+      "--CREATE_INDEX": [
+        "false"
+      ]
     }
   },
   "constraints": [
@@ -1539,6 +1580,26 @@
         "--CONTEXTS": "ACA TCG"
       },
       "why": "Contexts of three bases are refused at a context size of nought before the tool runs. AGT keeps that refusal (and the middle-base one) as a case; without this clause the pair took a quarter of the first array's rows, which then measured the validator instead of the counters."
+    },
+    {
+      "tools": [
+        "SortGff"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/gff_bad_region.gff3",
+        "--OUTPUT": "/work/out/output.txt"
+      },
+      "why": "Two refusals in one row: only the first is observable (the input is checked and read before SortingCollection is built, and the writer is opened last), so the pair only repeats a refusal another row already makes and crowds out accepted rows."
+    },
+    {
+      "tools": [
+        "SortGff"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/gff_no_features.gff3",
+        "--OUTPUT": "/work/out/output.txt"
+      },
+      "why": "Two refusals in one row: only the first is observable (the input is checked and read before SortingCollection is built, and the writer is opened last), so the pair only repeats a refusal another row already makes and crowds out accepted rows."
     }
   ],
   "exclude": {

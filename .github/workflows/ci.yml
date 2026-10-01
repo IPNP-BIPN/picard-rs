@@ -161,7 +161,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
 
-      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools --bin position-based-downsample-sam --bin validate-sam-file --bin filter-sam-reads --bin mark-duplicates --bin fastq-to-sam --bin split-sam-by-number-of-reads --bin split-sam-by-library --bin make-vcf-sample-name-map --bin sam-to-fastq --bin collect-duplicate-metrics --bin mark-duplicates-with-mate-cigar --bin simple-mark-duplicates-with-mate-cigar --bin check-duplicate-marking --bin accumulate-quality-yield-metrics --bin genotype-concordance --bin estimate-library-complexity --bin collect-umi-prevalence-metrics --bin revert-original-base-qualities-and-add-mate-cigar --bin collect-variant-calling-metrics --bin collect-jumping-library-metrics --bin mark-illumina-adapters --bin sam-to-fastq-with-tags --bin find-mendelian-violations --bin lift-over-interval-list --bin compare-sams --bin collect-insert-size-metrics --bin build-bam-index --bin add-comments-to-bam --bin gather-bam-files --bin lift-over-haplotype-map --bin make-sites-only-vcf --bin rename-sample-in-vcf --bin vcf-to-interval-list --bin sort-vcf --bin update-vcf-sequence-dictionary --bin merge-vcfs --bin gather-vcfs --bin split-vcfs --bin vcf-format-converter --bin fix-vcf-header --bin collect-wgs-metrics --bin collect-raw-wgs-metrics --bin collect-wgs-metrics-with-non-zero-coverage --bin collect-hs-metrics --bin collect-targeted-pcr-metrics --bin collect-sequencing-artifact-metrics --bin convert-sequencing-artifact-to-oxog --bin collect-oxo-g-metrics --bin collect-gc-bias-metrics --bin collect-rrbs-metrics
+      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools --bin position-based-downsample-sam --bin validate-sam-file --bin filter-sam-reads --bin mark-duplicates --bin fastq-to-sam --bin split-sam-by-number-of-reads --bin split-sam-by-library --bin make-vcf-sample-name-map --bin sam-to-fastq --bin collect-duplicate-metrics --bin mark-duplicates-with-mate-cigar --bin simple-mark-duplicates-with-mate-cigar --bin check-duplicate-marking --bin accumulate-quality-yield-metrics --bin genotype-concordance --bin estimate-library-complexity --bin collect-umi-prevalence-metrics --bin revert-original-base-qualities-and-add-mate-cigar --bin collect-variant-calling-metrics --bin collect-jumping-library-metrics --bin mark-illumina-adapters --bin sam-to-fastq-with-tags --bin find-mendelian-violations --bin lift-over-interval-list --bin compare-sams --bin collect-insert-size-metrics --bin build-bam-index --bin add-comments-to-bam --bin gather-bam-files --bin lift-over-haplotype-map --bin make-sites-only-vcf --bin rename-sample-in-vcf --bin vcf-to-interval-list --bin sort-vcf --bin update-vcf-sequence-dictionary --bin merge-vcfs --bin gather-vcfs --bin split-vcfs --bin vcf-format-converter --bin fix-vcf-header --bin collect-wgs-metrics --bin collect-raw-wgs-metrics --bin collect-wgs-metrics-with-non-zero-coverage --bin collect-hs-metrics --bin collect-targeted-pcr-metrics --bin collect-sequencing-artifact-metrics --bin convert-sequencing-artifact-to-oxog --bin collect-oxo-g-metrics --bin collect-gc-bias-metrics --bin collect-rrbs-metrics --bin sort-gff
 
       - name: Build the corpus once, for every array to share
         # `MakeFixtures` is deterministic, so one build is every array's corpus. Building it per
@@ -492,6 +492,10 @@ jobs:
             --fixtures-dir /tmp/corpus \
             --port target/release/collect-rrbs-metrics --output-name output.rrbs_summary_metrics,output.rrbs_detail_metrics \
             | tee /tmp/CollectRrbsMetrics.log
+          python3 tools/coverage/run_array.py --tool SortGff --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/sort-gff --output-name output.gff3,output.gff3.gz \
+            | tee /tmp/SortGff.log
           python3 tools/coverage/measure.py --log /tmp/AddOATag.log \
             --log /tmp/CollectAlignmentSummaryMetrics.log \
             --log /tmp/CollectQualityYieldMetrics.log \
@@ -570,7 +574,9 @@ jobs:
             --log /tmp/CollectOxoGMetrics.log \
             --log /tmp/CollectGcBiasMetrics.log \
             --log /tmp/CollectRrbsMetrics.log \
+            --log /tmp/SortGff.log \
             --pending CollectRawWgsMetrics \
+            --pending SortGff \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 

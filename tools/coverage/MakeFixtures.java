@@ -598,6 +598,10 @@ public class MakeFixtures {
         SAMFileHeader rrbsHeader = header(SAMFileHeader.SortOrder.coordinate);
         writeBam(new File(dir, "rrbs.bam"), rrbsHeader, rrbsReads(rrbsHeader, chr1, chr2), false);
 
+        // GFF3 for `SortGff`, as text: what the tool writes depends on lines htsjdk's writer never
+        // produces (see writeGffFixtures).
+        writeGffFixtures(dir);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
@@ -1603,5 +1607,79 @@ public class MakeFixtures {
         }
         out.sort(new SAMRecordCoordinateComparator());
         return out;
+    }
+
+    /**
+     * `SortGff`'s inputs. `sort.gff3` has its features out of order across five contigs, two of
+     * which no dictionary in the corpus names and one (chr3) only other.dict does; children before
+     * their parents, a feature with two parents, an ID shared by two CDS lines far apart, and two
+     * features starting together (the sort is stable). Its attribute values need escaping on the
+     * way out (`:`, `,`, `;`, a space), its scores are absent, whole, fractional, negative and in
+     * exponent form, and one strand is `?`. Comments sit before and between features, an unknown
+     * directive is ignored, a flush directive is in the input, and a FASTA section ends it. The
+     * other two are refusals: a feature outside its sequence-region, and a file with directives
+     * and comments but no feature, which `canDecode` rejects.
+     */
+    static void writeGffFixtures(File dir) throws Exception {
+        String t = "\t";
+        try (PrintWriter p = new PrintWriter(new File(dir, "sort.gff3"), "UTF-8")) {
+            p.print("##gff-version 3\n");
+            p.print("# annotation for SortGff\n");
+            p.print("##sequence-region chr2 1 1000\n");
+            p.print("##sequence-region chr1 1 2000\n");
+            p.print("#!genome-build test\n");
+            String[] lines = {
+                "chr2|src|gene|500|900|.|+|.|ID=gene:B;Name=geneB",
+                "chr2|src|mRNA|500|900|.|+|.|ID=tx:B1;Parent=gene:B",
+                "chr2|src|exon|700|900|12|+|.|ID=exon:B2;Parent=tx:B1",
+                "chr2|src|exon|500|600|0.5|+|.|ID=exon:B1;Parent=tx:B1",
+                "chr1|src|CDS|1500|1600|.|-|0|ID=cds:A;Parent=tx:A1,tx:A2",
+                "chr1|src|mRNA|1000|1800|.|-|.|ID=tx:A1;Parent=gene:A",
+                "chr1|src|gene|1000|1900|-3|-|.|ID=gene:A;Name=gene A;Note=a%2Cb%3Bc",
+                "###",
+                "chr10|other|region|1|300|1e8|.|.|.",
+                "chr1|src|mRNA|1000|1700|.|-|.|ID=tx:A2;Parent=gene:A",
+                "# a comment between features",
+                "chr3|src|repeat|50|80|.|?|.|Alias=r1,r2;note= spaced value ",
+                "chrM|src|gene|10|20|0|+|.|ID=gene:M",
+                "chr1|src|exon|100|200|.|+|.|Parent=tx:Z",
+                "chr1|src|gene|100|300|.|+|.|ID=gene:Z",
+                "chr1|src|mRNA|100|250|.|+|.|ID=tx:Z;Parent=gene:Z",
+                "chr1|src|CDS|120|180|.|+|2|ID=cds:Z;Parent=tx:Z",
+                "chr1|src|CDS|400|500|.|+|1|ID=cds:Z;Parent=tx:Z",
+                "##species https://example.org/species",
+                "chr1|src|exon|260|290|.|+|.|Parent=tx:Z",
+                "chr2|src|gene|100|200|.|+|.|ID=gene:C",
+                "##FASTA",
+                ">chr1",
+                "ACGTACGT",
+            };
+            for (String line : lines) {
+                p.print(line.replace("|", t) + "\n");
+            }
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, "gff_bad_region.gff3"), "UTF-8")) {
+            p.print("##gff-version 3\n##sequence-region chr1 1 100\n");
+            p.print("chr1" + t + "src" + t + "gene" + t + "10" + t + "50" + t + "." + t + "+" + t + "." + t + "ID=g1\n");
+            p.print("chr1" + t + "src" + t + "gene" + t + "50" + t + "150" + t + "." + t + "+" + t + "." + t + "ID=g2\n");
+        }
+        // A circular contig: its landmark feature spans the whole sequence-region and says
+        // Is_circular, after which a feature that runs off the region's end only has to overlap
+        // it. The version directive is not the writer's own, which the output does not keep.
+        try (PrintWriter p = new PrintWriter(new File(dir, "gff_circular.gff3"), "UTF-8")) {
+            p.print("##gff-version 3.1.26\n##sequence-region chrC 1 100\n");
+            String[] lines = {
+                "chrC|src|region|1|100|.|+|.|ID=chrC;Is_circular=true",
+                "chrC|src|gene|90|120|.|+|.|ID=wrap;Name=wrapping gene",
+                "chrC|src|gene|5|20|7.25|-|.|ID=early",
+                "chrB|src|gene|5|20|.|.|.|ID=other;Dbxref=db:1,db:2",
+            };
+            for (String line : lines) {
+                p.print(line.replace("|", t) + "\n");
+            }
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, "gff_no_features.gff3"), "UTF-8")) {
+            p.print("##gff-version 3\n# no features here\n##sequence-region chr1 1 2000\n");
+        }
     }
 }
