@@ -520,11 +520,6 @@ jobs:
             --log /tmp/SplitVcfs.log \
             --log /tmp/VcfFormatConverter.log \
             --log /tmp/FixVcfHeader.log \
-            --pending MergeVcfs \
-            --pending GatherVcfs \
-            --pending SplitVcfs \
-            --pending VcfFormatConverter \
-            --pending FixVcfHeader \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -600,7 +595,12 @@ jobs:
             tools/coverage/corpus/RenameSampleInVcf.t2.txt \
             tools/coverage/corpus/VcfToIntervalList.t2.txt \
             tools/coverage/corpus/SortVcf.t2.txt \
-            tools/coverage/corpus/UpdateVcfSequenceDictionary.t2.txt)
+            tools/coverage/corpus/UpdateVcfSequenceDictionary.t2.txt \
+            tools/coverage/corpus/MergeVcfs.t2.txt \
+            tools/coverage/corpus/GatherVcfs.t2.txt \
+            tools/coverage/corpus/SplitVcfs.t2.txt \
+            tools/coverage/corpus/VcfFormatConverter.t2.txt \
+            tools/coverage/corpus/FixVcfHeader.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
