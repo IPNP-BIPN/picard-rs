@@ -170,6 +170,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectIndependentReplicateMetrics": {
+      "rows": 14,
+      "accepted": 13,
+      "rejected": 1,
+      "distinct_outputs": 11,
+      "distinct_rejections": 1,
+      "matched": 14,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectInsertSizeMetrics": {
       "rows": 22,
       "accepted": 13,
@@ -190,6 +200,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectMultipleMetrics": {
+      "rows": 18,
+      "accepted": 13,
+      "rejected": 5,
+      "distinct_outputs": 10,
+      "distinct_rejections": 2,
+      "matched": 18,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectOxoGMetrics": {
       "rows": 18,
       "accepted": 9,
@@ -207,6 +227,16 @@
       "distinct_outputs": 4,
       "distinct_rejections": 0,
       "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
+    "CollectRnaSeqMetrics": {
+      "rows": 27,
+      "accepted": 21,
+      "rejected": 6,
+      "distinct_outputs": 16,
+      "distinct_rejections": 4,
+      "matched": 27,
       "t": 2,
       "share": 1.0
     },
@@ -467,6 +497,16 @@
       "distinct_outputs": 2,
       "distinct_rejections": 1,
       "matched": 7,
+      "t": 2,
+      "share": 1.0
+    },
+    "LiftoverVcf": {
+      "rows": 14,
+      "accepted": 14,
+      "rejected": 0,
+      "distinct_outputs": 11,
+      "distinct_rejections": 0,
+      "matched": 14,
       "t": 2,
       "share": 1.0
     },

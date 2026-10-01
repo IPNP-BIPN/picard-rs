@@ -618,9 +618,310 @@ public class MakeFixtures {
         // An unmapped bam and its alignments, for `MergeBamAlignment` (see writeMbaFixtures).
         writeMbaFixtures(dir, chr1, chr2);
 
+        // Gene annotations in refFlat form, for `CollectRnaSeqMetrics` (0-based half-open, as UCSC
+        // writes them). GENE_A has two transcripts on chr1's plus strand, one with a middle exon
+        // the other skips, so a base can be coding in one and intronic in the other; GENE_B is on
+        // the minus strand and 450 bases long, under the default MINIMUM_LENGTH; GENE_C is a
+        // non-coding single exon overlapping both, so reads there hit two genes and are left out
+        // of the strand counts; GENE_D sits on chr2's minus strand, and GENE_E on a contig the
+        // corpus does not have, which the reader drops.
+        try (PrintWriter out = new PrintWriter(new File(dir, "refflat.txt"), "UTF-8")) {
+            out.print("GENE_A\ttxA1\tchr1\t+\t50\t1300\t200\t1100\t3\t50,600,1000,\t400,900,1300,\n");
+            out.print("GENE_A\ttxA2\tchr1\t+\t50\t1300\t250\t1000\t2\t50,1000,\t400,1300,\n");
+            out.print("GENE_B\ttxB1\tchr1\t-\t1400\t1950\t1500\t1900\t2\t1400,1700,\t1600,1950,\n");
+            out.print("GENE_C\ttxC1\tchr1\t+\t1250\t1500\t1500\t1500\t1\t1250,\t1500,\n");
+            out.print("GENE_D\ttxD1\tchr2\t-\t100\t900\t150\t850\t2\t100,400,\t300,900,\n");
+            out.print("GENE_E\ttxE1\tchr9\t+\t0\t100\t0\t100\t1\t0,\t100,\n");
+        }
+
+        // Duplicate sets over heterozygous sites, for `CollectIndependentReplicateMetrics`; see
+        // writeReplicateFixtures.
+        writeReplicateFixtures(dir, chr1, chr2);
+
+        // A chain and two VCFs for `LiftoverVcf`; see writeLiftoverFixtures.
+        writeLiftoverFixtures(dir, chr1, chr2);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
+        }
+    }
+
+    /**
+     * The corpus of `CollectIndependentReplicateMetrics`: an indexed BAM of duplicate sets laid over
+     * the heterozygous sites of replicates.vcf, and the same sites with a second sample.
+     *
+     * Every site gets the same templates, each one a set of copies that share both ends' positions
+     * and strands, so they fall in one duplicate set, and that differ in the base they carry at
+     * the site: `0` and `1` are the genotype's two alleles in GT order, `2` a base that is neither.
+     * The sets are singletons, doubletons, tripletons and one of four; homogeneous and mixed; one
+     * whose second copy is under MINIMUM_BQ at the site, one under the mapping quality floor, one
+     * of unpaired reads, one whose first copy has a deletion over the site, two whose barcodes
+     * differ (one with a low barcode quality), one with no barcode tags at all, and one tripleton
+     * whose third copy is the SECOND end of its pair. The `2` base appears only at chr1:1100,
+     * whose genotype quality (60) is under the default MINIMUM_GQ, so lowering that floor brings
+     * in a site the tool then throws away as three-allelic. chr1:700 is phased the other way
+     * round (1|0), chr1:1300 is filtered, chr1:1500 is homozygous, chr1:1600 is an indel and
+     * chr2:400 is a het of two alternate alleles.
+     */
+    static void writeReplicateFixtures(File dir, String chr1, String chr2) throws Exception {
+        SAMFileHeader h = header(SAMFileHeader.SortOrder.coordinate);
+        int[][] sites = {{0, 300}, {0, 700}, {0, 1100}, {1, 400}};
+        String[] patterns = {"0", "01", "00", "11", "001", "000", "111", "0101", "01", "00",
+                             "01", "01", "00", "00", "11", "011", "02"};
+        java.util.List<SAMRecord> reads = new java.util.ArrayList<>();
+        for (int si = 0; si < sites.length; si++) {
+            int contig = sites[si][0];
+            int pos = sites[si][1];
+            String ref = contig == 0 ? chr1 : chr2;
+            byte refBase = (byte) ref.charAt(pos - 1);
+            byte alt1 = mutateBase(refBase);
+            byte alt2 = mutateBase(alt1);
+            byte[] alleles;
+            if (si == 1) alleles = new byte[] {alt1, refBase};        // 1|0
+            else if (si == 3) alleles = new byte[] {alt1, alt2};      // 1/2
+            else alleles = new byte[] {refBase, alt1};
+            byte odd = mutateBase(mutateBase(mutateBase(refBase)));
+            if (si == 3) odd = refBase;
+            for (int t = 0; t < patterns.length; t++) {
+                String pattern = patterns[t];
+                if (pattern.contains("2") && si != 2) continue;
+                int start = pos - 5 - 2 * t;
+                int mateStart = start + 200;
+                for (int c = 0; c < pattern.length(); c++) {
+                    char code = pattern.charAt(c);
+                    byte siteBase = code == '0' ? alleles[0] : code == '1' ? alleles[1] : odd;
+                    String name = String.format("rep%d_%02d_%d", si, t, c);
+                    boolean deletion = t == 13 && c == 0;
+                    SAMRecord first = new SAMRecord(h);
+                    byte[] bases = new byte[READ_LENGTH];
+                    byte[] quals = new byte[READ_LENGTH];
+                    int lead = pos - start;
+                    for (int b = 0; b < READ_LENGTH; b++) {
+                        int refPos = deletion && b >= lead ? start + b + 2 : start + b;
+                        bases[b] = (byte) ref.charAt(refPos - 1);
+                        quals[b] = 30;
+                    }
+                    if (!deletion) bases[lead] = siteBase;
+                    if (t == 8 && c == 1) quals[lead] = 12;
+                    first.setReadName(name);
+                    first.setReadBases(bases);
+                    first.setBaseQualities(quals);
+                    first.setReferenceIndex(contig);
+                    first.setAlignmentStart(start);
+                    first.setCigarString(deletion ? lead + "M2D" + (READ_LENGTH - lead) + "M" : READ_LENGTH + "M");
+                    first.setMappingQuality(t == 9 ? 35 : 60);
+                    first.setAttribute("RG", contig == 0 ? "rg1" : "rg2");
+                    if (t != 12) {
+                        String barcode = "ACGTACGT";
+                        String barcodeQuals = "IIIIIIII";
+                        if (t == 10 && c == 1) barcode = "ACGTACGA";
+                        if (t == 11 && c == 1) barcode = "ACGTTCGT";
+                        if (t == 11 && c == 0) barcodeQuals = "II#IIIII";
+                        first.setAttribute("RX", barcode);
+                        first.setAttribute("QX", barcodeQuals);
+                    }
+                    if (t == 14) {
+                        reads.add(first);
+                        continue;
+                    }
+                    SAMRecord second = new SAMRecord(h);
+                    byte[] mateBases = new byte[READ_LENGTH];
+                    byte[] mateQuals = new byte[READ_LENGTH];
+                    for (int b = 0; b < READ_LENGTH; b++) {
+                        mateBases[b] = (byte) ref.charAt(mateStart + b - 1);
+                        mateQuals[b] = 30;
+                    }
+                    second.setReadName(name);
+                    second.setReadBases(mateBases);
+                    second.setBaseQualities(mateQuals);
+                    second.setReferenceIndex(contig);
+                    second.setAlignmentStart(mateStart);
+                    second.setCigarString(READ_LENGTH + "M");
+                    second.setMappingQuality(60);
+                    second.setAttribute("RG", first.getAttribute("RG"));
+                    if (first.getAttribute("RX") != null) {
+                        second.setAttribute("RX", first.getAttribute("RX"));
+                        second.setAttribute("QX", first.getAttribute("QX"));
+                    }
+                    boolean swapped = t == 15 && c == 2;
+                    for (SAMRecord r : new SAMRecord[] {first, second}) {
+                        r.setReadPairedFlag(true);
+                        r.setProperPairFlag(true);
+                    }
+                    first.setFirstOfPairFlag(!swapped);
+                    first.setSecondOfPairFlag(swapped);
+                    second.setFirstOfPairFlag(swapped);
+                    second.setSecondOfPairFlag(!swapped);
+                    second.setReadNegativeStrandFlag(true);
+                    SamPairUtil.setMateInfo(first, second, true);
+                    reads.add(first);
+                    reads.add(second);
+                }
+            }
+        }
+        reads.sort(new SAMRecordCoordinateComparator());
+        writeBam(new File(dir, "replicates.bam"), h, reads, true);
+
+        String meta = "##fileformat=VCFv4.2\n"
+                + "##FILTER=<ID=LowQual,Description=\"Low quality\">\n"
+                + "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+                + "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype Quality\">\n"
+                + "##contig=<ID=chr1,length=" + CHR1 + ">\n"
+                + "##contig=<ID=chr2,length=" + CHR2 + ">\n";
+        String[][] rows = {
+            {"chr1", "300", "PASS", "0/1:99", "0/0:99"},
+            {"chr1", "700", "PASS", "1|0:99", "0/1:99"},
+            {"chr1", "1100", "PASS", "0/1:60", "0/1:95"},
+            {"chr1", "1300", "LowQual", "0/1:99", "0/1:99"},
+            {"chr1", "1500", "PASS", "0/0:99", "0/1:99"},
+            {"chr1", "1600", "PASS", "0/1:99", "0/1:99"},
+            {"chr2", "400", "PASS", "1/2:99", "0/1:99"},
+        };
+        for (int samples = 1; samples <= 2; samples++) {
+            StringBuilder out = new StringBuilder(meta);
+            out.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsampleR");
+            if (samples == 2) out.append("\tsampleS");
+            out.append("\n");
+            for (String[] row : rows) {
+                String ref = row[0].equals("chr1") ? chr1 : chr2;
+                int pos = Integer.parseInt(row[1]);
+                byte refBase = (byte) ref.charAt(pos - 1);
+                byte alt1 = mutateBase(refBase);
+                String refAllele = String.valueOf((char) refBase);
+                String altAllele = String.valueOf((char) alt1);
+                if (pos == 1600) {
+                    refAllele = ref.substring(pos - 1, pos + 1);
+                } else if (row[0].equals("chr2")) {
+                    altAllele = altAllele + "," + (char) mutateBase(alt1);
+                }
+                out.append(row[0]).append('\t').append(pos).append("\t.\t").append(refAllele)
+                   .append('\t').append(altAllele).append("\t50\t").append(row[2])
+                   .append("\t.\tGT:GQ\t").append(row[3]);
+                if (samples == 2) out.append('\t').append(row[4]);
+                out.append('\n');
+            }
+            try (PrintWriter p = new PrintWriter(new File(dir, samples == 1 ? "replicates.vcf" : "replicates_two.vcf"), "UTF-8")) {
+                p.print(out);
+            }
+        }
+    }
+
+    /** `SequenceUtil.complement` of one base. */
+    static char complement(char base) {
+        switch (base) {
+            case 'A': return 'T';
+            case 'C': return 'G';
+            case 'G': return 'C';
+            case 'T': return 'A';
+            default: return base;
+        }
+    }
+
+    static String reverseComplement(String bases) {
+        StringBuilder out = new StringBuilder();
+        for (int i = bases.length() - 1; i >= 0; i--) out.append(complement(bases.charAt(i)));
+        return out.toString();
+    }
+
+    static char mutate(char base) {
+        return (char) mutateBase((byte) base);
+    }
+
+    /**
+     * The corpus of `LiftoverVcf`. lift_vcf.chain moves chr1's first thousand bases five hundred
+     * to the right (as lift.chain does), maps chr2's first five hundred onto the REVERSE strand of
+     * chr2's second half (source p lands on 1001 - p), and sends chr2's second half to a chr3 the
+     * reference does not have.
+     *
+     * liftover.vcf is written against those targets, so its REF alleles agree with ref.fasta
+     * where they land: on chr1 a SNP, a filtered SNP, an unfiltered one with no QUAL or INFO, a
+     * multi-allelic SNP, a deletion and an insertion all lift; a SNP whose alleles are the other
+     * way round is a swap, a SNP matching neither allele is a mismatch, a deletion across the
+     * chain's end straddles it and a SNP past it has no target. On chr2, written as the reverse
+     * complement of the target, a SNP, a deletion and an insertion lift with their alleles
+     * reverse-complemented (the indels left-aligned), an indel whose bases disagree cannot be
+     * lifted, and two SNPs are a mismatch and a swap. Its samples are in sorted order, so its
+     * genotype blocks are copied while untouched; liftover_missing.vcf has them the other way
+     * round, and reaches the missing chr3.
+     */
+    static void writeLiftoverFixtures(File dir, String chr1, String chr2) throws Exception {
+        try (PrintWriter out = new PrintWriter(new File(dir, "lift_vcf.chain"), "UTF-8")) {
+            out.print("chain 1000 chr1 " + CHR1 + " + 0 1000 chr1 " + CHR1 + " + 500 1500 1\n");
+            out.print("1000\n");
+            out.print("\n");
+            out.print("chain 1000 chr2 " + CHR2 + " + 0 500 chr2 " + CHR2 + " - 0 500 2\n");
+            out.print("500\n");
+            out.print("\n");
+            out.print("chain 1000 chr2 " + CHR2 + " + 500 1000 chr3 600 + 0 500 3\n");
+            out.print("500\n");
+            out.print("\n");
+        }
+        String meta = "##fileformat=VCFv4.2\n"
+                + "##FILTER=<ID=q10,Description=\"Quality below 10\">\n"
+                + "##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allelic depths\">\n"
+                + "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read depth\">\n"
+                + "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">\n"
+                + "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+                + "##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Phred-scaled genotype likelihoods\">\n"
+                + "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">\n"
+                + "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total depth\">\n"
+                + "##INFO=<ID=MAX_AF,Number=1,Type=Float,Description=\"Maximum allele frequency\">\n"
+                + "##contig=<ID=chr1,length=" + CHR1 + ">\n"
+                + "##contig=<ID=chr2,length=" + CHR2 + ">\n"
+                + "##reference=file:///old/build.fasta\n";
+        String het = "0/1:5,5:10:30:30,0,30";
+        String hom = "1/1:0,8:8:20:200,20,0";
+        String ref = "0/0:9,0:9:27:0,27,270";
+        java.util.function.IntFunction<Character> t1 = p -> chr1.charAt(p + 500 - 1);
+        java.util.function.IntFunction<Character> t2 = p -> chr2.charAt(1001 - p - 1);
+        java.util.List<String> rows = new java.util.ArrayList<>();
+        java.util.function.Consumer<String[]> add = f -> rows.add(String.join("\t", f));
+        char c;
+        c = t1.apply(100);
+        add.accept(new String[] {"chr1", "100", "rs100", "" + c, "" + mutate(c), "50", "PASS", "AF=0.25;DP=10", "GT:AD:DP:GQ:PL", het, hom});
+        c = t1.apply(150);
+        add.accept(new String[] {"chr1", "150", ".", "" + c, "" + mutate(c), "8", "q10", "AF=0.5;DP=4", "GT:AD:DP:GQ:PL", het, "./.:.:.:.:."});
+        c = t1.apply(200);
+        add.accept(new String[] {"chr1", "200", ".", "" + mutate(c), "" + c, "60", "PASS", "AF=0.3;DP=12;MAX_AF=0.4", "GT:AD:DP:GQ:PL", "0/1:6,4:10:40:40,0,60", ref});
+        c = t1.apply(300);
+        add.accept(new String[] {"chr1", "300", ".", "" + mutate(c), "" + mutate(mutate(c)), "40", "PASS", "AF=0.5;DP=9", "GT:AD:DP:GQ:PL", het, het});
+        add.accept(new String[] {"chr1", "400", ".", chr1.substring(899, 902), "" + chr1.charAt(899), "45", "PASS", "AF=0.5;DP=11", "GT:AD:DP:GQ:PL", het, ref});
+        c = t1.apply(500);
+        add.accept(new String[] {"chr1", "500", ".", "" + c, mutate(c) + "," + mutate(mutate(c)), "70", "PASS", "AF=0.25,0.25;DP=14", "GT:AD:DP:GQ:PL", "1/2:0,3,4:7:20:90,60,50,40,0,30", "0/1:4,3,0:7:30:30,0,40,50,60,90"});
+        c = t1.apply(550);
+        add.accept(new String[] {"chr1", "550", "rs55", "" + c, "" + mutate(c), ".", ".", ".", "GT:AD:DP:GQ:PL", het, ref});
+        c = t1.apply(600);
+        add.accept(new String[] {"chr1", "600", ".", "" + c, c + "GA", "33", "PASS", "AF=0.5;DP=8", "GT:AD:DP:GQ:PL", het, hom});
+        add.accept(new String[] {"chr1", "990", ".", chr1.substring(989, 1009), "" + chr1.charAt(989), "20", "PASS", "AF=0.5;DP=6", "GT:AD:DP:GQ:PL", het, ref});
+        c = chr1.charAt(1199);
+        add.accept(new String[] {"chr1", "1200", ".", "" + c, "" + mutate(c), "30", "PASS", "AF=0.5;DP=7", "GT:AD:DP:GQ:PL", het, het});
+        c = t2.apply(100);
+        add.accept(new String[] {"chr2", "100", "rs200", "" + complement(c), "" + complement(mutate(c)), "55", "PASS", "AF=0.5;DP=10", "GT:AD:DP:GQ:PL", het, hom});
+        String deleted = reverseComplement(chr2.substring(798, 801));
+        add.accept(new String[] {"chr2", "200", ".", deleted, "" + deleted.charAt(0), "44", "PASS", "AF=0.25;DP=9", "GT:AD:DP:GQ:PL", het, ref});
+        c = t2.apply(300);
+        add.accept(new String[] {"chr2", "300", ".", "" + complement(c), complement(c) + "AC", "38", "PASS", "AF=0.5;DP=10", "GT:AD:DP:GQ:PL", hom, het});
+        String wrong = reverseComplement("" + mutate(chr2.charAt(599)) + mutate(chr2.charAt(600)));
+        add.accept(new String[] {"chr2", "400", ".", wrong, "" + wrong.charAt(0), "35", "PASS", "AF=0.5;DP=5", "GT:AD:DP:GQ:PL", het, het});
+        c = t2.apply(450);
+        add.accept(new String[] {"chr2", "450", ".", "" + complement(mutate(c)), "" + complement(mutate(mutate(c))), "25", "PASS", "AF=0.5;DP=6", "GT:AD:DP:GQ:PL", het, het});
+        c = t2.apply(460);
+        add.accept(new String[] {"chr2", "460", ".", "" + complement(mutate(c)), "" + complement(c), "65", "PASS", "AF=0.2;DP=15;MAX_AF=0.3", "GT:AD:DP:GQ:PL", "0/1:12,3:15:50:50,0,200", hom});
+        try (PrintWriter p = new PrintWriter(new File(dir, "liftover.vcf"), "UTF-8")) {
+            p.print(meta);
+            p.print("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsampleA\tsampleB\n");
+            for (String row : rows) p.print(row + "\n");
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, "liftover_missing.vcf"), "UTF-8")) {
+            p.print(meta);
+            p.print("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsampleB\tsampleA\n");
+            p.print(rows.get(0) + "\n");
+            p.print(rows.get(10) + "\n");
+            c = chr2.charAt(699);
+            p.print(String.join("\t", new String[] {"chr2", "700", ".", "" + c, "" + mutate(c), "30", "PASS", "AF=0.5;DP=7", "GT:AD:DP:GQ:PL", het, hom}) + "\n");
+            c = chr2.charAt(799);
+            p.print(String.join("\t", new String[] {"chr2", "800", ".", "" + c, "" + mutate(c), "30", "PASS", "AF=0.5;DP=7", "GT:AD:DP:GQ:PL", ref, het}) + "\n");
         }
     }
 
