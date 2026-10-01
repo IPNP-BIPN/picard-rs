@@ -376,6 +376,13 @@
         "exit_code_is_a_result": true
       },
       {
+        "tool": "CompareSAMs",
+        "port": "compare-sams",
+        "t": 2,
+        "status": "measured",
+        "exit_code_is_a_result": true
+      },
+      {
         "tool": "CollectInsertSizeMetrics",
         "port": "collect-insert-size-metrics",
         "t": 2,
