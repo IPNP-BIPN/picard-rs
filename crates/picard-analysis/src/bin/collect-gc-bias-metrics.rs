@@ -166,10 +166,13 @@ fn rows(
     let norm = |start: usize, end: usize| {
         let mut windows_total = 0i32;
         let mut sum = 0.0;
-        for i in start..=end {
-            if windows_by_gc[i] != 0 {
-                sum += f64::from(object.reads_by_gc[i]);
-                windows_total = windows_total.wrapping_add(windows_by_gc[i]);
+        for (windows, &reads) in windows_by_gc[start..=end]
+            .iter()
+            .zip(&object.reads_by_gc[start..=end])
+        {
+            if *windows != 0 {
+                sum += f64::from(reads);
+                windows_total = windows_total.wrapping_add(*windows);
             }
         }
         if windows_total == 0 {
