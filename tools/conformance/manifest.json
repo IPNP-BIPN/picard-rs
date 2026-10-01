@@ -552,6 +552,14 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.vcf"
+      },
+      {
+        "tool": "CheckFingerprint",
+        "port": "check-fingerprint",
+        "t": 2,
+        "status": "pending",
+        "exit_code_is_a_result": true,
+        "output_name": "output.fingerprinting_summary_metrics,output.fingerprinting_detail_metrics"
       }
     ]
   },

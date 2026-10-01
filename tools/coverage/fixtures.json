@@ -1513,6 +1513,62 @@
         "3",
         "0"
       ]
+    },
+    "CheckFingerprint": {
+      "$why": [
+        "The fingerprint corpus (MakeFixtures): fp_sampleA (two read groups, as BAM and SAM) and",
+        "fp_sampleB are reads from two individuals; fp_genotypes.vcf holds their calls and a third",
+        "individual's, fp_likelihoods.vcf PLs for the first two; either VCF is also an observed INPUT,",
+        "which needs OBSERVED_SAMPLE_ALIAS when it holds several samples. fp_mixed has two samples,",
+        "which a BAM input may not. EXPECTED_SAMPLE_ALIAS 'nobody' is the not-found exit code;",
+        "haplotypes.txt is a map none of whose sites the genotypes carry, so every LOD is zero and the",
+        "no-valid-checks exit code is the answer. OUTPUT is the basename of the two files compared;",
+        "SUMMARY_OUTPUT and DETAIL_OUTPUT, its mutex alternative, are left out (no fixture)."
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_sampleA.bam",
+        "/work/fixtures/fp_sampleB.bam",
+        "/work/fixtures/fp_sampleA.sam",
+        "/work/fixtures/fp_genotypes.vcf",
+        "/work/fixtures/fp_likelihoods.vcf",
+        "/work/fixtures/fp_mixed.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ],
+      "--GENOTYPES": [
+        "/work/fixtures/fp_genotypes.vcf",
+        "/work/fixtures/fp_likelihoods.vcf"
+      ],
+      "--HAPLOTYPE_MAP": [
+        "/work/fixtures/fp_haplotypes.txt",
+        "/work/fixtures/haplotypes.txt"
+      ],
+      "--OBSERVED_SAMPLE_ALIAS": [
+        "null",
+        "sB",
+        "sA"
+      ],
+      "--EXPECTED_SAMPLE_ALIAS": [
+        "null",
+        "sA",
+        "sB",
+        "sC",
+        "nobody"
+      ],
+      "--GENOTYPE_LOD_THRESHOLD": [
+        "5.0",
+        "1.0",
+        "0.2"
+      ],
+      "--EXIT_CODE_WHEN_EXPECTED_SAMPLE_NOT_FOUND": [
+        "1",
+        "7"
+      ],
+      "--EXIT_CODE_WHEN_NO_VALID_CHECKS": [
+        "2",
+        "0"
+      ]
     }
   },
   "constraints": [
@@ -1579,6 +1635,96 @@
         "--CONTEXTS": "ACA TCG"
       },
       "why": "Contexts of three bases are refused at a context size of nought before the tool runs. AGT keeps that refusal (and the middle-base one) as a case; without this clause the pair took a quarter of the first array's rows, which then measured the validator instead of the counters."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_sampleB.bam",
+        "--OBSERVED_SAMPLE_ALIAS": "sA"
+      },
+      "why": "OBSERVED_SAMPLE_ALIAS with a reads INPUT is refused by customCommandLineValidation, and so is IGNORE_READ_GROUPS with a VCF one, as is a multi-sample VCF INPUT without the alias. Each refusal is kept once (fp_sampleA.bam with sA, fp_genotypes.vcf with IGNORE_READ_GROUPS and without the alias); the other pairings would only repeat it, and the first array was 27 refusals in 32 rows."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_sampleB.bam",
+        "--OBSERVED_SAMPLE_ALIAS": "sB"
+      },
+      "why": "OBSERVED_SAMPLE_ALIAS with a reads INPUT is refused by customCommandLineValidation, and so is IGNORE_READ_GROUPS with a VCF one, as is a multi-sample VCF INPUT without the alias. Each refusal is kept once (fp_sampleA.bam with sA, fp_genotypes.vcf with IGNORE_READ_GROUPS and without the alias); the other pairings would only repeat it, and the first array was 27 refusals in 32 rows."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_sampleA.sam",
+        "--OBSERVED_SAMPLE_ALIAS": "sA"
+      },
+      "why": "OBSERVED_SAMPLE_ALIAS with a reads INPUT is refused by customCommandLineValidation, and so is IGNORE_READ_GROUPS with a VCF one, as is a multi-sample VCF INPUT without the alias. Each refusal is kept once (fp_sampleA.bam with sA, fp_genotypes.vcf with IGNORE_READ_GROUPS and without the alias); the other pairings would only repeat it, and the first array was 27 refusals in 32 rows."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_sampleA.sam",
+        "--OBSERVED_SAMPLE_ALIAS": "sB"
+      },
+      "why": "OBSERVED_SAMPLE_ALIAS with a reads INPUT is refused by customCommandLineValidation, and so is IGNORE_READ_GROUPS with a VCF one, as is a multi-sample VCF INPUT without the alias. Each refusal is kept once (fp_sampleA.bam with sA, fp_genotypes.vcf with IGNORE_READ_GROUPS and without the alias); the other pairings would only repeat it, and the first array was 27 refusals in 32 rows."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_mixed.bam",
+        "--OBSERVED_SAMPLE_ALIAS": "sA"
+      },
+      "why": "OBSERVED_SAMPLE_ALIAS with a reads INPUT is refused by customCommandLineValidation, and so is IGNORE_READ_GROUPS with a VCF one, as is a multi-sample VCF INPUT without the alias. Each refusal is kept once (fp_sampleA.bam with sA, fp_genotypes.vcf with IGNORE_READ_GROUPS and without the alias); the other pairings would only repeat it, and the first array was 27 refusals in 32 rows."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_mixed.bam",
+        "--OBSERVED_SAMPLE_ALIAS": "sB"
+      },
+      "why": "OBSERVED_SAMPLE_ALIAS with a reads INPUT is refused by customCommandLineValidation, and so is IGNORE_READ_GROUPS with a VCF one, as is a multi-sample VCF INPUT without the alias. Each refusal is kept once (fp_sampleA.bam with sA, fp_genotypes.vcf with IGNORE_READ_GROUPS and without the alias); the other pairings would only repeat it, and the first array was 27 refusals in 32 rows."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_sampleA.bam",
+        "--OBSERVED_SAMPLE_ALIAS": "sB"
+      },
+      "why": "OBSERVED_SAMPLE_ALIAS with a reads INPUT is refused by customCommandLineValidation, and so is IGNORE_READ_GROUPS with a VCF one, as is a multi-sample VCF INPUT without the alias. Each refusal is kept once (fp_sampleA.bam with sA, fp_genotypes.vcf with IGNORE_READ_GROUPS and without the alias); the other pairings would only repeat it, and the first array was 27 refusals in 32 rows."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_likelihoods.vcf",
+        "--IGNORE_READ_GROUPS": "true"
+      },
+      "why": "OBSERVED_SAMPLE_ALIAS with a reads INPUT is refused by customCommandLineValidation, and so is IGNORE_READ_GROUPS with a VCF one, as is a multi-sample VCF INPUT without the alias. Each refusal is kept once (fp_sampleA.bam with sA, fp_genotypes.vcf with IGNORE_READ_GROUPS and without the alias); the other pairings would only repeat it, and the first array was 27 refusals in 32 rows."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_likelihoods.vcf",
+        "--OBSERVED_SAMPLE_ALIAS": "null"
+      },
+      "why": "OBSERVED_SAMPLE_ALIAS with a reads INPUT is refused by customCommandLineValidation, and so is IGNORE_READ_GROUPS with a VCF one, as is a multi-sample VCF INPUT without the alias. Each refusal is kept once (fp_sampleA.bam with sA, fp_genotypes.vcf with IGNORE_READ_GROUPS and without the alias); the other pairings would only repeat it, and the first array was 27 refusals in 32 rows."
     }
   ],
   "exclude": {
