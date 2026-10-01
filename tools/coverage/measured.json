@@ -60,6 +60,16 @@
       "t": 2,
       "share": 1.0
     },
+    "BamToBfq": {
+      "rows": 11,
+      "accepted": 9,
+      "rejected": 2,
+      "distinct_outputs": 8,
+      "distinct_rejections": 2,
+      "matched": 11,
+      "t": 2,
+      "share": 1.0
+    },
     "BedToIntervalList": {
       "rows": 9,
       "accepted": 9,
@@ -160,6 +170,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectIndependentReplicateMetrics": {
+      "rows": 14,
+      "accepted": 13,
+      "rejected": 1,
+      "distinct_outputs": 11,
+      "distinct_rejections": 1,
+      "matched": 14,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectInsertSizeMetrics": {
       "rows": 22,
       "accepted": 13,
@@ -180,6 +200,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectMultipleMetrics": {
+      "rows": 18,
+      "accepted": 13,
+      "rejected": 5,
+      "distinct_outputs": 10,
+      "distinct_rejections": 2,
+      "matched": 18,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectOxoGMetrics": {
       "rows": 18,
       "accepted": 9,
@@ -197,6 +227,16 @@
       "distinct_outputs": 4,
       "distinct_rejections": 0,
       "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
+    "CollectRnaSeqMetrics": {
+      "rows": 27,
+      "accepted": 21,
+      "rejected": 6,
+      "distinct_outputs": 16,
+      "distinct_rejections": 4,
+      "matched": 27,
       "t": 2,
       "share": 1.0
     },
@@ -267,6 +307,16 @@
       "distinct_outputs": 17,
       "distinct_rejections": 1,
       "matched": 21,
+      "t": 2,
+      "share": 1.0
+    },
+    "CompareMetrics": {
+      "rows": 32,
+      "accepted": 6,
+      "rejected": 26,
+      "distinct_outputs": 3,
+      "distinct_rejections": 10,
+      "matched": 32,
       "t": 2,
       "share": 1.0
     },
@@ -450,6 +500,16 @@
       "t": 2,
       "share": 1.0
     },
+    "LiftoverVcf": {
+      "rows": 14,
+      "accepted": 14,
+      "rejected": 0,
+      "distinct_outputs": 11,
+      "distinct_rejections": 0,
+      "matched": 14,
+      "t": 2,
+      "share": 1.0
+    },
     "MakeSitesOnlyVcf": {
       "rows": 10,
       "accepted": 8,
@@ -507,6 +567,26 @@
       "distinct_outputs": 2,
       "distinct_rejections": 2,
       "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
+    "MergeBamAlignment": {
+      "rows": 24,
+      "accepted": 18,
+      "rejected": 6,
+      "distinct_outputs": 18,
+      "distinct_rejections": 1,
+      "matched": 24,
+      "t": 2,
+      "share": 1.0
+    },
+    "MergePedIntoVcf": {
+      "rows": 19,
+      "accepted": 19,
+      "rejected": 0,
+      "distinct_outputs": 8,
+      "distinct_rejections": 0,
+      "matched": 19,
       "t": 2,
       "share": 1.0
     },
@@ -677,6 +757,16 @@
       "distinct_outputs": 2,
       "distinct_rejections": 2,
       "matched": 20,
+      "t": 2,
+      "share": 1.0
+    },
+    "SortGff": {
+      "rows": 14,
+      "accepted": 5,
+      "rejected": 9,
+      "distinct_outputs": 4,
+      "distinct_rejections": 3,
+      "matched": 14,
       "t": 2,
       "share": 1.0
     },

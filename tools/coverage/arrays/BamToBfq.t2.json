@@ -1,0 +1,429 @@
+{
+  "tool": "BamToBfq",
+  "origin": "picard",
+  "t": 2,
+  "numeric_policy": "strict",
+  "arguments_total": 28,
+  "arguments_in_array": 9,
+  "arguments_excluded": 19,
+  "excluded": [
+    {
+      "argument": "--ANALYSIS_DIR",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/out",
+      "source": "fixture"
+    },
+    {
+      "argument": "--arguments_file",
+      "type": "List[File]",
+      "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--COMPRESSION_LEVEL",
+      "type": "int",
+      "reason": "excluded by the repository: changes the deflate level of a written BAM. Varying it would make the output bytes differ for a reason that is not the tool's logic, and the deflate pin is asserted by its own suite (htsjdk-rs decision 0001)",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CREATE_INDEX",
+      "type": "Boolean",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "false",
+      "source": "fixture"
+    },
+    {
+      "argument": "--CREATE_MD5_FILE",
+      "type": "boolean",
+      "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--FLOWCELL_BARCODE",
+      "type": "String",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "FC1",
+      "source": "fixture"
+    },
+    {
+      "argument": "--help",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--MAX_RECORDS_IN_RAM",
+      "type": "Integer",
+      "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--OUTPUT_FILE_PREFIX",
+      "type": "String",
+      "reason": "free-form string with no default: a fixture must supply the values",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--QUIET",
+      "type": "Boolean",
+      "reason": "excluded by the repository: suppresses the log on stderr; the compared output is stdout and the output file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--READ_NAME_PREFIX",
+      "type": "String",
+      "reason": "free-form string with no default: a fixture must supply the values",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--REFERENCE_SEQUENCE",
+      "type": "PicardHtsPath",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/ref.fasta",
+      "source": "fixture"
+    },
+    {
+      "argument": "--showHidden",
+      "type": "boolean",
+      "reason": "excluded by the repository: changes the usage text only",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--TMP_DIR",
+      "type": "List[File]",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/tmp",
+      "source": "fixture"
+    },
+    {
+      "argument": "--USE_JDK_DEFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract; varying it would compare zlib output against GKL output and call the difference a divergence",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--USE_JDK_INFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--VALIDATION_STRINGENCY",
+      "type": "ValidationStringency",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "STRICT",
+      "source": "fixture"
+    },
+    {
+      "argument": "--VERBOSITY",
+      "type": "LogLevel",
+      "reason": "excluded by the repository: log level on stderr, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--version",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints the version and exits, same reason",
+      "held_at": null,
+      "source": "none"
+    }
+  ],
+  "rows": 11,
+  "tuples_total": 160,
+  "tuples_covered": 160,
+  "tuples_forbidden": 0,
+  "constraint_notes": [
+    "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
+  ],
+  "coverage": 1.0,
+  "array": [
+    {
+      "row": 0,
+      "labels": {
+        "--BASES_TO_WRITE": "fixture[0]",
+        "--CLIP_ADAPTERS": "true",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INPUT": "fixture[0]",
+        "--LANE": "fixture[0]",
+        "--PAIRED_RUN": "true",
+        "--READS_TO_ALIGN": "fixture[0]",
+        "--READ_CHUNK_SIZE": "fixture[0]",
+        "--RUN_BARCODE": "fixture[0]"
+      },
+      "arguments": [
+        "--BASES_TO_WRITE=null",
+        "--CLIP_ADAPTERS=true",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INPUT=/work/fixtures/bfq.bam",
+        "--LANE=3",
+        "--PAIRED_RUN=true",
+        "--READS_TO_ALIGN=null",
+        "--READ_CHUNK_SIZE=2000000",
+        "--RUN_BARCODE=null"
+      ]
+    },
+    {
+      "row": 1,
+      "labels": {
+        "--BASES_TO_WRITE": "fixture[0]",
+        "--CLIP_ADAPTERS": "false",
+        "--INCLUDE_NON_PF_READS": "false",
+        "--INPUT": "fixture[1]",
+        "--LANE": "fixture[1]",
+        "--PAIRED_RUN": "false",
+        "--READS_TO_ALIGN": "fixture[1]",
+        "--READ_CHUNK_SIZE": "fixture[1]",
+        "--RUN_BARCODE": "fixture[1]"
+      },
+      "arguments": [
+        "--BASES_TO_WRITE=null",
+        "--CLIP_ADAPTERS=false",
+        "--INCLUDE_NON_PF_READS=false",
+        "--INPUT=/work/fixtures/bfq_odd.bam",
+        "--LANE=null",
+        "--PAIRED_RUN=false",
+        "--READS_TO_ALIGN=7",
+        "--READ_CHUNK_SIZE=10",
+        "--RUN_BARCODE=RUN1"
+      ]
+    },
+    {
+      "row": 2,
+      "labels": {
+        "--BASES_TO_WRITE": "fixture[1]",
+        "--CLIP_ADAPTERS": "true",
+        "--INCLUDE_NON_PF_READS": "false",
+        "--INPUT": "fixture[0]",
+        "--LANE": "fixture[1]",
+        "--PAIRED_RUN": "true",
+        "--READS_TO_ALIGN": "fixture[1]",
+        "--READ_CHUNK_SIZE": "fixture[0]",
+        "--RUN_BARCODE": "fixture[1]"
+      },
+      "arguments": [
+        "--BASES_TO_WRITE=20",
+        "--CLIP_ADAPTERS=true",
+        "--INCLUDE_NON_PF_READS=false",
+        "--INPUT=/work/fixtures/bfq.bam",
+        "--LANE=null",
+        "--PAIRED_RUN=true",
+        "--READS_TO_ALIGN=7",
+        "--READ_CHUNK_SIZE=2000000",
+        "--RUN_BARCODE=RUN1"
+      ]
+    },
+    {
+      "row": 3,
+      "labels": {
+        "--BASES_TO_WRITE": "fixture[1]",
+        "--CLIP_ADAPTERS": "false",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INPUT": "fixture[1]",
+        "--LANE": "fixture[0]",
+        "--PAIRED_RUN": "false",
+        "--READS_TO_ALIGN": "fixture[0]",
+        "--READ_CHUNK_SIZE": "fixture[1]",
+        "--RUN_BARCODE": "fixture[0]"
+      },
+      "arguments": [
+        "--BASES_TO_WRITE=20",
+        "--CLIP_ADAPTERS=false",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INPUT=/work/fixtures/bfq_odd.bam",
+        "--LANE=3",
+        "--PAIRED_RUN=false",
+        "--READS_TO_ALIGN=null",
+        "--READ_CHUNK_SIZE=10",
+        "--RUN_BARCODE=null"
+      ]
+    },
+    {
+      "row": 4,
+      "labels": {
+        "--BASES_TO_WRITE": "fixture[2]",
+        "--CLIP_ADAPTERS": "true",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INPUT": "fixture[1]",
+        "--LANE": "fixture[1]",
+        "--PAIRED_RUN": "true",
+        "--READS_TO_ALIGN": "fixture[0]",
+        "--READ_CHUNK_SIZE": "fixture[1]",
+        "--RUN_BARCODE": "fixture[1]"
+      },
+      "arguments": [
+        "--BASES_TO_WRITE=60",
+        "--CLIP_ADAPTERS=true",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INPUT=/work/fixtures/bfq_odd.bam",
+        "--LANE=null",
+        "--PAIRED_RUN=true",
+        "--READS_TO_ALIGN=null",
+        "--READ_CHUNK_SIZE=10",
+        "--RUN_BARCODE=RUN1"
+      ]
+    },
+    {
+      "row": 5,
+      "labels": {
+        "--BASES_TO_WRITE": "fixture[2]",
+        "--CLIP_ADAPTERS": "false",
+        "--INCLUDE_NON_PF_READS": "false",
+        "--INPUT": "fixture[0]",
+        "--LANE": "fixture[0]",
+        "--PAIRED_RUN": "false",
+        "--READS_TO_ALIGN": "fixture[1]",
+        "--READ_CHUNK_SIZE": "fixture[0]",
+        "--RUN_BARCODE": "fixture[0]"
+      },
+      "arguments": [
+        "--BASES_TO_WRITE=60",
+        "--CLIP_ADAPTERS=false",
+        "--INCLUDE_NON_PF_READS=false",
+        "--INPUT=/work/fixtures/bfq.bam",
+        "--LANE=3",
+        "--PAIRED_RUN=false",
+        "--READS_TO_ALIGN=7",
+        "--READ_CHUNK_SIZE=2000000",
+        "--RUN_BARCODE=null"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--BASES_TO_WRITE": "fixture[0]",
+        "--CLIP_ADAPTERS": "true",
+        "--INCLUDE_NON_PF_READS": "false",
+        "--INPUT": "fixture[1]",
+        "--LANE": "fixture[1]",
+        "--PAIRED_RUN": "false",
+        "--READS_TO_ALIGN": "fixture[0]",
+        "--READ_CHUNK_SIZE": "fixture[0]",
+        "--RUN_BARCODE": "fixture[0]"
+      },
+      "arguments": [
+        "--BASES_TO_WRITE=null",
+        "--CLIP_ADAPTERS=true",
+        "--INCLUDE_NON_PF_READS=false",
+        "--INPUT=/work/fixtures/bfq_odd.bam",
+        "--LANE=null",
+        "--PAIRED_RUN=false",
+        "--READS_TO_ALIGN=null",
+        "--READ_CHUNK_SIZE=2000000",
+        "--RUN_BARCODE=null"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--BASES_TO_WRITE": "fixture[0]",
+        "--CLIP_ADAPTERS": "false",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INPUT": "fixture[0]",
+        "--LANE": "fixture[0]",
+        "--PAIRED_RUN": "true",
+        "--READS_TO_ALIGN": "fixture[0]",
+        "--READ_CHUNK_SIZE": "fixture[0]",
+        "--RUN_BARCODE": "fixture[0]"
+      },
+      "arguments": [
+        "--BASES_TO_WRITE=null",
+        "--CLIP_ADAPTERS=false",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INPUT=/work/fixtures/bfq.bam",
+        "--LANE=3",
+        "--PAIRED_RUN=true",
+        "--READS_TO_ALIGN=null",
+        "--READ_CHUNK_SIZE=2000000",
+        "--RUN_BARCODE=null"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--BASES_TO_WRITE": "fixture[0]",
+        "--CLIP_ADAPTERS": "true",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INPUT": "fixture[0]",
+        "--LANE": "fixture[0]",
+        "--PAIRED_RUN": "true",
+        "--READS_TO_ALIGN": "fixture[1]",
+        "--READ_CHUNK_SIZE": "fixture[0]",
+        "--RUN_BARCODE": "fixture[0]"
+      },
+      "arguments": [
+        "--BASES_TO_WRITE=null",
+        "--CLIP_ADAPTERS=true",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INPUT=/work/fixtures/bfq.bam",
+        "--LANE=3",
+        "--PAIRED_RUN=true",
+        "--READS_TO_ALIGN=7",
+        "--READ_CHUNK_SIZE=2000000",
+        "--RUN_BARCODE=null"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--BASES_TO_WRITE": "fixture[0]",
+        "--CLIP_ADAPTERS": "true",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INPUT": "fixture[0]",
+        "--LANE": "fixture[0]",
+        "--PAIRED_RUN": "true",
+        "--READS_TO_ALIGN": "fixture[0]",
+        "--READ_CHUNK_SIZE": "fixture[1]",
+        "--RUN_BARCODE": "fixture[0]"
+      },
+      "arguments": [
+        "--BASES_TO_WRITE=null",
+        "--CLIP_ADAPTERS=true",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INPUT=/work/fixtures/bfq.bam",
+        "--LANE=3",
+        "--PAIRED_RUN=true",
+        "--READS_TO_ALIGN=null",
+        "--READ_CHUNK_SIZE=10",
+        "--RUN_BARCODE=null"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--BASES_TO_WRITE": "fixture[0]",
+        "--CLIP_ADAPTERS": "true",
+        "--INCLUDE_NON_PF_READS": "true",
+        "--INPUT": "fixture[0]",
+        "--LANE": "fixture[0]",
+        "--PAIRED_RUN": "true",
+        "--READS_TO_ALIGN": "fixture[0]",
+        "--READ_CHUNK_SIZE": "fixture[0]",
+        "--RUN_BARCODE": "fixture[1]"
+      },
+      "arguments": [
+        "--BASES_TO_WRITE=null",
+        "--CLIP_ADAPTERS=true",
+        "--INCLUDE_NON_PF_READS=true",
+        "--INPUT=/work/fixtures/bfq.bam",
+        "--LANE=3",
+        "--PAIRED_RUN=true",
+        "--READS_TO_ALIGN=null",
+        "--READ_CHUNK_SIZE=2000000",
+        "--RUN_BARCODE=RUN1"
+      ]
+    }
+  ]
+}
