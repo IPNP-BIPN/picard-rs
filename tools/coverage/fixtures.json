@@ -993,6 +993,63 @@
         "/work/fixtures/ref.fasta",
         "null"
       ]
+    },
+    "CollectTargetedPcrMetrics": {
+      "$why": [
+        "CollectHsMetrics' domain (see its $why) with the amplicons in the baits' place: AMPLICON_INTERVALS is",
+        "a single file, so there is no two-file value, and the name comes from CUSTOM_AMPLICON_SET_NAME or",
+        "the file. The floors vary around this tool's own defaults: mapping quality 1, base quality 0, and",
+        "CLIP_OVERLAPPING_READS false."
+      ],
+      "$lists": [
+        "--TARGET_INTERVALS"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/adapters_coordinate.bam"
+      ],
+      "--AMPLICON_INTERVALS": [
+        "/work/fixtures/baits.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--TARGET_INTERVALS": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--CUSTOM_AMPLICON_SET_NAME": [
+        "null",
+        "amplicons1"
+      ],
+      "--METRIC_ACCUMULATION_LEVEL": [
+        "ALL_READS",
+        "READ_GROUP"
+      ],
+      "--NEAR_DISTANCE": [
+        "250",
+        "0"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "1",
+        "20"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "0",
+        "20"
+      ],
+      "--COVERAGE_CAP": [
+        "200",
+        "2"
+      ],
+      "--SAMPLE_SIZE": [
+        "10000",
+        "100"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta",
+        "null"
+      ]
     }
   },
   "constraints": [

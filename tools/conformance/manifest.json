@@ -470,6 +470,12 @@
         "port": "collect-hs-metrics",
         "t": 2,
         "status": "pending"
+      },
+      {
+        "tool": "CollectTargetedPcrMetrics",
+        "port": "collect-targeted-pcr-metrics",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
