@@ -250,19 +250,23 @@ fn sorted_set(
 /// `mark_duplicate_sets` is the same walk with a verdict written at the end of each set; a tool
 /// that reads the SETS -- `CollectUmiPrevalenceMetrics` counts the distinct barcodes in one --
 /// needs the grouping and not the flags.
+/// `SAMRecordDuplicateComparator`'s library ids: numbered in the SORTED order of the library
+/// names (a `TreeSet`, with `Unknown Library` among them), not in the order records name them. A
+/// set is a run of equal keys, so the numbering cannot move a record between sets, but it is the
+/// major sort key and decides the order the sets come out in, which a tool that walks them
+/// (`CollectIndependentReplicateMetrics`) sees.
+fn library_ids(records: &[Record]) -> Vec<i32> {
+    let mut names: Vec<&str> = records.iter().map(|r| r.library.as_str()).collect();
+    names.sort_unstable();
+    names.dedup();
+    records
+        .iter()
+        .map(|r| names.binary_search(&r.library.as_str()).unwrap_or(0) as i32)
+        .collect()
+}
+
 pub fn duplicate_sets(records: &[Record], options: &Options) -> Vec<Vec<usize>> {
-    let mut libraries: Vec<String> = Vec::new();
-    let mut library_of: Vec<i32> = Vec::with_capacity(records.len());
-    for record in records {
-        let id = match libraries.iter().position(|known| *known == record.library) {
-            Some(at) => at as i32,
-            None => {
-                libraries.push(record.library.clone());
-                (libraries.len() - 1) as i32
-            }
-        };
-        library_of.push(id);
-    }
+    let library_of = library_ids(records);
     // The same whole-file re-sort `mark_duplicate_sets` does, by the FULL comparator: the
     // iterator is built with `preSorted = false`.
     let mut order: Vec<usize> = (0..records.len()).collect();
@@ -330,18 +334,7 @@ pub fn duplicate_sets(records: &[Record], options: &Options) -> Vec<Vec<usize>> 
 
 pub fn mark_duplicate_sets(records: &[Record], options: &Options) -> Vec<bool> {
     let mut duplicate = vec![false; records.len()];
-    let mut libraries: Vec<String> = Vec::new();
-    let mut library_of: Vec<i32> = Vec::with_capacity(records.len());
-    for record in records {
-        let id = match libraries.iter().position(|known| *known == record.library) {
-            Some(at) => at as i32,
-            None => {
-                libraries.push(record.library.clone());
-                (libraries.len() - 1) as i32
-            }
-        };
-        library_of.push(id);
-    }
+    let library_of = library_ids(records);
 
     // `new DuplicateSetIterator(..., preSorted = false, ...)`: the WHOLE file is re-sorted by the
     // duplicate comparator before a single set is cut. That is not the file's own order -- the
