@@ -1856,5 +1856,66 @@ public class MakeFixtures {
         try (PrintWriter out = new PrintWriter(new File(dir, "fp_sample_file_map.tsv"), "UTF-8")) {
             out.print("sampleFromFile\t/work/fixtures/fp_sampleB.bam\n");
         }
+
+        writeCrosscheckTables(dir);
+    }
+
+    /**
+     * Crosscheck tables for `ClusterCrosscheckMetrics`, written through Picard's own bean and
+     * `MetricsFile` with no header, so the bytes carry neither a command line nor a clock.
+     *
+     * Groups A1-A3 form one cluster (A2-A3 only through a LOD of exactly the default threshold one
+     * way and 0.7 the other), B1-B2 another with an exact duplicate row, C1 a cluster of one through
+     * its self-comparison, D1 nothing (its one row's LOD is NaN), and R00-R17 a chain long enough
+     * that the cluster's rows outgrow a HashSet's first table. C1-B2 at -0.3 and A1-B1 at -8.5 only
+     * join under a negative threshold. `fp_crosscheck_null` has one row with no LOD at all.
+     */
+    static void writeCrosscheckTables(File dir) throws Exception {
+        Object[][] rows = {
+            {"A1", "A1", 5.2, "EXPECTED_MATCH"},
+            {"A1", "A2", 3.1, "EXPECTED_MATCH"},
+            {"A2", "A1", 3.1, "EXPECTED_MATCH"},
+            {"A2", "A3", 0.0, "INCONCLUSIVE"},
+            {"A3", "A2", 0.7, "EXPECTED_MATCH"},
+            {"A1", "B1", -8.5, "EXPECTED_MISMATCH"},
+            {"B1", "B2", 4.0, "UNEXPECTED_MATCH"},
+            {"B2", "B1", 4.0, "UNEXPECTED_MATCH"},
+            {"B1", "B2", 4.0, "UNEXPECTED_MATCH"},
+            {"C1", "B2", -0.3, "EXPECTED_MISMATCH"},
+            {"C1", "C1", 2.0, "EXPECTED_MATCH"},
+            {"D1", "A1", Double.NaN, "INCONCLUSIVE"},
+        };
+        java.util.List<Object[]> all = new java.util.ArrayList<>(java.util.Arrays.asList(rows));
+        for (int i = 0; i < 17; i++) {
+            all.add(new Object[] {String.format("R%02d", i), String.format("R%02d", i + 1), 1.0 + i / 10.0, "EXPECTED_MATCH"});
+            if (i % 4 == 0) {
+                all.add(new Object[] {String.format("R%02d", i + 1), String.format("R%02d", i), -2.0, "UNEXPECTED_MISMATCH"});
+            }
+        }
+        for (String name : new String[] {"fp_crosscheck.txt", "fp_crosscheck_null.txt"}) {
+            htsjdk.samtools.metrics.MetricsFile<picard.fingerprint.CrosscheckMetric, Integer> file =
+                    new htsjdk.samtools.metrics.MetricsFile<>();
+            int index = 0;
+            for (Object[] r : all) {
+                picard.fingerprint.CrosscheckMetric m = new picard.fingerprint.CrosscheckMetric();
+                // Row 8 repeats row 6 field for field, which the tool's HashSet collapses.
+                int key = index == 8 ? 6 : index;
+                m.LEFT_GROUP_VALUE = (String) r[0];
+                m.RIGHT_GROUP_VALUE = (String) r[1];
+                m.LOD_SCORE = name.equals("fp_crosscheck_null.txt") && index == 7 ? null : (Double) r[2];
+                m.LOD_SCORE_TUMOR_NORMAL = (Double) r[2] / 2;
+                m.LOD_SCORE_NORMAL_TUMOR = key % 3 == 0 ? null : (Double) r[2] - 1;
+                m.RESULT = picard.fingerprint.CrosscheckMetric.FingerprintResult.valueOf((String) r[3]);
+                m.DATA_TYPE = picard.fingerprint.CrosscheckMetric.DataType.READGROUP;
+                m.LEFT_SAMPLE = ((String) r[0]).substring(0, 1);
+                m.RIGHT_SAMPLE = ((String) r[1]).substring(0, 1);
+                m.LEFT_LANE = key % 5;
+                m.LEFT_RUN_BARCODE = "FC" + key;
+                m.RIGHT_FILE = "file:///data/" + r[1] + ".bam";
+                file.addMetric(m);
+                index++;
+            }
+            file.write(new File(dir, name));
+        }
     }
 }

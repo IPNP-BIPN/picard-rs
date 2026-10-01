@@ -1678,6 +1678,29 @@
         "100",
         "5"
       ]
+    },
+    "ClusterCrosscheckMetrics": {
+      "$why": [
+        "fp_crosscheck.txt is a CrosscheckMetric table written through Picard's own bean (MakeFixtures):",
+        "three clusters, a group with only a NaN comparison, an exact duplicate row, a LOD exactly at the",
+        "default threshold, and an 18-group chain whose rows outgrow a HashSet's first table, so the",
+        "MetricBase.hashCode order is exercised past a resize. fp_crosscheck_null has a row with no LOD,",
+        "which the reference unboxes into a NullPointerException. The thresholds move the edges: -1 joins",
+        "C1 to the B cluster, -10 everything, 3.5 leaves only the strongest."
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_crosscheck.txt",
+        "/work/fixtures/fp_crosscheck_null.txt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt"
+      ],
+      "--LOD_THRESHOLD": [
+        "0.0",
+        "-1.0",
+        "3.5",
+        "-10.0"
+      ]
     }
   },
   "constraints": [

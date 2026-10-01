@@ -574,6 +574,12 @@
         "port": "calculate-fingerprint-metrics",
         "t": 2,
         "status": "pending"
+      },
+      {
+        "tool": "ClusterCrosscheckMetrics",
+        "port": "cluster-crosscheck-metrics",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
