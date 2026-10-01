@@ -550,28 +550,28 @@
         "tool": "SortGff",
         "port": "sort-gff",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.gff3,output.gff3.gz"
       },
       {
         "tool": "MergePedIntoVcf",
         "port": "merge-ped-into-vcf",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "BamToBfq",
         "port": "bam-to-bfq",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "FC1.3.0.1.bfq,FC1.3.0.2.bfq,FC1.3.1.1.bfq,FC1.3.1.2.bfq,FC1.3.2.1.bfq,FC1.3.2.2.bfq,FC1.3.3.1.bfq,FC1.3.3.2.bfq,FC1.null.0.1.bfq,FC1.null.0.2.bfq,FC1.null.1.1.bfq,FC1.null.1.2.bfq,FC1.null.2.1.bfq,FC1.null.2.2.bfq,FC1.null.3.1.bfq,FC1.null.3.2.bfq"
       },
       {
         "tool": "CompareMetrics",
         "port": "compare-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt,table.txt",
         "exit_code_is_a_result": true
       },
@@ -579,7 +579,7 @@
         "tool": "MergeBamAlignment",
         "port": "merge-bam-alignment",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.bam"
       }
     ]
