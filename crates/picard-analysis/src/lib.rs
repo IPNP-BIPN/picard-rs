@@ -45,6 +45,7 @@ pub mod create_baf_regress_metrics;
 pub mod create_extended_illumina_manifest;
 pub mod create_sequence_dictionary;
 pub mod create_verify_id_intensity_metrics;
+pub mod crosscheck_cli;
 pub mod crosscheck_fingerprints;
 pub mod crosscheck_read_group_fingerprints;
 pub mod cycle;

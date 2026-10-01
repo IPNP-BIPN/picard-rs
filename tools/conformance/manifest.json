@@ -580,6 +580,14 @@
         "port": "cluster-crosscheck-metrics",
         "t": 2,
         "status": "pending"
+      },
+      {
+        "tool": "CrosscheckReadGroupFingerprints",
+        "port": "crosscheck-read-group-fingerprints",
+        "t": 2,
+        "status": "pending",
+        "exit_code_is_a_result": true,
+        "output_name": "output.txt"
       }
     ]
   },
