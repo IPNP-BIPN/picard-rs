@@ -486,7 +486,7 @@
         "tool": "CollectWgsMetrics",
         "port": "collect-wgs-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectRawWgsMetrics",
@@ -498,19 +498,19 @@
         "tool": "CollectWgsMetricsWithNonZeroCoverage",
         "port": "collect-wgs-metrics-with-non-zero-coverage",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectHsMetrics",
         "port": "collect-hs-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectTargetedPcrMetrics",
         "port": "collect-targeted-pcr-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       }
     ]
   },

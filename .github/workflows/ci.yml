@@ -545,11 +545,7 @@ jobs:
             --log /tmp/CollectWgsMetricsWithNonZeroCoverage.log \
             --log /tmp/CollectHsMetrics.log \
             --log /tmp/CollectTargetedPcrMetrics.log \
-            --pending CollectWgsMetrics \
             --pending CollectRawWgsMetrics \
-            --pending CollectWgsMetricsWithNonZeroCoverage \
-            --pending CollectHsMetrics \
-            --pending CollectTargetedPcrMetrics \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -630,7 +626,11 @@ jobs:
             tools/coverage/corpus/GatherVcfs.t2.txt \
             tools/coverage/corpus/SplitVcfs.t2.txt \
             tools/coverage/corpus/VcfFormatConverter.t2.txt \
-            tools/coverage/corpus/FixVcfHeader.t2.txt)
+            tools/coverage/corpus/FixVcfHeader.t2.txt \
+            tools/coverage/corpus/CollectWgsMetrics.t2.txt \
+            tools/coverage/corpus/CollectWgsMetricsWithNonZeroCoverage.t2.txt \
+            tools/coverage/corpus/CollectHsMetrics.t2.txt \
+            tools/coverage/corpus/CollectTargetedPcrMetrics.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
