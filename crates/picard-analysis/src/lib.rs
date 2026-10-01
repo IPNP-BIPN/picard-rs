@@ -112,11 +112,14 @@ pub mod single_pass_rejections;
 pub mod snvq;
 pub mod sort_gff;
 pub mod sort_sam;
+pub mod sort_vcf;
 pub mod split_sam_by_library;
 pub mod split_sam_by_number_of_reads;
 pub mod umi_duplicates;
 pub mod validate_sam_file;
+pub mod vcf_io;
 pub mod vcf_to_adpc;
+pub mod vcf_to_interval_list;
 pub mod view_sam;
 
 pub use cycle::{
