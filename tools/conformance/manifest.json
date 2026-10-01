@@ -446,6 +446,12 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.vcf"
+      },
+      {
+        "tool": "CollectWgsMetrics",
+        "port": "collect-wgs-metrics",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },

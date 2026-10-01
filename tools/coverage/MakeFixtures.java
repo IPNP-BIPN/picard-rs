@@ -201,6 +201,31 @@ public class MakeFixtures {
         if (planted == 0) throw new IllegalStateException("no adapter was planted");
         writeBam(new File(dir, "adapters.bam"), adapterHeader, adapterReads, false);
 
+        // The same reads, coordinate-sorted and indexed, for the locus walkers. `CollectWgsMetrics`
+        // and its siblings refuse a queryname-sorted input outright and small.bam carries no
+        // adapter, so without this file PCT_EXC_ADAPTER is zero on every row the array can run.
+        // The plants above sit at the 3' end, which `AdapterUtility.isAdapter` never reads: it
+        // tests the read's first bases in sequencing order, and only on a read whose mapping
+        // quality is zero (one that mapped with confidence is never an adapter read). So the
+        // mapped, quality-zero ends of the n % 12 == 0 family get the five prime adapter at their
+        // START here as well. Written after adapters.bam, from the records already planted, so
+        // no other fixture's bytes move.
+        SAMFileHeader adapterCoordinateHeader = header(SAMFileHeader.SortOrder.coordinate);
+        for (SAMRecord r : adapterReads) {
+            r.setHeader(adapterCoordinateHeader);
+            int n = Integer.parseInt(r.getReadName().replaceAll("[^0-9]", ""));
+            if (n % 12 == 0 && !r.getReadUnmappedFlag() && r.getMappingQuality() == 0) {
+                byte[] bases = r.getReadBases();
+                if (r.getReadNegativeStrandFlag()) SequenceUtil.reverseComplement(bases);
+                byte[] adapter = "AATGATACGGCGACCACCGAGATCTACAC".getBytes("UTF-8");
+                System.arraycopy(adapter, 0, bases, 0, 24);
+                if (r.getReadNegativeStrandFlag()) SequenceUtil.reverseComplement(bases);
+                r.setReadBases(bases);
+            }
+        }
+        adapterReads.sort(new SAMRecordCoordinateComparator());
+        writeBam(new File(dir, "adapters_coordinate.bam"), adapterCoordinateHeader, adapterReads, true);
+
         // Read pairs that really do repeat, for `EstimateLibraryComplexity`. The tool groups pairs
         // by the first MIN_IDENTICAL_BASES of both ends and counts how big each group of duplicates
         // is; on the random bases of the other fixtures every group holds one pair, every bin is

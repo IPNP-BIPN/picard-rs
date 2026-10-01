@@ -768,6 +768,66 @@
         "/work/fixtures/targets.interval_list",
         "/work/fixtures/vcf_no_contigs.vcf"
       ]
+    },
+    "CollectWgsMetrics": {
+      "$why": [
+        "The locus walk reads every base of the reference, so the inputs are the coordinate-sorted BAMs,",
+        "indexed (small.bam, adapters_coordinate.bam) and not (tiled.bam, small.sam): with INTERVALS the",
+        "indexed ones are queried and the others scanned, and the two disagree about unmapped reads placed",
+        "at their mate. adapters_coordinate.bam is the only input on which PCT_EXC_ADAPTER is not zero;",
+        "queryname.bam is the iterator's refusal, kept once.",
+        "INTERVALS null walks the whole genome; targets_mixed.interval_list overlaps itself and is uniqued.",
+        "The two quality floors move reads and bases between the PCT_EXC_ columns. COVERAGE_CAP=5 is below",
+        "this corpus's deepest loci, so it caps and its LOCUS_ACCUMULATION_CAP=1 is raised to it, which then",
+        "caps what the iterator accumulates. STOP_AFTER=1000 ends the walk mid-contig, where the exclusion",
+        "counters count what the iterator had already pulled. READ_LENGTH=0 sizes the fast collector's",
+        "counters to nothing, which it refuses; the slow one never reads it. SAMPLE_SIZE moves",
+        "HET_SNP_SENSITIVITY, a Monte-Carlo estimate.",
+        "THEORETICAL_SENSITIVITY_OUTPUT and ALLELE_FRACTION are left out: they write a second file this",
+        "harness does not compare, and the port refuses that argument rather than writing it."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/adapters_coordinate.bam",
+        "/work/fixtures/tiled.bam"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "20",
+        "0",
+        "50"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "20",
+        "0",
+        "30"
+      ],
+      "--COVERAGE_CAP": [
+        "250",
+        "5"
+      ],
+      "--LOCUS_ACCUMULATION_CAP": [
+        "100000",
+        "1"
+      ],
+      "--STOP_AFTER": [
+        "-1",
+        "1000"
+      ],
+      "--READ_LENGTH": [
+        "150",
+        "0"
+      ],
+      "--SAMPLE_SIZE": [
+        "10000",
+        "100"
+      ]
     }
   },
   "constraints": [
