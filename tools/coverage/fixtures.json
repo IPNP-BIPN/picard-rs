@@ -768,6 +768,179 @@
         "/work/fixtures/targets.interval_list",
         "/work/fixtures/vcf_no_contigs.vcf"
       ]
+    },
+    "MergeVcfs": {
+      "$why": [
+        "INPUT and COMMENT are whole lists ($lists): what MergeVcfs does is combine several inputs, and",
+        "a row with one of them measures a copy. merge_a.vcf and merge_b.vcf are each in coordinate",
+        "order and meet at three positions, where MergingIterator's heap (not the input order) decides",
+        "which record comes first; b's samples are in the other column order, so its genotypes are",
+        "re-encoded while a's are copied, and its XC line promotes a's count to `.`. The pair is given",
+        "both ways round, and a alone. merge_b_no_contigs.vcf needs SEQUENCE_DICTIONARY (ref.dict makes",
+        "it compatible, other.dict adds chr3 and is refused), and as the FIRST input it takes that",
+        "dictionary as the one the others are checked against. merge_swapped_contigs.vcf declares the",
+        "contigs in the other order, vcf_one_sample.vcf has other samples, and vcf_sorted_samples.vcf",
+        "is out of order, which the merge refuses only when it goes backwards. COMMENT keeps only the",
+        "first comment (addMetaDataLine refuses a second line under one key). A `.list` INPUT is not",
+        "a value: the paths inside it are the container's, and the port runs on the host. OUTPUT is a",
+        ".vcf: BCF writing is not in htsjdk-rs, and a .vcf.gz would be another file to compare."
+      ],
+      "$lists": [
+        "--INPUT",
+        "--COMMENT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/merge_a.vcf /work/fixtures/merge_b.vcf",
+        "/work/fixtures/merge_b.vcf /work/fixtures/merge_a.vcf",
+        "/work/fixtures/merge_a.vcf",
+        "/work/fixtures/merge_a.vcf /work/fixtures/merge_b_no_contigs.vcf",
+        "/work/fixtures/merge_b_no_contigs.vcf /work/fixtures/merge_a.vcf",
+        "/work/fixtures/merge_a.vcf /work/fixtures/merge_swapped_contigs.vcf",
+        "/work/fixtures/merge_a.vcf /work/fixtures/vcf_one_sample.vcf",
+        "/work/fixtures/vcf_sorted_samples.vcf /work/fixtures/merge_b.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "null",
+        "/work/fixtures/ref.dict",
+        "/work/fixtures/other.dict"
+      ],
+      "--COMMENT": [
+        "null",
+        "zeta alpha",
+        "merged"
+      ]
+    },
+    "GatherVcfs": {
+      "$why": [
+        "INPUT and COMMENT are whole lists ($lists). gather_1.vcf and gather_2.vcf are consecutive",
+        "stretches, given in order, reversed (refused unless REORDER_INPUT_BY_FIRST_VARIANT puts them",
+        "back) and around gather_empty.vcf, which has no first record and sorts last when reordered.",
+        "gather_overlap.vcf starts after gather_1 starts and before it ends, which only the gather's own",
+        "check refuses; gather_2_swapped.vcf has the samples in the other column order, refused beside",
+        "gather_1 and accepted alone (its genotypes are re-encoded in that order, where gather_1's are",
+        "copied); merge_swapped_contigs.vcf has another dictionary (an AssertionError, which escapes the",
+        "tool's catch); merge_b_no_contigs.vcf has none, refused before the catch when indexing and by",
+        "a NullPointerException inside it when not. COMMENT keeps only the first comment. OUTPUT is a",
+        ".vcf: the block-copying gather needs a .vcf.gz output and every input compressed, and a",
+        ".list INPUT names container paths the host port cannot open."
+      ],
+      "$lists": [
+        "--INPUT",
+        "--COMMENT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/gather_1.vcf /work/fixtures/gather_2.vcf",
+        "/work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "/work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "/work/fixtures/gather_1.vcf /work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf",
+        "/work/fixtures/gather_1.vcf /work/fixtures/gather_overlap.vcf",
+        "/work/fixtures/gather_1.vcf /work/fixtures/gather_2_swapped.vcf",
+        "/work/fixtures/gather_2_swapped.vcf",
+        "/work/fixtures/gather_1.vcf /work/fixtures/merge_swapped_contigs.vcf",
+        "/work/fixtures/merge_b_no_contigs.vcf /work/fixtures/gather_1.vcf",
+        "/work/fixtures/gather_1.vcf /work/fixtures/merge_b_no_contigs.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--COMMENT": [
+        "null",
+        "zeta alpha"
+      ]
+    },
+    "SplitVcfs": {
+      "$why": [
+        "Both outputs are compared (the manifest's output_name names the two). split_types.vcf holds",
+        "every VariantContext type, its first odd one MIXED; vcf_sorted_samples.vcf's one odd record",
+        "is a symbolic deletion, and vcf_unsorted_samples.vcf is the same records with genotypes that",
+        "are re-encoded rather than copied; so STRICT decides between two refusals and two splits. gather_1.vcf (copied) and merge_b.vcf (re-encoded) hold SNPs and indels only, which STRICT accepts.",
+        "vcf_no_contigs.vcf is indexable only through SEQUENCE_DICTIONARY, which is read through",
+        "SamReaderFactory, so it is a .dict; other.dict disagrees with the VCFs and is accepted,",
+        "since it only feeds the index. vcf_sites_only.vcf has no samples. The outputs are .vcf:",
+        "BCF writing is not in htsjdk-rs."
+      ],
+      "--INPUT": [
+        "/work/fixtures/split_types.vcf",
+        "/work/fixtures/vcf_sorted_samples.vcf",
+        "/work/fixtures/vcf_unsorted_samples.vcf",
+        "/work/fixtures/gather_1.vcf",
+        "/work/fixtures/merge_b.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf",
+        "/work/fixtures/vcf_sites_only.vcf"
+      ],
+      "--SNP_OUTPUT": [
+        "/work/out/snp.vcf"
+      ],
+      "--INDEL_OUTPUT": [
+        "/work/out/indel.vcf"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "null",
+        "/work/fixtures/ref.dict",
+        "/work/fixtures/other.dict"
+      ]
+    },
+    "VcfFormatConverter": {
+      "$why": [
+        "INPUT is variants.vcf, which has its .idx, gather_1.vcf.gz, which has its .tbi,",
+        "unsorted_indexed.vcf, whose records are out of coordinate order beside a borrowed .idx (the",
+        "reader only finds and loads it), so REQUIRE_INDEX lets them through to the tabix index of a",
+        "compressed output, which refuses them; and two files with no index, which REQUIRE_INDEX",
+        "refuses: vcf_no_contigs.vcf (which CREATE_INDEX refuses) and gather_1.vcf, gather_1.vcf.gz's",
+        "own text. OUTPUT is a .vcf, a .vcf.gz (compared decompressed) and a name the writer builder",
+        "cannot place; both output names are compared. BCF is not a value on either side: htsjdk-rs",
+        "has no BCF codec, so neither a .bcf input nor a .bcf output is ported."
+      ],
+      "--INPUT": [
+        "/work/fixtures/variants.vcf",
+        "/work/fixtures/gather_1.vcf.gz",
+        "/work/fixtures/unsorted_indexed.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf",
+        "/work/fixtures/gather_1.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf",
+        "/work/out/output.vcf.gz",
+        "/work/out/output.txt"
+      ]
+    },
+    "FixVcfHeader": {
+      "$why": [
+        "INPUT is fix_missing.vcf, whose records use a FILTER, INFO keys and FORMAT keys its header",
+        "does not define (at most one undefined INFO key per record, so which one the writer names",
+        "first never depends on a HashMap's order), the same under the other column order (its",
+        "genotypes are decoded, so their FORMAT keys are checked when written), vcf_sorted_samples.vcf,",
+        "whose header is complete, and vcf_no_contigs.vcf, which the always-indexing writer refuses.",
+        "HEADER is `null` (the header is rebuilt from the records), fix_header.vcf (complete),",
+        "fix_header_swapped.vcf (the same samples in the other column order, which",
+        "ENFORCE_SAME_SAMPLES lets through) and vcf_one_sample.vcf (one sample, refused unless",
+        "ENFORCE_SAME_SAMPLES is false, and then missing the definitions). CHECK_FIRST_N_RECORDS is",
+        "the default and 1, which scans one record, so a later undefined key reaches the writer, and",
+        "which beside a HEADER is the tool's own command-line refusal. OUTPUT is a .vcf: BCF writing",
+        "is not in htsjdk-rs."
+      ],
+      "--INPUT": [
+        "/work/fixtures/fix_missing.vcf",
+        "/work/fixtures/fix_missing_unsorted.vcf",
+        "/work/fixtures/vcf_sorted_samples.vcf",
+        "/work/fixtures/vcf_no_contigs.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--HEADER": [
+        "null",
+        "/work/fixtures/fix_header.vcf",
+        "/work/fixtures/fix_header_swapped.vcf",
+        "/work/fixtures/vcf_one_sample.vcf"
+      ],
+      "--CHECK_FIRST_N_RECORDS": [
+        "-1",
+        "1"
+      ]
     }
   },
   "constraints": [

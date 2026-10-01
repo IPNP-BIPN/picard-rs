@@ -537,6 +537,11 @@ public class MakeFixtures {
         // file's sample names are in sorted order and re-encoded when they are not, so the same
         // records are written under both sample orders.
         writeVcfUtilityFixtures(dir);
+        writeVcfMergeFixtures(dir);
+        writeVcfGatherFixtures(dir);
+        writeVcfSplitFixture(dir);
+        writeVcfConverterFixture(dir);
+        writeVcfFixHeaderFixtures(dir);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
 
@@ -1155,6 +1160,223 @@ public class MakeFixtures {
             p.print("@SQ\tSN:chr2\tLN:" + (CHR2 + 500) + "\n");
             p.print("@SQ\tSN:chr3\tLN:300\tSP:test\n");
         }
+    }
+
+    /**
+     * The corpus of MergeVcfs: two files whose records are each in coordinate order and meet at
+     * three positions (chr1:100, chr1:550, chr2:100), which is where the PriorityQueue inside
+     * htsjdk's MergingIterator decides the order and the input order does not.
+     *
+     * `merge_a.vcf` has its samples in sorted order, so its genotype blocks are copied; `merge_b.vcf`
+     * has them reversed, so its are decoded and re-encoded in the sorted order. The two disagree on
+     * XC's Number, which smartMergeHeaders promotes to `.` (AC would not do: it is a standard line,
+     * which the reader repairs to Number=A before the merge sees it), and b adds an INFO line.
+     * `merge_b_no_contigs.vcf` is b without contig lines, which needs SEQUENCE_DICTIONARY, and
+     * `merge_swapped_contigs.vcf` declares the same contigs in the other order, which the
+     * comparator refuses as incompatible.
+     */
+    static void writeVcfMergeFixtures(File dir) throws Exception {
+        String common = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FILTER=<ID=LowQual,Description=\"Low quality\">",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">",
+                "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+                "##INFO=<ID=DB,Number=0,Type=Flag,Description=\"dbSNP membership\">") + "\n";
+        String metaA = common
+                + "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count\">\n"
+                + "##INFO=<ID=XC,Number=2,Type=Integer,Description=\"Two counts\">\n"
+                + "##source=merge_a\n";
+        String metaB = common
+                + "##INFO=<ID=AC,Number=1,Type=Integer,Description=\"Allele count in b\">\n"
+                + "##INFO=<ID=XB,Number=1,Type=Float,Description=\"Only in b\">\n"
+                + "##INFO=<ID=XC,Number=3,Type=Integer,Description=\"Three counts\">\n"
+                + "##source=merge_b\n";
+        String contigs = "##contig=<ID=chr1,length=" + CHR1 + ">\n"
+                + "##contig=<ID=chr2,length=" + CHR2 + ",assembly=test>\n";
+        String swapped = "##contig=<ID=chr2,length=" + CHR2 + ",assembly=test>\n"
+                + "##contig=<ID=chr1,length=" + CHR1 + ">\n";
+        String columns = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
+        String[] recordsA = {
+            "chr1\t100\trs1\tA\tG\t50\tPASS\tAC=1;DB\tGT:GQ:DP\t0/1:30:8\t0/0:.:.",
+            "chr1\t200\t.\tACGT\tA\t30\tPASS\tAC=1\tGT:GQ:DP\t0/1:.:4\t1/1:9:.",
+            "chr1\t550\trs4\tA\tT\t.\t.\tAC=0\tGT:GQ:DP\t0/0:50:20\t0/0:40:20",
+            "chr2\t100\t.\tA\tG\t.\tLowQual\tAC=1\tGT:GQ:DP\t0/1:30:8\t./.:.:.",
+        };
+        // Columns in b's own order, sampleB first.
+        String[] recordsB = {
+            "chr1\t100\t.\tA\tC\t20\tPASS\tAC=1;XB=0.5\tGT:DP:GQ\t0/0:.:.\t0/1:7:22",
+            "chr1\t150\trs9\tC\tCT\t.\tPASS\tAC=2\tGT:GQ\t1/1:15\t0/1:.",
+            "chr1\t550\t.\tA\tC\t15\tLowQual\tXB=2\tGT:GQ:DP\t0/1:5:.\t0/0:.:3",
+            "chr1\t700\t.\tC\tT\t.\t.\tAC=1\tGT:GQ:DP\t./.:.:.\t0/1:12:3",
+            "chr2\t50\t.\tT\tA\t8\tPASS\t.\tGT\t0|1\t1|0",
+            "chr2\t100\trs7\tA\tT\t.\tPASS\tAC=1\tGT:GQ:DP\t0/1:10:10\t0/0:10:10",
+        };
+        writeVcfText(new File(dir, "merge_a.vcf"), metaA + contigs,
+                columns + "\tsampleA\tsampleB", recordsA, 11);
+        writeVcfText(new File(dir, "merge_b.vcf"), metaB + contigs,
+                columns + "\tsampleB\tsampleA", recordsB, 11);
+        writeVcfText(new File(dir, "merge_b_no_contigs.vcf"), metaB,
+                columns + "\tsampleB\tsampleA", recordsB, 11);
+        writeVcfText(new File(dir, "merge_swapped_contigs.vcf"), metaB + swapped,
+                columns + "\tsampleB\tsampleA", recordsB, 11);
+    }
+
+    /**
+     * The corpus of GatherVcfs: `gather_1.vcf` and `gather_2.vcf` are two consecutive stretches of
+     * one call set, `gather_empty.vcf` has the header and no records, `gather_overlap.vcf` starts
+     * after gather_1 starts but before it ends (the first-record check passes and the gather's own
+     * check does not), and `gather_2_swapped.vcf` is gather_2 with its sample columns in the
+     * other order, which GatherVcfs compares as a list and refuses beside the others. Alone it is
+     * accepted, and its output keeps its own column order with every genotype re-encoded, where
+     * the other files' sorted columns are copied.
+     */
+    static void writeVcfGatherFixtures(File dir) throws Exception {
+        String meta = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FILTER=<ID=LowQual,Description=\"Low quality\">",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">",
+                "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+                "##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Allele count\">",
+                "##source=gather",
+                "##source=a second source line",
+                "##contig=<ID=chr1,length=" + CHR1 + ">",
+                "##contig=<ID=chr2,length=" + CHR2 + ",assembly=test>") + "\n";
+        String columns = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
+        String sorted = columns + "\tsampleA\tsampleB";
+        String unsorted = columns + "\tsampleB\tsampleA";
+        String[] first = {
+            "chr1\t100\trs1\tA\tG\t50\tPASS\tAC=1\tGT:GQ:DP\t0/1:30:8\t0/0:.:.",
+            "chr1\t200\t.\tACGT\tA\t30\tPASS\tAC=1\tGT:GQ:DP\t0/1:.:4\t1/1:9:.",
+            "chr1\t550\trs4\tA\tT\t.\t.\tAC=0\tGT:DP:GQ\t0/0:20:50\t0/0:20:.",
+        };
+        String[] second = {
+            "chr1\t700\t.\tC\tT\t.\tLowQual\tAC=1\tGT:GQ:DP\t./.:.:.\t0/1:12:3",
+            "chr2\t50\t.\tT\tA\t8\tPASS\t.\tGT\t0|1\t1|0",
+            "chr2\t100\trs7\tA\tT\t.\tPASS\tAC=1\tGT:GQ:DP\t0/1:10:10\t0/0:10:.",
+        };
+        String[] overlap = {
+            "chr1\t300\t.\tG\tC\t9\tPASS\tAC=1\tGT:GQ\t0/1:9\t0/0:.",
+            "chr1\t800\t.\tT\tG\t9\tPASS\tAC=1\tGT:GQ\t0/1:9\t0/0:.",
+        };
+        writeVcfText(new File(dir, "gather_1.vcf"), meta, sorted, first, 11);
+        writeVcfText(new File(dir, "gather_2.vcf"), meta, sorted, second, 11);
+        writeVcfText(new File(dir, "gather_empty.vcf"), meta, sorted, new String[0], 11);
+        writeVcfText(new File(dir, "gather_overlap.vcf"), meta, sorted, overlap, 11);
+        writeVcfText(new File(dir, "gather_2_swapped.vcf"), meta, unsorted, second, 11);
+    }
+
+    /**
+     * The corpus of SplitVcfs beside vcf_sorted_samples.vcf (whose one odd record is SYMBOLIC):
+     * every VariantContext type in one file, in coordinate order. The first record that is
+     * neither a SNP nor an indel is a MIXED site, which is the type STRICT names; the multiallelic
+     * SNP, the MNP, the site with no ALT (NO_VARIATION) and the insertion come after it.
+     */
+    static void writeVcfSplitFixture(File dir) throws Exception {
+        String meta = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+                "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total depth\">",
+                "##contig=<ID=chr1,length=" + CHR1 + ">",
+                "##contig=<ID=chr2,length=" + CHR2 + ">") + "\n";
+        String[] records = {
+            "chr1\t10\t.\tA\tG\t.\t.\tDP=5\tGT:DP\t0/1:5",
+            "chr1\t20\t.\tAC\tA\t.\t.\t.\tGT:DP\t1/1:.",
+            "chr1\t30\t.\tA\tG,AT\t.\t.\t.\tGT\t1/2",
+            "chr1\t40\t.\tC\tA,T\t9\tPASS\tDP=3\tGT:DP\t1/2:3",
+            "chr1\t50\t.\tAC\tGT\t.\t.\t.\tGT\t0/1",
+            "chr1\t60\t.\tT\t.\t.\t.\t.\tGT\t0/0",
+            "chr2\t5\trs5\tG\tGTT\t.\tPASS\t.\tGT:DP\t0|1:7",
+            "chr2\t9\t.\tC\tT\t.\t.\t.\tGT:DP\t./.:.",
+        };
+        writeVcfText(new File(dir, "split_types.vcf"), meta,
+                "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsampleA", records, 10);
+    }
+
+    /**
+     * The corpus of VcfFormatConverter beside variants.vcf (which has its .idx): gather_1.vcf as
+     * a block-compressed file with its tabix index, written by htsjdk's own writer, so the one
+     * compressed input the tool reads with REQUIRE_INDEX has the index it looks for; and
+     * `unsorted_indexed.vcf`, the out-of-order records beside a borrowed `.idx`.
+     */
+    static void writeVcfConverterFixture(File dir) throws Exception {
+        // The unsorted records under an index the reader only needs to find and load, so
+        // REQUIRE_INDEX lets them through to a compressed output, whose tabix index refuses them.
+        java.nio.file.Files.copy(new File(dir, "vcf_unsorted_samples.vcf").toPath(),
+                new File(dir, "unsorted_indexed.vcf").toPath());
+        java.nio.file.Files.copy(new File(dir, "variants.vcf.idx").toPath(),
+                new File(dir, "unsorted_indexed.vcf.idx").toPath());
+        try (htsjdk.variant.vcf.VCFFileReader in =
+                     new htsjdk.variant.vcf.VCFFileReader(new File(dir, "gather_1.vcf"), false);
+             htsjdk.variant.variantcontext.writer.VariantContextWriter out =
+                     new htsjdk.variant.variantcontext.writer.VariantContextWriterBuilder()
+                             .setOutputFile(new File(dir, "gather_1.vcf.gz"))
+                             .setReferenceDictionary(in.getFileHeader().getSequenceDictionary())
+                             .setOption(htsjdk.variant.variantcontext.writer.Options.INDEX_ON_THE_FLY)
+                             .build()) {
+            out.writeHeader(in.getFileHeader());
+            for (htsjdk.variant.variantcontext.VariantContext vc : in) {
+                out.add(vc);
+            }
+        }
+    }
+
+    /**
+     * The corpus of FixVcfHeader. `fix_missing.vcf` uses a FILTER, three INFO keys (one a flag)
+     * and three FORMAT keys (one of them GQ, a standard key) that its header does not define, at
+     * most one undefined INFO key per record, so which one the writer names first never depends on
+     * a HashMap's order. `fix_missing_unsorted.vcf` is the same under the other column order, so
+     * its genotypes are decoded and their FORMAT keys checked. `fix_header.vcf` is a header
+     * defining all of them, with no records, for HEADER, and `fix_header_swapped.vcf` the same
+     * with its sample columns in the other order, which ENFORCE_SAME_SAMPLES lets through.
+     */
+    static void writeVcfFixHeaderFixtures(File dir) throws Exception {
+        String contigs = "##contig=<ID=chr1,length=" + CHR1 + ">\n"
+                + "##contig=<ID=chr2,length=" + CHR2 + ">\n";
+        String meta = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+                "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total depth\">",
+                "##source=fix") + "\n" + contigs;
+        String full = String.join("\n",
+                "##fileformat=VCFv4.2",
+                "##FILTER=<ID=q10,Description=\"Quality below 10\">",
+                "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">",
+                "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">",
+                "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">",
+                "##FORMAT=<ID=XF,Number=1,Type=String,Description=\"A string\">",
+                "##FORMAT=<ID=XG,Number=1,Type=Integer,Description=\"An integer\">",
+                "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total depth\">",
+                "##INFO=<ID=XA,Number=1,Type=Integer,Description=\"One\">",
+                "##INFO=<ID=XB,Number=2,Type=Integer,Description=\"Two\">",
+                "##INFO=<ID=FLAGX,Number=0,Type=Flag,Description=\"A flag\">",
+                "##source=the replacement header") + "\n" + contigs;
+        String columns = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
+        String[] records = {
+            "chr1\t100\t.\tA\tG\t50\tPASS\tDP=10;XA=1\tGT:GQ:XF\t0/1:30:a\t0/0:.:.",
+            "chr1\t200\t.\tC\tT\t.\tq10\tDP=5;FLAGX\tGT:DP\t1/1:3\t0/1:2",
+            "chr2\t50\t.\tG\tA\t.\tPASS\tXB=2,3\tGT:XG\t0|1:7\t1|1:8",
+        };
+        // The same records with their two sample columns swapped, for the other column order.
+        String[] swapped = new String[records.length];
+        for (int i = 0; i < records.length; i++) {
+            String[] f = records[i].split("\t");
+            String t = f[9];
+            f[9] = f[10];
+            f[10] = t;
+            swapped[i] = String.join("\t", f);
+        }
+        writeVcfText(new File(dir, "fix_missing.vcf"), meta,
+                columns + "\tsampleA\tsampleB", records, 11);
+        writeVcfText(new File(dir, "fix_missing_unsorted.vcf"), meta,
+                columns + "\tsampleB\tsampleA", swapped, 11);
+        writeVcfText(new File(dir, "fix_header.vcf"), full,
+                columns + "\tsampleA\tsampleB", new String[0], 11);
+        writeVcfText(new File(dir, "fix_header_swapped.vcf"), full,
+                columns + "\tsampleB\tsampleA", new String[0], 11);
     }
 
     /** A VCF as text: the meta lines, the column line, and each record cut to its first columns. */
