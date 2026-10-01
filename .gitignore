@@ -87,6 +87,11 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/CollectWgsMetricsWithNonZeroCoverage.t2.txt
 !tools/coverage/corpus/CollectHsMetrics.t2.txt
 !tools/coverage/corpus/CollectTargetedPcrMetrics.t2.txt
+!tools/coverage/corpus/CollectSequencingArtifactMetrics.t2.txt
+!tools/coverage/corpus/ConvertSequencingArtifactToOxoG.t2.txt
+!tools/coverage/corpus/CollectOxoGMetrics.t2.txt
+!tools/coverage/corpus/CollectGcBiasMetrics.t2.txt
+!tools/coverage/corpus/CollectRrbsMetrics.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

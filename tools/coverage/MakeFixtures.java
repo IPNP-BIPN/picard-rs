@@ -571,6 +571,33 @@ public class MakeFixtures {
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
 
+        // Detail tables in the shape `CollectSequencingArtifactMetrics` writes them, for
+        // `ConvertSequencingArtifactToOxoG`, which reads two of them and nothing else. Written
+        // through Picard's own beans and `MetricsFile`, with no header, so the bytes do not carry
+        // the command line or the second they were made. `artifacts` is the whole table for two
+        // libraries, where CCG, its reverse complement CGG, and GCA count nothing at all, which
+        // is what puts an infinite rate and a NaN one in the output; `artifacts_subset` is one
+        // library and the four contexts a CONTEXTS_TO_PRINT run leaves, each with its reverse
+        // complement; and `artifacts_broken` keeps `ACA` without `TGT`, the reverse complement
+        // the tool looks up.
+        writeArtifactTables(dir, "artifacts", new String[] {"lib1", "lib2"}, "sample1,sample2", null);
+        writeArtifactTables(dir, "artifacts_subset", new String[] {"lib1"}, "sample1",
+                new String[] {"ACA", "CCC", "GGG", "TGT"});
+        writeArtifactTables(dir, "artifacts_broken", new String[] {"lib1"}, "sample1",
+                new String[] {"ACA", "CCC", "GGG"});
+
+        // Bisulfite-converted reads, for `CollectRrbsMetrics`. The other fixtures' bases are
+        // random, so every read fails the tool's mismatch filter and the metrics count nothing.
+        // These copy the reference and convert it the way bisulfite does: a cytosine outside a
+        // CpG is read as T nineteen times in twenty, one inside a CpG (methylated, so protected)
+        // one time in four. A reverse-strand read converts the other strand, so its stored bases
+        // show G read as A. Every eighth read also carries eight mismatches, which the default
+        // MAX_MISMATCH_RATE rejects; every tenth is four bases long, under the default
+        // MINIMUM_READ_LENGTH; one in thirty is placed but unmapped; and the qualities straddle
+        // the two quality thresholds.
+        SAMFileHeader rrbsHeader = header(SAMFileHeader.SortOrder.coordinate);
+        writeBam(new File(dir, "rrbs.bam"), rrbsHeader, rrbsReads(rrbsHeader, chr1, chr2), false);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
@@ -1466,5 +1493,115 @@ public class MakeFixtures {
                 p.printf("@fq%04d/%d%n%s%n+%n%s%n", i, end, bases, quals);
             }
         }
+    }
+
+    /** The pre-adapter and bait-bias detail tables of one artifact run; see the call site. */
+    static void writeArtifactTables(File dir, String base, String[] libraries, String sample,
+                                    String[] keep) throws Exception {
+        Random rng = new Random(20260930L + base.length());
+        htsjdk.samtools.metrics.MetricsFile<picard.analysis.artifacts.SequencingArtifactMetrics.PreAdapterDetailMetrics, Integer> pre =
+                new htsjdk.samtools.metrics.MetricsFile<>();
+        htsjdk.samtools.metrics.MetricsFile<picard.analysis.artifacts.SequencingArtifactMetrics.BaitBiasDetailMetrics, Integer> bait =
+                new htsjdk.samtools.metrics.MetricsFile<>();
+        String bases = "ACGT";
+        java.util.List<String> contexts = new java.util.ArrayList<>();
+        for (char a : bases.toCharArray())
+            for (char b : bases.toCharArray())
+                for (char c : bases.toCharArray()) contexts.add("" + a + b + c);
+        for (String library : libraries) {
+            for (char ref : bases.toCharArray()) {
+                for (char alt : bases.toCharArray()) {
+                    if (ref == alt) continue;
+                    for (int i = 0; i < contexts.size(); i++) {
+                        String context = contexts.get(i);
+                        if (context.charAt(1) != ref) continue;
+                        if (keep != null && !java.util.Arrays.asList(keep).contains(context)) continue;
+                        boolean empty = context.equals("CCG") || context.equals("CGG") || context.equals("GCA");
+                        picard.analysis.artifacts.SequencingArtifactMetrics.PreAdapterDetailMetrics p =
+                                new picard.analysis.artifacts.SequencingArtifactMetrics.PreAdapterDetailMetrics();
+                        p.SAMPLE_ALIAS = sample;
+                        p.LIBRARY = library;
+                        p.REF_BASE = ref;
+                        p.ALT_BASE = alt;
+                        p.CONTEXT = context;
+                        p.PRO_REF_BASES = empty ? 0 : 50 + rng.nextInt(200);
+                        p.PRO_ALT_BASES = empty ? 0 : rng.nextInt(30);
+                        p.CON_REF_BASES = empty ? 0 : 50 + rng.nextInt(200);
+                        p.CON_ALT_BASES = empty ? 0 : rng.nextInt(30);
+                        p.calculateDerivedStatistics();
+                        pre.addMetric(p);
+                        picard.analysis.artifacts.SequencingArtifactMetrics.BaitBiasDetailMetrics b =
+                                new picard.analysis.artifacts.SequencingArtifactMetrics.BaitBiasDetailMetrics();
+                        b.SAMPLE_ALIAS = sample;
+                        b.LIBRARY = library;
+                        b.REF_BASE = ref;
+                        b.ALT_BASE = alt;
+                        b.CONTEXT = context;
+                        b.FWD_CXT_REF_BASES = empty ? 0 : 50 + rng.nextInt(200);
+                        b.FWD_CXT_ALT_BASES = empty ? 0 : rng.nextInt(30);
+                        b.REV_CXT_REF_BASES = empty ? 0 : 50 + rng.nextInt(200);
+                        b.REV_CXT_ALT_BASES = empty ? 0 : rng.nextInt(30);
+                        b.calculateDerivedStatistics();
+                        bait.addMetric(b);
+                    }
+                }
+            }
+        }
+        pre.write(new File(dir, base + ".pre_adapter_detail_metrics"));
+        bait.write(new File(dir, base + ".bait_bias_detail_metrics"));
+    }
+
+    /** The bisulfite-converted reads of `rrbs.bam`; see the call site. */
+    static java.util.List<SAMRecord> rrbsReads(SAMFileHeader header, String chr1, String chr2) {
+        Random rng = new Random(20261001L);
+        java.util.List<SAMRecord> out = new java.util.ArrayList<>();
+        for (int i = 0; i < 240; i++) {
+            boolean onChr2 = i % 5 == 0;
+            String contig = onChr2 ? chr2 : chr1;
+            int length = i % 10 == 9 ? 4 : READ_LENGTH;
+            // Clear of the run of Ns near each contig's end.
+            int start = 1 + rng.nextInt(contig.length() - 80 - length);
+            boolean negative = i % 3 == 1;
+            byte[] bases = contig.substring(start - 1, start - 1 + length).getBytes();
+            byte[] quals = new byte[length];
+            for (int b = 0; b < length; b++) {
+                quals[b] = (byte) (8 + rng.nextInt(33));
+                int pos = start - 1 + b;
+                if (!negative && bases[b] == 'C') {
+                    boolean cpg = pos + 1 < contig.length() && contig.charAt(pos + 1) == 'G';
+                    boolean convert = cpg ? rng.nextInt(4) == 0 : rng.nextInt(20) != 0;
+                    if (convert) bases[b] = 'T';
+                } else if (negative && bases[b] == 'G') {
+                    boolean cpg = pos > 0 && contig.charAt(pos - 1) == 'C';
+                    boolean convert = cpg ? rng.nextInt(4) == 0 : rng.nextInt(20) != 0;
+                    if (convert) bases[b] = 'A';
+                }
+            }
+            if (i % 8 == 3 && length == READ_LENGTH) {
+                for (int e = 0; e < 8; e++) {
+                    int b = 5 * e + 2;
+                    bases[b] = mutateBase(bases[b]);
+                }
+            }
+            SAMRecord r = new SAMRecord(header);
+            r.setReadName(String.format("rrbs%04d", i));
+            r.setReadBases(bases);
+            r.setBaseQualities(quals);
+            r.setReferenceIndex(onChr2 ? 1 : 0);
+            r.setAlignmentStart(start);
+            r.setCigarString(length + "M");
+            r.setMappingQuality(60);
+            r.setReadNegativeStrandFlag(negative);
+            r.setAttribute("RG", i % 2 == 0 ? "rg1" : "rg2");
+            if (i % 30 == 7) {
+                // Placed but unmapped, which the tool skips before it asks the reference.
+                r.setReadUnmappedFlag(true);
+                r.setMappingQuality(0);
+                r.setCigarString("*");
+            }
+            out.add(r);
+        }
+        out.sort(new SAMRecordCoordinateComparator());
+        return out;
     }
 }

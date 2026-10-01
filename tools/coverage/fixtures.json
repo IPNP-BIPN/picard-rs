@@ -1223,6 +1223,256 @@
         "/work/fixtures/ref.fasta",
         "null"
       ]
+    },
+    "CollectSequencingArtifactMetrics": {
+      "$why": [
+        "OUTPUT is a prefix: the tool writes five files under it, and the manifest compares all five,",
+        "with and without FILE_EXTENSION, so a row that moves the files is compared on where they went.",
+        "original_quals.bam carries OQ on two pairs in three, which is what makes USE_OQ observable;",
+        "one_read_group.bam has a single library and sample, so the per-library split and the sample",
+        "alias change. INTERVALS and DB_SNP each take null and a file: the mask and the dbSNP skip both",
+        "remove bases. The insert-size bounds reach the filter (150 drops the corpus's short inserts,",
+        "0 removes the maximum) and the tool's own validation (-1, and a maximum under the minimum).",
+        "CONTEXT_SIZE 0 collapses every context to its centre, and CONTEXTS_TO_PRINT of length three is",
+        "then refused; CONTEXT_SIZE 2 is left out because its detail files hold 12,288 rows a library.",
+        "CONTEXTS_TO_PRINT is a whole set ($lists), whose refusals come out in HashSet order."
+      ],
+      "$lists": [
+        "--CONTEXTS_TO_PRINT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/one_read_group.bam",
+        "/work/fixtures/original_quals.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list"
+      ],
+      "--DB_SNP": [
+        "null",
+        "/work/fixtures/dbsnp.vcf"
+      ],
+      "--MINIMUM_QUALITY_SCORE": [
+        "20",
+        "30"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "30",
+        "50"
+      ],
+      "--MINIMUM_INSERT_SIZE": [
+        "60",
+        "150",
+        "-1"
+      ],
+      "--MAXIMUM_INSERT_SIZE": [
+        "600",
+        "0",
+        "100"
+      ],
+      "--CONTEXT_SIZE": [
+        "1",
+        "0"
+      ],
+      "--CONTEXTS_TO_PRINT": [
+        "null",
+        "ACA CCC"
+      ],
+      "--FILE_EXTENSION": [
+        "null",
+        ".txt"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "200"
+      ]
+    },
+    "ConvertSequencingArtifactToOxoG": {
+      "$why": [
+        "The inputs are detail tables MakeFixtures writes through Picard's own beans: artifacts (two",
+        "libraries, every context, some counting nothing), artifacts_subset (one library, four",
+        "contexts) and artifacts_broken (ACA without its reverse complement TGT). INPUT_BASE names a",
+        "pair, PRE_ADAPTER_IN and BAIT_BIAS_IN override either half, and a pair whose libraries or",
+        "contexts do not line up is the NullPointerException Picard throws. OUTPUT_BASE and OXOG_OUT",
+        "both name a file in the output directory; see the constraint for why they are never both null."
+      ],
+      "--INPUT_BASE": [
+        "null",
+        "/work/fixtures/artifacts",
+        "/work/fixtures/artifacts_subset"
+      ],
+      "--PRE_ADAPTER_IN": [
+        "null",
+        "/work/fixtures/artifacts.pre_adapter_detail_metrics",
+        "/work/fixtures/artifacts_broken.pre_adapter_detail_metrics"
+      ],
+      "--BAIT_BIAS_IN": [
+        "null",
+        "/work/fixtures/artifacts.bait_bias_detail_metrics"
+      ],
+      "--OUTPUT_BASE": [
+        "/work/out/output",
+        "null"
+      ],
+      "--OXOG_OUT": [
+        "null",
+        "/work/out/oxog.txt"
+      ]
+    },
+    "CollectOxoGMetrics": {
+      "$why": [
+        "original_quals.bam carries OQ on two pairs in three, which is what makes USE_OQ observable;",
+        "one_read_group.bam has a single library and sample. INTERVALS and DB_SNP each take null and a",
+        "file. The insert-size bounds reach the filter (0 and 0 remove it, which lets unpaired reads",
+        "in) and the tool's own validation (a maximum under the minimum). CONTEXT_SIZE 0 makes the",
+        "contexts single bases; AGT fails the middle-base check, or the length check at size 0.",
+        "STOP_AFTER 100 ends the walk after a hundred sites of interest."
+      ],
+      "$lists": [
+        "--CONTEXTS"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/one_read_group.bam",
+        "/work/fixtures/original_quals.bam"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list"
+      ],
+      "--DB_SNP": [
+        "null",
+        "/work/fixtures/dbsnp.vcf"
+      ],
+      "--MINIMUM_QUALITY_SCORE": [
+        "20",
+        "30"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "30",
+        "50"
+      ],
+      "--MINIMUM_INSERT_SIZE": [
+        "60",
+        "0"
+      ],
+      "--MAXIMUM_INSERT_SIZE": [
+        "600",
+        "0",
+        "100"
+      ],
+      "--CONTEXT_SIZE": [
+        "1",
+        "0"
+      ],
+      "--CONTEXTS": [
+        "null",
+        "ACA TCG",
+        "AGT"
+      ],
+      "--STOP_AFTER": [
+        "2147483647",
+        "100"
+      ]
+    },
+    "CollectGcBiasMetrics": {
+      "$why": [
+        "SUMMARY_OUTPUT is compared beside OUTPUT; the chart is R's and is not. unmapped.bam has no",
+        "aligned read, so every unit writes nothing and R fails on the empty summary, which the tool",
+        "ignores; one_read_group.bam has one unit per level. SCAN_WINDOW_SIZE 50 and 1500 move every",
+        "window and bin, and 1500 is longer than chr2, whose reads then all land in bin 0.",
+        "METRIC_ACCUMULATION_LEVEL is a collection appended to its ALL_READS default ($lists), and",
+        "null empties it, which leaves no level at all."
+      ],
+      "$lists": [
+        "--METRIC_ACCUMULATION_LEVEL"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/one_read_group.bam",
+        "/work/fixtures/unmapped.bam"
+      ],
+      "--SUMMARY_OUTPUT": [
+        "/work/out/summary.txt"
+      ],
+      "--SCAN_WINDOW_SIZE": [
+        "100",
+        "50",
+        "1500"
+      ],
+      "--METRIC_ACCUMULATION_LEVEL": [
+        "ALL_READS",
+        "SAMPLE LIBRARY",
+        "READ_GROUP",
+        "null"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "150"
+      ]
+    },
+    "CollectRrbsMetrics": {
+      "$why": [
+        "rrbs.bam is bisulfite-converted reference sequence (MakeFixtures): the other BAMs are random",
+        "bases, which every row's mismatch filter rejects. small.bam is kept as that case, and",
+        "queryname.bam as the sort refusal and, under ASSUME_SORTED, the walker's. The prefix is given",
+        "with and without its trailing dot, which name the same two files. The thresholds each take a",
+        "value that moves the counts; MINIMUM_READ_LENGTH 0 and MAX_MISMATCH_RATE 1.5 are refused, alone",
+        "and together in one message, and MINIMUM_READ_LENGTH 60 makes every read short.",
+        "SEQUENCE_NAMES and METRIC_ACCUMULATION_LEVEL are collections ($lists)."
+      ],
+      "$lists": [
+        "--SEQUENCE_NAMES",
+        "--METRIC_ACCUMULATION_LEVEL"
+      ],
+      "--INPUT": [
+        "/work/fixtures/rrbs.bam",
+        "/work/fixtures/small.bam",
+        "/work/fixtures/queryname.bam"
+      ],
+      "--METRICS_FILE_PREFIX": [
+        "/work/out/output",
+        "/work/out/output."
+      ],
+      "--MINIMUM_READ_LENGTH": [
+        "5",
+        "60",
+        "0"
+      ],
+      "--C_QUALITY_THRESHOLD": [
+        "20",
+        "30"
+      ],
+      "--NEXT_BASE_QUALITY_THRESHOLD": [
+        "10",
+        "30"
+      ],
+      "--MAX_MISMATCH_RATE": [
+        "0.1",
+        "0.0",
+        "1.5"
+      ],
+      "--SEQUENCE_NAMES": [
+        "null",
+        "chr2",
+        "chr1 chr2"
+      ],
+      "--METRIC_ACCUMULATION_LEVEL": [
+        "ALL_READS",
+        "SAMPLE LIBRARY",
+        "READ_GROUP",
+        "null"
+      ]
     }
   },
   "constraints": [
@@ -1269,6 +1519,26 @@
         "--USE_FAST_ALGORITHM": "true"
       },
       "why": "This tool always builds the slow collector, and the fast iterator hands it edge records, so every row with USE_FAST_ALGORITHM=true ends in the same ClassCastException at the first covered locus (htsjdk.samtools.util.EdgingRecordAndOffset$StartEdgingRecordAndOffset cannot be cast to SamLocusIterator$RecordAndOffset). Measured unconstrained, that one refusal took eleven of 21 rows and left five accepted. The port reproduces it (it is a branch of wgs_cli/wgs_walk and matched on every such row of the unconstrained array); it is kept out of the pairwise array so the rows measure the walk."
+    },
+    {
+      "tools": [
+        "ConvertSequencingArtifactToOxoG"
+      ],
+      "forbid": {
+        "--OUTPUT_BASE": "null",
+        "--OXOG_OUT": "null"
+      },
+      "why": "With neither, the output defaults to INPUT_BASE + '.oxog_metrics', which is inside the fixture directory: the oracle refuses it as unwritable (the mount is read-only) while the port, on the host, would write into the shared corpus. The refusal it would measure is the harness's mount, not the tool, and the write would corrupt the corpus for every later row."
+    },
+    {
+      "tools": [
+        "CollectOxoGMetrics"
+      ],
+      "forbid": {
+        "--CONTEXT_SIZE": "0",
+        "--CONTEXTS": "ACA TCG"
+      },
+      "why": "Contexts of three bases are refused at a context size of nought before the tool runs. AGT keeps that refusal (and the middle-base one) as a case; without this clause the pair took a quarter of the first array's rows, which then measured the validator instead of the counters."
     }
   ],
   "exclude": {
