@@ -574,6 +574,13 @@
         "status": "pending",
         "output_name": "output.txt,table.txt",
         "exit_code_is_a_result": true
+      },
+      {
+        "tool": "MergeBamAlignment",
+        "port": "merge-bam-alignment",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.bam"
       }
     ]
   },

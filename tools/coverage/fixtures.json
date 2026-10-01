@@ -1666,6 +1666,109 @@
       "--CREATE_INDEX": [
         "false"
       ]
+    },
+    "MergeBamAlignment": {
+      "$why": [
+        "mba_unmapped.bam and mba_aligned.bam are MakeFixtures' (see writeMbaFixtures): one template per",
+        "case of the merge. mba_aligned_simple.bam drops the paired multi-hits (so EarliestFragment, which",
+        "refuses a paired read with more than one hit, can run), carries two @PG lines (so none is",
+        "adopted) and is out of queryname order (so the merge throws, sorts the aligned reads and runs",
+        "again). VALIDATION_STRINGENCY is LENIENT or SILENT: STRICT refuses the alignment that runs off",
+        "chr2 (t07) as the aligned file is read, which is the case the merge exists to clip. JUMP_SIZE",
+        "and READ1/READ2_ALIGNED_BAM are left out: Barclay counts an argument given as `null` as set,",
+        "and each is mutually exclusive with one that is always given. The program-group arguments are",
+        "held absent: ID, VERSION and COMMAND_LINE must come together, which left free made a partial",
+        "set (one refusal) most of the array, and tied by constraints left the generator either",
+        "uncovered tuples or rows that break the constraints; the aligned file's own @PG is what the",
+        "rows adopt. READ1_TRIM and READ2_TRIM are held at 0: a trim is only consistent with an aligned",
+        "file whose reads were all trimmed, and on this one every other read becomes an invalid cigar;",
+        "t12's aligned read, shorter than its original, takes the same soft-clipping path. The",
+        "attribute lists and EXPECTED_ORIENTATIONS are $lists; ATTRIBUTES_TO_REVERSE(_COMPLEMENT)",
+        "append to their defaults, so OQ (E2) keeps the default and `null` empties it.",
+        "MATCHING_DICTIONARY_TAGS keeps its default, PAIRED_RUN is ignored by the tool and CREATE_INDEX",
+        "writes a side file only."
+      ],
+      "$lists": [
+        "--ATTRIBUTES_TO_RETAIN",
+        "--ATTRIBUTES_TO_REMOVE",
+        "--ATTRIBUTES_TO_REVERSE",
+        "--ATTRIBUTES_TO_REVERSE_COMPLEMENT",
+        "--EXPECTED_ORIENTATIONS"
+      ],
+      "--UNMAPPED_BAM": [
+        "/work/fixtures/mba_unmapped.bam"
+      ],
+      "--ALIGNED_BAM": [
+        "/work/fixtures/mba_aligned.bam",
+        "/work/fixtures/mba_aligned_simple.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.bam"
+      ],
+      "--SORT_ORDER": [
+        "coordinate",
+        "queryname",
+        "unsorted"
+      ],
+      "--MAX_INSERTIONS_OR_DELETIONS": [
+        "1",
+        "-1"
+      ],
+      "--MIN_UNCLIPPED_BASES": [
+        "32",
+        "10"
+      ],
+      "--ATTRIBUTES_TO_RETAIN": [
+        "null",
+        "XS",
+        "X0 ZZ"
+      ],
+      "--ATTRIBUTES_TO_REMOVE": [
+        "null",
+        "AS",
+        "XS"
+      ],
+      "--ATTRIBUTES_TO_REVERSE": [
+        "OQ",
+        "null"
+      ],
+      "--ATTRIBUTES_TO_REVERSE_COMPLEMENT": [
+        "E2",
+        "null"
+      ],
+      "--READ1_TRIM": [
+        "0"
+      ],
+      "--READ2_TRIM": [
+        "0"
+      ],
+      "--EXPECTED_ORIENTATIONS": [
+        "null",
+        "RF",
+        "FR TANDEM"
+      ],
+      "--PROGRAM_RECORD_ID": [
+        "null"
+      ],
+      "--PROGRAM_GROUP_VERSION": [
+        "null"
+      ],
+      "--PROGRAM_GROUP_COMMAND_LINE": [
+        "null"
+      ],
+      "--PROGRAM_GROUP_NAME": [
+        "null"
+      ],
+      "--PAIRED_RUN": [
+        "true"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "LENIENT",
+        "SILENT"
+      ],
+      "--CREATE_INDEX": [
+        "false"
+      ]
     }
   },
   "constraints": [

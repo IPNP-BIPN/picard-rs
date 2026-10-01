@@ -615,6 +615,9 @@ public class MakeFixtures {
         // Insert-size metrics files that agree and disagree, for `CompareMetrics`.
         writeCompareMetricsFixtures(dir);
 
+        // An unmapped bam and its alignments, for `MergeBamAlignment` (see writeMbaFixtures).
+        writeMbaFixtures(dir, chr1, chr2);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
@@ -1923,6 +1926,254 @@ public class MakeFixtures {
         }
         try (PrintWriter p = new PrintWriter(f, "UTF-8")) {
             p.print(out);
+        }
+    }
+
+    /**
+     * `MergeBamAlignment`'s inputs: `mba_unmapped.bam`, queryname-sorted reads as they came off the
+     * sequencer (four fragments, then seventeen pairs), and `mba_aligned.bam`, what an aligner made
+     * of them. Each template is one case of the merge: a plain proper pair (t00), an overlapping
+     * one the merge clips (t01), a pair with one end unaligned (t02) and with neither aligned
+     * (t03), two hits with the aligner's primary marked by HI (t04) and two with none marked
+     * (t05), a supplementary alignment (t06), an end that runs off chr2 (t07), two indels against
+     * MAX_INSERTIONS_OR_DELETIONS (t08), aligner hard clips (t09), a short doubly clipped
+     * alignment the contamination filter takes (t10), adapter positions in XT (t11), an aligned
+     * read shorter than the original (t12), aligner tags of every kind against the retain and
+     * remove lists (t13), OQ and E2 on a negative-strand end (t14), ends on two contigs (t15) and
+     * an RF pair (t16). The fragments have one hit, two unmarked hits, none, and a negative hit.
+     * `mba_aligned_simple.bam` keeps one hit per paired end, has two @PG lines (so none is
+     * adopted) and is out of queryname order (so the merge retries with the aligned reads sorted).
+     * Read bases are the reference's at the true location with two substitutions, so NM, MD and
+     * UQ have something to count.
+     */
+    static void writeMbaFixtures(File dir, String chr1, String chr2) throws Exception {
+        String[] refs = {chr1, chr2};
+        // name, end (0 fragment, 1 first, 2 second), contig, start, cigar, strand, mapq, flags, HI
+        String[][] hits = {
+            {"f00", "0", "0", "50", "50M", "+", "60", "", ""},
+            {"f01", "0", "0", "150", "5S45M", "+", "20", "sec", ""},
+            {"f01", "0", "1", "500", "50M", "+", "20", "sec", ""},
+            {"f03", "0", "1", "700", "50M", "-", "50", "", ""},
+            {"t00", "1", "0", "100", "50M", "+", "60", "", ""},
+            {"t00", "2", "0", "300", "50M", "-", "60", "", ""},
+            {"t01", "1", "0", "400", "50M", "+", "60", "", ""},
+            {"t01", "2", "0", "390", "50M", "-", "55", "", ""},
+            {"t02", "1", "1", "200", "50M", "+", "37", "", ""},
+            {"t02", "2", "1", "200", "*", "+", "0", "unm", ""},
+            {"t04", "1", "0", "600", "50M", "+", "30", "", "0"},
+            {"t04", "2", "0", "750", "50M", "-", "30", "", "0"},
+            {"t04", "1", "1", "600", "50M", "+", "5", "sec", "1"},
+            {"t04", "2", "1", "750", "50M", "-", "5", "sec", "1"},
+            {"t05", "1", "0", "900", "50M", "+", "20", "sec", "0"},
+            {"t05", "2", "0", "1050", "50M", "-", "20", "sec", "0"},
+            {"t05", "1", "0", "1200", "50M", "+", "40", "sec", "1"},
+            {"t05", "2", "0", "1350", "50M", "-", "40", "sec", "1"},
+            {"t06", "1", "0", "1500", "30M20S", "+", "60", "", ""},
+            {"t06", "1", "1", "800", "30S20M", "+", "20", "sup", ""},
+            {"t06", "2", "0", "1650", "50M", "-", "60", "", ""},
+            {"t07", "1", "1", "960", "50M", "+", "60", "", ""},
+            {"t07", "2", "1", "900", "50M", "-", "60", "", ""},
+            {"t08", "1", "0", "1700", "20M1I10M1D19M", "+", "60", "", ""},
+            {"t08", "2", "0", "1800", "50M", "-", "60", "", ""},
+            {"t09", "1", "0", "200", "5H45M", "+", "60", "", ""},
+            {"t09", "2", "0", "350", "45M5H", "-", "60", "", ""},
+            {"t10", "1", "1", "300", "10S20M20S", "+", "25", "", ""},
+            {"t10", "2", "1", "420", "50M", "-", "60", "", ""},
+            {"t11", "1", "0", "1000", "50M", "+", "60", "", ""},
+            {"t11", "2", "0", "1100", "50M", "-", "60", "", ""},
+            {"t12", "1", "0", "500", "45M", "+", "60", "", ""},
+            {"t12", "2", "0", "560", "50M", "-", "60", "", ""},
+            {"t13", "1", "1", "100", "50M", "+", "60", "", ""},
+            {"t13", "2", "1", "250", "50M", "-", "60", "", ""},
+            {"t14", "1", "0", "1300", "50M", "+", "60", "", ""},
+            {"t14", "2", "0", "1450", "50M", "-", "60", "", ""},
+            {"t15", "1", "0", "1900", "50M", "+", "60", "", ""},
+            {"t15", "2", "1", "50", "50M", "-", "60", "", ""},
+            {"t16", "1", "0", "1600", "50M", "-", "60", "", ""},
+            {"t16", "2", "0", "1700", "50M", "+", "60", "", ""},
+        };
+        String[] fragments = {"f00", "f01", "f02", "f03"};
+        String[] pairs = new String[17];
+        for (int i = 0; i < 17; i++) pairs[i] = String.format("t%02d", i);
+
+        Random rng = new Random(20261003L);
+        SAMFileHeader unmappedHeader = header(SAMFileHeader.SortOrder.queryname);
+        java.util.List<SAMRecord> unmapped = new java.util.ArrayList<>();
+        java.util.Map<String, byte[]> sequenced = new java.util.HashMap<>();
+        java.util.List<String> names = new java.util.ArrayList<>();
+        for (String f : fragments) names.add(f);
+        for (String p : pairs) names.add(p);
+        for (String name : names) {
+            int ends = name.startsWith("f") ? 1 : 2;
+            for (int end = (ends == 1 ? 0 : 1); end <= (ends == 1 ? 0 : 2); end++) {
+                String[] truth = null;
+                for (String[] h : hits) {
+                    if (h[0].equals(name) && Integer.parseInt(h[1]) == end && !h[4].equals("*")) {
+                        truth = h;
+                        break;
+                    }
+                }
+                byte[] bases = new byte[READ_LENGTH];
+                if (truth == null) {
+                    for (int b = 0; b < READ_LENGTH; b++) bases[b] = (byte) "ACGT".charAt(rng.nextInt(4));
+                } else {
+                    String contig = refs[Integer.parseInt(truth[2])];
+                    int start = Integer.parseInt(truth[3]);
+                    // Leading clips and hard clips are read bases before the aligned start.
+                    int lead = 0;
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(\\d+)[SH]").matcher(truth[4]);
+                    if (truth[5].equals("+") && m.find()) lead = Integer.parseInt(m.group(1));
+                    java.util.regex.Matcher t = java.util.regex.Pattern.compile("(\\d+)[SH]$").matcher(truth[4]);
+                    if (truth[5].equals("-") && t.find()) lead = Integer.parseInt(t.group(1));
+                    for (int b = 0; b < READ_LENGTH; b++) {
+                        int pos = start - 1 - (truth[5].equals("+") ? lead : 0) + b;
+                        bases[b] = (pos >= 0 && pos < contig.length()) ? (byte) contig.charAt(pos) : (byte) 'A';
+                        if (bases[b] == 'N') bases[b] = 'A';
+                    }
+                    bases[7] = mutateBase(bases[7]);
+                    bases[33] = mutateBase(bases[33]);
+                    if (truth[5].equals("-")) SequenceUtil.reverseComplement(bases);
+                }
+                byte[] quals = new byte[READ_LENGTH];
+                for (int b = 0; b < READ_LENGTH; b++) quals[b] = (byte) (2 + rng.nextInt(39));
+                SAMRecord r = new SAMRecord(unmappedHeader);
+                r.setReadName(name);
+                r.setReadBases(bases);
+                r.setBaseQualities(quals);
+                r.setReadUnmappedFlag(true);
+                r.setReferenceIndex(SAMRecord.NO_ALIGNMENT_REFERENCE_INDEX);
+                r.setAlignmentStart(SAMRecord.NO_ALIGNMENT_START);
+                r.setMappingQuality(0);
+                if (end > 0) {
+                    r.setReadPairedFlag(true);
+                    r.setMateUnmappedFlag(true);
+                    r.setFirstOfPairFlag(end == 1);
+                    r.setSecondOfPairFlag(end == 2);
+                }
+                r.setAttribute("RG", name.compareTo("t08") < 0 ? "rg1" : "rg2");
+                if (name.equals("t11")) r.setAttribute("XT", end == 1 ? 40 : 30);
+                if ((name.equals("t14") && end == 2) || name.equals("f03")) {
+                    StringBuilder oq = new StringBuilder();
+                    for (int b = 0; b < READ_LENGTH; b++) oq.append((char) (33 + 10 + (b % 30)));
+                    r.setAttribute("OQ", oq.toString());
+                    r.setAttribute("E2", new String(bases, 0, READ_LENGTH).replace('A', 'C'));
+                }
+                if (name.equals("t13")) r.setAttribute("XU", "kept-" + end);
+                sequenced.put(name + "/" + end, bases);
+                unmapped.add(r);
+            }
+        }
+        writeBam(new File(dir, "mba_unmapped.bam"), unmappedHeader, unmapped, false);
+
+        for (int variant = 0; variant < 2; variant++) {
+            boolean simple = variant == 1;
+            SAMFileHeader alignedHeader = header(simple ? SAMFileHeader.SortOrder.unsorted : SAMFileHeader.SortOrder.queryname);
+            SAMProgramRecord bwa = new SAMProgramRecord("bwa");
+            bwa.setProgramName("bwa");
+            bwa.setProgramVersion("0.7.17-r1188");
+            bwa.setCommandLine("bwa mem ref.fasta reads.fq");
+            alignedHeader.addProgramRecord(bwa);
+            if (simple) {
+                SAMProgramRecord other = new SAMProgramRecord("samtools");
+                other.setProgramName("samtools");
+                other.setPreviousProgramGroupId("bwa");
+                alignedHeader.addProgramRecord(other);
+            }
+            java.util.List<SAMRecord> aligned = new java.util.ArrayList<>();
+            java.util.Map<String, SAMRecord> byKey = new java.util.LinkedHashMap<>();
+            for (String[] h : hits) {
+                if (simple && (h[7].equals("sec") && !h[0].startsWith("f"))) continue;
+                int end = Integer.parseInt(h[1]);
+                byte[] read = sequenced.get(h[0] + "/" + end).clone();
+                boolean negative = h[5].equals("-");
+                if (negative) SequenceUtil.reverseComplement(read);
+                SAMRecord r = new SAMRecord(alignedHeader);
+                r.setReadName(h[0]);
+                String cigar = h[4];
+                int hardLead = 0, hardTail = 0;
+                java.util.regex.Matcher lead = java.util.regex.Pattern.compile("^(\\d+)H").matcher(cigar);
+                if (lead.find()) hardLead = Integer.parseInt(lead.group(1));
+                java.util.regex.Matcher tail = java.util.regex.Pattern.compile("(\\d+)H$").matcher(cigar);
+                if (tail.find()) hardTail = Integer.parseInt(tail.group(1));
+                int length = cigar.equals("*") ? READ_LENGTH : TextCigarCodec.decode(cigar).getReadLength();
+                if (cigar.equals("*")) {
+                    r.setReadBases(read);
+                } else {
+                    r.setReadBases(java.util.Arrays.copyOfRange(read, hardLead, hardLead + length));
+                }
+                byte[] quals = new byte[r.getReadBases().length];
+                for (int b = 0; b < quals.length; b++) quals[b] = (byte) (20 + (b % 15));
+                r.setBaseQualities(quals);
+                if (end > 0) {
+                    r.setReadPairedFlag(true);
+                    r.setFirstOfPairFlag(end == 1);
+                    r.setSecondOfPairFlag(end == 2);
+                }
+                r.setReferenceIndex(Integer.parseInt(h[2]));
+                r.setAlignmentStart(Integer.parseInt(h[3]));
+                if (h[7].equals("unm")) {
+                    r.setReadUnmappedFlag(true);
+                    r.setMappingQuality(0);
+                } else {
+                    r.setCigarString(cigar);
+                    r.setMappingQuality(Integer.parseInt(h[6]));
+                    r.setReadNegativeStrandFlag(negative);
+                    r.setAttribute("NM", 2);
+                    r.setAttribute("AS", 40);
+                    r.setAttribute("XS", 12);
+                }
+                r.setNotPrimaryAlignmentFlag(h[7].equals("sec"));
+                r.setSupplementaryAlignmentFlag(h[7].equals("sup"));
+                if (!h[8].isEmpty()) r.setAttribute("HI", Integer.parseInt(h[8]));
+                r.setAttribute("RG", h[0].compareTo("t08") < 0 ? "rg1" : "rg2");
+                if (h[0].equals("t13")) {
+                    r.setAttribute("X0", 1);
+                    r.setAttribute("ZZ", "zz-" + end);
+                    r.setAttribute("YY", 7);
+                    r.setAttribute("PG", "bwa");
+                    r.setAttribute("MD", "50");
+                    r.setAttribute("xa", "lower");
+                }
+                aligned.add(r);
+                String key = h[0] + "/" + end + "/" + h[8] + "/" + h[7];
+                byKey.put(key, r);
+            }
+            // Mate information as an aligner writes it: each hit with the other end's same hit.
+            for (SAMRecord r : aligned) {
+                if (!r.getReadPairedFlag() || !r.getFirstOfPairFlag() || r.getSupplementaryAlignmentFlag()) continue;
+                Integer hi = r.getIntegerAttribute("HI");
+                for (SAMRecord mate : aligned) {
+                    if (mate.getReadName().equals(r.getReadName()) && mate.getSecondOfPairFlag()
+                            && !mate.getSupplementaryAlignmentFlag()
+                            && java.util.Objects.equals(hi, mate.getIntegerAttribute("HI"))
+                            && mate.getNotPrimaryAlignmentFlag() == r.getNotPrimaryAlignmentFlag()) {
+                        SamPairUtil.setMateInfo(r, mate, true);
+                        SamPairUtil.setProperPairFlags(r, mate, java.util.Collections.singletonList(SamPairUtil.PairOrientation.FR));
+                    }
+                }
+            }
+            for (SAMRecord r : aligned) {
+                if (!r.getSupplementaryAlignmentFlag()) continue;
+                for (SAMRecord mate : aligned) {
+                    if (mate.getReadName().equals(r.getReadName()) && mate.getSecondOfPairFlag()
+                            && !mate.isSecondaryOrSupplementary()) {
+                        SamPairUtil.setMateInformationOnSupplementalAlignment(r, mate, true);
+                    }
+                }
+            }
+            if (simple) {
+                // Out of queryname order: the first template's records go last.
+                java.util.List<SAMRecord> moved = new java.util.ArrayList<>();
+                for (SAMRecord r : aligned) if (r.getReadName().equals("f00")) moved.add(r);
+                aligned.removeAll(moved);
+                aligned.addAll(moved);
+                writeBam(new File(dir, "mba_aligned_simple.bam"), alignedHeader, aligned, false);
+            } else {
+                SAMFileWriterFactory factory = new SAMFileWriterFactory().setUseAsyncIo(false);
+                try (SAMFileWriter w = factory.makeBAMWriter(alignedHeader, false, new File(dir, "mba_aligned.bam"))) {
+                    for (SAMRecord r : aligned) w.addAlignment(r);
+                }
+            }
         }
     }
 }
