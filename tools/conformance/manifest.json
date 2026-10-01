@@ -568,6 +568,12 @@
         "status": "pending",
         "exit_code_is_a_result": true,
         "output_name": "output.txt"
+      },
+      {
+        "tool": "CalculateFingerprintMetrics",
+        "port": "calculate-fingerprint-metrics",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },

@@ -1473,7 +1473,7 @@ pub fn merge_entries_by(
             Some(&i) => i,
             None => {
                 lists.push(Vec::new());
-                index.put(&key, lists.len() - 1);
+                index.put_front_if_absent(&key, lists.len() - 1);
                 lists.len() - 1
             }
         };
@@ -2002,13 +2002,12 @@ pub fn load_fingerprints(
             }
         }
     }
+    // `computeIfAbsent`, which puts each new entry at the head of its bucket.
     for sample in &file.samples {
-        if !fps.contains_key(sample) {
-            fps.put(
-                sample,
-                Fingerprint::new(Some(sample.clone()), Some(uri.to_string()), None),
-            );
-        }
+        fps.put_front_if_absent(
+            sample,
+            Fingerprint::new(Some(sample.clone()), Some(uri.to_string()), None),
+        );
     }
     Ok(fps)
 }

@@ -88,6 +88,24 @@ impl<V> JavaHashMap<V> {
         }
     }
 
+    /// `HashMap.computeIfAbsent` for an absent key: the table is grown BEFORE the insertion when the
+    /// size has passed the threshold, and the new entry goes to the HEAD of its bucket, not the
+    /// tail. `Collectors.groupingBy` collects through it, so its buckets list their keys newest
+    /// first. A key already present is left where it is.
+    pub fn put_front_if_absent(&mut self, key: &str, value: V) {
+        if self.table.is_empty() {
+            self.table = (0..16).map(|_| Vec::new()).collect();
+        } else if self.size > self.table.len() * 3 / 4 {
+            self.resize();
+        }
+        let index = self.index(key);
+        if self.table[index].iter().any(|(k, _)| k == key) {
+            return;
+        }
+        self.table[index].insert(0, (key.to_string(), value));
+        self.size += 1;
+    }
+
     /// `HashMap.remove`. The table keeps its width: Java never shrinks one.
     pub fn remove(&mut self, key: &str) -> Option<V> {
         if self.table.is_empty() {

@@ -129,7 +129,7 @@ pub fn inv_gamma_1p_m1(x: f64) -> f64 {
 
 /// `Gamma.logGamma1p`.
 pub fn log_gamma_1p(x: f64) -> f64 {
-    -inv_gamma_1p_m1(x).ln_1p()
+    -jmath::fast_math::log1p(inv_gamma_1p_m1(x))
 }
 
 /// `Gamma.lanczos`.
@@ -147,7 +147,7 @@ pub fn log_gamma(x: f64) -> f64 {
         return f64::NAN;
     }
     if x < 0.5 {
-        return log_gamma_1p(x) - x.ln();
+        return log_gamma_1p(x) - jmath::fast_math::log(x);
     }
     if x <= 2.5 {
         return log_gamma_1p((x - 0.5) - 0.5);
@@ -158,11 +158,11 @@ pub fn log_gamma(x: f64) -> f64 {
         for index in 1..=n {
             product *= x - f64::from(index);
         }
-        return log_gamma_1p(x - f64::from(n + 1)) + product.ln();
+        return log_gamma_1p(x - f64::from(n + 1)) + jmath::fast_math::log(product);
     }
     let sum = lanczos(x);
     let tmp = x + LANCZOS_G + 0.5;
-    ((x + 0.5) * tmp.ln()) - tmp + HALF_LOG_2_PI + (sum / x).ln()
+    ((x + 0.5) * jmath::fast_math::log(tmp)) - tmp + HALF_LOG_2_PI + jmath::fast_math::log(sum / x)
 }
 
 /// `ContinuedFraction.evaluate`, for the fraction the upper gamma uses.
@@ -225,7 +225,7 @@ pub fn regularized_gamma_p(a: f64, x: f64) -> f64 {
     if sum.is_infinite() {
         return 1.0;
     }
-    (-x + (a * x.ln()) - log_gamma(a)).exp() * sum
+    jmath::fast_math::exp(-x + (a * jmath::fast_math::log(x)) - log_gamma(a)) * sum
 }
 
 /// `Gamma.regularizedGammaQ`, the upper tail.
@@ -240,7 +240,7 @@ pub fn regularized_gamma_q(a: f64, x: f64) -> f64 {
         return 1.0 - regularized_gamma_p(a, x);
     }
     let fraction = 1.0 / continued_fraction(a, x, DEFAULT_EPSILON, MAX_ITERATIONS);
-    (-x + (a * x.ln()) - log_gamma(a)).exp() * fraction
+    jmath::fast_math::exp(-x + (a * jmath::fast_math::log(x)) - log_gamma(a)) * fraction
 }
 
 /// `ChiSquaredDistribution.cumulativeProbability`, which is the gamma distribution's with a shape

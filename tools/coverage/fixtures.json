@@ -1643,6 +1643,41 @@
         "/work/fixtures/fp_sample_map.tsv"
       ],
       "--INPUT_SAMPLE_FILE_MAP": []
+    },
+    "CalculateFingerprintMetrics": {
+      "$why": [
+        "The fingerprint corpus (MakeFixtures); INPUT is a whole list ($lists). fp_sampleA is one sample",
+        "in two read groups, fp_sampleB with the genotypes VCF puts reads and calls side by side, the",
+        "likelihoods VCF is PLs alone, fp_mixed has reads without a read group (the checker is left at",
+        "STRICT here, so it refuses them), and the SAM with fp_sampleB is two files of reads.",
+        "GENOTYPE_LOD_THRESHOLD and NUMBER_OF_SAMPLING are final fields initialised with constants, which",
+        "javac inlines at their uses: the parser accepts a value and the tool never reads it, which the",
+        "rows with 0.5 and 5 measure."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_sampleA.bam",
+        "/work/fixtures/fp_sampleB.bam /work/fixtures/fp_genotypes.vcf",
+        "/work/fixtures/fp_likelihoods.vcf",
+        "/work/fixtures/fp_mixed.bam",
+        "/work/fixtures/fp_sampleA.sam /work/fixtures/fp_sampleB.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt"
+      ],
+      "--HAPLOTYPE_MAP": [
+        "/work/fixtures/fp_haplotypes.txt"
+      ],
+      "--GENOTYPE_LOD_THRESHOLD": [
+        "3.0",
+        "0.5"
+      ],
+      "--NUMBER_OF_SAMPLING": [
+        "100",
+        "5"
+      ]
     }
   },
   "constraints": [
@@ -1819,6 +1854,16 @@
         "--REQUIRE_INDEX_FILES": "true"
       },
       "why": "REQUIRE_INDEX_FILES refuses every input without an index; the refusal is kept for the SAM and the other pairings would only repeat it."
+    },
+    {
+      "tools": [
+        "CalculateFingerprintMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_sampleB.bam /work/fixtures/fp_genotypes.vcf",
+        "--CALCULATE_BY": "SAMPLE"
+      },
+      "why": "By SAMPLE, sB's reads and sB's calls are merged, and evidence of two classes refuses to merge with a message that depends on which comes first out of a HashSet<Fingerprint>, whose order is identity hashes: the reference is not reproducible there."
     }
   ],
   "exclude": {
