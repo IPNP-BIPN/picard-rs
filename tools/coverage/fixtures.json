@@ -1549,6 +1549,59 @@
       "--OUTPUT": [
         "/work/out/output.vcf"
       ]
+    },
+    "BamToBfq": {
+      "$why": [
+        "bfq.bam is MakeFixtures' (see bfqReads): sixteen queryname-sorted unaligned pairs carrying",
+        "every filter the writer applies (XN noise on one or both reads, vendor QC, XT whole-read",
+        "clipping and adapter positions), no-calls in and out of the seed region, qualities above 63, a",
+        "short pair and a name outside the RUN1: prefix. bfq_odd.bam is the same reads, unsorted, with one",
+        "pair broken: the paired path refuses it, READS_TO_ALIGN's sort check refuses it, single-end",
+        "reads it. Barclay counts an argument given as `null` as set, so of each mutex pair only one can",
+        "be varied: FLOWCELL_BARCODE is held at FC1 with LANE 3 or null (the prefix is FC1.3 or",
+        "FC1.null), OUTPUT_FILE_PREFIX is left out, and RUN_BARCODE (null or RUN1, which strips",
+        "`RUN1:`) stands for READ_NAME_PREFIX. READ_CHUNK_SIZE 10 splits the output into numbered",
+        "files; output_name lists the indices 0 to 3 of both reads under both prefixes. BASES_TO_WRITE",
+        "is shorter and longer than the reads. VALIDATION_STRINGENCY and CREATE_INDEX are held: the",
+        "fixture's records are valid and the tool writes no BAM."
+      ],
+      "--INPUT": [
+        "/work/fixtures/bfq.bam",
+        "/work/fixtures/bfq_odd.bam"
+      ],
+      "--ANALYSIS_DIR": [
+        "/work/out"
+      ],
+      "--FLOWCELL_BARCODE": [
+        "FC1"
+      ],
+      "--LANE": [
+        "3",
+        "null"
+      ],
+      "--RUN_BARCODE": [
+        "null",
+        "RUN1"
+      ],
+      "--READS_TO_ALIGN": [
+        "null",
+        "7"
+      ],
+      "--READ_CHUNK_SIZE": [
+        "2000000",
+        "10"
+      ],
+      "--BASES_TO_WRITE": [
+        "null",
+        "20",
+        "60"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT"
+      ],
+      "--CREATE_INDEX": [
+        "false"
+      ]
     }
   },
   "constraints": [

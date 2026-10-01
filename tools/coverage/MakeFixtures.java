@@ -606,6 +606,12 @@ public class MakeFixtures {
         // (see writeZCallFixtures).
         writeZCallFixtures(dir);
 
+        // Unaligned pairs for `BamToBfq` (see bfqReads).
+        SAMFileHeader bfqHeader = header(SAMFileHeader.SortOrder.queryname);
+        writeBam(new File(dir, "bfq.bam"), bfqHeader, bfqReads(bfqHeader, false), false);
+        SAMFileHeader bfqOddHeader = header(SAMFileHeader.SortOrder.unsorted);
+        writeBam(new File(dir, "bfq_odd.bam"), bfqOddHeader, bfqReads(bfqOddHeader, true), false);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
@@ -1759,5 +1765,63 @@ public class MakeFixtures {
         try (PrintWriter p = new PrintWriter(new File(dir, "zcall_thresholds_half_na.txt"), "UTF-8")) {
             p.print("rs1\t1.5\tNA\nrs2\t0.5\t0.5\n");
         }
+    }
+
+    /**
+     * `BamToBfq`'s reads: sixteen unaligned pairs, adjacent and in name order, most named under a
+     * `RUN1:` prefix the tool can strip. Pair 1 is noise on both reads (XN=1) and pair 2 on one;
+     * pair 3 carries XN=2, which the writer keeps and READS_TO_ALIGN's count does not; one read of
+     * pair 4 fails vendor QC; pair 5 is wholly clipped (XT=1) on one read; pairs 6 and 7 mark an
+     * adapter at XT=40 and XT=10; pair 8 has four no-calls, three of them in the seed region; pair
+     * 9 has qualities above 63; pair 11 is thirty bases long; pair 15 is under another prefix. `odd` leaves pair 13 a single read and keeps the header
+     * unsorted, which the paired path and READS_TO_ALIGN's sort check both refuse.
+     */
+    static java.util.List<SAMRecord> bfqReads(SAMFileHeader header, boolean odd) {
+        Random rng = new Random(20261002L);
+        java.util.List<SAMRecord> out = new java.util.ArrayList<>();
+        for (int i = 0; i < 16; i++) {
+            String name = (i == 15 ? "RUN2:" : "RUN1:") + String.format("frag%02d", i);
+            int length = i == 11 ? 30 : READ_LENGTH;
+            SAMRecord[] pair = new SAMRecord[2];
+            for (int end = 0; end < 2; end++) {
+                byte[] bases = new byte[length];
+                byte[] quals = new byte[length];
+                for (int b = 0; b < length; b++) {
+                    bases[b] = (byte) "ACGT".charAt(rng.nextInt(4));
+                    quals[b] = (byte) (i == 9 ? 50 + rng.nextInt(44) : 2 + rng.nextInt(39));
+                }
+                if (i == 8) {
+                    for (int b : new int[] {0, 5, 10, 35}) bases[b] = 'N';
+                }
+                SAMRecord r = new SAMRecord(header);
+                r.setReadName(name);
+                r.setReadBases(bases);
+                r.setBaseQualities(quals);
+                r.setReadUnmappedFlag(true);
+                r.setReferenceIndex(SAMRecord.NO_ALIGNMENT_REFERENCE_INDEX);
+                r.setAlignmentStart(SAMRecord.NO_ALIGNMENT_START);
+                r.setMappingQuality(0);
+                r.setReadPairedFlag(true);
+                r.setMateUnmappedFlag(true);
+                r.setFirstOfPairFlag(end == 0);
+                r.setSecondOfPairFlag(end == 1);
+                r.setAttribute("RG", "rg1");
+                pair[end] = r;
+            }
+            if (i == 1) { pair[0].setAttribute("XN", 1); pair[1].setAttribute("XN", 1); }
+            if (i == 2) pair[0].setAttribute("XN", 1);
+            if (i == 3) { pair[0].setAttribute("XN", 2); pair[1].setAttribute("XN", 2); }
+            if (i == 4) pair[1].setReadFailsVendorQualityCheckFlag(true);
+            if (i == 5) pair[0].setAttribute("XT", 1);
+            if (i == 6) { pair[0].setAttribute("XT", 40); pair[1].setAttribute("XT", 40); }
+            if (i == 7) pair[1].setAttribute("XT", 10);
+            if (odd && i == 13) {
+                out.add(pair[0]);
+            } else {
+                out.add(pair[0]);
+                out.add(pair[1]);
+            }
+        }
+        return out;
     }
 }

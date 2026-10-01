@@ -559,6 +559,13 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.vcf"
+      },
+      {
+        "tool": "BamToBfq",
+        "port": "bam-to-bfq",
+        "t": 2,
+        "status": "pending",
+        "output_name": "FC1.3.0.1.bfq,FC1.3.0.2.bfq,FC1.3.1.1.bfq,FC1.3.1.2.bfq,FC1.3.2.1.bfq,FC1.3.2.2.bfq,FC1.3.3.1.bfq,FC1.3.3.2.bfq,FC1.null.0.1.bfq,FC1.null.0.2.bfq,FC1.null.1.1.bfq,FC1.null.1.2.bfq,FC1.null.2.1.bfq,FC1.null.2.2.bfq,FC1.null.3.1.bfq,FC1.null.3.2.bfq"
       }
     ]
   },
