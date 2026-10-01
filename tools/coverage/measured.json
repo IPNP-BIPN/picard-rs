@@ -140,6 +140,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectInsertSizeMetrics": {
+      "rows": 22,
+      "accepted": 13,
+      "rejected": 9,
+      "distinct_outputs": 8,
+      "distinct_rejections": 2,
+      "matched": 22,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectJumpingLibraryMetrics": {
       "rows": 9,
       "accepted": 6,
@@ -177,6 +187,16 @@
       "distinct_outputs": 2,
       "distinct_rejections": 1,
       "matched": 8,
+      "t": 2,
+      "share": 1.0
+    },
+    "CompareSAMs": {
+      "rows": 9,
+      "accepted": 0,
+      "rejected": 9,
+      "distinct_outputs": 0,
+      "distinct_rejections": 2,
+      "matched": 9,
       "t": 2,
       "share": 1.0
     },
@@ -260,6 +280,16 @@
       "t": 2,
       "share": 1.0
     },
+    "FixVcfHeader": {
+      "rows": 20,
+      "accepted": 8,
+      "rejected": 12,
+      "distinct_outputs": 8,
+      "distinct_rejections": 5,
+      "matched": 20,
+      "t": 2,
+      "share": 1.0
+    },
     "GatherBamFiles": {
       "rows": 9,
       "accepted": 9,
@@ -267,6 +297,16 @@
       "distinct_outputs": 2,
       "distinct_rejections": 0,
       "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
+    "GatherVcfs": {
+      "rows": 31,
+      "accepted": 14,
+      "rejected": 17,
+      "distinct_outputs": 4,
+      "distinct_rejections": 7,
+      "matched": 31,
       "t": 2,
       "share": 1.0
     },
@@ -317,6 +357,16 @@
       "distinct_outputs": 2,
       "distinct_rejections": 1,
       "matched": 7,
+      "t": 2,
+      "share": 1.0
+    },
+    "MakeSitesOnlyVcf": {
+      "rows": 10,
+      "accepted": 8,
+      "rejected": 2,
+      "distinct_outputs": 5,
+      "distinct_rejections": 1,
+      "matched": 10,
       "t": 2,
       "share": 1.0
     },
@@ -380,6 +430,16 @@
       "t": 2,
       "share": 1.0
     },
+    "MergeVcfs": {
+      "rows": 27,
+      "accepted": 16,
+      "rejected": 11,
+      "distinct_outputs": 11,
+      "distinct_rejections": 5,
+      "matched": 27,
+      "t": 2,
+      "share": 1.0
+    },
     "NonNFastaSize": {
       "rows": 6,
       "accepted": 6,
@@ -417,6 +477,16 @@
       "distinct_outputs": 4,
       "distinct_rejections": 2,
       "matched": 12,
+      "t": 2,
+      "share": 1.0
+    },
+    "RenameSampleInVcf": {
+      "rows": 13,
+      "accepted": 8,
+      "rejected": 5,
+      "distinct_outputs": 5,
+      "distinct_rejections": 3,
+      "matched": 13,
       "t": 2,
       "share": 1.0
     },
@@ -530,6 +600,16 @@
       "t": 2,
       "share": 1.0
     },
+    "SortVcf": {
+      "rows": 10,
+      "accepted": 7,
+      "rejected": 3,
+      "distinct_outputs": 4,
+      "distinct_rejections": 2,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
     "SplitSamByLibrary": {
       "rows": 9,
       "accepted": 9,
@@ -550,6 +630,26 @@
       "t": 2,
       "share": 1.0
     },
+    "SplitVcfs": {
+      "rows": 22,
+      "accepted": 11,
+      "rejected": 11,
+      "distinct_outputs": 7,
+      "distinct_rejections": 3,
+      "matched": 22,
+      "t": 2,
+      "share": 1.0
+    },
+    "UpdateVcfSequenceDictionary": {
+      "rows": 17,
+      "accepted": 14,
+      "rejected": 3,
+      "distinct_outputs": 4,
+      "distinct_rejections": 2,
+      "matched": 17,
+      "t": 2,
+      "share": 1.0
+    },
     "ValidateSamFile": {
       "rows": 13,
       "accepted": 5,
@@ -557,6 +657,26 @@
       "distinct_outputs": 1,
       "distinct_rejections": 5,
       "matched": 13,
+      "t": 2,
+      "share": 1.0
+    },
+    "VcfFormatConverter": {
+      "rows": 16,
+      "accepted": 7,
+      "rejected": 9,
+      "distinct_outputs": 5,
+      "distinct_rejections": 5,
+      "matched": 16,
+      "t": 2,
+      "share": 1.0
+    },
+    "VcfToIntervalList": {
+      "rows": 11,
+      "accepted": 8,
+      "rejected": 3,
+      "distinct_outputs": 6,
+      "distinct_rejections": 1,
+      "matched": 11,
       "t": 2,
       "share": 1.0
     },

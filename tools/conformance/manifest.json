@@ -379,14 +379,14 @@
         "tool": "CompareSAMs",
         "port": "compare-sams",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "exit_code_is_a_result": true
       },
       {
         "tool": "CollectInsertSizeMetrics",
         "port": "collect-insert-size-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "BuildBamIndex",
@@ -417,34 +417,69 @@
         "tool": "MakeSitesOnlyVcf",
         "port": "make-sites-only-vcf",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "RenameSampleInVcf",
         "port": "rename-sample-in-vcf",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "VcfToIntervalList",
         "port": "vcf-to-interval-list",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "SortVcf",
         "port": "sort-vcf",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "UpdateVcfSequenceDictionary",
         "port": "update-vcf-sequence-dictionary",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
+        "output_name": "output.vcf"
+      },
+      {
+        "tool": "MergeVcfs",
+        "port": "merge-vcfs",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.vcf"
+      },
+      {
+        "tool": "GatherVcfs",
+        "port": "gather-vcfs",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.vcf"
+      },
+      {
+        "tool": "SplitVcfs",
+        "port": "split-vcfs",
+        "t": 2,
+        "status": "measured",
+        "output_name": "snp.vcf,indel.vcf"
+      },
+      {
+        "tool": "VcfFormatConverter",
+        "port": "vcf-format-converter",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.vcf,output.vcf.gz"
+      },
+      {
+        "tool": "FixVcfHeader",
+        "port": "fix-vcf-header",
+        "t": 2,
+        "status": "measured",
         "output_name": "output.vcf"
       },
       {
