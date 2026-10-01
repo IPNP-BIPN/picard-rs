@@ -566,6 +566,13 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.verifyidintensity_metrics"
+      },
+      {
+        "tool": "CreateBafRegressMetricsFile",
+        "port": "create-baf-regress-metrics-file",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.bafregress_metrics"
       }
     ]
   },

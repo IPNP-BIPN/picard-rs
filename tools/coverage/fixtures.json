@@ -1571,6 +1571,33 @@
       "--OUTPUT": [
         "/work/out/output"
       ]
+    },
+    "CreateBafRegressMetricsFile": {
+      "$why": [
+        "INPUT is bafRegress's stdout: a header compared as one exact string, then rows split on runs",
+        "of whitespace. bafregress.txt has a row separated by spaces, one with a trailing tab, a",
+        "p-value of zero (LOG10_PVAL is negative infinity, written -?), exponent notation and a NaN.",
+        "bafregress_no_rows.txt is the header alone, a metrics file with no table. The rest are one",
+        "refusal each, four exception classes between them: the header with spaces for tabs",
+        "(PicardException), a missing column, a row opening on a space (split keeps the empty first",
+        "field) and a blank line (an IOException the tool wraps), NA and 12.0 where parseDouble and",
+        "parseInt want numbers (NumberFormatException, uncaught), and an empty file (equals on null).",
+        "OUTPUT is a basename; the file compared is <OUTPUT>.bafregress_metrics."
+      ],
+      "--INPUT": [
+        "/work/fixtures/bafregress.txt",
+        "/work/fixtures/bafregress_no_rows.txt",
+        "/work/fixtures/bafregress_bad_header.txt",
+        "/work/fixtures/bafregress_missing_column.txt",
+        "/work/fixtures/bafregress_leading_space.txt",
+        "/work/fixtures/bafregress_blank_line.txt",
+        "/work/fixtures/bafregress_bad_number.txt",
+        "/work/fixtures/bafregress_bad_count.txt",
+        "/work/fixtures/bafregress_empty.txt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ]
     }
   },
   "constraints": [

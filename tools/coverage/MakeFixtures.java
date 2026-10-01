@@ -602,6 +602,7 @@ public class MakeFixtures {
         // see writeArrayFixtures. Every file is new, so no existing fixture's bytes move.
         writeArrayFixtures(dir, chr1, chr2);
         writeVerifyIdFixtures(dir);
+        writeBafRegressFixtures(dir);
 
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
@@ -1707,6 +1708,32 @@ public class MakeFixtures {
         writeText(new File(dir, "verifyid_bad_header.txt"), "ID\t%Mix\tLLK\n" + dashes + rows);
         writeText(new File(dir, "verifyid_header_only.txt"), header);
         writeText(new File(dir, "verifyid_empty.txt"), "");
+    }
+
+    /**
+     * bafRegress's stdout, for CreateBafRegressMetricsFile, whose header is compared as one whole
+     * string and whose rows are split on runs of whitespace. `bafregress.txt` has a row separated
+     * by spaces, one with a trailing tab, a p-value of zero (whose log is negative infinity), one
+     * in exponent notation and a NaN estimate. The rest are one refusal each: no rows (a table with
+     * nothing in it), a header with spaces for tabs, a row with a column missing, a row opening on
+     * whitespace (split keeps the empty first field, so it has eight), a blank line, an estimate of
+     * `NA`, a homozygote count of `12.0`, and an empty file.
+     */
+    static void writeBafRegressFixtures(File dir) throws Exception {
+        String header = "sample\testimate\tstderr\ttval\tpval\tcallrate\tNhom\n";
+        String rows = "NA12878\t0.0012\t0.00031\t3.871\t0.000108\t0.9934\t412233\n"
+                + "NA12891 -0.0004 0.0002 -2 0.0455 0.98 400100\n"
+                + "NA12892\t0.25\t0.01\t25\t0\t0.5\t17\t\n"
+                + "chipC\tNaN\t1.5e-3\t0.0\t1E-300\t1\t0\n";
+        writeText(new File(dir, "bafregress.txt"), header + rows);
+        writeText(new File(dir, "bafregress_no_rows.txt"), header);
+        writeText(new File(dir, "bafregress_bad_header.txt"), header.replace('\t', ' ') + rows);
+        writeText(new File(dir, "bafregress_missing_column.txt"), header + "NA12878\t0.0012\t0.00031\t3.871\t0.000108\t0.9934\n");
+        writeText(new File(dir, "bafregress_leading_space.txt"), header + " " + rows);
+        writeText(new File(dir, "bafregress_blank_line.txt"), header + "\n" + rows);
+        writeText(new File(dir, "bafregress_bad_number.txt"), header + "NA12878\tNA\t0.1\t1\t0.5\t0.9\t3\n");
+        writeText(new File(dir, "bafregress_bad_count.txt"), header + "NA12878\t0.1\t0.1\t1\t0.5\t0.9\t12.0\n");
+        writeText(new File(dir, "bafregress_empty.txt"), "");
     }
 
     static void writeText(File f, String text) throws Exception {
