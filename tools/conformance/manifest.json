@@ -508,6 +508,13 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.txt,summary.txt"
+      },
+      {
+        "tool": "CollectRrbsMetrics",
+        "port": "collect-rrbs-metrics",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.rrbs_summary_metrics,output.rrbs_detail_metrics"
       }
     ]
   },

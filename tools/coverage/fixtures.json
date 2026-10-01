@@ -1138,6 +1138,59 @@
         "0",
         "150"
       ]
+    },
+    "CollectRrbsMetrics": {
+      "$why": [
+        "rrbs.bam is bisulfite-converted reference sequence (MakeFixtures): the other BAMs are random",
+        "bases, which every row's mismatch filter rejects. small.bam is kept as that case, and",
+        "queryname.bam as the sort refusal and, under ASSUME_SORTED, the walker's. The prefix is given",
+        "with and without its trailing dot, which name the same two files. The thresholds each take a",
+        "value that moves the counts; MINIMUM_READ_LENGTH 0 and MAX_MISMATCH_RATE 1.5 are refused, alone",
+        "and together in one message, and MINIMUM_READ_LENGTH 60 makes every read short.",
+        "SEQUENCE_NAMES and METRIC_ACCUMULATION_LEVEL are collections ($lists)."
+      ],
+      "$lists": [
+        "--SEQUENCE_NAMES",
+        "--METRIC_ACCUMULATION_LEVEL"
+      ],
+      "--INPUT": [
+        "/work/fixtures/rrbs.bam",
+        "/work/fixtures/small.bam",
+        "/work/fixtures/queryname.bam"
+      ],
+      "--METRICS_FILE_PREFIX": [
+        "/work/out/output",
+        "/work/out/output."
+      ],
+      "--MINIMUM_READ_LENGTH": [
+        "5",
+        "60",
+        "0"
+      ],
+      "--C_QUALITY_THRESHOLD": [
+        "20",
+        "30"
+      ],
+      "--NEXT_BASE_QUALITY_THRESHOLD": [
+        "10",
+        "30"
+      ],
+      "--MAX_MISMATCH_RATE": [
+        "0.1",
+        "0.0",
+        "1.5"
+      ],
+      "--SEQUENCE_NAMES": [
+        "null",
+        "chr2",
+        "chr1 chr2"
+      ],
+      "--METRIC_ACCUMULATION_LEVEL": [
+        "ALL_READS",
+        "SAMPLE LIBRARY",
+        "READ_GROUP",
+        "null"
+      ]
     }
   },
   "constraints": [
