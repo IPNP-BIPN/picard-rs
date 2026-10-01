@@ -1543,6 +1543,34 @@
       "--OUTPUT": [
         "/work/out/output.vcf"
       ]
+    },
+    "CreateVerifyIDIntensityContaminationMetricsFile": {
+      "$why": [
+        "INPUT is VerifyIDIntensity's stdout, which the tool matches line by line against a header, a",
+        "run of dashes and a row pattern. verifyid.txt has four rows mixing tabs and spaces, a mixture",
+        "written from its dot, signed and zero likelihoods, a trailing space and a mixture that rounds",
+        "to 1 at six digits; verifyid_crlf.txt is the same with CRLF line ends (readLine strips them).",
+        "verifyid_no_rows.txt is a header and dashes, a metrics file with no table. The rest are one",
+        "refusal each, three exception classes between them: a fifth column and a missing header",
+        "column (unrecognised line), a likelihood of 1-2, which the pattern accepts and parseDouble",
+        "does not, and an ID past Integer.MAX_VALUE (NumberFormatException, uncaught), and a file that",
+        "stops after its header or is empty (the matcher handed readLine's null). OUTPUT is a basename;",
+        "the file compared is <OUTPUT>.verifyidintensity_metrics."
+      ],
+      "--INPUT": [
+        "/work/fixtures/verifyid.txt",
+        "/work/fixtures/verifyid_crlf.txt",
+        "/work/fixtures/verifyid_no_rows.txt",
+        "/work/fixtures/verifyid_extra_column.txt",
+        "/work/fixtures/verifyid_bad_number.txt",
+        "/work/fixtures/verifyid_big_id.txt",
+        "/work/fixtures/verifyid_bad_header.txt",
+        "/work/fixtures/verifyid_header_only.txt",
+        "/work/fixtures/verifyid_empty.txt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ]
     }
   },
   "constraints": [

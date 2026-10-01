@@ -601,6 +601,7 @@ public class MakeFixtures {
         // Genotyping-array VCFs, in the shape GtcToVcf writes them, for the picard.arrays tools;
         // see writeArrayFixtures. Every file is new, so no existing fixture's bytes move.
         writeArrayFixtures(dir, chr1, chr2);
+        writeVerifyIdFixtures(dir);
 
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
@@ -1677,6 +1678,39 @@ public class MakeFixtures {
         try (PrintWriter p = new PrintWriter(new File(dir, to), "UTF-8")) {
             p.print(String.join("\n", lines));
         }
+    }
+
+    /**
+     * VerifyIDIntensity's stdout, for CreateVerifyIDIntensityContaminationMetricsFile, which
+     * matches each line against one of three patterns. `verifyid.txt` is a header, its dashes and
+     * four rows separated by spaces and tabs, with a mixture written from its dot, signed and
+     * zero likelihoods and a trailing space; `verifyid_crlf.txt` is the same with CRLF line ends.
+     * The rest are one refusal each: no rows at all (a table with nothing in it), a row with a
+     * fifth column, a likelihood the pattern accepts and `Double.parseDouble` does not (`1-2`), an
+     * ID past `Integer.MAX_VALUE`, a header with a column missing, a file that stops after its
+     * header, and an empty file.
+     */
+    static void writeVerifyIdFixtures(File dir) throws Exception {
+        String header = "ID\t%Mix\tLLK\tLLK0\n";
+        String dashes = "------------------------------------\n";
+        String rows = "0\t0.0015\t-6043.4812\t-6045.1290\n"
+                + "1   .25   12.5   -3\n"
+                + "2\t0.99999987\t0\t0.000001 \n"
+                + "13\t100\t-0.5\t-.75\n";
+        writeText(new File(dir, "verifyid.txt"), header + dashes + rows);
+        writeText(new File(dir, "verifyid_crlf.txt"),
+                (header + dashes + rows).replace("\n", "\r\n"));
+        writeText(new File(dir, "verifyid_no_rows.txt"), header + dashes);
+        writeText(new File(dir, "verifyid_extra_column.txt"), header + dashes + "0\t0.1\t-1\t-2\t-3\n");
+        writeText(new File(dir, "verifyid_bad_number.txt"), header + dashes + "0\t0.1\t1-2\t-3\n");
+        writeText(new File(dir, "verifyid_big_id.txt"), header + dashes + "4294967296\t0.1\t-1\t-3\n");
+        writeText(new File(dir, "verifyid_bad_header.txt"), "ID\t%Mix\tLLK\n" + dashes + rows);
+        writeText(new File(dir, "verifyid_header_only.txt"), header);
+        writeText(new File(dir, "verifyid_empty.txt"), "");
+    }
+
+    static void writeText(File f, String text) throws Exception {
+        java.nio.file.Files.write(f.toPath(), text.getBytes("UTF-8"));
     }
 
     static void writeDict(File f, String chr1, String chr2) throws Exception {

@@ -559,6 +559,13 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.vcf"
+      },
+      {
+        "tool": "CreateVerifyIDIntensityContaminationMetricsFile",
+        "port": "create-verify-id-intensity-contamination-metrics-file",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.verifyidintensity_metrics"
       }
     ]
   },
