@@ -1473,6 +1473,41 @@
         "READ_GROUP",
         "null"
       ]
+    },
+    "VcfToAdpc": {
+      "$why": [
+        "VCF is a whole list ($lists): the tool writes one block per sample of every file, and the",
+        "loci of each walk must agree with the first. array_a and array_b are one chip each over the",
+        "same eight loci; array_cd is two chips in unsorted column order, which the file keeps (header",
+        "order, not sorted); array_short stops after five loci, so beside array_a it is the",
+        "differing-loci refusal; array_empty has no records; array_bad_allele calls an allele neither",
+        "ALLELE_A nor ALLELE_B names; dbsnp.vcf has no samples at all, so nothing is written and the",
+        "marker count is the null it was initialised to. The loci carry a raw X past 65535 (truncated),",
+        "missing and `?` normalized intensities (NaN), and reference alleles on both the A and B side.",
+        "Every refusal inside the tool is its own log.error and exit 1, so the three refusals share one",
+        "message. The three outputs are compared together."
+      ],
+      "$lists": [
+        "--VCF"
+      ],
+      "--VCF": [
+        "/work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_b.vcf",
+        "/work/fixtures/array_cd.vcf /work/fixtures/array_a.vcf",
+        "/work/fixtures/array_a.vcf /work/fixtures/array_short.vcf",
+        "/work/fixtures/array_empty.vcf",
+        "/work/fixtures/array_bad_allele.vcf",
+        "/work/fixtures/dbsnp.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.adpc.bin"
+      ],
+      "--SAMPLES_FILE": [
+        "/work/out/samples.txt"
+      ],
+      "--NUM_MARKERS_FILE": [
+        "/work/out/num_markers.txt"
+      ]
     }
   },
   "constraints": [

@@ -545,6 +545,13 @@
         "t": 2,
         "status": "measured",
         "output_name": "output.rrbs_summary_metrics,output.rrbs_detail_metrics"
+      },
+      {
+        "tool": "VcfToAdpc",
+        "port": "vcf-to-adpc",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.adpc.bin,samples.txt,num_markers.txt"
       }
     ]
   },
