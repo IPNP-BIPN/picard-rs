@@ -828,6 +828,56 @@
         "10000",
         "100"
       ]
+    },
+    "CollectRawWgsMetrics": {
+      "$why": [
+        "CollectWgsMetrics' domain (see its $why), around this tool's own defaults: no mapping-quality",
+        "floor, a base-quality floor of 3, COVERAGE_CAP 100000 and LOCUS_ACCUMULATION_CAP 200000. The",
+        "default cap is kept although every row holding it writes a histogram of 100001 bins: it is the",
+        "tool's default and the HET_SNP_SENSITIVITY estimate then samples a thousand and one depths."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/adapters_coordinate.bam",
+        "/work/fixtures/tiled.bam"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "0",
+        "20",
+        "50"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "3",
+        "20",
+        "0"
+      ],
+      "--COVERAGE_CAP": [
+        "100000",
+        "5"
+      ],
+      "--LOCUS_ACCUMULATION_CAP": [
+        "200000",
+        "1"
+      ],
+      "--STOP_AFTER": [
+        "-1",
+        "1000"
+      ],
+      "--READ_LENGTH": [
+        "150",
+        "0"
+      ],
+      "--SAMPLE_SIZE": [
+        "10000",
+        "100"
+      ]
     }
   },
   "constraints": [

@@ -452,6 +452,12 @@
         "port": "collect-wgs-metrics",
         "t": 2,
         "status": "pending"
+      },
+      {
+        "tool": "CollectRawWgsMetrics",
+        "port": "collect-raw-wgs-metrics",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
