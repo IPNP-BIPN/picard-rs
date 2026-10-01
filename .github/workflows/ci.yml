@@ -591,10 +591,6 @@ jobs:
             --log /tmp/LiftoverVcf.log \
             --log /tmp/CollectMultipleMetrics.log \
             --pending CollectRawWgsMetrics \
-            --pending CollectRnaSeqMetrics \
-            --pending CollectIndependentReplicateMetrics \
-            --pending LiftoverVcf \
-            --pending CollectMultipleMetrics \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -684,7 +680,11 @@ jobs:
             tools/coverage/corpus/ConvertSequencingArtifactToOxoG.t2.txt \
             tools/coverage/corpus/CollectOxoGMetrics.t2.txt \
             tools/coverage/corpus/CollectGcBiasMetrics.t2.txt \
-            tools/coverage/corpus/CollectRrbsMetrics.t2.txt)
+            tools/coverage/corpus/CollectRrbsMetrics.t2.txt \
+            tools/coverage/corpus/CollectRnaSeqMetrics.t2.txt \
+            tools/coverage/corpus/CollectIndependentReplicateMetrics.t2.txt \
+            tools/coverage/corpus/LiftoverVcf.t2.txt \
+            tools/coverage/corpus/CollectMultipleMetrics.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
