@@ -558,6 +558,13 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.txt,matrix.txt"
+      },
+      {
+        "tool": "LiftoverVcf",
+        "port": "liftover-vcf",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf,reject.vcf"
       }
     ]
   },

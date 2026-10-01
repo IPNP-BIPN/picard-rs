@@ -618,6 +618,9 @@ public class MakeFixtures {
         // writeReplicateFixtures.
         writeReplicateFixtures(dir, chr1, chr2);
 
+        // A chain and two VCFs for `LiftoverVcf`; see writeLiftoverFixtures.
+        writeLiftoverFixtures(dir, chr1, chr2);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
@@ -781,6 +784,124 @@ public class MakeFixtures {
             try (PrintWriter p = new PrintWriter(new File(dir, samples == 1 ? "replicates.vcf" : "replicates_two.vcf"), "UTF-8")) {
                 p.print(out);
             }
+        }
+    }
+
+    /** `SequenceUtil.complement` of one base. */
+    static char complement(char base) {
+        switch (base) {
+            case 'A': return 'T';
+            case 'C': return 'G';
+            case 'G': return 'C';
+            case 'T': return 'A';
+            default: return base;
+        }
+    }
+
+    static String reverseComplement(String bases) {
+        StringBuilder out = new StringBuilder();
+        for (int i = bases.length() - 1; i >= 0; i--) out.append(complement(bases.charAt(i)));
+        return out.toString();
+    }
+
+    static char mutate(char base) {
+        return (char) mutateBase((byte) base);
+    }
+
+    /**
+     * The corpus of `LiftoverVcf`. lift_vcf.chain moves chr1's first thousand bases five hundred
+     * to the right (as lift.chain does), maps chr2's first five hundred onto the REVERSE strand of
+     * chr2's second half (source p lands on 1001 - p), and sends chr2's second half to a chr3 the
+     * reference does not have.
+     *
+     * liftover.vcf is written against those targets, so its REF alleles agree with ref.fasta
+     * where they land: on chr1 a SNP, a filtered SNP, an unfiltered one with no QUAL or INFO, a
+     * multi-allelic SNP, a deletion and an insertion all lift; a SNP whose alleles are the other
+     * way round is a swap, a SNP matching neither allele is a mismatch, a deletion across the
+     * chain's end straddles it and a SNP past it has no target. On chr2, written as the reverse
+     * complement of the target, a SNP, a deletion and an insertion lift with their alleles
+     * reverse-complemented (the indels left-aligned), an indel whose bases disagree cannot be
+     * lifted, and two SNPs are a mismatch and a swap. Its samples are in sorted order, so its
+     * genotype blocks are copied while untouched; liftover_missing.vcf has them the other way
+     * round, and reaches the missing chr3.
+     */
+    static void writeLiftoverFixtures(File dir, String chr1, String chr2) throws Exception {
+        try (PrintWriter out = new PrintWriter(new File(dir, "lift_vcf.chain"), "UTF-8")) {
+            out.print("chain 1000 chr1 " + CHR1 + " + 0 1000 chr1 " + CHR1 + " + 500 1500 1\n");
+            out.print("1000\n");
+            out.print("\n");
+            out.print("chain 1000 chr2 " + CHR2 + " + 0 500 chr2 " + CHR2 + " - 0 500 2\n");
+            out.print("500\n");
+            out.print("\n");
+            out.print("chain 1000 chr2 " + CHR2 + " + 500 1000 chr3 600 + 0 500 3\n");
+            out.print("500\n");
+            out.print("\n");
+        }
+        String meta = "##fileformat=VCFv4.2\n"
+                + "##FILTER=<ID=q10,Description=\"Quality below 10\">\n"
+                + "##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allelic depths\">\n"
+                + "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read depth\">\n"
+                + "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">\n"
+                + "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+                + "##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Phred-scaled genotype likelihoods\">\n"
+                + "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele frequency\">\n"
+                + "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total depth\">\n"
+                + "##INFO=<ID=MAX_AF,Number=1,Type=Float,Description=\"Maximum allele frequency\">\n"
+                + "##contig=<ID=chr1,length=" + CHR1 + ">\n"
+                + "##contig=<ID=chr2,length=" + CHR2 + ">\n"
+                + "##reference=file:///old/build.fasta\n";
+        String het = "0/1:5,5:10:30:30,0,30";
+        String hom = "1/1:0,8:8:20:200,20,0";
+        String ref = "0/0:9,0:9:27:0,27,270";
+        java.util.function.IntFunction<Character> t1 = p -> chr1.charAt(p + 500 - 1);
+        java.util.function.IntFunction<Character> t2 = p -> chr2.charAt(1001 - p - 1);
+        java.util.List<String> rows = new java.util.ArrayList<>();
+        java.util.function.Consumer<String[]> add = f -> rows.add(String.join("\t", f));
+        char c;
+        c = t1.apply(100);
+        add.accept(new String[] {"chr1", "100", "rs100", "" + c, "" + mutate(c), "50", "PASS", "AF=0.25;DP=10", "GT:AD:DP:GQ:PL", het, hom});
+        c = t1.apply(150);
+        add.accept(new String[] {"chr1", "150", ".", "" + c, "" + mutate(c), "8", "q10", "AF=0.5;DP=4", "GT:AD:DP:GQ:PL", het, "./.:.:.:.:."});
+        c = t1.apply(200);
+        add.accept(new String[] {"chr1", "200", ".", "" + mutate(c), "" + c, "60", "PASS", "AF=0.3;DP=12;MAX_AF=0.4", "GT:AD:DP:GQ:PL", "0/1:6,4:10:40:40,0,60", ref});
+        c = t1.apply(300);
+        add.accept(new String[] {"chr1", "300", ".", "" + mutate(c), "" + mutate(mutate(c)), "40", "PASS", "AF=0.5;DP=9", "GT:AD:DP:GQ:PL", het, het});
+        add.accept(new String[] {"chr1", "400", ".", chr1.substring(899, 902), "" + chr1.charAt(899), "45", "PASS", "AF=0.5;DP=11", "GT:AD:DP:GQ:PL", het, ref});
+        c = t1.apply(500);
+        add.accept(new String[] {"chr1", "500", ".", "" + c, mutate(c) + "," + mutate(mutate(c)), "70", "PASS", "AF=0.25,0.25;DP=14", "GT:AD:DP:GQ:PL", "1/2:0,3,4:7:20:90,60,50,40,0,30", "0/1:4,3,0:7:30:30,0,40,50,60,90"});
+        c = t1.apply(550);
+        add.accept(new String[] {"chr1", "550", "rs55", "" + c, "" + mutate(c), ".", ".", ".", "GT:AD:DP:GQ:PL", het, ref});
+        c = t1.apply(600);
+        add.accept(new String[] {"chr1", "600", ".", "" + c, c + "GA", "33", "PASS", "AF=0.5;DP=8", "GT:AD:DP:GQ:PL", het, hom});
+        add.accept(new String[] {"chr1", "990", ".", chr1.substring(989, 1009), "" + chr1.charAt(989), "20", "PASS", "AF=0.5;DP=6", "GT:AD:DP:GQ:PL", het, ref});
+        c = chr1.charAt(1199);
+        add.accept(new String[] {"chr1", "1200", ".", "" + c, "" + mutate(c), "30", "PASS", "AF=0.5;DP=7", "GT:AD:DP:GQ:PL", het, het});
+        c = t2.apply(100);
+        add.accept(new String[] {"chr2", "100", "rs200", "" + complement(c), "" + complement(mutate(c)), "55", "PASS", "AF=0.5;DP=10", "GT:AD:DP:GQ:PL", het, hom});
+        String deleted = reverseComplement(chr2.substring(798, 801));
+        add.accept(new String[] {"chr2", "200", ".", deleted, "" + deleted.charAt(0), "44", "PASS", "AF=0.25;DP=9", "GT:AD:DP:GQ:PL", het, ref});
+        c = t2.apply(300);
+        add.accept(new String[] {"chr2", "300", ".", "" + complement(c), complement(c) + "AC", "38", "PASS", "AF=0.5;DP=10", "GT:AD:DP:GQ:PL", hom, het});
+        String wrong = reverseComplement("" + mutate(chr2.charAt(599)) + mutate(chr2.charAt(600)));
+        add.accept(new String[] {"chr2", "400", ".", wrong, "" + wrong.charAt(0), "35", "PASS", "AF=0.5;DP=5", "GT:AD:DP:GQ:PL", het, het});
+        c = t2.apply(450);
+        add.accept(new String[] {"chr2", "450", ".", "" + complement(mutate(c)), "" + complement(mutate(mutate(c))), "25", "PASS", "AF=0.5;DP=6", "GT:AD:DP:GQ:PL", het, het});
+        c = t2.apply(460);
+        add.accept(new String[] {"chr2", "460", ".", "" + complement(mutate(c)), "" + complement(c), "65", "PASS", "AF=0.2;DP=15;MAX_AF=0.3", "GT:AD:DP:GQ:PL", "0/1:12,3:15:50:50,0,200", hom});
+        try (PrintWriter p = new PrintWriter(new File(dir, "liftover.vcf"), "UTF-8")) {
+            p.print(meta);
+            p.print("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsampleA\tsampleB\n");
+            for (String row : rows) p.print(row + "\n");
+        }
+        try (PrintWriter p = new PrintWriter(new File(dir, "liftover_missing.vcf"), "UTF-8")) {
+            p.print(meta);
+            p.print("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsampleB\tsampleA\n");
+            p.print(rows.get(0) + "\n");
+            p.print(rows.get(10) + "\n");
+            c = chr2.charAt(699);
+            p.print(String.join("\t", new String[] {"chr2", "700", ".", "" + c, "" + mutate(c), "30", "PASS", "AF=0.5;DP=7", "GT:AD:DP:GQ:PL", het, hom}) + "\n");
+            c = chr2.charAt(799);
+            p.print(String.join("\t", new String[] {"chr2", "800", ".", "" + c, "" + mutate(c), "30", "PASS", "AF=0.5;DP=7", "GT:AD:DP:GQ:PL", ref, het}) + "\n");
         }
     }
 

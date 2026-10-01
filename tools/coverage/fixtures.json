@@ -1608,6 +1608,52 @@
         "0",
         "20"
       ]
+    },
+    "LiftoverVcf": {
+      "$why": [
+        "lift_vcf.chain and liftover.vcf are written together (MakeFixtures.writeLiftoverFixtures): chr1",
+        "lifts forward, chr2's first half onto the reverse strand and its second half to a chr3 the",
+        "reference lacks, and every record's REF agrees, disagrees or is swapped with ref.fasta where",
+        "it lands, so every rejection reason and both strands are reached. liftover_missing.vcf has",
+        "its samples out of order (so its genotypes are re-encoded) and a record bound for chr3, which",
+        "is an error unless WARN_ON_MISSING_CONTIG. lift.chain is the forward-only chain, against which",
+        "the chr2 records mismatch or have no target. LIFTOVER_MIN_MATCH 0.5 lets the deletion across",
+        "the chain's end lift partially, which then straddles. TAGS_TO_REVERSE and TAGS_TO_DROP append",
+        "to their defaults ($lists) or are emptied by null; DP is a tag that is not a frequency.",
+        "OUTPUT and REJECT are both compared."
+      ],
+      "$lists": [
+        "--TAGS_TO_REVERSE",
+        "--TAGS_TO_DROP"
+      ],
+      "--INPUT": [
+        "/work/fixtures/liftover.vcf",
+        "/work/fixtures/liftover_missing.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--REJECT": [
+        "/work/out/reject.vcf"
+      ],
+      "--CHAIN": [
+        "/work/fixtures/lift_vcf.chain",
+        "/work/fixtures/lift.chain"
+      ],
+      "--LIFTOVER_MIN_MATCH": [
+        "1.0",
+        "0.5"
+      ],
+      "--TAGS_TO_REVERSE": [
+        "AF",
+        "null",
+        "DP"
+      ],
+      "--TAGS_TO_DROP": [
+        "MAX_AF",
+        "null",
+        "DP"
+      ]
     }
   },
   "constraints": [
@@ -1684,6 +1730,27 @@
         "--SAMPLE": "sampleS"
       },
       "why": "replicates.vcf has one sample, so naming the other is refused before the BAM is read ('When sample is not null, VCF must contain supplied sample. Cannot find sample sampleS in vcf.'). The refusal was measured and matched; as a pair it took a sixth of the array, and the null-sample refusal against replicates_two.vcf keeps the check in the array."
+    },
+    {
+      "tools": [
+        "LiftoverVcf"
+      ],
+      "forbid": {
+        "--CREATE_INDEX": "true",
+        "--DISABLE_SORT": "true"
+      },
+      "why": "The tool refuses the pair before it reads anything, with a logged error ('CREATE_INDEX=true and DISABLE_SORT=true are mutually exclusive.') and an exit code of one. Measured and matched; unconstrained it was a quarter of the array and hid what DISABLE_SORT does to the order of the output."
+    },
+    {
+      "tools": [
+        "LiftoverVcf"
+      ],
+      "forbid": {
+        "--WRITE_ORIGINAL_ALLELES": "true",
+        "--WRITE_ORIGINAL_POSITION": "false",
+        "--ALLOW_MISSING_FIELDS_IN_HEADER": "false"
+      },
+      "why": "OriginalAlleles is declared in the output header only under WRITE_ORIGINAL_POSITION, so a reverse-complemented record written with it and without that header line is refused by the writer ('Key OriginalAlleles found in VariantContext field INFO at chr2:700 but this key isn't defined in the VCFHeader...'), after the sort, or at the record under DISABLE_SORT. Measured and matched on both; the triple is forbidden so the rows measure the lift rather than the writer's check."
     }
   ],
   "exclude": {
