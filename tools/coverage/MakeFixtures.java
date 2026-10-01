@@ -603,6 +603,7 @@ public class MakeFixtures {
         writeArrayFixtures(dir, chr1, chr2);
         writeVerifyIdFixtures(dir);
         writeBafRegressFixtures(dir);
+        writeArrayMetricsFixtures(dir);
 
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
@@ -1734,6 +1735,53 @@ public class MakeFixtures {
         writeText(new File(dir, "bafregress_bad_number.txt"), header + "NA12878\tNA\t0.1\t1\t0.5\t0.9\t3\n");
         writeText(new File(dir, "bafregress_bad_count.txt"), header + "NA12878\t0.1\t0.1\t1\t0.5\t0.9\t12.0\n");
         writeText(new File(dir, "bafregress_empty.txt"), "");
+    }
+
+    /**
+     * The corpus of CollectArraysVariantCallingMetrics, which opens its input with an index
+     * required. `array_a.vcf` and `array_cd.vcf` get the `.idx` htsjdk builds for them (beside
+     * them, so their own bytes do not move). `array_x.vcf` is array_b with no optional header
+     * line (no pipeline, analysis or zCall version, no thresholds, no GTC call rate), single-digit
+     * date fields, an imaging date in New York winter time and genders that disagree (autocall
+     * male, reported and fingerprinted female). The rest are array_x with one thing wrong: no
+     * sampleAlias, no Hyb(Low) control, an imaging date in ISO form, an autocall gender of `X`, a
+     * p95Red that is not a number, and (array_x_no_index.vcf) no index at all.
+     */
+    static void writeArrayMetricsFixtures(File dir) throws Exception {
+        String[] fromB = {
+            "(?m)^##autocallGender=.*$", "##autocallGender=M",
+            "(?m)^##expectedGender=.*$", "##expectedGender=Female",
+            "(?m)^##fingerprintGender=.*$", "##fingerprintGender=F",
+            "(?m)^##autocallDate=.*$", "##autocallDate=4/2/2019 0:07",
+            "(?m)^##imagingDate=.*$", "##imagingDate=12/05/2019 12:05:00 AM",
+            "(?m)^##(pipelineVersion|analysisVersionNumber|gtcCallRate|zcallVersion|zcallThresholds)=.*\n", "",
+        };
+        editArrayText(dir, "array_b.vcf", "array_x.vcf", fromB);
+        String[][] broken = {
+            {"array_x_no_sample_alias.vcf", "(?m)^##sampleAlias=.*\n", ""},
+            {"array_x_no_control.vcf", "(?m)^##Hyb\\(Low\\)=.*\n", ""},
+            {"array_x_bad_date.vcf", "(?m)^##imagingDate=.*$", "##imagingDate=2019-12-05T00:05:00"},
+            {"array_x_bad_gender.vcf", "(?m)^##autocallGender=.*$", "##autocallGender=X"},
+            {"array_x_bad_p95.vcf", "(?m)^##p95Red=.*$", "##p95Red=high"},
+        };
+        for (String[] b : broken) editArrayText(dir, "array_x.vcf", b[0], b[1], b[2]);
+        java.nio.file.Files.copy(new File(dir, "array_x.vcf").toPath(),
+                new File(dir, "array_x_no_index.vcf").toPath());
+        for (String name : new String[] {"array_a.vcf", "array_cd.vcf", "array_x.vcf",
+                "array_x_no_sample_alias.vcf", "array_x_no_control.vcf", "array_x_bad_date.vcf",
+                "array_x_bad_gender.vcf", "array_x_bad_p95.vcf"}) {
+            File vcf = new File(dir, name);
+            htsjdk.tribble.index.Index index = htsjdk.tribble.index.IndexFactory.createDynamicIndex(
+                    vcf, new htsjdk.variant.vcf.VCFCodec());
+            index.write(new File(dir, name + ".idx"));
+        }
+    }
+
+    /** A copy of an array fixture with regular-expression replacements over its whole text. */
+    static void editArrayText(File dir, String from, String to, String... edits) throws Exception {
+        String text = new String(java.nio.file.Files.readAllBytes(new File(dir, from).toPath()), "UTF-8");
+        for (int e = 0; e < edits.length; e += 2) text = text.replaceAll(edits[e], edits[e + 1]);
+        writeText(new File(dir, to), text);
     }
 
     static void writeText(File f, String text) throws Exception {

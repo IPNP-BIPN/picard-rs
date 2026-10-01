@@ -573,6 +573,13 @@
         "t": 2,
         "status": "pending",
         "output_name": "output.bafregress_metrics"
+      },
+      {
+        "tool": "CollectArraysVariantCallingMetrics",
+        "port": "collect-arrays-variant-calling-metrics",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.arrays_variant_calling_detail_metrics,output.arrays_variant_calling_summary_metrics,output.arrays_control_code_summary_metrics"
       }
     ]
   },

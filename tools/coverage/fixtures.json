@@ -1598,6 +1598,57 @@
       "--OUTPUT": [
         "/work/out/output"
       ]
+    },
+    "CollectArraysVariantCallingMetrics": {
+      "$why": [
+        "INPUT is an array VCF with its .idx, which the tool requires. array_a is one chip with every",
+        "header line; array_cd two chips, so singletons are per sample and the detail rows come out in",
+        "HashMap order; array_x has no optional line (nulls, IS_ZCALLED N), single-digit date fields,",
+        "a New York winter imaging date and discordant genders. The other array_x files are one refusal",
+        "each: a missing required line, a missing control code, an ISO imaging date, a gender of X, a",
+        "p95Red that is not a number, and no index. DBSNP is dbsnp.vcf (three of the loci) or",
+        "variants.vcf (five); SEQUENCE_DICTIONARY other.dict disagrees with dbSNP's and is refused.",
+        "CALL_RATE_PF_THRESHOLD decides AUTOCALL_PF against the float call rate: 0.7142857 is below",
+        "5/7 as a float widened to a double, and 0 and 1.5 are refused by customCommandLineValidation.",
+        "NUM_PROCESSORS splits the walk between accumulators whose rows are summed, so it changes",
+        "nothing. OUTPUT is a prefix; the three files it names are compared together."
+      ],
+      "--INPUT": [
+        "/work/fixtures/array_a.vcf",
+        "/work/fixtures/array_cd.vcf",
+        "/work/fixtures/array_x.vcf",
+        "/work/fixtures/array_x_no_sample_alias.vcf",
+        "/work/fixtures/array_x_no_control.vcf",
+        "/work/fixtures/array_x_bad_date.vcf",
+        "/work/fixtures/array_x_bad_gender.vcf",
+        "/work/fixtures/array_x_bad_p95.vcf",
+        "/work/fixtures/array_x_no_index.vcf"
+      ],
+      "--DBSNP": [
+        "/work/fixtures/dbsnp.vcf",
+        "/work/fixtures/variants.vcf"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "null",
+        "/work/fixtures/ref.dict",
+        "/work/fixtures/other.dict"
+      ],
+      "--CALL_RATE_PF_THRESHOLD": [
+        "0.98",
+        "0.5",
+        "0.7142857",
+        "1.0",
+        "0",
+        "1.5"
+      ],
+      "--NUM_PROCESSORS": [
+        "0",
+        "1",
+        "3"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ]
     }
   },
   "constraints": [
