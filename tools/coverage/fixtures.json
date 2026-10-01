@@ -941,6 +941,75 @@
         "-1",
         "1"
       ]
+    },
+    "CollectSequencingArtifactMetrics": {
+      "$why": [
+        "OUTPUT is a prefix: the tool writes five files under it, and the manifest compares all five,",
+        "with and without FILE_EXTENSION, so a row that moves the files is compared on where they went.",
+        "original_quals.bam carries OQ on two pairs in three, which is what makes USE_OQ observable;",
+        "one_read_group.bam has a single library and sample, so the per-library split and the sample",
+        "alias change. INTERVALS and DB_SNP each take null and a file: the mask and the dbSNP skip both",
+        "remove bases. The insert-size bounds reach the filter (150 drops the corpus's short inserts,",
+        "0 removes the maximum) and the tool's own validation (-1, and a maximum under the minimum).",
+        "CONTEXT_SIZE 0 collapses every context to its centre, and CONTEXTS_TO_PRINT of length three is",
+        "then refused; CONTEXT_SIZE 2 is left out because its detail files hold 12,288 rows a library.",
+        "CONTEXTS_TO_PRINT is a whole set ($lists), whose refusals come out in HashSet order."
+      ],
+      "$lists": [
+        "--CONTEXTS_TO_PRINT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/one_read_group.bam",
+        "/work/fixtures/original_quals.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list"
+      ],
+      "--DB_SNP": [
+        "null",
+        "/work/fixtures/dbsnp.vcf"
+      ],
+      "--MINIMUM_QUALITY_SCORE": [
+        "20",
+        "30"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "30",
+        "50"
+      ],
+      "--MINIMUM_INSERT_SIZE": [
+        "60",
+        "150",
+        "-1"
+      ],
+      "--MAXIMUM_INSERT_SIZE": [
+        "600",
+        "0",
+        "100"
+      ],
+      "--CONTEXT_SIZE": [
+        "1",
+        "0"
+      ],
+      "--CONTEXTS_TO_PRINT": [
+        "null",
+        "ACA CCC"
+      ],
+      "--FILE_EXTENSION": [
+        "null",
+        ".txt"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "200"
+      ]
     }
   },
   "constraints": [

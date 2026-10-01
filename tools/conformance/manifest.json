@@ -481,6 +481,13 @@
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
+      },
+      {
+        "tool": "CollectSequencingArtifactMetrics",
+        "port": "collect-sequencing-artifact-metrics",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.pre_adapter_summary_metrics,output.pre_adapter_detail_metrics,output.bait_bias_summary_metrics,output.bait_bias_detail_metrics,output.error_summary_metrics,output.pre_adapter_summary_metrics.txt,output.pre_adapter_detail_metrics.txt,output.bait_bias_summary_metrics.txt,output.bait_bias_detail_metrics.txt,output.error_summary_metrics.txt"
       }
     ]
   },
