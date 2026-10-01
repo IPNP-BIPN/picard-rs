@@ -551,6 +551,13 @@
         "port": "collect-rna-seq-metrics",
         "t": 2,
         "status": "pending"
+      },
+      {
+        "tool": "CollectIndependentReplicateMetrics",
+        "port": "collect-independent-replicate-metrics",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.txt,matrix.txt"
       }
     ]
   },

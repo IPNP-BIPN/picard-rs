@@ -614,9 +614,173 @@ public class MakeFixtures {
             out.print("GENE_E\ttxE1\tchr9\t+\t0\t100\t0\t100\t1\t0,\t100,\n");
         }
 
+        // Duplicate sets over heterozygous sites, for `CollectIndependentReplicateMetrics`; see
+        // writeReplicateFixtures.
+        writeReplicateFixtures(dir, chr1, chr2);
+
         System.out.println("fixtures written to " + dir.getAbsolutePath());
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
+        }
+    }
+
+    /**
+     * The corpus of `CollectIndependentReplicateMetrics`: an indexed BAM of duplicate sets laid over
+     * the heterozygous sites of replicates.vcf, and the same sites with a second sample.
+     *
+     * Every site gets the same templates, each one a set of copies that share both ends' positions
+     * and strands, so they fall in one duplicate set, and that differ in the base they carry at
+     * the site: `0` and `1` are the genotype's two alleles in GT order, `2` a base that is neither.
+     * The sets are singletons, doubletons, tripletons and one of four; homogeneous and mixed; one
+     * whose second copy is under MINIMUM_BQ at the site, one under the mapping quality floor, one
+     * of unpaired reads, one whose first copy has a deletion over the site, two whose barcodes
+     * differ (one with a low barcode quality), one with no barcode tags at all, and one tripleton
+     * whose third copy is the SECOND end of its pair. The `2` base appears only at chr1:1100,
+     * whose genotype quality (60) is under the default MINIMUM_GQ, so lowering that floor brings
+     * in a site the tool then throws away as three-allelic. chr1:700 is phased the other way
+     * round (1|0), chr1:1300 is filtered, chr1:1500 is homozygous, chr1:1600 is an indel and
+     * chr2:400 is a het of two alternate alleles.
+     */
+    static void writeReplicateFixtures(File dir, String chr1, String chr2) throws Exception {
+        SAMFileHeader h = header(SAMFileHeader.SortOrder.coordinate);
+        int[][] sites = {{0, 300}, {0, 700}, {0, 1100}, {1, 400}};
+        String[] patterns = {"0", "01", "00", "11", "001", "000", "111", "0101", "01", "00",
+                             "01", "01", "00", "00", "11", "011", "02"};
+        java.util.List<SAMRecord> reads = new java.util.ArrayList<>();
+        for (int si = 0; si < sites.length; si++) {
+            int contig = sites[si][0];
+            int pos = sites[si][1];
+            String ref = contig == 0 ? chr1 : chr2;
+            byte refBase = (byte) ref.charAt(pos - 1);
+            byte alt1 = mutateBase(refBase);
+            byte alt2 = mutateBase(alt1);
+            byte[] alleles;
+            if (si == 1) alleles = new byte[] {alt1, refBase};        // 1|0
+            else if (si == 3) alleles = new byte[] {alt1, alt2};      // 1/2
+            else alleles = new byte[] {refBase, alt1};
+            byte odd = mutateBase(mutateBase(mutateBase(refBase)));
+            if (si == 3) odd = refBase;
+            for (int t = 0; t < patterns.length; t++) {
+                String pattern = patterns[t];
+                if (pattern.contains("2") && si != 2) continue;
+                int start = pos - 5 - 2 * t;
+                int mateStart = start + 200;
+                for (int c = 0; c < pattern.length(); c++) {
+                    char code = pattern.charAt(c);
+                    byte siteBase = code == '0' ? alleles[0] : code == '1' ? alleles[1] : odd;
+                    String name = String.format("rep%d_%02d_%d", si, t, c);
+                    boolean deletion = t == 13 && c == 0;
+                    SAMRecord first = new SAMRecord(h);
+                    byte[] bases = new byte[READ_LENGTH];
+                    byte[] quals = new byte[READ_LENGTH];
+                    int lead = pos - start;
+                    for (int b = 0; b < READ_LENGTH; b++) {
+                        int refPos = deletion && b >= lead ? start + b + 2 : start + b;
+                        bases[b] = (byte) ref.charAt(refPos - 1);
+                        quals[b] = 30;
+                    }
+                    if (!deletion) bases[lead] = siteBase;
+                    if (t == 8 && c == 1) quals[lead] = 12;
+                    first.setReadName(name);
+                    first.setReadBases(bases);
+                    first.setBaseQualities(quals);
+                    first.setReferenceIndex(contig);
+                    first.setAlignmentStart(start);
+                    first.setCigarString(deletion ? lead + "M2D" + (READ_LENGTH - lead) + "M" : READ_LENGTH + "M");
+                    first.setMappingQuality(t == 9 ? 35 : 60);
+                    first.setAttribute("RG", contig == 0 ? "rg1" : "rg2");
+                    if (t != 12) {
+                        String barcode = "ACGTACGT";
+                        String barcodeQuals = "IIIIIIII";
+                        if (t == 10 && c == 1) barcode = "ACGTACGA";
+                        if (t == 11 && c == 1) barcode = "ACGTTCGT";
+                        if (t == 11 && c == 0) barcodeQuals = "II#IIIII";
+                        first.setAttribute("RX", barcode);
+                        first.setAttribute("QX", barcodeQuals);
+                    }
+                    if (t == 14) {
+                        reads.add(first);
+                        continue;
+                    }
+                    SAMRecord second = new SAMRecord(h);
+                    byte[] mateBases = new byte[READ_LENGTH];
+                    byte[] mateQuals = new byte[READ_LENGTH];
+                    for (int b = 0; b < READ_LENGTH; b++) {
+                        mateBases[b] = (byte) ref.charAt(mateStart + b - 1);
+                        mateQuals[b] = 30;
+                    }
+                    second.setReadName(name);
+                    second.setReadBases(mateBases);
+                    second.setBaseQualities(mateQuals);
+                    second.setReferenceIndex(contig);
+                    second.setAlignmentStart(mateStart);
+                    second.setCigarString(READ_LENGTH + "M");
+                    second.setMappingQuality(60);
+                    second.setAttribute("RG", first.getAttribute("RG"));
+                    if (first.getAttribute("RX") != null) {
+                        second.setAttribute("RX", first.getAttribute("RX"));
+                        second.setAttribute("QX", first.getAttribute("QX"));
+                    }
+                    boolean swapped = t == 15 && c == 2;
+                    for (SAMRecord r : new SAMRecord[] {first, second}) {
+                        r.setReadPairedFlag(true);
+                        r.setProperPairFlag(true);
+                    }
+                    first.setFirstOfPairFlag(!swapped);
+                    first.setSecondOfPairFlag(swapped);
+                    second.setFirstOfPairFlag(swapped);
+                    second.setSecondOfPairFlag(!swapped);
+                    second.setReadNegativeStrandFlag(true);
+                    SamPairUtil.setMateInfo(first, second, true);
+                    reads.add(first);
+                    reads.add(second);
+                }
+            }
+        }
+        reads.sort(new SAMRecordCoordinateComparator());
+        writeBam(new File(dir, "replicates.bam"), h, reads, true);
+
+        String meta = "##fileformat=VCFv4.2\n"
+                + "##FILTER=<ID=LowQual,Description=\"Low quality\">\n"
+                + "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+                + "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype Quality\">\n"
+                + "##contig=<ID=chr1,length=" + CHR1 + ">\n"
+                + "##contig=<ID=chr2,length=" + CHR2 + ">\n";
+        String[][] rows = {
+            {"chr1", "300", "PASS", "0/1:99", "0/0:99"},
+            {"chr1", "700", "PASS", "1|0:99", "0/1:99"},
+            {"chr1", "1100", "PASS", "0/1:60", "0/1:95"},
+            {"chr1", "1300", "LowQual", "0/1:99", "0/1:99"},
+            {"chr1", "1500", "PASS", "0/0:99", "0/1:99"},
+            {"chr1", "1600", "PASS", "0/1:99", "0/1:99"},
+            {"chr2", "400", "PASS", "1/2:99", "0/1:99"},
+        };
+        for (int samples = 1; samples <= 2; samples++) {
+            StringBuilder out = new StringBuilder(meta);
+            out.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsampleR");
+            if (samples == 2) out.append("\tsampleS");
+            out.append("\n");
+            for (String[] row : rows) {
+                String ref = row[0].equals("chr1") ? chr1 : chr2;
+                int pos = Integer.parseInt(row[1]);
+                byte refBase = (byte) ref.charAt(pos - 1);
+                byte alt1 = mutateBase(refBase);
+                String refAllele = String.valueOf((char) refBase);
+                String altAllele = String.valueOf((char) alt1);
+                if (pos == 1600) {
+                    refAllele = ref.substring(pos - 1, pos + 1);
+                } else if (row[0].equals("chr2")) {
+                    altAllele = altAllele + "," + (char) mutateBase(alt1);
+                }
+                out.append(row[0]).append('\t').append(pos).append("\t.\t").append(refAllele)
+                   .append('\t').append(altAllele).append("\t50\t").append(row[2])
+                   .append("\t.\tGT:GQ\t").append(row[3]);
+                if (samples == 2) out.append('\t').append(row[4]);
+                out.append('\n');
+            }
+            try (PrintWriter p = new PrintWriter(new File(dir, samples == 1 ? "replicates.vcf" : "replicates_two.vcf"), "UTF-8")) {
+                p.print(out);
+            }
         }
     }
 

@@ -1543,6 +1543,71 @@
         "0",
         "150"
       ]
+    },
+    "CollectIndependentReplicateMetrics": {
+      "$why": [
+        "replicates.bam (MakeFixtures.writeReplicateFixtures) lays duplicate sets of every size and",
+        "allele mix over the heterozygous sites of replicates.vcf; it is indexed, as the tool requires.",
+        "mate_cigar.bam is the ordinary corpus with MC tags, two libraries and random bases, so its sets",
+        "come out in library order and most of them are three-allelic. replicates_two.vcf adds a",
+        "second sample with other genotypes, so SAMPLE decides the sites, and null is refused against",
+        "it. MINIMUM_GQ 50 admits chr1:1100 (GQ 60), whose third allele then discards it; MINIMUM_MQ 30",
+        "admits the set at mapping quality 35; MINIMUM_BQ 10 counts the base at quality 12 instead of",
+        "abandoning its set. MINIMUM_BARCODE_BQ 1 makes the barcode with a '#' usable. BARCODE_TAG and",
+        "BARCODE_BQ name tags no read carries (BC, BQ), which empties every barcode. MATRIX_OUTPUT is",
+        "compared beside OUTPUT, and null writes none.",
+        "Measured and then left out, because with the refusal above they took half of the first",
+        "18 rows: an unindexed input (small.sam: 'INPUT file must have an index.') and a sample the",
+        "one-sample file lacks ('Cannot find sample sampleS in vcf.'). The port matched both."
+      ],
+      "--INPUT": [
+        "/work/fixtures/replicates.bam",
+        "/work/fixtures/mate_cigar.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt"
+      ],
+      "--MATRIX_OUTPUT": [
+        "/work/out/matrix.txt",
+        "null"
+      ],
+      "--VCF": [
+        "/work/fixtures/replicates.vcf",
+        "/work/fixtures/replicates_two.vcf"
+      ],
+      "--SAMPLE": [
+        "null",
+        "sampleR",
+        "sampleS"
+      ],
+      "--MINIMUM_GQ": [
+        "90",
+        "50"
+      ],
+      "--MINIMUM_MQ": [
+        "40",
+        "30"
+      ],
+      "--MINIMUM_BQ": [
+        "17",
+        "10"
+      ],
+      "--MINIMUM_BARCODE_BQ": [
+        "30",
+        "1"
+      ],
+      "--BARCODE_TAG": [
+        "RX",
+        "BC"
+      ],
+      "--BARCODE_BQ": [
+        "QX",
+        "BQ"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "20"
+      ]
     }
   },
   "constraints": [
@@ -1609,6 +1674,16 @@
         "--CONTEXTS": "ACA TCG"
       },
       "why": "Contexts of three bases are refused at a context size of nought before the tool runs. AGT keeps that refusal (and the middle-base one) as a case; without this clause the pair took a quarter of the first array's rows, which then measured the validator instead of the counters."
+    },
+    {
+      "tools": [
+        "CollectIndependentReplicateMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/replicates.vcf",
+        "--SAMPLE": "sampleS"
+      },
+      "why": "replicates.vcf has one sample, so naming the other is refused before the BAM is read ('When sample is not null, VCF must contain supplied sample. Cannot find sample sampleS in vcf.'). The refusal was measured and matched; as a pair it took a sixth of the array, and the null-sample refusal against replicates_two.vcf keeps the check in the array."
     }
   ],
   "exclude": {
