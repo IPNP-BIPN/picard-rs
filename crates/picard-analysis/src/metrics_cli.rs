@@ -74,6 +74,22 @@ impl Args {
         out
     }
 
+    /// A collection argument with a default: each value is APPENDED to the default, the way
+    /// Barclay treats a collection field that was initialised, and `null` empties it first.
+    pub fn collection(&self, name: &str, default: &[&str]) -> Vec<String> {
+        let mut out: Vec<String> = default.iter().map(|s| s.to_string()).collect();
+        for (n, v) in &self.pairs {
+            if n == name {
+                if v == "null" {
+                    out.clear();
+                } else {
+                    out.push(v.clone());
+                }
+            }
+        }
+        out
+    }
+
     pub fn required(&self, name: &str) -> String {
         self.get(name)
             .map(str::to_string)

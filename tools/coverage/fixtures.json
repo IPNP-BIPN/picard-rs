@@ -1100,6 +1100,44 @@
         "2147483647",
         "100"
       ]
+    },
+    "CollectGcBiasMetrics": {
+      "$why": [
+        "SUMMARY_OUTPUT is compared beside OUTPUT; the chart is R's and is not. unmapped.bam has no",
+        "aligned read, so every unit writes nothing and R fails on the empty summary, which the tool",
+        "ignores; one_read_group.bam has one unit per level. SCAN_WINDOW_SIZE 50 and 1500 move every",
+        "window and bin, and 1500 is longer than chr2, whose reads then all land in bin 0.",
+        "METRIC_ACCUMULATION_LEVEL is a collection appended to its ALL_READS default ($lists), and",
+        "null empties it, which leaves no level at all."
+      ],
+      "$lists": [
+        "--METRIC_ACCUMULATION_LEVEL"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/one_read_group.bam",
+        "/work/fixtures/unmapped.bam"
+      ],
+      "--SUMMARY_OUTPUT": [
+        "/work/out/summary.txt"
+      ],
+      "--SCAN_WINDOW_SIZE": [
+        "100",
+        "50",
+        "1500"
+      ],
+      "--METRIC_ACCUMULATION_LEVEL": [
+        "ALL_READS",
+        "SAMPLE LIBRARY",
+        "READ_GROUP",
+        "null"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "150"
+      ]
     }
   },
   "constraints": [

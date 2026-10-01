@@ -703,7 +703,7 @@ fn alignment_end(rec: &BamRecord) -> i32 {
 /// Only **positive** dropouts are summed; a bin with more reads than its window share
 /// contributes nothing rather than offsetting. And the split is `GC <= 50` for AT, so bin 50
 /// itself counts as AT.
-fn dropout_metrics(details: &[GcBiasDetailMetrics]) -> (f64, f64) {
+pub fn dropout_metrics(details: &[GcBiasDetailMetrics]) -> (f64, f64) {
     let total_reads: f64 = details.iter().map(|d| d.read_starts as f64).sum();
     let total_windows: f64 = details.iter().map(|d| d.windows as f64).sum();
     let mut at_dropout = 0.0;

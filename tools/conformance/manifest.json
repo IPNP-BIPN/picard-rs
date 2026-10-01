@@ -501,6 +501,13 @@
         "port": "collect-oxo-g-metrics",
         "t": 2,
         "status": "pending"
+      },
+      {
+        "tool": "CollectGcBiasMetrics",
+        "port": "collect-gc-bias-metrics",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.txt,summary.txt"
       }
     ]
   },
