@@ -914,6 +914,9 @@ public class MakeFixtures {
         SAMFileHeader bfqOddHeader = header(SAMFileHeader.SortOrder.unsorted);
         writeBam(new File(dir, "bfq_odd.bam"), bfqOddHeader, bfqReads(bfqOddHeader, true), false);
 
+        // A haplotype map, reads and genotypes over it, for the fingerprinting family.
+        writeFingerprintFixtures(dir, chr1, chr2);
+
         // Insert-size metrics files that agree and disagree, for `CompareMetrics`.
         writeCompareMetricsFixtures(dir);
 
@@ -1225,6 +1228,245 @@ public class MakeFixtures {
             c = chr2.charAt(799);
             p.print(String.join("\t", new String[] {"chr2", "800", ".", "" + c, "" + mutate(c), "30", "PASS", "AF=0.5;DP=7", "GT:AD:DP:GQ:PL", ref, het}) + "\n");
         }
+    }
+
+    /**
+     * The corpus of the fingerprinting family: a haplotype map laid over the reference, BAMs whose
+     * reads carry known genotypes at its sites, VCFs that say the same, and a crosscheck table.
+     *
+     * Seven sites in five haplotype blocks (chr1:100 and 130 share one, chr1:800 and 820 another),
+     * each with the reference base as its major allele and the next base in ACGT order as its
+     * minor allele, so a tool that reads the map against the reference (ConvertHaplotypeDatabaseToVcf
+     * decides REF from it) finds them agreeing. Three samples whose genotypes at the sites differ:
+     * A is the one `fp_a.bam` and the VCFs agree about, B is `fp_b.bam` and C is `fp_c.bam`. `fp_multi.bam` holds A in two libraries and B in a third, which is what makes a
+     * crosscheck by read group, library and sample three different tables.
+     *
+     * Every read carries ONE haplotype of its sample (the read index decides which), at every site
+     * it spans, so a heterozygous site is a pileup of both alleles. A ninth of the bases at a site
+     * are under any base-quality floor (one read in nine). `fp_a.bam` also holds eight duplicate-flagged reads that
+     * carry the minor allele at chr1:100, where A is homozygous major, so a run that lets duplicates
+     * in reads a different genotype than one that does not.
+     *
+     * `fp_genotypes.vcf` has PL and GT for the three samples, `fp_genotypes_gt.vcf` GT alone (so a
+     * genotyping error rate has something to act on), and `fp_genotypes_a.vcf` carries A only, which
+     * the tools that need exactly one sample accept. `fp_crosscheck.metrics` is a CrosscheckFingerprints
+     * table in which A-B-C are one connected component and D-E another, so ClusterCrosscheckMetrics
+     * finds two clusters and a LOD threshold moves a row between them.
+     */
+    static void writeFingerprintFixtures(File dir, String chr1, String chr2) throws Exception {
+        String[] names = {"rs1", "rs2", "rs3", "rs4", "rs5", "rs6", "rs7"};
+        int[] contig = {0, 0, 0, 0, 0, 1, 1};
+        int[] pos = {100, 130, 400, 800, 820, 100, 500};
+        String[] anchors = {"", "rs1", "", "", "rs4", "", ""};
+        String[] mafs = {"0.30", "0.25", "0.40", "0.15", "0.35", "0.20", "0.45"};
+        String[] contigs = {chr1, chr2};
+        String[] contigNames = {"chr1", "chr2"};
+        char[] major = new char[names.length];
+        char[] minor = new char[names.length];
+        for (int s = 0; s < names.length; s++) {
+            major[s] = contigs[contig[s]].charAt(pos[s] - 1);
+            minor[s] = "ACGT".charAt(("ACGT".indexOf(major[s]) + 1) % 4);
+        }
+        // The number of minor alleles each sample carries at each site.
+        int[][] genotype = {
+            {0, 1, 2, 1, 0, 2, 1},
+            {1, 0, 0, 2, 1, 1, 2},
+            {2, 2, 1, 0, 2, 0, 0},
+        };
+        String[] samples = {"sampleA", "sampleB", "sampleC"};
+
+        // The map as it is, with the alleles the other way round (the reference base is then the
+        // minor allele, and what a tool takes as the prior changes), and with every site its own
+        // block (so the pairs that shared a block no longer do).
+        String[] unanchored = new String[names.length];
+        java.util.Arrays.fill(unanchored, "");
+        writeHaplotypeMap(new File(dir, "fp_haplotypes.txt"), names, contig, pos, major, minor, mafs, anchors);
+        writeHaplotypeMap(new File(dir, "fp_haplotypes_swapped.txt"), names, contig, pos, minor, major, mafs, anchors);
+        writeHaplotypeMap(new File(dir, "fp_haplotypes_split.txt"), names, contig, pos, major, minor, mafs, unanchored);
+
+        // fp_a.bam, fp_b.bam: one sample each. fp_multi.bam: A twice and B once.
+        writeFingerprintBam(new File(dir, "fp_a.bam"), contigs, contig, pos, major, minor,
+                new String[][] {{"fpA", "libA", "sampleA"}}, new int[][] {genotype[0]}, 14, true);
+        writeFingerprintBam(new File(dir, "fp_b.bam"), contigs, contig, pos, major, minor,
+                new String[][] {{"fpB", "libB", "sampleB"}}, new int[][] {genotype[1]}, 14, false);
+        writeFingerprintBam(new File(dir, "fp_c.bam"), contigs, contig, pos, major, minor,
+                new String[][] {{"fpC", "libC", "sampleC"}}, new int[][] {genotype[2]}, 14, false);
+        writeFingerprintBam(new File(dir, "fp_multi.bam"), contigs, contig, pos, major, minor,
+                new String[][] {{"fpA1", "libA1", "sampleA"}, {"fpA2", "libA2", "sampleA"},
+                        {"fpB1", "libB1", "sampleB"}},
+                new int[][] {genotype[0], genotype[0], genotype[1]}, 10, false);
+
+        for (String[] variant : new String[][] {
+                {"fp_genotypes.vcf", "3", "true"}, {"fp_genotypes_gt.vcf", "3", "false"},
+                {"fp_genotypes_a.vcf", "1", "true"}}) {
+            int count = Integer.parseInt(variant[1]);
+            boolean likelihoods = Boolean.parseBoolean(variant[2]);
+            StringBuilder text = new StringBuilder("##fileformat=VCFv4.2\n");
+            text.append("##contig=<ID=chr1,length=" + CHR1 + ">\n");
+            text.append("##contig=<ID=chr2,length=" + CHR2 + ">\n");
+            text.append("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n");
+            if (likelihoods) {
+                text.append("##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Likelihoods\">\n");
+            }
+            text.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT");
+            for (int i = 0; i < count; i++) text.append('\t').append(samples[i]);
+            text.append('\n');
+            for (int s = 0; s < names.length; s++) {
+                text.append(contigNames[contig[s]]).append('\t').append(pos[s]).append('\t')
+                        .append(names[s]).append('\t').append(major[s]).append('\t').append(minor[s])
+                        .append("\t100\tPASS\t.\t").append(likelihoods ? "GT:PL" : "GT");
+                for (int i = 0; i < count; i++) {
+                    int n = genotype[i][s];
+                    String gt = n == 0 ? "0/0" : n == 1 ? "0/1" : "1/1";
+                    String pl = n == 0 ? "0,50,100" : n == 1 ? "50,0,50" : "100,50,0";
+                    text.append('\t').append(gt).append(likelihoods ? ":" + pl : "");
+                }
+                text.append('\n');
+            }
+            File vcf = new File(dir, variant[0]);
+            try (PrintWriter out = new PrintWriter(vcf, "UTF-8")) {
+                out.print(text);
+            }
+            htsjdk.tribble.index.IndexFactory.createDynamicIndex(vcf, new htsjdk.variant.vcf.VCFCodec())
+                    .write(new File(dir, variant[0] + ".idx"));
+        }
+
+        // A crosscheck table: A, B and C are one component (A-C scores low and comes back inside
+        // it), D and E another, and F is related to nothing.
+        String header = String.join("\t",
+                "LEFT_GROUP_VALUE", "RIGHT_GROUP_VALUE", "RESULT", "DATA_TYPE", "LOD_SCORE",
+                "LOD_SCORE_TUMOR_NORMAL", "LOD_SCORE_NORMAL_TUMOR", "LEFT_RUN_BARCODE", "LEFT_LANE",
+                "LEFT_MOLECULAR_BARCODE_SEQUENCE", "LEFT_LIBRARY", "LEFT_SAMPLE", "LEFT_FILE",
+                "RIGHT_RUN_BARCODE", "RIGHT_LANE", "RIGHT_MOLECULAR_BARCODE_SEQUENCE",
+                "RIGHT_LIBRARY", "RIGHT_SAMPLE", "RIGHT_FILE");
+        Object[][] table = {
+            {"A", "B", 10.0}, {"B", "C", 6.5}, {"A", "C", -5.0}, {"D", "E", 4.0},
+            {"A", "D", -8.0}, {"E", "F", 0.5}, {"C", "F", -2.0},
+        };
+        try (PrintWriter out = new PrintWriter(new File(dir, "fp_crosscheck.metrics"), "UTF-8")) {
+            out.print("## htsjdk.samtools.metrics.StringHeader\n# a fixture\n\n");
+            out.print("## METRICS CLASS\tpicard.fingerprint.CrosscheckMetric\n" + header + "\n");
+            for (Object[] row : table) {
+                double lod = (Double) row[2];
+                out.print(String.join("\t", (String) row[0], (String) row[1],
+                        lod > 0 ? "EXPECTED_MATCH" : "UNEXPECTED_MISMATCH", "SAMPLE",
+                        Double.toString(lod), "0", "0", "", "", "", "", (String) row[0], "", "", "", "",
+                        "", (String) row[1], "") + "\n");
+            }
+            out.print("\n");
+        }
+
+        // A second table: P, Q, R and S in a ring that one low row nearly breaks, and a pair
+        // joined by a row under the default threshold.
+        Object[][] ring = {
+            {"P", "Q", 5.0}, {"Q", "R", 5.0}, {"R", "S", 5.0}, {"S", "P", 1.5}, {"T", "U", -1.0},
+            {"U", "V", 12.0}, {"P", "T", -3.0},
+        };
+        try (PrintWriter out = new PrintWriter(new File(dir, "fp_crosscheck_ring.metrics"), "UTF-8")) {
+            out.print("## htsjdk.samtools.metrics.StringHeader\n# a fixture\n\n");
+            out.print("## METRICS CLASS\tpicard.fingerprint.CrosscheckMetric\n" + header + "\n");
+            for (Object[] row : ring) {
+                double lod = (Double) row[2];
+                out.print(String.join("\t", (String) row[0], (String) row[1],
+                        lod > 0 ? "EXPECTED_MATCH" : "UNEXPECTED_MISMATCH", "SAMPLE",
+                        Double.toString(lod), "0", "0", "", "", "", "", (String) row[0], "", "", "", "",
+                        "", (String) row[1], "") + "\n");
+            }
+            out.print("\n");
+        }
+
+        // Which individual each sample belongs to, for the tools that group by individual.
+        try (PrintWriter out = new PrintWriter(new File(dir, "fp_individuals.txt"), "UTF-8")) {
+            out.print("sampleA\tindividual1\nsampleB\tindividual2\nsampleC\tindividual1\n");
+        }
+    }
+
+    static void writeHaplotypeMap(File f, String[] names, int[] contig, int[] pos, char[] major,
+                                  char[] minor, String[] mafs, String[] anchors) throws Exception {
+        String[] contigNames = {"chr1", "chr2"};
+        try (PrintWriter out = new PrintWriter(f, "UTF-8")) {
+            out.print("@HD\tVN:1.6\tSO:coordinate\n");
+            out.print("@SQ\tSN:chr1\tLN:" + CHR1 + "\n");
+            out.print("@SQ\tSN:chr2\tLN:" + CHR2 + "\n");
+            out.print("#CHROMOSOME\tPOSITION\tNAME\tMAJOR_ALLELE\tMINOR_ALLELE\tMAF\tANCHOR_SNP\tPANELS\n");
+            for (int s = 0; s < names.length; s++) {
+                out.print(contigNames[contig[s]] + "\t" + pos[s] + "\t" + names[s] + "\t" + major[s]
+                        + "\t" + minor[s] + "\t" + mafs[s] + "\t" + anchors[s] + "\t\n");
+            }
+        }
+    }
+
+    /** One fingerprint BAM; see writeFingerprintFixtures. */
+    static void writeFingerprintBam(File f, String[] contigs, int[] contig, int[] pos, char[] major,
+                                    char[] minor, String[][] groups, int[][] genotypes, int depth,
+                                    boolean duplicates) {
+        SAMFileHeader h = new SAMFileHeader();
+        SAMSequenceDictionary d = new SAMSequenceDictionary();
+        d.addSequence(new SAMSequenceRecord("chr1", CHR1));
+        d.addSequence(new SAMSequenceRecord("chr2", CHR2));
+        h.setSequenceDictionary(d);
+        h.setSortOrder(SAMFileHeader.SortOrder.coordinate);
+        for (String[] g : groups) {
+            SAMReadGroupRecord r = new SAMReadGroupRecord(g[0]);
+            r.setLibrary(g[1]);
+            r.setSample(g[2]);
+            r.setPlatform("ILLUMINA");
+            r.setPlatformUnit("unit-" + g[0]);
+            h.addReadGroup(r);
+        }
+        java.util.List<SAMRecord> records = new java.util.ArrayList<>();
+        for (int gi = 0; gi < groups.length; gi++) {
+            for (int s = 0; s < pos.length; s++) {
+                for (int r = 0; r < depth; r++) {
+                    int hap = r % 2;
+                    int start = pos[s] - 5 - (r * 3) % 40;
+                    StringBuilder bases = new StringBuilder(contigs[contig[s]].substring(start - 1, start - 1 + READ_LENGTH));
+                    StringBuilder quals = new StringBuilder();
+                    for (int i = 0; i < READ_LENGTH; i++) quals.append((char) (33 + 30));
+                    for (int t = 0; t < pos.length; t++) {
+                        if (contig[t] != contig[s] || pos[t] < start || pos[t] >= start + READ_LENGTH) continue;
+                        int n = genotypes[gi][t];
+                        boolean useMinor = n == 2 || (n == 1 && hap == 1);
+                        bases.setCharAt(pos[t] - start, useMinor ? minor[t] : major[t]);
+                        if (t == s && r % 9 == 8) quals.setCharAt(pos[t] - start, (char) (33 + 5));
+                    }
+                    records.add(fingerprintRead(h, groups[gi][0] + "_" + s + "_" + r, contig[s], start,
+                            bases.toString(), quals.toString(), groups[gi][0], false));
+                }
+            }
+        }
+        if (duplicates) {
+            for (int r = 0; r < 8; r++) {
+                int start = pos[0] - 5 - (r * 3) % 40;
+                StringBuilder bases = new StringBuilder(contigs[0].substring(start - 1, start - 1 + READ_LENGTH));
+                bases.setCharAt(pos[0] - start, minor[0]);
+                StringBuilder quals = new StringBuilder();
+                for (int i = 0; i < READ_LENGTH; i++) quals.append((char) (33 + 30));
+                records.add(fingerprintRead(h, "dup_" + r, 0, start, bases.toString(), quals.toString(),
+                        groups[0][0], true));
+            }
+        }
+        records.sort((a, b) -> a.getReferenceIndex() != b.getReferenceIndex()
+                ? Integer.compare(a.getReferenceIndex(), b.getReferenceIndex())
+                : a.getAlignmentStart() != b.getAlignmentStart()
+                        ? Integer.compare(a.getAlignmentStart(), b.getAlignmentStart())
+                        : a.getReadName().compareTo(b.getReadName()));
+        writeBam(f, h, records, true);
+    }
+
+    static SAMRecord fingerprintRead(SAMFileHeader h, String name, int contig, int start,
+                                     String bases, String quals, String group, boolean duplicate) {
+        SAMRecord rec = new SAMRecord(h);
+        rec.setReadName(name);
+        rec.setFlags(duplicate ? 0x400 : 0);
+        rec.setReferenceIndex(contig);
+        rec.setAlignmentStart(start);
+        rec.setMappingQuality(60);
+        rec.setCigarString(bases.length() + "M");
+        rec.setReadString(bases);
+        rec.setBaseQualityString(quals);
+        rec.setAttribute("RG", group);
+        return rec;
     }
 
     /** A reference with a fixed but non-uniform base composition, so GC-dependent tools vary. */

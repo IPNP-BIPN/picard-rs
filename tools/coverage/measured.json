@@ -140,6 +140,16 @@
       "t": 2,
       "share": 1.0
     },
+    "ClusterCrosscheckMetrics": {
+      "rows": 10,
+      "accepted": 10,
+      "rejected": 0,
+      "distinct_outputs": 5,
+      "distinct_rejections": 0,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectAlignmentSummaryMetrics": {
       "rows": 16,
       "accepted": 16,
@@ -387,6 +397,16 @@
       "distinct_outputs": 2,
       "distinct_rejections": 2,
       "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
+    "ConvertHaplotypeDatabaseToVcf": {
+      "rows": 12,
+      "accepted": 9,
+      "rejected": 3,
+      "distinct_outputs": 3,
+      "distinct_rejections": 1,
+      "matched": 12,
       "t": 2,
       "share": 1.0
     },

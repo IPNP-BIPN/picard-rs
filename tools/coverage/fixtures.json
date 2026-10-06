@@ -2346,6 +2346,494 @@
         "true",
         "false"
       ]
+    },
+    "ConvertHaplotypeDatabaseToVcf": {
+      "$why": [
+        "fp_haplotypes.txt is MakeFixtures' (see writeFingerprintFixtures): seven SNPs in five blocks, each with the",
+        "reference base as its major allele, which is what asVcf needs of a SNP. The swapped map has the two alleles the",
+        "other way round and the split map has every SNP its own block, so the REF, the AF and the phasing each move.",
+        "haplotypes.txt is the lift-over corpus's map, whose alleles are not the reference's: asVcf refuses it by naming",
+        "the first SNP, and the refusal is kept as a value. OUTPUT is a .vcf because the writer is picked by the",
+        "extension."
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_haplotypes.txt",
+        "/work/fixtures/fp_haplotypes_swapped.txt",
+        "/work/fixtures/fp_haplotypes_split.txt",
+        "/work/fixtures/haplotypes.txt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT",
+        "LENIENT",
+        "SILENT"
+      ],
+      "--CREATE_INDEX": [
+        "false",
+        "true"
+      ]
+    },
+    "ClusterCrosscheckMetrics": {
+      "$why": [
+        "fp_crosscheck.metrics has two components (A-B-C, where A-C scores low and comes back inside, and D-E-F) and",
+        "a pair joined by nothing above the default threshold; fp_crosscheck_ring.metrics is a ring of four whose last",
+        "row (1.5) closes it only under a threshold below that, plus a negative edge and a chain. LOD_THRESHOLD",
+        "moves rows between clusters, and 0.0 is the default."
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_crosscheck.metrics",
+        "/work/fixtures/fp_crosscheck_ring.metrics"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt"
+      ],
+      "--LOD_THRESHOLD": [
+        "0.0",
+        "3.0",
+        "7.0"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT",
+        "LENIENT",
+        "SILENT"
+      ],
+      "--CREATE_INDEX": [
+        "false",
+        "true"
+      ]
+    },
+    "ExtractFingerprint": {
+      "$why": [
+        "fp_a.bam is sample A (one read group) over the seven sites of fp_haplotypes.txt, with eight duplicate-flagged",
+        "reads at chr1:100 and a base in nine under the quality floor; fp_b.bam and fp_c.bam are samples B and C. fp_multi.bam is",
+        "left out: it holds two samples, and the tool refuses it with 'Expected exactly 1 fingerprint, found 2' whatever else is",
+        "given, which would put that one refusal on every row that drew it. OUTPUT is a .vcf. LOCUS_MAX_READS 10 is under the",
+        "depth of every site, so the cap cuts every block."
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_a.bam",
+        "/work/fixtures/fp_b.bam",
+        "/work/fixtures/fp_c.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--HAPLOTYPE_MAP": [
+        "/work/fixtures/fp_haplotypes.txt",
+        "/work/fixtures/fp_haplotypes_swapped.txt",
+        "/work/fixtures/fp_haplotypes_split.txt"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta"
+      ],
+      "--SAMPLE_ALIAS": [
+        "sampleA",
+        "sampleX"
+      ],
+      "--CONTAMINATION": [
+        "0.0",
+        "0.25"
+      ],
+      "--EXTRACT_CONTAMINATION": [
+        "false",
+        "true"
+      ],
+      "--EXTRACT_NON_REPRESENTATIVES_TOO": [
+        "false",
+        "true"
+      ],
+      "--LOCUS_MAX_READS": [
+        "50",
+        "10"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT",
+        "LENIENT",
+        "SILENT"
+      ],
+      "--CREATE_INDEX": [
+        "false",
+        "true"
+      ]
+    },
+    "IdentifyContaminant": {
+      "$why": [
+        "ExtractFingerprint's corpus (see its $why). The default of LOCUS_MAX_READS is 200 here, and the",
+        "second value 10 cuts every block."
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_a.bam",
+        "/work/fixtures/fp_b.bam",
+        "/work/fixtures/fp_c.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--HAPLOTYPE_MAP": [
+        "/work/fixtures/fp_haplotypes.txt",
+        "/work/fixtures/fp_haplotypes_swapped.txt",
+        "/work/fixtures/fp_haplotypes_split.txt"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta"
+      ],
+      "--SAMPLE_ALIAS": [
+        "sampleA",
+        "sampleX"
+      ],
+      "--CONTAMINATION": [
+        "0.0",
+        "0.25"
+      ],
+      "--EXTRACT_CONTAMINATED": [
+        "false",
+        "true"
+      ],
+      "--LOCUS_MAX_READS": [
+        "200",
+        "10"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT",
+        "LENIENT",
+        "SILENT"
+      ],
+      "--CREATE_INDEX": [
+        "false",
+        "true"
+      ]
+    },
+    "CheckFingerprint": {
+      "$why": [
+        "fp_a.bam and fp_b.bam are samples A and B over the seven sites of fp_haplotypes.txt (see",
+        "writeFingerprintFixtures). fp_genotypes.vcf has A, B and C with PL and fp_genotypes_gt.vcf has them as GT alone, so",
+        "GENOTYPE_LOD_THRESHOLD and the genotype error have something to act on; fp_genotypes_a.vcf has A only, and both it and",
+        "fp_genotypes.vcf are VCFs the tool takes as its INPUT (the second needs OBSERVED_SAMPLE_ALIAS to say which of its",
+        "samples). fp_multi.bam is left out: it holds two samples and the tool refuses it by name whatever else is given. OUTPUT",
+        "is a prefix for the two metrics files, and is mutually exclusive with each of them (Barclay refuses on the argument",
+        "being set), so SUMMARY_OUTPUT and DETAIL_OUTPUT are held absent. The tool's exit code is part of the answer: a run with",
+        "nothing to check returns a code of its own with both files written, and each is given a second value. A sample the",
+        "genotypes lack is the third kind of exit, and writes nothing but a log line carrying the wall clock, which no second",
+        "implementation can reproduce, so the constraints below keep the sample resolvable."
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_a.bam",
+        "/work/fixtures/fp_b.bam",
+        "/work/fixtures/fp_genotypes_a.vcf",
+        "/work/fixtures/fp_genotypes.vcf"
+      ],
+      "--GENOTYPES": [
+        "/work/fixtures/fp_genotypes.vcf",
+        "/work/fixtures/fp_genotypes_gt.vcf",
+        "/work/fixtures/fp_genotypes_a.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ],
+      "--SUMMARY_OUTPUT": [],
+      "--DETAIL_OUTPUT": [],
+      "--HAPLOTYPE_MAP": [
+        "/work/fixtures/fp_haplotypes.txt",
+        "/work/fixtures/fp_haplotypes_swapped.txt",
+        "/work/fixtures/fp_haplotypes_split.txt"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta"
+      ],
+      "--EXPECTED_SAMPLE_ALIAS": [
+        "sampleA",
+        "sampleB",
+        "null"
+      ],
+      "--OBSERVED_SAMPLE_ALIAS": [
+        "null",
+        "sampleA"
+      ],
+      "--GENOTYPE_LOD_THRESHOLD": [
+        "5.0",
+        "1.0"
+      ],
+      "--IGNORE_READ_GROUPS": [
+        "false",
+        "true"
+      ],
+      "--EXIT_CODE_WHEN_EXPECTED_SAMPLE_NOT_FOUND": [
+        "1",
+        "3"
+      ],
+      "--EXIT_CODE_WHEN_NO_VALID_CHECKS": [
+        "2",
+        "4"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT",
+        "LENIENT",
+        "SILENT"
+      ],
+      "--CREATE_INDEX": [
+        "false",
+        "true"
+      ]
+    },
+    "CalculateFingerprintMetrics": {
+      "$why": [
+        "INPUT is a list ($lists): the tool measures each file and each group, so a row with two files has two",
+        "of each. fp_a.bam is sample A, fp_multi.bam is A in two libraries and B in a third, and fp_genotypes.vcf has three",
+        "samples, so CALCULATE_BY has something to roll up at every level. The haplotype map is given as it is, with its",
+        "alleles swapped, and with every site its own block. NUMBER_OF_SAMPLING moves the random trials the LOD is measured",
+        "against, and 10 gives fewer of them than the default."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_a.bam",
+        "/work/fixtures/fp_a.bam /work/fixtures/fp_b.bam",
+        "/work/fixtures/fp_multi.bam",
+        "/work/fixtures/fp_genotypes.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt"
+      ],
+      "--HAPLOTYPE_MAP": [
+        "/work/fixtures/fp_haplotypes.txt",
+        "/work/fixtures/fp_haplotypes_swapped.txt",
+        "/work/fixtures/fp_haplotypes_split.txt"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta"
+      ],
+      "--CALCULATE_BY": [
+        "READGROUP",
+        "SAMPLE",
+        "LIBRARY",
+        "FILE"
+      ],
+      "--GENOTYPE_LOD_THRESHOLD": [
+        "3.0",
+        "1.0",
+        "8.0"
+      ],
+      "--NUMBER_OF_SAMPLING": [
+        "100",
+        "10"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT",
+        "LENIENT",
+        "SILENT"
+      ],
+      "--CREATE_INDEX": [
+        "false",
+        "true"
+      ]
+    },
+    "CrosscheckFingerprints": {
+      "$why": [
+        "INPUT and SECOND_INPUT are lists ($lists). fp_a.bam and fp_b.bam are two samples, fp_multi.bam is A twice and B",
+        "once (so CROSSCHECK_BY gives three different tables), and fp_genotypes.vcf is a VCF with A, B and C, which is a",
+        "second input that is not a BAM. MATRIX_OUTPUT is mutually exclusive with SECOND_INPUT (Barclay refuses on the",
+        "argument being set, so even null is fatal) and each has one partner, so the side that changes which pairs are compared",
+        "is kept and the matrix is held absent; the matrix is measured through CrosscheckReadGroupFingerprints, whose roll-up",
+        "writes it to OUTPUT. The files of file names (INPUT_SAMPLE_MAP, INPUT_INDEX_MAP and their kin) hold paths, which the",
+        "container and the host spell differently, so they have no fixture. The tool's exit code is part of the answer, with the",
+        "table written either way."
+      ],
+      "$lists": [
+        "--INPUT",
+        "--SECOND_INPUT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_a.bam /work/fixtures/fp_b.bam",
+        "/work/fixtures/fp_multi.bam",
+        "/work/fixtures/fp_a.bam /work/fixtures/fp_genotypes.vcf"
+      ],
+      "--SECOND_INPUT": [
+        "null",
+        "/work/fixtures/fp_genotypes.vcf",
+        "/work/fixtures/fp_b.bam"
+      ],
+      "--CROSSCHECK_BY": [
+        "READGROUP",
+        "SAMPLE",
+        "LIBRARY",
+        "FILE"
+      ],
+      "--MATRIX_OUTPUT": [],
+      "--SAMPLE_INDIVIDUAL_MAP": [
+        "null",
+        "/work/fixtures/fp_individuals.txt"
+      ],
+      "--HAPLOTYPE_MAP": [
+        "/work/fixtures/fp_haplotypes.txt",
+        "/work/fixtures/fp_haplotypes_swapped.txt",
+        "/work/fixtures/fp_haplotypes_split.txt"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt"
+      ],
+      "--CROSSCHECK_MODE": [
+        "CHECK_SAME_SAMPLE",
+        "CHECK_ALL_OTHERS"
+      ],
+      "--LOD_THRESHOLD": [
+        "0.0",
+        "3.0"
+      ],
+      "--GENOTYPING_ERROR_RATE": [
+        "0.01",
+        "0.1"
+      ],
+      "--LOSS_OF_HET_RATE": [
+        "0.5",
+        "0.2"
+      ],
+      "--MAX_EFFECT_OF_EACH_HAPLOTYPE_BLOCK": [
+        "3.0",
+        "1.0"
+      ],
+      "--CALCULATE_TUMOR_AWARE_RESULTS": [
+        "true",
+        "false"
+      ],
+      "--ALLOW_DUPLICATE_READS": [
+        "false",
+        "true"
+      ],
+      "--OUTPUT_ERRORS_ONLY": [
+        "false",
+        "true"
+      ],
+      "--EXPECT_ALL_GROUPS_TO_MATCH": [
+        "false",
+        "true"
+      ],
+      "--EXIT_CODE_WHEN_MISMATCH": [
+        "1",
+        "3"
+      ],
+      "--EXIT_CODE_WHEN_NO_VALID_CHECKS": [
+        "1",
+        "4"
+      ],
+      "--REQUIRE_INDEX_FILES": [
+        "false",
+        "true"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT",
+        "LENIENT",
+        "SILENT"
+      ],
+      "--CREATE_INDEX": [
+        "false",
+        "true"
+      ]
+    },
+    "CrosscheckReadGroupFingerprints": {
+      "$why": [
+        "The wrapper of CrosscheckFingerprints (see its $why) that rolls up through two booleans of its own. It refuses",
+        "CROSSCHECK_BY, MATRIX_OUTPUT and SECOND_INPUT whenever they are given, whatever their value, so each is held absent;",
+        "its EXPECT_ALL_READ_GROUPS_TO_MATCH is mutually exclusive with the parent's EXPECT_ALL_GROUPS_TO_MATCH, which is held",
+        "absent too. A roll-up sends the table to /dev/null and writes the matrix to OUTPUT."
+      ],
+      "--INPUT": [
+        "/work/fixtures/fp_multi.bam",
+        "/work/fixtures/fp_a.bam",
+        "/work/fixtures/fp_b.bam"
+      ],
+      "--CROSSCHECK_BY": [],
+      "--MATRIX_OUTPUT": [],
+      "--SECOND_INPUT": [],
+      "--EXPECT_ALL_GROUPS_TO_MATCH": [],
+      "--CROSSCHECK_SAMPLES": [
+        "false",
+        "true"
+      ],
+      "--CROSSCHECK_LIBRARIES": [
+        "false",
+        "true"
+      ],
+      "--EXPECT_ALL_READ_GROUPS_TO_MATCH": [
+        "false",
+        "true"
+      ],
+      "--SAMPLE_INDIVIDUAL_MAP": [
+        "null",
+        "/work/fixtures/fp_individuals.txt"
+      ],
+      "--HAPLOTYPE_MAP": [
+        "/work/fixtures/fp_haplotypes.txt",
+        "/work/fixtures/fp_haplotypes_swapped.txt",
+        "/work/fixtures/fp_haplotypes_split.txt"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt"
+      ],
+      "--CROSSCHECK_MODE": [
+        "CHECK_SAME_SAMPLE",
+        "CHECK_ALL_OTHERS"
+      ],
+      "--LOD_THRESHOLD": [
+        "0.0",
+        "3.0"
+      ],
+      "--GENOTYPING_ERROR_RATE": [
+        "0.01",
+        "0.1"
+      ],
+      "--LOSS_OF_HET_RATE": [
+        "0.5",
+        "0.2"
+      ],
+      "--MAX_EFFECT_OF_EACH_HAPLOTYPE_BLOCK": [
+        "3.0",
+        "1.0"
+      ],
+      "--CALCULATE_TUMOR_AWARE_RESULTS": [
+        "true",
+        "false"
+      ],
+      "--ALLOW_DUPLICATE_READS": [
+        "false",
+        "true"
+      ],
+      "--OUTPUT_ERRORS_ONLY": [
+        "false",
+        "true"
+      ],
+      "--EXIT_CODE_WHEN_MISMATCH": [
+        "1",
+        "3"
+      ],
+      "--EXIT_CODE_WHEN_NO_VALID_CHECKS": [
+        "1",
+        "4"
+      ],
+      "--REQUIRE_INDEX_FILES": [
+        "false",
+        "true"
+      ],
+      "--VALIDATION_STRINGENCY": [
+        "STRICT",
+        "LENIENT",
+        "SILENT"
+      ],
+      "--CREATE_INDEX": [
+        "false",
+        "true"
+      ]
     }
   },
   "constraints": [
@@ -3313,6 +3801,87 @@
         "--KEY": "SAMPLE READ_GROUP"
       },
       "why": "Two refusals in one row: a key with a null in it fails only once both files are read and compared, so a refusal that comes earlier hides it and the row only repeats that refusal."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_a.bam",
+        "--OBSERVED_SAMPLE_ALIAS": "sampleA"
+      },
+      "why": "OBSERVED_SAMPLE_ALIAS names a sample of a VCF input, and beside a BAM the tool stops with 'The parameter OBSERVED_SAMPLE_ALIAS can only be used with a VCF input.' before it reads a record."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_b.bam",
+        "--OBSERVED_SAMPLE_ALIAS": "sampleA"
+      },
+      "why": "OBSERVED_SAMPLE_ALIAS names a sample of a VCF input, and beside a BAM the tool stops with 'The parameter OBSERVED_SAMPLE_ALIAS can only be used with a VCF input.' before it reads a record."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_genotypes_a.vcf",
+        "--IGNORE_READ_GROUPS": "true"
+      },
+      "why": "IGNORE_READ_GROUPS is for reads, and beside a VCF input the tool stops with 'The parameter IGNORE_READ_GROUPS can only be used with BAM/SAM/CRAM inputs.' before it reads a record."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_genotypes.vcf",
+        "--IGNORE_READ_GROUPS": "true"
+      },
+      "why": "IGNORE_READ_GROUPS is for reads, and beside a VCF input the tool stops with 'The parameter IGNORE_READ_GROUPS can only be used with BAM/SAM/CRAM inputs.' before it reads a record."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/fp_genotypes.vcf",
+        "--OBSERVED_SAMPLE_ALIAS": "null"
+      },
+      "why": "A VCF input with three samples needs OBSERVED_SAMPLE_ALIAS to say which one is observed, and without it the run stops before any record."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--GENOTYPES": "/work/fixtures/fp_genotypes_a.vcf",
+        "--EXPECTED_SAMPLE_ALIAS": "sampleB"
+      },
+      "why": "fp_genotypes_a.vcf has sample A only. A sample the genotypes lack ends the run with exit code 1 and no file, and its only message is a log line stamped with the wall clock, which the harness cannot compare. The case belongs to the conformance suite."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--GENOTYPES": "/work/fixtures/fp_genotypes_a.vcf",
+        "--INPUT": "/work/fixtures/fp_b.bam",
+        "--EXPECTED_SAMPLE_ALIAS": "null"
+      },
+      "why": "With no EXPECTED_SAMPLE_ALIAS the expected sample is the observed one, which is B for fp_b.bam, and fp_genotypes_a.vcf has A only: the same wall-clock-stamped refusal."
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--IGNORE_READ_GROUPS": "true",
+        "--OBSERVED_SAMPLE_ALIAS": "sampleA"
+      },
+      "why": "IGNORE_READ_GROUPS is refused beside a VCF input and OBSERVED_SAMPLE_ALIAS beside a BAM, so a row giving both has no input the tool accepts, and the generator would otherwise fill one in that carries a refusal."
     }
   ],
   "exclude": {
