@@ -136,6 +136,17 @@ public class MakeArraysFixtures {
         gtcToVcf(g1, dir.resolve("arr_s1.vcf"), reference, manifest, egt, bpm, "sample1", "Female");
         gtcToVcf(g2, dir.resolve("arr_s2.vcf"), reference, manifest, egt, bpm, "sample2", "Male");
 
+        // arr_s1.vcf without its last locus, under another sample name: a file the combination
+        // walks out of one step early, with a header that agrees on every line it keeps.
+        final List<String> shortLines = new ArrayList<>(Files.readAllLines(dir.resolve("arr_s1.vcf")));
+        shortLines.remove(shortLines.size() - 1);
+        for (int i = 0; i < shortLines.size(); i++) {
+            if (shortLines.get(i).startsWith("#CHROM")) {
+                shortLines.set(i, shortLines.get(i).replace("\tarr_s1", "\tarr_short"));
+            }
+        }
+        Files.write(dir.resolve("arr_short.vcf"), shortLines, StandardCharsets.UTF_8);
+
         // A fingerprint VCF whose header carries the sex GtcToVcf reports as fingerprintGender.
         Files.writeString(dir.resolve("arr_fp_male.vcf"),
                 "##fileformat=VCFv4.2\n##gender=Male\n##contig=<ID=1,length=" + LENGTH + ">\n"

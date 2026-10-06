@@ -3041,6 +3041,28 @@
       "--NUM_MARKERS_FILE": [
         "/work/out/markers.txt"
       ]
+    },
+    "CombineGenotypingArrayVcfs": {
+      "$why": [
+        "arr_s1.vcf and arr_s2.vcf are the array VCFs the reference's GtcToVcf made of MakeArraysFixtures' call",
+        "files, combined in either order and alone; one file twice repeats its sample, which is refused, and",
+        "arr_short.vcf runs out one locus early, which is refused after the records merged so far. Two files whose",
+        "headers disagree on a kept line are not a value: the reference merges headers in the order of a HashSet",
+        "of VCFHeader, which has no hashCode of its own, so which line wins changes from one run to the next."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_s1.vcf /work/fixtures/arr_s2.vcf",
+        "/work/fixtures/arr_s2.vcf /work/fixtures/arr_s1.vcf",
+        "/work/fixtures/arr_s1.vcf",
+        "/work/fixtures/arr_s1.vcf /work/fixtures/arr_s1.vcf",
+        "/work/fixtures/arr_s1.vcf /work/fixtures/arr_short.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ]
     }
   },
   "constraints": [
