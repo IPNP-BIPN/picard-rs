@@ -125,9 +125,20 @@ pub fn normalized_log_likelihoods(ll: [f64; 3]) -> [f64; 3] {
     [removed[0] + shift, removed[1] + shift, removed[2] + shift]
 }
 
-/// `QualityUtil.getErrorProbabilityFromPhredScore`.
+/// `QualityUtil.getErrorProbabilityFromPhredScore`: htsjdk's table, `1 / pow(10, q / 10)`.
 pub fn error_probability(quality: u8) -> f64 {
-    10f64.powf(f64::from(quality) / -10.0)
+    htsjdk_bam::quality_util::error_probability_from_phred_score(i32::from(quality)).unwrap_or(1.0)
+}
+
+/// `MathUtil.LOG_10_MATH.sum`: the log of a sum of powers, scaled by the largest, with the log
+/// taken as `ln(x) / ln(10)` rather than `log10`.
+fn log10_math_sum(values: [f64; 3]) -> f64 {
+    let scale = max(&values);
+    let mut simple = 0.0;
+    for v in values {
+        simple += 10f64.powf(v - scale);
+    }
+    simple.ln() / 10f64.ln() + scale
 }
 
 /// `DiploidGenotype`, by name: the two bases in enum order, which is alphabetical.
@@ -479,6 +490,15 @@ pub enum Evidence {
     /// `CappedHaplotypeProbabilities`: another's log-likelihoods, floored a distance below their
     /// maximum and renormalised.
     Capped { ll: [f64; 3] },
+    /// `HaplotypeProbabilitiesFromContaminatorSequence`: nine models, by the contaminant's
+    /// genotype and then the main sample's, kept apart until the likelihoods are read.
+    Contaminator {
+        map: [[f64; 3]; 3],
+        contamination: f64,
+        obs1: i32,
+        obs2: i32,
+        other: i32,
+    },
 }
 
 /// One block's evidence, with its block's priors and representative SNP to hand.
@@ -538,6 +558,7 @@ impl Probs {
             Evidence::Sequence { ll, .. }
             | Evidence::GenotypeLikelihoods { ll }
             | Evidence::Capped { ll } => p_normalize_log_probability(*ll),
+            Evidence::Contaminator { .. } => p_normalize_log_probability(self.log_likelihoods()),
             Evidence::Genotype { likelihoods, .. } => *likelihoods,
         }
     }
@@ -548,6 +569,18 @@ impl Probs {
             Evidence::Sequence { ll, .. }
             | Evidence::GenotypeLikelihoods { ll }
             | Evidence::Capped { ll } => *ll,
+            // `updateLikelihoods`: the main sample's genotype summed out under the priors.
+            Evidence::Contaminator { map, .. } => {
+                let mut ll = [0.0; 3];
+                for c in 0..3 {
+                    let mut terms = [0.0; 3];
+                    for m in 0..3 {
+                        terms[m] = self.priors[m].ln() / 10f64.ln() + map[c][m];
+                    }
+                    ll[c] = log10_math_sum(terms);
+                }
+                normalized_log_likelihoods(ll)
+            }
             Evidence::Genotype { likelihoods, .. } => likelihoods.map(f64::log10),
         }
     }
@@ -595,14 +628,14 @@ impl Probs {
 
     pub fn obs1(&self) -> i32 {
         match self.evidence {
-            Evidence::Sequence { obs1, .. } => obs1,
+            Evidence::Sequence { obs1, .. } | Evidence::Contaminator { obs1, .. } => obs1,
             _ => 0,
         }
     }
 
     pub fn obs2(&self) -> i32 {
         match self.evidence {
-            Evidence::Sequence { obs2, .. } => obs2,
+            Evidence::Sequence { obs2, .. } | Evidence::Contaminator { obs2, .. } => obs2,
             _ => 0,
         }
     }
@@ -610,6 +643,9 @@ impl Probs {
     pub fn total_obs(&self) -> i32 {
         match self.evidence {
             Evidence::Sequence {
+                obs1, obs2, other, ..
+            }
+            | Evidence::Contaminator {
                 obs1, obs2, other, ..
             } => obs1 + obs2 + other,
             _ => 0,
@@ -626,6 +662,9 @@ impl Probs {
                 ll.iter().any(|d| *d != 0.0)
             }
             Evidence::Genotype { .. } => true,
+            Evidence::Contaminator { obs1, obs2, .. } => {
+                self.log_likelihoods().iter().any(|d| *d != 0.0) || *obs1 > 0 || *obs2 > 0
+            }
         }
     }
 
@@ -700,6 +739,39 @@ impl Probs {
         *ll = normalized_log_likelihoods(*ll);
     }
 
+    /// `HaplotypeProbabilitiesFromContaminatorSequence.addToProbs`.
+    pub fn add_contaminator_base(&mut self, snp: &Snp, base: u8, quality: u8) {
+        let Evidence::Contaminator {
+            map,
+            contamination,
+            obs1,
+            obs2,
+            other,
+        } = &mut self.evidence
+        else {
+            return;
+        };
+        let alt = if base == snp.allele1 {
+            *obs1 += 1;
+            false
+        } else if base == snp.allele2 {
+            *obs2 += 1;
+            true
+        } else {
+            *other += 1;
+            return;
+        };
+        let p_err = error_probability(quality);
+        for c in 0..3 {
+            for m in 0..3 {
+                let theta = 0.5 * ((1.0 - *contamination) * m as f64 + *contamination * c as f64);
+                map[c][m] += ((if alt { theta } else { 1.0 - theta }) * (1.0 - p_err)
+                    + (if !alt { theta } else { 1.0 - theta }) * p_err)
+                    .log10();
+            }
+        }
+    }
+
     /// `merge`, for two of the same kind.
     pub fn merge(&mut self, other: &Probs) {
         match (&mut self.evidence, &other.evidence) {
@@ -718,6 +790,31 @@ impl Probs {
                 },
             ) => {
                 *ll = normalized_log_likelihoods([ll[0] + ll2[0], ll[1] + ll2[1], ll[2] + ll2[2]]);
+                *obs1 += a;
+                *obs2 += b;
+                *o += c;
+            }
+            (
+                Evidence::Contaminator {
+                    map,
+                    obs1,
+                    obs2,
+                    other: o,
+                    ..
+                },
+                Evidence::Contaminator {
+                    map: m2,
+                    obs1: a,
+                    obs2: b,
+                    other: c,
+                    ..
+                },
+            ) => {
+                for g in 0..3 {
+                    for h in 0..3 {
+                        map[g][h] += m2[g][h];
+                    }
+                }
                 *obs1 += a;
                 *obs2 += b;
                 *o += c;

@@ -506,11 +506,20 @@ def outcome(code, text, error, tool, exit_code_is_a_result=False):
     return canonical(text, tool)
 
 
+# Lines a tool stamps with the wall clock, declared per tool in the manifest
+# (`strip_line_prefixes`): `ExtractFingerprint` writes `##fileDate=` with `new Date()` into the VCF
+# header, and no two runs share it. Only lines starting with a declared prefix are dropped.
+EXTRA_PREFIXES = []
+
+
 def canonical(text, tool):
     """Strip the two lines every metrics file carries that no two runs can share."""
     spec = {
         "rules": [
-            {"rule": "strip_line_prefixes", "prefixes": [f"# {tool}", "# Started on:"]}
+            {
+                "rule": "strip_line_prefixes",
+                "prefixes": [f"# {tool}", "# Started on:", *EXTRA_PREFIXES],
+            }
         ]
     }
     payload = "\\n".join(text.split("\n"))
@@ -554,6 +563,12 @@ def main(argv):
         help="build the corpus into this directory and exit, for a suite that will share it",
     )
     ap.add_argument(
+        "--strip-line-prefix",
+        action="append",
+        default=[],
+        help="drop output lines starting with this, for a line the tool stamps with the clock",
+    )
+    ap.add_argument(
         "--stderr",
         action="store_true",
         help="compare standard error without Picard's own frame lines, for a tool that prints its "
@@ -565,6 +580,7 @@ def main(argv):
         help="compare standard output rather than the output file, for a tool that writes no file",
     )
     args = ap.parse_args(argv)
+    EXTRA_PREFIXES[:] = args.strip_line_prefix
 
     if args.build_fixtures:
         # The corpus and nothing else: the suite that shares it runs the rows itself.

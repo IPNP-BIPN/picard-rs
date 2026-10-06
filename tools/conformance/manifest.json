@@ -722,6 +722,26 @@
         "status": "measured",
         "output_name": "@all",
         "exit_code_is_a_result": true
+      },
+      {
+        "tool": "ExtractFingerprint",
+        "port": "extract-fingerprint",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.vcf",
+        "strip_line_prefixes": [
+          "##fileDate="
+        ]
+      },
+      {
+        "tool": "IdentifyContaminant",
+        "port": "identify-contaminant",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.vcf",
+        "strip_line_prefixes": [
+          "##fileDate="
+        ]
       }
     ]
   },
