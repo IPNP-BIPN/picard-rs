@@ -2847,6 +2847,46 @@
         "/work/fixtures/truncated.bam",
         "/work/fixtures/small.sam"
       ]
+    },
+    "FilterVcf": {
+      "$why": [
+        "filter.vcf (MakeFixtures) has a site for each filter on each side of the thresholds below, and missing",
+        "QD, FS, GQ and DP, which the reference reads as their defaults (-1 for a genotype's GQ and DP, so MIN_GQ=0",
+        "still filters a genotype without one). filter_no_contigs.vcf is refused because an output named .vcf needs a",
+        "dictionary; trio.vcf, vcf_unsorted_samples.vcf and vcf_sites_only.vcf are the corpus's other shapes. The",
+        "compared file is output.vcf; the .idx beside it records a timestamp and is not compared. JAVASCRIPT_FILE",
+        "runs a script engine and has no fixture."
+      ],
+      "--INPUT": [
+        "/work/fixtures/filter.vcf",
+        "/work/fixtures/trio.vcf",
+        "/work/fixtures/vcf_unsorted_samples.vcf",
+        "/work/fixtures/vcf_sites_only.vcf",
+        "/work/fixtures/filter_no_contigs.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--MIN_AB": [
+        "0.0",
+        "0.3"
+      ],
+      "--MIN_DP": [
+        "0",
+        "9"
+      ],
+      "--MIN_GQ": [
+        "0",
+        "30"
+      ],
+      "--MAX_FS": [
+        "60.0",
+        "20.0"
+      ],
+      "--MIN_QD": [
+        "0.0",
+        "2.0"
+      ]
     }
   },
   "constraints": [

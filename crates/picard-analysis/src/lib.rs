@@ -57,6 +57,7 @@ pub mod extract_sequences;
 pub mod fastq_to_sam;
 pub mod fifo_buffer;
 pub mod filter_sam_reads;
+pub mod filter_vcf;
 pub mod find_mendelian_violations;
 pub mod fix_mate_information;
 pub mod flow_based;

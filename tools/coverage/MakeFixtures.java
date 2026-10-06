@@ -56,6 +56,40 @@ public class MakeFixtures {
         SAMFileHeader queryname = header(SAMFileHeader.SortOrder.queryname);
         writeBam(new File(dir, "queryname.bam"), queryname, reads(queryname, false), false);
 
+        // FilterVcf: a site per filter, so each threshold the array varies moves some line. QD and FS
+        // are present, missing and on both sides of each threshold; the hets have balanced and
+        // unbalanced AD, two het genotype types at one multi-allelic site, and one without AD; GQ
+        // and DP are missing on some genotypes, which the reference reads as -1; one site is all
+        // hom-ref, one comes with filters and an FT column already set, and one has no FORMAT
+        // fields but GT. filter_no_contigs.vcf is the same records without a dictionary.
+        for (String name : new String[] {"filter.vcf", "filter_no_contigs.vcf"}) {
+            try (PrintWriter p = new PrintWriter(new File(dir, name), "UTF-8")) {
+                p.print("##fileformat=VCFv4.2\n");
+                p.print("##FILTER=<ID=q10,Description=\"Quality below 10\">\n");
+                p.print("##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"Allele depths\">\n");
+                p.print("##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Depth\">\n");
+                p.print("##FORMAT=<ID=FT,Number=.,Type=String,Description=\"Genotype filters\">\n");
+                p.print("##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">\n");
+                p.print("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n");
+                p.print("##INFO=<ID=FS,Number=1,Type=Float,Description=\"Fisher strand\">\n");
+                p.print("##INFO=<ID=QD,Number=1,Type=Float,Description=\"Quality by depth\">\n");
+                if (name.equals("filter.vcf")) {
+                    p.print("##contig=<ID=chr1,length=" + chr1.length() + ">\n");
+                    p.print("##contig=<ID=chr2,length=" + chr2.length() + ">\n");
+                }
+                p.print("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\ts1\ts2\ts3\n");
+                p.print("chr1\t100\t.\tA\tC\t50\t.\tQD=1.5;FS=10.0\tGT:AD:DP:GQ\t0/1:9,1:10:40\t0/0:10,0:10:40\t0/1:5,5:10:40\n");
+                p.print("chr1\t200\t.\tG\tT\t60\tq10\tQD=8.0;FS=70.0\tGT:AD:DP:GQ\t0/1:4,6:12:20\t1/1:0,12:12:35\t./.:.:.:.\n");
+                p.print("chr1\t300\t.\tC\tA,G\t70\tPASS\tQD=3.0\tGT:AD:DP:GQ\t0/1:6,4,0:10:50\t0/2:7,0,3:10:50\t1/2:0,5,5:10:50\n");
+                p.print("chr1\t400\t.\tT\tC\t.\t.\t.\tGT:AD:DP:GQ\t0/0:8,0:8:25\t0/0:9,0:9:.\t0/0:7,0:.:30\n");
+                p.print("chr1\t500\t.\tA\tG\t40\t.\tQD=0.5;FS=35.5\tGT:DP:GQ\t0/1:5:15\t1/1:6:10\t0/0:30:99\n");
+                p.print("chr1\t600\t.\tG\tA\t45\t.\tFS=5.0\tGT:AD:DP:GQ:FT\t0|1:3,7:10:60:PASS\t1|0:8,2:10:60:LowQ\t0/1:5,5:9:29:PASS\n");
+                p.print("chr2\t100\t.\tC\tT\t80\t.\tQD=12.0;FS=0.0\tGT:AD:DP:GQ\t0/1:2,8:10:99\t0/1:8,2:10:99\t0/0:10,0:10:99\n");
+                p.print("chr2\t200\t.\tAT\tA\t30\t.\tQD=2.5\tGT:AD:DP:GQ\t1:0,4:4:12\t0/1:1,9:10:5\t.:.:.:.\n");
+                p.print("chr2\t300\t.\tG\tC\t20\t.\tQD=1.0;FS=61.0\tGT\t0/1\t0/0\t1/1\n");
+            }
+        }
+
         // CheckTerminatorBlock's three answers: small.bam ends in the empty terminator block, the
         // same bytes without it end in a healthy data block, and five more bytes off cut that block.
         byte[] whole = java.nio.file.Files.readAllBytes(new File(dir, "small.bam").toPath());
