@@ -97,6 +97,17 @@ public class MakeArraysFixtures {
         ArraysBpm.write(dir.resolve("arr_two.bpm"), "fixture.bpm", loci.subList(0, 2));
         final Path manifest = ArraysManifest.write(dir.resolve("arr_extended.csv"), rows);
         ArraysManifest.writePlain(dir.resolve("arr_manifest.csv"), plain);
+        // The same loci and a second assay at rs1's position, which CreateExtendedIlluminaManifest
+        // flags as a duplicate unless the cluster file's GenTrain score keeps it. A contig the
+        // reference lacks and a position past a contig's end are not flags but crashes: the tool
+        // asks the dictionary for the length, or the reference for the base, and throws.
+        final List<ArraysManifest.Row> flagged = new ArrayList<>(plain);
+        flagged.add(new ArraysManifest.Row("rs5", "[A/G]", "1", 1001, 17, 0, "+", "", "A", "G", ""));
+        ArraysManifest.writePlain(dir.resolve("arr_manifest_flags.csv"), flagged);
+        // A cluster file over all five names, for the duplicate's GenTrain score.
+        final List<String> flaggedNames = new ArrayList<>(names);
+        flaggedNames.add("rs5");
+        ArraysEgt.write(dir.resolve("arr_flags.egt"), "fixture.bpm", flaggedNames);
         final java.util.Set<Integer> unique = new java.util.TreeSet<>();
         for (final ArraysBpm.Locus locus : loci) {
             unique.add(locus.normalizationId() + 100 * locus.assayType());

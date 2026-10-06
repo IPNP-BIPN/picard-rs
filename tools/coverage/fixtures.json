@@ -3094,6 +3094,58 @@
         "1",
         "2"
       ]
+    },
+    "CreateExtendedIlluminaManifest": {
+      "$why": [
+        "arr_manifest.csv is the plain manifest of MakeArraysFixtures' four loci, on arr_ref.fasta (GRCh37);",
+        "arr_manifest_flags.csv adds a second assay at rs1's position (a locus off the reference makes the tool throw",
+        "instead of flagging it). arr_flags.egt scores all five, which FLAG_DUPLICATES needs to pick the survivor, and",
+        "arr_dbsnp.vcf knows two loci. Build 37 is the only target the tool supports; 36 is refused. No chain",
+        "file exists for a supported build, so SUPPORTED_* stay empty. The report's 'Generated on:' line is the",
+        "clock's."
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_manifest.csv",
+        "/work/fixtures/arr_manifest_flags.csv"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.csv"
+      ],
+      "--REPORT_FILE": [
+        "/work/out/report.txt"
+      ],
+      "--BAD_ASSAYS_FILE": [
+        "/work/out/bad.txt",
+        "null"
+      ],
+      "--CLUSTER_FILE": [
+        "/work/fixtures/arr_flags.egt",
+        "null"
+      ],
+      "--DBSNP_FILE": [
+        "/work/fixtures/arr_dbsnp.vcf",
+        "null"
+      ],
+      "--FLAG_DUPLICATES": [
+        "true",
+        "false"
+      ],
+      "--TARGET_BUILD": [
+        "37",
+        "36"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/arr_ref.fasta"
+      ],
+      "--SUPPORTED_BUILD": [
+        "null"
+      ],
+      "--SUPPORTED_CHAIN_FILE": [
+        "null"
+      ],
+      "--SUPPORTED_REFERENCE_FILE": [
+        "null"
+      ]
     }
   },
   "constraints": [

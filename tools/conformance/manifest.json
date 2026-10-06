@@ -803,6 +803,16 @@
         "t": 2,
         "status": "measured",
         "output_name": "@all"
+      },
+      {
+        "tool": "CreateExtendedIlluminaManifest",
+        "port": "create-extended-illumina-manifest",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all",
+        "strip_line_prefixes": [
+          "Generated on:"
+        ]
       }
     ]
   },
