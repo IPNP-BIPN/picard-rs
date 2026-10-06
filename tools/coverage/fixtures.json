@@ -3016,6 +3016,31 @@
         "false",
         "true"
       ]
+    },
+    "VcfToAdpc": {
+      "$why": [
+        "arr_s1.vcf and arr_s2.vcf are the array VCFs the reference's GtcToVcf made of MakeArraysFixtures' call",
+        "files, alone and together; fp_genotypes.vcf is a VCF that is not an array's, with no GC_SCORE, which the",
+        "run logs and answers with exit code 1 after writing the header of the .adpc.bin."
+      ],
+      "$lists": [
+        "--VCF"
+      ],
+      "--VCF": [
+        "/work/fixtures/arr_s1.vcf",
+        "/work/fixtures/arr_s1.vcf /work/fixtures/arr_s2.vcf",
+        "/work/fixtures/arr_s2.vcf",
+        "/work/fixtures/fp_genotypes.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.adpc.bin"
+      ],
+      "--SAMPLES_FILE": [
+        "/work/out/samples.txt"
+      ],
+      "--NUM_MARKERS_FILE": [
+        "/work/out/markers.txt"
+      ]
     }
   },
   "constraints": [

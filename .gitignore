@@ -125,6 +125,7 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/BpmToNormalizationManifestCsv.t2.txt
 !tools/coverage/corpus/CompareGtcFiles.t2.txt
 !tools/coverage/corpus/GtcToVcf.t2.txt
+!tools/coverage/corpus/VcfToAdpc.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

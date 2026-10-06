@@ -780,6 +780,14 @@
         "strip_line_prefixes": [
           "##fileDate="
         ]
+      },
+      {
+        "tool": "VcfToAdpc",
+        "port": "vcf-to-adpc",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all",
+        "exit_code_is_a_result": true
       }
     ]
   },
