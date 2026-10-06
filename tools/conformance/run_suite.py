@@ -56,7 +56,7 @@ def build_fixtures(manifest, into):
     oracle = manifest["oracle"]
     into.mkdir(parents=True, exist_ok=True)
     command = (
-        'cp /harness/MakeFixtures.java . && javac -cp "$ORACLE_CP" -d . MakeFixtures.java '
+        'cp /harness/*.java . && javac -cp "$ORACLE_CP" -d . *.java '
         '&& java -Dsamjdk.try_use_intel_deflater=false -cp ".:$ORACLE_CP" MakeFixtures /out'
     )
     return subprocess.run(

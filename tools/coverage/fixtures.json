@@ -2887,6 +2887,34 @@
         "0.0",
         "2.0"
       ]
+    },
+    "CreateBafRegressMetricsFile": {
+      "$why": [
+        "arr_bafregress.txt and arr_bafregress_two.txt (MakeArraysFixtures) are bafRegress' own output for one and two",
+        "samples; the VerifyIDIntensity output beside them has another header line, which the parser refuses by name."
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_bafregress.txt",
+        "/work/fixtures/arr_bafregress_two.txt",
+        "/work/fixtures/arr_verifyidintensity.txt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ]
+    },
+    "CreateVerifyIDIntensityContaminationMetricsFile": {
+      "$why": [
+        "arr_verifyidintensity.txt and _four.txt (MakeArraysFixtures) are VerifyIDIntensity's own output, header, dashes and",
+        "two or four rows, negative LLKs included; the bafRegress output fails the header pattern and is refused by name."
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_verifyidintensity.txt",
+        "/work/fixtures/arr_verifyidintensity_four.txt",
+        "/work/fixtures/arr_bafregress.txt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ]
     }
   },
   "constraints": [

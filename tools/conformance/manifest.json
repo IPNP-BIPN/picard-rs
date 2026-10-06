@@ -742,6 +742,20 @@
         "strip_line_prefixes": [
           "##fileDate="
         ]
+      },
+      {
+        "tool": "CreateBafRegressMetricsFile",
+        "port": "create-baf-regress-metrics-file",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
+      },
+      {
+        "tool": "CreateVerifyIDIntensityContaminationMetricsFile",
+        "port": "create-verify-id-intensity-contamination-metrics-file",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
       }
     ]
   },

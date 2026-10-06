@@ -57,7 +57,7 @@ def build_fixtures(workdir):
     fixtures = workdir / "fixtures"
     fixtures.mkdir(parents=True, exist_ok=True)
     command = (
-        'cp /harness/MakeFixtures.java . && javac -cp "$ORACLE_CP" -d . MakeFixtures.java '
+        'cp /harness/*.java . && javac -cp "$ORACLE_CP" -d . *.java '
         # The fixture must be byte-reproducible, so the JDK deflater is pinned here exactly as the
         # oracle contract pins it for goldens.
         '&& java -Dsamjdk.try_use_intel_deflater=false -cp ".:$ORACLE_CP" MakeFixtures /out '

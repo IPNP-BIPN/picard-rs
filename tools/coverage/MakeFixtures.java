@@ -992,6 +992,9 @@ public class MakeFixtures {
         for (File f : dir.listFiles()) {
             System.out.printf("%s\t%d%n", f.getName(), f.length());
         }
+
+        // The genotyping-array family reads a corpus of its own: see MakeArraysFixtures.
+        MakeArraysFixtures.write(dir);
     }
 
     /**
