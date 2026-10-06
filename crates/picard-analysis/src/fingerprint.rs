@@ -476,6 +476,9 @@ pub enum Evidence {
     GenotypeLikelihoods { ll: [f64; 3] },
     /// `HaplotypeProbabilitiesFromGenotype`: likelihoods as they are, and the SNP they came from.
     Genotype { likelihoods: [f64; 3], snp: Snp },
+    /// `CappedHaplotypeProbabilities`: another's log-likelihoods, floored a distance below their
+    /// maximum and renormalised.
+    Capped { ll: [f64; 3] },
 }
 
 /// One block's evidence, with its block's priors and representative SNP to hand.
@@ -510,12 +513,31 @@ impl Probs {
         }
     }
 
+    /// `new CappedHaplotypeProbabilities(probs, cap)`.
+    pub fn capped(&self, cap: f64) -> Probs {
+        let ll = self.log_likelihoods();
+        let m = max(&ll);
+        let floored = [
+            (ll[0] - m).max(cap),
+            (ll[1] - m).max(cap),
+            (ll[2] - m).max(cap),
+        ];
+        Probs {
+            block: self.block,
+            priors: self.priors,
+            first: self.first.clone(),
+            evidence: Evidence::Capped {
+                ll: normalized_log_likelihoods(floored),
+            },
+        }
+    }
+
     /// `getLikelihoods`.
     pub fn likelihoods(&self) -> [f64; 3] {
         match &self.evidence {
-            Evidence::Sequence { ll, .. } | Evidence::GenotypeLikelihoods { ll } => {
-                p_normalize_log_probability(*ll)
-            }
+            Evidence::Sequence { ll, .. }
+            | Evidence::GenotypeLikelihoods { ll }
+            | Evidence::Capped { ll } => p_normalize_log_probability(*ll),
             Evidence::Genotype { likelihoods, .. } => *likelihoods,
         }
     }
@@ -523,7 +545,9 @@ impl Probs {
     /// `getLogLikelihoods`.
     pub fn log_likelihoods(&self) -> [f64; 3] {
         match &self.evidence {
-            Evidence::Sequence { ll, .. } | Evidence::GenotypeLikelihoods { ll } => *ll,
+            Evidence::Sequence { ll, .. }
+            | Evidence::GenotypeLikelihoods { ll }
+            | Evidence::Capped { ll } => *ll,
             Evidence::Genotype { likelihoods, .. } => likelihoods.map(f64::log10),
         }
     }
@@ -598,7 +622,9 @@ impl Probs {
             Evidence::Sequence { ll, obs1, obs2, .. } => {
                 ll.iter().any(|d| *d != 0.0) || *obs1 > 0 || *obs2 > 0
             }
-            Evidence::GenotypeLikelihoods { ll } => ll.iter().any(|d| *d != 0.0),
+            Evidence::GenotypeLikelihoods { ll } | Evidence::Capped { ll } => {
+                ll.iter().any(|d| *d != 0.0)
+            }
             Evidence::Genotype { .. } => true,
         }
     }
@@ -696,7 +722,8 @@ impl Probs {
                 *obs2 += b;
                 *o += c;
             }
-            (Evidence::GenotypeLikelihoods { ll }, Evidence::GenotypeLikelihoods { ll: ll2 }) => {
+            (Evidence::GenotypeLikelihoods { ll }, Evidence::GenotypeLikelihoods { ll: ll2 })
+            | (Evidence::Capped { ll }, Evidence::Capped { ll: ll2 }) => {
                 *ll = normalized_log_likelihoods([ll[0] + ll2[0], ll[1] + ll2[1], ll[2] + ll2[2]]);
             }
             (
@@ -922,12 +949,28 @@ fn java_split_dot(s: &str) -> Vec<&str> {
     parts
 }
 
-/// The `file:` URI `Path.toUri().toString()` gives an absolute local path.
-pub fn file_uri(path: &str) -> String {
+/// The path as the reference saw it: absolute, and with any directory the harness mounted under
+/// another name (`PICARD_RS_PATH_MAP`, `host=reference;...`) given that name back, because the
+/// reference hashes the path and the iteration order of its tables follows.
+pub fn reference_path(path: &str) -> String {
     let absolute = std::path::absolute(path)
         .map(|p| p.display().to_string())
         .unwrap_or_else(|_| path.to_string());
-    format!("file://{absolute}")
+    if let Ok(map) = std::env::var("PICARD_RS_PATH_MAP") {
+        for pair in map.split(';') {
+            if let Some((host, reference)) = pair.split_once('=') {
+                if let Some(rest) = absolute.strip_prefix(host) {
+                    return format!("{reference}{rest}");
+                }
+            }
+        }
+    }
+    absolute
+}
+
+/// The `file:` URI `Path.toUri().toString()` gives a local path.
+pub fn file_uri(path: &str) -> String {
+    format!("file://{}", reference_path(path))
 }
 
 /// `LocusResult`.

@@ -698,6 +698,22 @@
         "status": "measured",
         "output_name": "@all",
         "exit_code_is_a_result": true
+      },
+      {
+        "tool": "CrosscheckFingerprints",
+        "port": "crosscheck-fingerprints",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all",
+        "exit_code_is_a_result": true
+      },
+      {
+        "tool": "CrosscheckReadGroupFingerprints",
+        "port": "crosscheck-read-group-fingerprints",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all",
+        "exit_code_is_a_result": true
       }
     ]
   },

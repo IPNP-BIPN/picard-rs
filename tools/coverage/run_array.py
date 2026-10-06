@@ -28,6 +28,7 @@ Two modes, and the difference matters:
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -165,7 +166,7 @@ def stdin_file(spec, row):
     return spec
 
 
-def run_captured(argv, stdin_bytes=None):
+def run_captured(argv, stdin_bytes=None, env=None):
     """`subprocess.run` that returns text, and feeds standard input when a tool has one.
 
     With no standard input this is exactly the call the runner always made. With one the streams
@@ -173,8 +174,8 @@ def run_captured(argv, stdin_bytes=None):
     trip into the comparison.
     """
     if stdin_bytes is None:
-        return subprocess.run(argv, capture_output=True, text=True)
-    raw = subprocess.run(argv, capture_output=True, input=stdin_bytes)
+        return subprocess.run(argv, capture_output=True, text=True, env=env)
+    raw = subprocess.run(argv, capture_output=True, input=stdin_bytes, env=env)
     return subprocess.CompletedProcess(
         argv,
         raw.returncode,
@@ -448,7 +449,14 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_
     # the Barclay command line is a later slice. Passing both forms keeps this working when it
     # lands, without pretending the binary understands more than it does.
     argv = [str(binary)] + [a.lstrip("-") for a in rewritten] + [host(p) for p in positional]
-    result = run_captured(argv, stdin_bytes)
+    # The reference saw the container's paths, and a tool that keys a hash table on a path it was
+    # given (the fingerprint tools key theirs on the file's URI) iterates that table in an order
+    # the path decides. The port is told which host directory stands for which container one, so
+    # that it can hash the path the reference hashed; it is the same inverse as the mapping of the
+    # output below, handed to the port instead of applied after it.
+    env = dict(os.environ)
+    env["PICARD_RS_PATH_MAP"] = f"{fixtures}=/work/fixtures;{out_dir}=/work/out"
+    result = run_captured(argv, stdin_bytes, env)
     # The mount points are mapped back BEFORE the message is read, not after: `first_error` caps
     # what it returns, and a host path is longer than the container path it stands for, so mapping
     # afterwards left a message that had been truncated mid-path.
