@@ -22,7 +22,17 @@ use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::variant::{Genotype, VariantContext};
 
 /// `Double.toString`.
-fn java_double_to_string(value: f64) -> String {
+pub fn java_double_to_string(value: f64) -> String {
+    java_decimal(value, format!("{:e}", value.abs()))
+}
+
+/// `Float.toString`: the same layout over the float's own shortest digits.
+pub fn java_float_to_string(value: f32) -> String {
+    java_decimal(f64::from(value), format!("{:e}", value.abs()))
+}
+
+/// The layout both `toString`s share, given the value and its shortest digits in `{:e}` form.
+fn java_decimal(value: f64, scientific: String) -> String {
     if value.is_nan() {
         return "NaN".to_string();
     }
@@ -34,7 +44,6 @@ fn java_double_to_string(value: f64) -> String {
     if magnitude == 0.0 {
         return format!("{sign}0.0");
     }
-    let scientific = format!("{magnitude:e}");
     let (mantissa, exponent) = scientific.split_once('e').unwrap_or((&scientific, "0"));
     let exponent: i32 = exponent.parse().unwrap_or(0);
     let digits: String = mantissa.chars().filter(|c| *c != '.').collect();

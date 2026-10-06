@@ -763,6 +763,13 @@
         "t": 2,
         "status": "measured",
         "output_name": "output.csv"
+      },
+      {
+        "tool": "CompareGtcFiles",
+        "port": "compare-gtc-files",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
       }
     ]
   },

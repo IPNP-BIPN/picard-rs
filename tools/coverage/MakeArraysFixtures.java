@@ -118,12 +118,14 @@ public class MakeArraysFixtures {
                         dbsnp.toFile(), new htsjdk.variant.vcf.VCFCodec()),
                 new File(dbsnp + ".idx"));
 
-        // Three call files: sample1 as the conformance fixture has it, sample1 again with one
-        // genotype and one intensity changed, and sample2 with other calls throughout.
+        // Three call files: sample1 as the conformance fixture has it, sample1 again with another
+        // call rate, and sample2 with other calls throughout.
         final ArraysGtc.Sample s1 = ArraysGtc.fixture("sample1");
-        final ArraysGtc.Sample s1b = new ArraysGtc.Sample("sample1", List.of(1, 3, 3, 0),
-                List.of(1000, 2000, 3500, 4000), List.of(1100, 2100, 3100, 4100),
-                List.of(0.7f, 0.8f, 0.9f, 0.0f), 0.75f);
+        // s1b differs from s1 in its call rate alone: CompareGtcFiles reports every difference in
+        // the order reflection lists the getters, which is the JVM's, so a pair with one
+        // difference is the pair whose report does not depend on it.
+        final ArraysGtc.Sample s1b = new ArraysGtc.Sample("sample1", s1.genotypes(), s1.rawX(),
+                s1.rawY(), s1.scores(), 0.5f);
         final ArraysGtc.Sample s2 = new ArraysGtc.Sample("sample2", List.of(3, 2, 1, 1),
                 List.of(900, 2200, 2800, 4300), List.of(1200, 2000, 3300, 3900),
                 List.of(0.6f, 0.85f, 0.95f, 0.5f), 1.0f);

@@ -407,3 +407,237 @@ impl Egt {
         Ok(egt)
     }
 }
+
+/// `InfiniumGTCFile`: every field a getter returns, `None` where the table of contents had no
+/// entry for it (the reference's null, or 0 for a primitive).
+#[derive(Debug, Clone, Default)]
+pub struct Gtc {
+    pub identifier: String,
+    pub file_version: i32,
+    pub number_of_snps: i32,
+    pub ploidy: i32,
+    pub ploidy_type: i32,
+    pub sample_name: Option<String>,
+    pub sample_plate: Option<String>,
+    pub sample_well: Option<String>,
+    pub cluster_file: Option<String>,
+    pub snp_manifest: Option<String>,
+    pub imaging_date: Option<String>,
+    pub auto_call_date: Option<String>,
+    pub auto_call_version: Option<String>,
+    pub transformations: Vec<crate::gtc_to_vcf::Transformation>,
+    pub raw_control_x: Option<Vec<i32>>,
+    pub raw_control_y: Option<Vec<i32>>,
+    pub raw_x: Option<Vec<i32>>,
+    pub raw_y: Option<Vec<i32>>,
+    pub genotypes: Option<Vec<i8>>,
+    pub base_calls: Option<Vec<[i8; 2]>>,
+    pub genotype_scores: Option<Vec<f32>>,
+    pub scanner_name: Option<String>,
+    pub pmt_green: i32,
+    pub pmt_red: i32,
+    pub scanner_version: Option<String>,
+    pub imaging_user: Option<String>,
+    pub call_rate: f64,
+    pub gender: Option<String>,
+    pub log_r_dev: f32,
+    pub p10_gc: f32,
+    pub dx: i32,
+    pub p50_gc: f32,
+    pub num_calls: i32,
+    pub num_no_calls: i32,
+    pub num_intensity_only: i32,
+    pub red_percentiles: Option<[i32; 3]>,
+    pub green_percentiles: Option<[i32; 3]>,
+    pub sentrix_barcode: Option<String>,
+    pub b_allele_freqs: Option<Vec<f32>>,
+    pub log_r_ratios: Option<Vec<f32>>,
+    pub normalized_x: Vec<f32>,
+    pub normalized_y: Vec<f32>,
+    pub r_ilmn: Vec<f32>,
+    pub theta_ilmn: Vec<f32>,
+    pub aa_calls: i64,
+    pub ab_calls: i32,
+    pub bb_calls: i64,
+}
+
+impl Gtc {
+    /// `new InfiniumGTCFile(gtc, bpm)`: the manifest's normalization ids are read first, then the
+    /// table of contents, each entry from the start of the file.
+    pub fn parse(bytes: &[u8], bpm: &Bpm) -> Result<Gtc, ReadError> {
+        let mut g = Gtc::default();
+        let mut r = Reader::new(bytes);
+        for _ in 0..3 {
+            g.identifier.push(char::from(r.byte()? as u8));
+        }
+        if g.identifier != "gtc" {
+            return Err(ReadError::Picard(format!(
+                "Invalid identifier '{}' for GTC file",
+                g.identifier
+            )));
+        }
+        g.file_version = i32::from(r.byte()?);
+        let entries = r.int()?.max(0) as usize;
+        let mut toc = Vec::with_capacity(entries);
+        for _ in 0..entries {
+            let id = r.short()? as i16;
+            let offset = r.int()?;
+            toc.push((id, offset));
+        }
+        for (id, offset) in toc {
+            let mut s = Reader::new(bytes);
+            s.seek(offset.max(0) as usize);
+            let ushorts = |s: &mut Reader| -> Result<Vec<i32>, ReadError> {
+                let n = s.int()?.max(0) as usize;
+                (0..n).map(|_| s.short()).collect()
+            };
+            let floats = |s: &mut Reader| -> Result<Vec<f32>, ReadError> {
+                let n = s.int()?.max(0) as usize;
+                (0..n).map(|_| s.float()).collect()
+            };
+            match id {
+                1 => g.number_of_snps = offset,
+                2 => g.ploidy = offset,
+                3 => g.ploidy_type = offset,
+                10 => g.sample_name = Some(s.string()?),
+                11 => g.sample_plate = Some(s.string()?),
+                12 => g.sample_well = Some(s.string()?),
+                100 => g.cluster_file = Some(s.string()?),
+                101 => g.snp_manifest = Some(s.string()?),
+                200 => g.imaging_date = Some(s.string()?),
+                201 => g.auto_call_date = Some(s.string()?),
+                300 => g.auto_call_version = Some(s.string()?),
+                400 => {
+                    let n = s.int()?.max(0) as usize;
+                    g.transformations.clear();
+                    for _ in 0..n {
+                        s.int()?;
+                        let t = crate::gtc_to_vcf::Transformation {
+                            offset_x: s.float()?,
+                            offset_y: s.float()?,
+                            scale_x: s.float()?,
+                            scale_y: s.float()?,
+                            shear: s.float()?,
+                            theta: s.float()?,
+                        };
+                        for _ in 0..6 {
+                            s.float()?;
+                        }
+                        g.transformations.push(t);
+                    }
+                }
+                500 => g.raw_control_x = Some(ushorts(&mut s)?),
+                501 => g.raw_control_y = Some(ushorts(&mut s)?),
+                1000 => g.raw_x = Some(ushorts(&mut s)?),
+                1001 => g.raw_y = Some(ushorts(&mut s)?),
+                1002 => {
+                    let n = s.int()?.max(0) as usize;
+                    let calls: Vec<i8> = (0..n).map(|_| s.byte()).collect::<Result<_, _>>()?;
+                    for c in &calls {
+                        match c {
+                            1 => g.aa_calls += 1,
+                            2 => g.ab_calls += 1,
+                            3 => g.bb_calls += 1,
+                            _ => {}
+                        }
+                    }
+                    g.genotypes = Some(calls);
+                }
+                1003 => {
+                    let n = s.int()?.max(0) as usize;
+                    let mut calls = Vec::with_capacity(n);
+                    for _ in 0..n {
+                        let mut pair = [s.byte()?, s.byte()?];
+                        for b in &mut pair {
+                            if *b == 0 {
+                                *b = b'-' as i8;
+                            }
+                        }
+                        calls.push(pair);
+                    }
+                    g.base_calls = Some(calls);
+                }
+                1004 => g.genotype_scores = Some(floats(&mut s)?),
+                1005 => {
+                    g.scanner_name = Some(s.string()?);
+                    g.pmt_green = s.int()?;
+                    g.pmt_red = s.int()?;
+                    g.scanner_version = Some(s.string()?);
+                    g.imaging_user = Some(s.string()?);
+                }
+                1006 => g.call_rate = f64::from(s.float()?),
+                1007 => {
+                    g.gender = Some(match bytes.get(offset.max(0) as usize) {
+                        Some(b) => char::from(*b).to_string(),
+                        None => char::from_u32(0xFFFF).map(String::from).unwrap_or_default(),
+                    })
+                }
+                1008 => g.log_r_dev = s.float()?,
+                1009 => g.p10_gc = s.float()?,
+                1010 => g.dx = s.int()?,
+                1011 => {
+                    g.p50_gc = s.float()?;
+                    g.num_calls = s.int()?;
+                    g.num_no_calls = s.int()?;
+                    g.num_intensity_only = s.int()?;
+                }
+                1012 => g.b_allele_freqs = Some(floats(&mut s)?),
+                1013 => g.log_r_ratios = Some(floats(&mut s)?),
+                1014 => g.red_percentiles = Some([s.short()?, s.short()?, s.short()?]),
+                1015 => g.green_percentiles = Some([s.short()?, s.short()?, s.short()?]),
+                1016 => g.sentrix_barcode = Some(s.string()?),
+                _ => {}
+            }
+        }
+        if g.num_calls == 0 {
+            g.num_calls = (g.aa_calls + i64::from(g.ab_calls) + g.bb_calls) as i32;
+        }
+        g.normalize(bpm)?;
+        Ok(g)
+    }
+
+    /// `normalizeIntensities` and `calculateRandTheta`.
+    fn normalize(&mut self, bpm: &Bpm) -> Result<(), ReadError> {
+        let n = self.number_of_snps.max(0) as usize;
+        let raw_x = self.raw_x.clone().unwrap_or_default();
+        let raw_y = self.raw_y.clone().unwrap_or_default();
+        self.normalized_x = vec![0.0; n];
+        self.normalized_y = vec![0.0; n];
+        for (i, &x) in raw_x.iter().enumerate() {
+            let oob = |len: usize| {
+                ReadError::Picard(format!(
+                    "java.lang.ArrayIndexOutOfBoundsException: Index {i} out of bounds for length {len}"
+                ))
+            };
+            let y = *raw_y.get(i).ok_or_else(|| oob(raw_y.len()))?;
+            let index = bpm
+                .all_normalization_ids
+                .get(i)
+                .and_then(|id| bpm.unique_normalization_ids.iter().position(|u| u == id));
+            let (nx, ny) = match index {
+                Some(at) => {
+                    let t = self
+                        .transformations
+                        .get(at)
+                        .ok_or_else(|| oob(self.transformations.len()))?;
+                    crate::gtc_to_vcf::normalize(x, y, t)
+                }
+                None => (x as f32, y as f32),
+            };
+            if i >= n {
+                return Err(oob(n));
+            }
+            self.normalized_x[i] = nx;
+            self.normalized_y[i] = ny;
+        }
+        self.r_ilmn = Vec::with_capacity(n);
+        self.theta_ilmn = Vec::with_capacity(n);
+        for i in 0..n {
+            let (r, theta) =
+                crate::gtc_to_vcf::r_and_theta(self.normalized_x[i], self.normalized_y[i]);
+            self.r_ilmn.push(r);
+            self.theta_ilmn.push(theta);
+        }
+        Ok(())
+    }
+}
