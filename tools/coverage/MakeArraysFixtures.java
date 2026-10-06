@@ -89,6 +89,12 @@ public class MakeArraysFixtures {
         }
         final Path bpm = ArraysBpm.write(dir.resolve("arr.bpm"), "fixture.bpm", loci);
         final Path egt = ArraysEgt.write(dir.resolve("arr.egt"), "fixture.bpm", names);
+        // A cluster file cut short inside its header: the parser runs out of bytes before it reads
+        // a count to allocate for, so the refusal is the IOException the tools wrap.
+        final byte[] wholeEgt = Files.readAllBytes(egt);
+        Files.write(dir.resolve("arr_truncated.egt"), java.util.Arrays.copyOf(wholeEgt, 40));
+        // The first two loci alone, a manifest the same cluster file still covers.
+        ArraysBpm.write(dir.resolve("arr_two.bpm"), "fixture.bpm", loci.subList(0, 2));
         final Path manifest = ArraysManifest.write(dir.resolve("arr_extended.csv"), rows);
         ArraysManifest.writePlain(dir.resolve("arr_manifest.csv"), plain);
         final java.util.Set<Integer> unique = new java.util.TreeSet<>();

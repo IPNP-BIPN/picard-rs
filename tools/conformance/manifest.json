@@ -756,6 +756,13 @@
         "t": 2,
         "status": "measured",
         "output_name": "@all"
+      },
+      {
+        "tool": "BpmToNormalizationManifestCsv",
+        "port": "bpm-to-normalization-manifest-csv",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.csv"
       }
     ]
   },

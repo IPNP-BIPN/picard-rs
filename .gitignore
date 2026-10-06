@@ -122,6 +122,7 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/IdentifyContaminant.t2.txt
 !tools/coverage/corpus/CreateBafRegressMetricsFile.t2.txt
 !tools/coverage/corpus/CreateVerifyIDIntensityContaminationMetricsFile.t2.txt
+!tools/coverage/corpus/BpmToNormalizationManifestCsv.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

@@ -2915,6 +2915,27 @@
       "--OUTPUT": [
         "/work/out/output"
       ]
+    },
+    "BpmToNormalizationManifestCsv": {
+      "$why": [
+        "arr.bpm and arr_two.bpm (MakeArraysFixtures) are bead pool manifests of four and two loci of two assay",
+        "types, which arr.egt covers. A cluster file given as the manifest is refused by its identifier, and",
+        "arr_truncated.egt ends inside its header, which is refused as unreadable. A manifest given as the cluster",
+        "file is not a value: the parser allocates for a count read from the wrong bytes, and the JVM's answer is",
+        "an OutOfMemoryError whose threshold is the heap's, not the tool's."
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr.bpm",
+        "/work/fixtures/arr_two.bpm",
+        "/work/fixtures/arr.egt"
+      ],
+      "--CLUSTER_FILE": [
+        "/work/fixtures/arr.egt",
+        "/work/fixtures/arr_truncated.egt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.csv"
+      ]
     }
   },
   "constraints": [
