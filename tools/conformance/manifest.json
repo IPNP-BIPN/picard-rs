@@ -608,6 +608,19 @@
         "t": 2,
         "status": "measured",
         "output_name": "output.bam"
+      },
+      {
+        "tool": "ConvertHaplotypeDatabaseToVcf",
+        "port": "convert-haplotype-database-to-vcf",
+        "t": 2,
+        "status": "pending",
+        "output_name": "output.vcf"
+      },
+      {
+        "tool": "ClusterCrosscheckMetrics",
+        "port": "cluster-crosscheck-metrics",
+        "t": 2,
+        "status": "pending"
       }
     ]
   },
