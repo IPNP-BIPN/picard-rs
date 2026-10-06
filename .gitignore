@@ -84,6 +84,7 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/VcfFormatConverter.t2.txt
 !tools/coverage/corpus/FixVcfHeader.t2.txt
 !tools/coverage/corpus/CollectWgsMetrics.t2.txt
+!tools/coverage/corpus/CollectRawWgsMetrics.t2.txt
 !tools/coverage/corpus/CollectWgsMetricsWithNonZeroCoverage.t2.txt
 !tools/coverage/corpus/CollectHsMetrics.t2.txt
 !tools/coverage/corpus/CollectTargetedPcrMetrics.t2.txt
@@ -101,6 +102,13 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/BamToBfq.t2.txt
 !tools/coverage/corpus/CompareMetrics.t2.txt
 !tools/coverage/corpus/MergeBamAlignment.t2.txt
+!tools/coverage/corpus/CollectSamErrorMetrics.t2.txt
+!tools/coverage/corpus/AccumulateVariantCallingMetrics.t2.txt
+!tools/coverage/corpus/BaitDesigner.t2.txt
+!tools/coverage/corpus/CollectQualityYieldMetricsFlow.t2.txt
+!tools/coverage/corpus/CollectQualityYieldMetricsSNVQ.t2.txt
+!tools/coverage/corpus/FifoBuffer.t2.txt
+!tools/coverage/corpus/UmiAwareMarkDuplicatesWithMateCigar.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

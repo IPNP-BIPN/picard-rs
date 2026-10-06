@@ -20,13 +20,23 @@
       "t": 2,
       "share": 1.0
     },
+    "AccumulateVariantCallingMetrics": {
+      "rows": 15,
+      "accepted": 12,
+      "rejected": 3,
+      "distinct_outputs": 4,
+      "distinct_rejections": 1,
+      "matched": 15,
+      "t": 2,
+      "share": 1.0
+    },
     "AddCommentsToBam": {
-      "rows": 10,
-      "accepted": 0,
-      "rejected": 10,
-      "distinct_outputs": 0,
-      "distinct_rejections": 3,
-      "matched": 10,
+      "rows": 13,
+      "accepted": 10,
+      "rejected": 3,
+      "distinct_outputs": 6,
+      "distinct_rejections": 1,
+      "matched": 13,
       "t": 2,
       "share": 1.0
     },
@@ -47,6 +57,16 @@
       "distinct_outputs": 4,
       "distinct_rejections": 4,
       "matched": 17,
+      "t": 2,
+      "share": 1.0
+    },
+    "BaitDesigner": {
+      "rows": 19,
+      "accepted": 15,
+      "rejected": 4,
+      "distinct_outputs": 13,
+      "distinct_rejections": 1,
+      "matched": 19,
       "t": 2,
       "share": 1.0
     },
@@ -230,6 +250,36 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectQualityYieldMetricsFlow": {
+      "rows": 12,
+      "accepted": 8,
+      "rejected": 4,
+      "distinct_outputs": 8,
+      "distinct_rejections": 2,
+      "matched": 12,
+      "t": 2,
+      "share": 1.0
+    },
+    "CollectQualityYieldMetricsSNVQ": {
+      "rows": 12,
+      "accepted": 8,
+      "rejected": 4,
+      "distinct_outputs": 7,
+      "distinct_rejections": 2,
+      "matched": 12,
+      "t": 2,
+      "share": 1.0
+    },
+    "CollectRawWgsMetrics": {
+      "rows": 21,
+      "accepted": 15,
+      "rejected": 6,
+      "distinct_outputs": 15,
+      "distinct_rejections": 4,
+      "matched": 21,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectRnaSeqMetrics": {
       "rows": 27,
       "accepted": 21,
@@ -247,6 +297,16 @@
       "distinct_outputs": 7,
       "distinct_rejections": 4,
       "matched": 19,
+      "t": 2,
+      "share": 1.0
+    },
+    "CollectSamErrorMetrics": {
+      "rows": 25,
+      "accepted": 19,
+      "rejected": 6,
+      "distinct_outputs": 19,
+      "distinct_rejections": 4,
+      "matched": 25,
       "t": 2,
       "share": 1.0
     },
@@ -322,9 +382,9 @@
     },
     "CompareSAMs": {
       "rows": 9,
-      "accepted": 0,
-      "rejected": 9,
-      "distinct_outputs": 0,
+      "accepted": 6,
+      "rejected": 3,
+      "distinct_outputs": 2,
       "distinct_rejections": 2,
       "matched": 9,
       "t": 2,
@@ -387,6 +447,16 @@
       "distinct_outputs": 1,
       "distinct_rejections": 3,
       "matched": 12,
+      "t": 2,
+      "share": 1.0
+    },
+    "FifoBuffer": {
+      "rows": 10,
+      "accepted": 10,
+      "rejected": 0,
+      "distinct_outputs": 4,
+      "distinct_rejections": 0,
+      "matched": 10,
       "t": 2,
       "share": 1.0
     },
@@ -817,6 +887,16 @@
       "distinct_outputs": 7,
       "distinct_rejections": 3,
       "matched": 22,
+      "t": 2,
+      "share": 1.0
+    },
+    "UmiAwareMarkDuplicatesWithMateCigar": {
+      "rows": 19,
+      "accepted": 12,
+      "rejected": 7,
+      "distinct_outputs": 9,
+      "distinct_rejections": 5,
+      "matched": 19,
       "t": 2,
       "share": 1.0
     },

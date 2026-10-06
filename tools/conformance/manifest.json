@@ -492,7 +492,7 @@
         "tool": "CollectRawWgsMetrics",
         "port": "collect-raw-wgs-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectWgsMetricsWithNonZeroCoverage",
@@ -613,47 +613,47 @@
         "tool": "CollectSamErrorMetrics",
         "port": "collect-sam-error-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "AccumulateVariantCallingMetrics",
         "port": "accumulate-variant-calling-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt.variant_calling_detail_metrics,output.txt.variant_calling_summary_metrics"
       },
       {
         "tool": "BaitDesigner",
         "port": "bait-designer",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CollectQualityYieldMetricsFlow",
         "port": "collect-quality-yield-metrics-flow",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectQualityYieldMetricsSNVQ",
         "port": "collect-quality-yield-metrics-snvq",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "FifoBuffer",
         "port": "fifo-buffer",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output": "stdout"
       },
       {
         "tool": "UmiAwareMarkDuplicatesWithMateCigar",
         "port": "umi-aware-mark-duplicates-with-mate-cigar",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "output.txt,umi_metrics.txt"
       }

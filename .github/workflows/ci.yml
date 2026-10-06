@@ -650,14 +650,6 @@ jobs:
             --log /tmp/CollectQualityYieldMetricsSNVQ.log \
             --log /tmp/FifoBuffer.log \
             --log /tmp/UmiAwareMarkDuplicatesWithMateCigar.log \
-            --pending CollectRawWgsMetrics \
-            --pending CollectSamErrorMetrics \
-            --pending AccumulateVariantCallingMetrics \
-            --pending BaitDesigner \
-            --pending CollectQualityYieldMetricsFlow \
-            --pending CollectQualityYieldMetricsSNVQ \
-            --pending FifoBuffer \
-            --pending UmiAwareMarkDuplicatesWithMateCigar \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -740,6 +732,7 @@ jobs:
             tools/coverage/corpus/VcfFormatConverter.t2.txt \
             tools/coverage/corpus/FixVcfHeader.t2.txt \
             tools/coverage/corpus/CollectWgsMetrics.t2.txt \
+            tools/coverage/corpus/CollectRawWgsMetrics.t2.txt \
             tools/coverage/corpus/CollectWgsMetricsWithNonZeroCoverage.t2.txt \
             tools/coverage/corpus/CollectHsMetrics.t2.txt \
             tools/coverage/corpus/CollectTargetedPcrMetrics.t2.txt \
@@ -756,7 +749,14 @@ jobs:
             tools/coverage/corpus/MergePedIntoVcf.t2.txt \
             tools/coverage/corpus/BamToBfq.t2.txt \
             tools/coverage/corpus/CompareMetrics.t2.txt \
-            tools/coverage/corpus/MergeBamAlignment.t2.txt)
+            tools/coverage/corpus/MergeBamAlignment.t2.txt \
+            tools/coverage/corpus/CollectSamErrorMetrics.t2.txt \
+            tools/coverage/corpus/AccumulateVariantCallingMetrics.t2.txt \
+            tools/coverage/corpus/BaitDesigner.t2.txt \
+            tools/coverage/corpus/CollectQualityYieldMetricsFlow.t2.txt \
+            tools/coverage/corpus/CollectQualityYieldMetricsSNVQ.t2.txt \
+            tools/coverage/corpus/FifoBuffer.t2.txt \
+            tools/coverage/corpus/UmiAwareMarkDuplicatesWithMateCigar.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
