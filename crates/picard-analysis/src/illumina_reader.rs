@@ -119,11 +119,13 @@ impl Run {
             }
         };
         let data: Vec<Vec<u8>> = cycles.iter().map(|c| read_bcl(*c)).collect();
-        let count = data
-            .first()
-            .filter(|d| d.len() >= 4)
-            .map(|d| u32::from_le_bytes([d[0], d[1], d[2], d[3]]) as usize)
-            .unwrap_or(0);
+        // The clusters are counted by the first BCL, or by the filter file when no cycle is read
+        // (a provider of PF and positions alone).
+        let count = match data.first() {
+            Some(d) if d.len() >= 4 => u32::from_le_bytes([d[0], d[1], d[2], d[3]]) as usize,
+            Some(_) => 0,
+            None => pf.len(),
+        };
         let mut out = Vec::with_capacity(count);
         for i in 0..count {
             let mut at = 0;
@@ -155,4 +157,30 @@ impl Run {
         }
         Ok(out)
     }
+}
+
+/// `BarcodeFileReader`: per cluster of a tile, the barcode it matched (`Y` in the second column,
+/// the third column then), from `s_<lane>_<tile>_barcode.txt` in `dir`. `None` when the tile has
+/// no such file.
+pub fn matched_barcodes(
+    dir: &std::path::Path,
+    lane: i32,
+    tile: i32,
+) -> Option<Vec<Option<String>>> {
+    let files = per_tile_files(dir, lane, "_barcode.txt");
+    let path = files.get(&tile)?;
+    let text = std::fs::read_to_string(path).ok()?;
+    Some(
+        text.lines()
+            .map(|line| {
+                let fields: Vec<&str> = line.split_whitespace().collect();
+                (fields.get(1) == Some(&"Y")).then(|| fields.get(2).unwrap_or(&"").to_string())
+            })
+            .collect(),
+    )
+}
+
+/// Whether a lane has any barcode file in `dir`.
+pub fn has_barcode_files(dir: &std::path::Path, lane: i32) -> bool {
+    !per_tile_files(dir, lane, "_barcode.txt").is_empty()
 }

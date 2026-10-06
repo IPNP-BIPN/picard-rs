@@ -3249,6 +3249,37 @@
         "1",
         "2"
       ]
+    },
+    "CollectIlluminaBasecallingMetrics": {
+      "$why": [
+        "ill_run's four clusters, three passing the filter; ill_bcdir holds the per-tile barcode file",
+        "ExtractIlluminaBarcodes would write for 2T2B (three matched, one not), and ill_barcodes.txt declares AG",
+        "and CT. Without INPUT the lane is counted as one non-indexed row; with INPUT and no barcode files the",
+        "Barcodes data type has no format and is refused."
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls"
+      ],
+      "--BARCODES_DIR": [
+        "/work/fixtures/ill_bcdir",
+        "null"
+      ],
+      "--INPUT": [
+        "null",
+        "/work/fixtures/ill_barcodes.txt",
+        "/work/fixtures/ill_barcodes_one.txt"
+      ],
+      "--LANE": [
+        "1"
+      ],
+      "--READ_STRUCTURE": [
+        "2T2B",
+        "4T",
+        "1T1S2B"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt"
+      ]
     }
   },
   "constraints": [

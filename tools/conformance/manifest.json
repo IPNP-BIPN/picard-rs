@@ -835,6 +835,13 @@
         "t": 2,
         "status": "measured",
         "output_name": "@all"
+      },
+      {
+        "tool": "CollectIlluminaBasecallingMetrics",
+        "port": "collect-illumina-basecalling-metrics",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
       }
     ]
   },

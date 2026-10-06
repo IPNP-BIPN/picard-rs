@@ -62,6 +62,12 @@ public class MakeIlluminaCoverageFixtures {
                 null);
         IlluminaRun.write(dir.resolve("ill_run"));
         IlluminaRun.write(dir.resolve("ill_run24"), 24);
+        // What ExtractIlluminaBarcodes writes per tile, by hand: the observed barcode, whether it
+        // matched, the barcode matched, and the mismatch counts. The last cluster matches nothing.
+        Files.createDirectories(dir.resolve("ill_bcdir"));
+        Files.writeString(dir.resolve("ill_bcdir").resolve("s_1_1101_barcode.txt"),
+                "AG\tY\tAG\t0\t0\nAG\tY\tAG\t0\t0\nCT\tY\tCT\t0\t0\nCT\tN\tNN\t1\t1\n",
+                StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("ill_barcodes.txt"),
                 "barcode_sequence_1\tbarcode_name\tlibrary_name\nAG\tfirst\tlibraryA\nCT\tsecond\tlibraryB\n",
                 StandardCharsets.UTF_8);
