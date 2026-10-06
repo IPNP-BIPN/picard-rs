@@ -714,6 +714,14 @@
         "status": "measured",
         "output_name": "@all",
         "exit_code_is_a_result": true
+      },
+      {
+        "tool": "CalculateFingerprintMetrics",
+        "port": "calculate-fingerprint-metrics",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all",
+        "exit_code_is_a_result": true
       }
     ]
   },

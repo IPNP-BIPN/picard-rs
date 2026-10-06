@@ -117,6 +117,7 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/CheckFingerprint.t2.txt
 !tools/coverage/corpus/CrosscheckFingerprints.t2.txt
 !tools/coverage/corpus/CrosscheckReadGroupFingerprints.t2.txt
+!tools/coverage/corpus/CalculateFingerprintMetrics.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

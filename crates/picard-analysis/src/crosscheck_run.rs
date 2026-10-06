@@ -202,32 +202,29 @@ pub fn merge_by(
     )
 }
 
-/// `FingerprintChecker.fingerprintFiles` followed by `capFingerprints`.
-fn fingerprint_files(
+/// `FingerprintChecker.fingerprintFiles`: every file's fingerprints, in the order of the
+/// `ConcurrentHashMap` they are collected into.
+pub fn fingerprint_files_concurrent(
     files: &[String],
     map: &HaplotypeMap,
-    options: &Options,
+    sam_options: &SamOptions,
+    require_index_files: bool,
     random: &mut SharedRandom,
 ) -> Result<Vec<(IdDetails, Fingerprint)>, String> {
     let mut collected: Vec<(i32, (IdDetails, Fingerprint))> = Vec::new();
     for file in files {
         let reads = file.ends_with(".bam") || file.ends_with(".sam") || file.ends_with(".cram");
         let found: Vec<(IdDetails, Fingerprint)> = if reads {
-            let sam_options = SamOptions {
-                allow_duplicates: options.allow_duplicate_reads,
-                strict: options.strict,
-                ..SamOptions::default()
-            };
             fingerprint_sam_file(
                 file,
                 map,
-                &sam_options,
+                sam_options,
                 random,
                 &|m, b| Probs::sequence(m, b),
                 &|p, snp, base, qual| p.add_base(snp, base, qual),
             )?
         } else {
-            if options.require_index_files
+            if require_index_files
                 && !std::path::Path::new(&format!("{file}.idx")).exists()
                 && !std::path::Path::new(&format!("{file}.tbi")).exists()
             {
@@ -258,7 +255,28 @@ fn fingerprint_files(
             }
         }
     }
-    let concurrent = concurrent_hash_order(collected, files.len());
+    Ok(concurrent_hash_order(collected, files.len()))
+}
+
+/// `fingerprintFiles` followed by `capFingerprints`, which copies into a `HashMap`.
+fn fingerprint_files(
+    files: &[String],
+    map: &HaplotypeMap,
+    options: &Options,
+    random: &mut SharedRandom,
+) -> Result<Vec<(IdDetails, Fingerprint)>, String> {
+    let sam_options = SamOptions {
+        allow_duplicates: options.allow_duplicate_reads,
+        strict: options.strict,
+        ..SamOptions::default()
+    };
+    let concurrent = fingerprint_files_concurrent(
+        files,
+        map,
+        &sam_options,
+        options.require_index_files,
+        random,
+    )?;
     let cap = -options.max_effect_of_each_haplotype_block;
     Ok(java_hash_order(
         concurrent
