@@ -828,6 +828,13 @@
         "t": 2,
         "status": "measured",
         "output_name": "@all"
+      },
+      {
+        "tool": "CollectHiSeqXPfFailMetrics",
+        "port": "collect-hi-seq-x-pf-fail-metrics",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
       }
     ]
   },

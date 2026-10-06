@@ -3219,6 +3219,36 @@
         "null",
         ".txt"
       ]
+    },
+    "CollectHiSeqXPfFailMetrics": {
+      "$why": [
+        "The tool reads twenty-four cycles whatever N_CYCLES says (its read structure is built in a field",
+        "initialiser, before the argument is set), so ill_run24 is the run it reads and ill_run, of four cycles, is",
+        "refused. PROB_EXPLICIT_READS draws from an unseeded Random between 0 and 1, so only those two are values:",
+        "none written, or every failing cluster written."
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/ill_run24/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ],
+      "--LANE": [
+        "1"
+      ],
+      "--N_CYCLES": [
+        "24",
+        "4"
+      ],
+      "--PROB_EXPLICIT_READS": [
+        "0.0",
+        "1.0"
+      ],
+      "--NUM_PROCESSORS": [
+        "1",
+        "2"
+      ]
     }
   },
   "constraints": [

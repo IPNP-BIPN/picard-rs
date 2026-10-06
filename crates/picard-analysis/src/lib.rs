@@ -74,6 +74,7 @@ pub mod illumina_basecalls;
 pub mod illumina_dir;
 pub mod illumina_files;
 pub mod illumina_lane_metrics;
+pub mod illumina_reader;
 pub mod illumina_run_metrics;
 pub mod infinium;
 pub mod insert_size;
