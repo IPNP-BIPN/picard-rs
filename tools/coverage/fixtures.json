@@ -3063,6 +3063,37 @@
       "--OUTPUT": [
         "/work/out/output.vcf"
       ]
+    },
+    "CollectArraysVariantCallingMetrics": {
+      "$why": [
+        "arr_s1.vcf and arr_s2.vcf are the indexed array VCFs the reference's GtcToVcf made of MakeArraysFixtures'",
+        "call files, and arr_dbsnp.vcf knows two of their four loci. arr_short.vcf has no index, which the reader",
+        "requires. The dictionary comes from the input or from arr_ref.dict, which agree; the call-rate threshold",
+        "is on both sides of the two samples' call rates."
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_s1.vcf",
+        "/work/fixtures/arr_s2.vcf",
+        "/work/fixtures/arr_short.vcf"
+      ],
+      "--DBSNP": [
+        "/work/fixtures/arr_dbsnp.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "null",
+        "/work/fixtures/arr_ref.dict"
+      ],
+      "--CALL_RATE_PF_THRESHOLD": [
+        "0.98",
+        "0.5"
+      ],
+      "--NUM_PROCESSORS": [
+        "1",
+        "2"
+      ]
     }
   },
   "constraints": [

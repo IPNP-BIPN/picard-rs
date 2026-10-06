@@ -531,6 +531,23 @@ final class ArraysGtc {
         payloads.put(1013, floats(logRRatios(sample)));
         payloads.put(1014, shorts(List.of(100, 500, 900)));
         payloads.put(1015, shorts(List.of(110, 510, 910)));
+        // The run's identity, which GtcToVcf copies into the VCF header and
+        // CollectArraysVariantCallingMetrics parses back: the two dates in the two formats it
+        // expects, the AutoCall version, the scanner, and a gender letter (sample2 is male).
+        payloads.put(200, string("8/15/2015 7:28:52 AM"));
+        payloads.put(201, string("09/21/2016 20:40"));
+        payloads.put(300, string("3.0.0"));
+        final ByteArrayOutputStream scanner = new ByteArrayOutputStream();
+        final byte[] scannerName = string("N370");
+        scanner.write(scannerName, 0, scannerName.length);
+        writeInt(scanner, 600);
+        writeInt(scanner, 500);
+        final byte[] scannerVersion = string("1.0");
+        scanner.write(scannerVersion, 0, scannerVersion.length);
+        final byte[] imagingUser = string("user");
+        scanner.write(imagingUser, 0, imagingUser.length);
+        payloads.put(1005, scanner.toByteArray());
+        payloads.put(1007, new byte[]{(byte) (sample.name().equals("sample2") ? 'M' : 'F')});
 
         // The number of SNPs is not a payload at all: its OFFSET is the value, which is what the
         // reader means by `numberOfSnps = toc.getOffset()`.
