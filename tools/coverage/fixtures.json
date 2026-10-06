@@ -1070,6 +1070,95 @@
         "100"
       ]
     },
+    "CollectSamErrorMetrics": {
+      "$why": [
+        "The tool writes one file per ERROR_METRICS directive, named for the directive, so the rows compare",
+        "every file the run left (output_name @all). ERROR_METRICS and INTERVALS are whole lists ($lists). A",
+        "collection is APPENDED to, and the tool's default carries twenty-seven directives, so every value",
+        "but the last starts with `null`, which empties it first; the last is `ERROR` alone, which asks for",
+        "the default's own first file twice and is the refusal for a duplicated suffix. The directives are",
+        "the ones the port bins (ALL, BASE_QUALITY, CYCLE, GC_CONTENT, READ_DIRECTION, READ_ORDINALITY,",
+        "MAPPING_QUALITY, READ_GROUP, READ_BASE, REFERENCE_BASE, INSERT_LENGTH, SOFT_CLIPS), one or two to a",
+        "directive, under the three calculators. The VCF takes sites out of the count and must be indexed",
+        "(vcf_sites_only.vcf is not, and is the refusal for that); INTERVALS is none, one list, or two whose",
+        "intersection is taken, all on the reference's own dictionary. small.bam carries pairs that overlap,",
+        "indels, soft clips, duplicates and unmapped mates, one_read_group.bam the same reads in one read",
+        "group, and queryname.bam is the refusal for the sort order. The three refusals happen before a base",
+        "is read, so each is kept beside the other two and beside the first value of everything else, which",
+        "the constraints below say. LONG_HOMOPOLYMER, LOCATION_BIN_SIZE and PROGRESS_STEP_INTERVAL belong to",
+        "stratifiers the port does not bin or to the log, and take a second value so that their being inert",
+        "is observed rather than assumed. ERROR_VALUE and STRATIFIER_VALUE are fake arguments that the tool",
+        "refuses whenever they are set."
+      ],
+      "$lists": [
+        "--ERROR_METRICS",
+        "--INTERVALS"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/one_read_group.bam",
+        "/work/fixtures/queryname.bam"
+      ],
+      "--ERROR_METRICS": [
+        "null ERROR ERROR:BASE_QUALITY ERROR:READ_GROUP INDEL_ERROR",
+        "null OVERLAPPING_ERROR OVERLAPPING_ERROR:READ_ORDINALITY ERROR:READ_DIRECTION ERROR:CYCLE",
+        "null ERROR:READ_ORDINALITY:CYCLE ERROR:GC_CONTENT ERROR:MAPPING_QUALITY INDEL_ERROR:READ_DIRECTION",
+        "null ERROR:INSERT_LENGTH ERROR:SOFT_CLIPS ERROR:READ_BASE ERROR:REFERENCE_BASE",
+        "null ERROR:MAPPING_QUALITY:READ_DIRECTION OVERLAPPING_ERROR:GC_CONTENT INDEL_ERROR:CYCLE",
+        "ERROR"
+      ],
+      "--VCF": [
+        "null",
+        "/work/fixtures/variants.vcf",
+        "/work/fixtures/dbsnp.vcf",
+        "/work/fixtures/vcf_sites_only.vcf"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets.interval_list /work/fixtures/baits.interval_list"
+      ],
+      "--MIN_MAPPING_Q": [
+        "20",
+        "0",
+        "45"
+      ],
+      "--MIN_BASE_Q": [
+        "20",
+        "0",
+        "30"
+      ],
+      "--PRIOR_Q": [
+        "30",
+        "10"
+      ],
+      "--MAX_LOCI": [
+        "0",
+        "40"
+      ],
+      "--LONG_HOMOPOLYMER": [
+        "6",
+        "3"
+      ],
+      "--LOCATION_BIN_SIZE": [
+        "2500",
+        "100"
+      ],
+      "--PROGRESS_STEP_INTERVAL": [
+        "100000",
+        "50"
+      ],
+      "--INTERVAL_ITERATOR": [
+        "false",
+        "true"
+      ],
+      "--FILE_EXTENSION": [
+        ".txt",
+        ".tsv"
+      ],
+      "--ERROR_VALUE": [],
+      "--STRATIFIER_VALUE": []
+    },
     "CollectWgsMetricsWithNonZeroCoverage": {
       "$why": [
         "CollectWgsMetrics' domain (see its $why), minus USE_FAST_ALGORITHM=true (see the constraint).",
@@ -2268,6 +2357,656 @@
         "--OUTPUT_BY_READGROUP": "true"
       },
       "why": "OUTPUT_BY_READGROUP=true requires OUTPUT to be a DIRECTORY, and this harness compares one output file, so the repository has no directory to give it: every row carrying it is refused with 'When OUTPUT_BY_READGROUP=true and OUTPUT is provided, it must be a directory'. Eight of the first sixteen rows were that one refusal, and they crowded out the arguments the tool actually varies. The refusal is behaviour and is kept, but as one case rather than half the array, exactly as the FLOW_MODE constraint below keeps its own."
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--CREATE_INDEX": "false"
+      },
+      "why": "queryname.bam is refused for its sort order before a base is read, so what the other arguments say beside it cannot be observed; it is kept with each other refusal (which comes first) and with the first value of everything else."
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--ERROR_METRICS": "null OVERLAPPING_ERROR OVERLAPPING_ERROR:READ_ORDINALITY ERROR:READ_DIRECTION ERROR:CYCLE"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--ERROR_METRICS": "null ERROR:READ_ORDINALITY:CYCLE ERROR:GC_CONTENT ERROR:MAPPING_QUALITY INDEL_ERROR:READ_DIRECTION"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--ERROR_METRICS": "null ERROR:INSERT_LENGTH ERROR:SOFT_CLIPS ERROR:READ_BASE ERROR:REFERENCE_BASE"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--ERROR_METRICS": "null ERROR:MAPPING_QUALITY:READ_DIRECTION OVERLAPPING_ERROR:GC_CONTENT INDEL_ERROR:CYCLE"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--FILE_EXTENSION": ".tsv"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--INTERVALS": "/work/fixtures/targets.interval_list"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--INTERVALS": "/work/fixtures/targets.interval_list /work/fixtures/baits.interval_list"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--INTERVAL_ITERATOR": "true"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--LOCATION_BIN_SIZE": "100"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--LONG_HOMOPOLYMER": "3"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--MAX_LOCI": "40"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--MIN_BASE_Q": "0"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--MIN_BASE_Q": "30"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--MIN_MAPPING_Q": "0"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--MIN_MAPPING_Q": "45"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--PRIOR_Q": "10"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--PROBABILITY": "0.5"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--PROGRESS_STEP_INTERVAL": "50"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--VCF": "/work/fixtures/variants.vcf"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--VCF": "/work/fixtures/dbsnp.vcf"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--CREATE_INDEX": "false"
+      },
+      "why": "A VCF with no index is refused when the reader is opened, before the sort order is looked at and before a base is read, so what the other arguments say beside it cannot be observed; it is kept with each other refusal and with the first value of everything else."
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--ERROR_METRICS": "null OVERLAPPING_ERROR OVERLAPPING_ERROR:READ_ORDINALITY ERROR:READ_DIRECTION ERROR:CYCLE"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--ERROR_METRICS": "null ERROR:READ_ORDINALITY:CYCLE ERROR:GC_CONTENT ERROR:MAPPING_QUALITY INDEL_ERROR:READ_DIRECTION"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--ERROR_METRICS": "null ERROR:INSERT_LENGTH ERROR:SOFT_CLIPS ERROR:READ_BASE ERROR:REFERENCE_BASE"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--ERROR_METRICS": "null ERROR:MAPPING_QUALITY:READ_DIRECTION OVERLAPPING_ERROR:GC_CONTENT INDEL_ERROR:CYCLE"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--FILE_EXTENSION": ".tsv"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--INPUT": "/work/fixtures/one_read_group.bam"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--INTERVALS": "/work/fixtures/targets.interval_list"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--INTERVALS": "/work/fixtures/targets.interval_list /work/fixtures/baits.interval_list"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--INTERVAL_ITERATOR": "true"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--LOCATION_BIN_SIZE": "100"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--LONG_HOMOPOLYMER": "3"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--MAX_LOCI": "40"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--MIN_BASE_Q": "0"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--MIN_BASE_Q": "30"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--MIN_MAPPING_Q": "0"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--MIN_MAPPING_Q": "45"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--PRIOR_Q": "10"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--PROBABILITY": "0.5"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--PROGRESS_STEP_INTERVAL": "50"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--CREATE_INDEX": "false"
+      },
+      "why": "A directive the default list already carries is refused for its duplicated suffix while the aggregators are built, before any file is read, so what the other arguments say beside it cannot be observed; it is kept with each other refusal and with the first value of everything else."
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--FILE_EXTENSION": ".tsv"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--INPUT": "/work/fixtures/one_read_group.bam"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--INTERVALS": "/work/fixtures/targets.interval_list"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--INTERVALS": "/work/fixtures/targets.interval_list /work/fixtures/baits.interval_list"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--INTERVAL_ITERATOR": "true"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--LOCATION_BIN_SIZE": "100"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--LONG_HOMOPOLYMER": "3"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--MAX_LOCI": "40"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--MIN_BASE_Q": "0"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--MIN_BASE_Q": "30"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--MIN_MAPPING_Q": "0"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--MIN_MAPPING_Q": "45"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--PRIOR_Q": "10"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--PROBABILITY": "0.5"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--PROGRESS_STEP_INTERVAL": "50"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--VCF": "/work/fixtures/variants.vcf"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--VCF": "/work/fixtures/dbsnp.vcf"
+      },
+      "why": "same as the first clause for this value"
     },
     {
       "forbid": {

@@ -610,6 +610,13 @@
         "output_name": "output.bam"
       },
       {
+        "tool": "CollectSamErrorMetrics",
+        "port": "collect-sam-error-metrics",
+        "t": 2,
+        "status": "pending",
+        "output_name": "@all"
+      },
+      {
         "tool": "AccumulateVariantCallingMetrics",
         "port": "accumulate-variant-calling-metrics",
         "t": 2,

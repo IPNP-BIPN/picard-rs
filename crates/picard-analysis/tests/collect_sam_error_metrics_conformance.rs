@@ -75,6 +75,8 @@ fn reads(mismatches: usize, mismatch_at: usize, quality: u8, mapping_quality: u8
                 mate_start: 0,
                 cigar: vec![(20, 'M')],
                 mapping_quality,
+                read_group: "rg1".to_string(),
+                insert_size: 0,
             }
         })
         .collect()
@@ -288,6 +290,8 @@ fn an_overlapping_pair_has_its_own_metric() {
             mate_start: 106,
             cigar: vec![(20, 'M')],
             mapping_quality: 60,
+            read_group: "rg1".to_string(),
+            insert_size: 0,
         },
         Read {
             name: "p1".to_string(),
@@ -298,6 +302,8 @@ fn an_overlapping_pair_has_its_own_metric() {
             mate_start: 101,
             cigar: vec![(20, 'M')],
             mapping_quality: 60,
+            read_group: "rg1".to_string(),
+            insert_size: 0,
         },
     ];
     let options = Options::default();
@@ -354,6 +360,8 @@ fn a_deletion_is_counted_once_for_the_read() {
                 mate_start: 0,
                 cigar: vec![(10, 'M'), (2, 'D'), (8, 'M')],
                 mapping_quality: 60,
+                read_group: "rg1".to_string(),
+                insert_size: 0,
             }
         })
         .collect();
