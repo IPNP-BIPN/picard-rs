@@ -130,6 +130,7 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/CollectArraysVariantCallingMetrics.t2.txt
 !tools/coverage/corpus/CreateExtendedIlluminaManifest.t2.txt
 !tools/coverage/corpus/CheckIlluminaDirectory.t2.txt
+!tools/coverage/corpus/CollectIlluminaLaneMetrics.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

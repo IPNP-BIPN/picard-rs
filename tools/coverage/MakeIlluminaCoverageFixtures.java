@@ -20,8 +20,46 @@ import java.nio.file.Paths;
  */
 public class MakeIlluminaCoverageFixtures {
 
+    /** A run directory with nothing but its tile metrics and, when given, a RunInfo.xml. */
+    static void laneRun(final Path run, final float[][] metrics, final String reads) throws IOException {
+        final ByteBuffer buffer = ByteBuffer.allocate(2 + metrics.length * 10).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.put((byte) 2);
+        buffer.put((byte) 10);
+        for (final float[] m : metrics) {
+            buffer.putShort((short) m[0]);
+            buffer.putShort((short) m[1]);
+            buffer.putShort((short) m[2]);
+            buffer.putFloat(m[3]);
+        }
+        Files.createDirectories(run.resolve("InterOp"));
+        Files.write(run.resolve("InterOp").resolve("TileMetricsOut.bin"), buffer.array());
+        if (reads != null) {
+            Files.writeString(run.resolve("RunInfo.xml"),
+                    "<?xml version=\"1.0\"?>\n<RunInfo><Run><Reads>" + reads + "</Reads></Run></RunInfo>\n",
+                    StandardCharsets.UTF_8);
+        }
+    }
+
     static void write(final File into) throws Exception {
         final Path dir = into.toPath();
+        // CollectIlluminaLaneMetrics reads only the tile metrics. Lane 1 of two tiles with the
+        // phasing of the first template read; lanes 1 and 2 with the phasing of the two template
+        // reads of 4T8B4T (descriptors 0 and 2); and counts and densities with no phasing at all.
+        laneRun(dir.resolve("ill_lanes_a"), new float[][]{
+                {1, 1101, 100, 1000}, {1, 1101, 101, 800}, {1, 1101, 102, 10000}, {1, 1101, 103, 8000},
+                {1, 1101, 200, 0.1f}, {1, 1101, 201, 0.2f},
+                {1, 1102, 100, 1200}, {1, 1102, 101, 900}, {1, 1102, 102, 12500}, {1, 1102, 103, 9000},
+                {1, 1102, 200, 0.15f}, {1, 1102, 201, 0.25f}},
+                "<Read Number=\"1\" NumCycles=\"4\" IsIndexedRead=\"N\"/>");
+        laneRun(dir.resolve("ill_lanes_b"), new float[][]{
+                {1, 1101, 100, 1000}, {1, 1101, 101, 800}, {1, 1101, 102, 10000}, {1, 1101, 103, 8000},
+                {1, 1101, 200, 0.1f}, {1, 1101, 201, 0.2f}, {1, 1101, 204, 0.3f}, {1, 1101, 205, 0.4f},
+                {2, 1101, 100, 2000}, {2, 1101, 101, 1500}, {2, 1101, 102, 20000}, {2, 1101, 103, 15000},
+                {2, 1101, 200, 0.5f}, {2, 1101, 201, 0.6f}, {2, 1101, 204, 0.7f}, {2, 1101, 205, 0.8f}},
+                "<Read Number=\"1\" NumCycles=\"4\" IsIndexedRead=\"N\"/><Read Number=\"2\" NumCycles=\"8\" IsIndexedRead=\"Y\"/><Read Number=\"3\" NumCycles=\"4\" IsIndexedRead=\"N\"/>");
+        laneRun(dir.resolve("ill_lanes_bare"), new float[][]{
+                {1, 1101, 100, 1000}, {1, 1101, 101, 800}, {1, 1101, 102, 10000}, {1, 1101, 103, 8000}},
+                null);
         IlluminaRun.write(dir.resolve("ill_run"));
         IlluminaRun.write(dir.resolve("ill_run24"), 24);
         Files.writeString(dir.resolve("ill_barcodes.txt"),

@@ -3189,6 +3189,36 @@
       "--LINK_LOCS": [
         "false"
       ]
+    },
+    "CollectIlluminaLaneMetrics": {
+      "$why": [
+        "MakeIlluminaCoverageFixtures' tile-metrics-only runs: ill_lanes_a has two tiles of lane 1 and the phasing",
+        "of one template read, ill_lanes_b two lanes and the phasing of 4T8B4T's two template reads, ill_lanes_bare",
+        "counts and densities and no phasing (refused under STRICT, zero otherwise) and no RunInfo.xml, which a",
+        "run without READ_STRUCTURE must have. A read structure whose template reads the file has no phasing for",
+        "is refused under STRICT."
+      ],
+      "--RUN_DIRECTORY": [
+        "/work/fixtures/ill_lanes_a",
+        "/work/fixtures/ill_lanes_b",
+        "/work/fixtures/ill_lanes_bare"
+      ],
+      "--OUTPUT_DIRECTORY": [
+        "/work/out"
+      ],
+      "--OUTPUT_PREFIX": [
+        "run",
+        "flowcell17"
+      ],
+      "--READ_STRUCTURE": [
+        "4T",
+        "4T8B4T",
+        "null"
+      ],
+      "--FILE_EXTENSION": [
+        "null",
+        ".txt"
+      ]
     }
   },
   "constraints": [

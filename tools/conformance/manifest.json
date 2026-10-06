@@ -821,6 +821,13 @@
         "status": "measured",
         "output": "stderr",
         "exit_code_is_a_result": true
+      },
+      {
+        "tool": "CollectIlluminaLaneMetrics",
+        "port": "collect-illumina-lane-metrics",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
       }
     ]
   },
