@@ -20,6 +20,13 @@ import java.nio.file.Paths;
  */
 public class MakeIlluminaCoverageFixtures {
 
+    static void writeBcl(final Path file, final byte[] calls) throws IOException {
+        final ByteBuffer buffer = ByteBuffer.allocate(4 + calls.length).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(calls.length);
+        buffer.put(calls);
+        Files.write(file, buffer.array());
+    }
+
     /** A run directory with nothing but its tile metrics and, when given, a RunInfo.xml. */
     static void laneRun(final Path run, final float[][] metrics, final String reads) throws IOException {
         final ByteBuffer buffer = ByteBuffer.allocate(2 + metrics.length * 10).order(ByteOrder.LITTLE_ENDIAN);
@@ -62,6 +69,28 @@ public class MakeIlluminaCoverageFixtures {
                 null);
         IlluminaRun.write(dir.resolve("ill_run"));
         IlluminaRun.write(dir.resolve("ill_run24"), 24);
+        // ill_run_n is ill_run with a no-call in the second cluster's third cycle and a quality of
+        // ten under the third cluster's fourth, so its barcodes read AG, NG, CT (the T poor) and
+        // CT: MAX_NO_CALLS and MINIMUM_BASE_QUALITY each have a cluster to decide.
+        final Path nLane = IlluminaRun.write(dir.resolve("ill_run_n")).resolve("L001");
+        writeBcl(nLane.resolve("C3.1").resolve("s_1_1101.bcl"),
+                new byte[]{IlluminaRun.basecall('A', 30), 0, IlluminaRun.basecall('C', 30),
+                        IlluminaRun.basecall('C', 30)});
+        writeBcl(nLane.resolve("C4.1").resolve("s_1_1101.bcl"),
+                new byte[]{IlluminaRun.basecall('G', 30), IlluminaRun.basecall('G', 30),
+                        IlluminaRun.basecall('T', 10), IlluminaRun.basecall('T', 30)});
+        // AC and GG are each one mismatch from AG, so an AG cluster ties and matches neither.
+        Files.writeString(dir.resolve("ill_barcodes_tie.txt"),
+                "barcode_sequence_1\tbarcode_name\tlibrary_name\nAC\ttieA\tlibraryA\nGG\ttieB\tlibraryB\n",
+                StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("ill_barcodes_dup.txt"),
+                "barcode_sequence_1\tbarcode_name\tlibrary_name\nAG\tfirst\tlibraryA\nAG\tagain\tlibraryB\n",
+                StandardCharsets.UTF_8);
+        // Two barcode reads, for 2B2B: cycles one and two read AA, CC, GG and TT, three and four AG,
+        // AG, CT and CT. TC-CT is one mismatch from the last cluster, and nothing is near CC-AG.
+        Files.writeString(dir.resolve("ill_barcodes_two.txt"),
+                "barcode_sequence_1\tbarcode_sequence_2\tbarcode_name\nAA\tAG\tfirst\nGG\tCT\tsecond\nTC\tCT\tthird\n",
+                StandardCharsets.UTF_8);
         // What ExtractIlluminaBarcodes writes per tile, by hand: the observed barcode, whether it
         // matched, the barcode matched, and the mismatch counts. The last cluster matches nothing.
         Files.createDirectories(dir.resolve("ill_bcdir"));

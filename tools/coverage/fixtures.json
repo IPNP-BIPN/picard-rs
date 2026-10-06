@@ -3280,6 +3280,88 @@
       "--OUTPUT": [
         "/work/out/output.txt"
       ]
+    },
+    "ExtractIlluminaBarcodes": {
+      "$why": [
+        "ill_run reads AG, AG, CT, CT at cycles three and four and AA, CC, GG, TT at one and two; ill_run_n",
+        "has a no-call and a quality of ten among its barcode bases. The barcode files declare the two, one,",
+        "a tie (AC and GG, each one mismatch from AG), a duplicate (refused) and a two-read set for 2B2B, which",
+        "a one-read structure refuses by column count. BARCODE is mutually exclusive with BARCODE_FILE, so it",
+        "is held absent; INPUT_PARAMS_FILE is overwritten by BARCODE_FILE before it is read, and MINIMUM_QUALITY",
+        "is read in a field initialiser before the parser runs, so both change nothing. COMPRESS_OUTPUTS is",
+        "held false: the gzip stream is the JDK's deflater, not the tool's logic. The answer is every file in",
+        "OUTPUT_DIR: the per-tile barcode file and the metrics."
+      ],
+      "$lists": [
+        "--LANE"
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+      ],
+      "--READ_STRUCTURE": [
+        "2T2B",
+        "2B2T",
+        "2B2B",
+        "1M1S2B"
+      ],
+      "--BARCODE_FILE": [
+        "/work/fixtures/ill_barcodes.txt",
+        "/work/fixtures/ill_barcodes_one.txt",
+        "/work/fixtures/ill_barcodes_tie.txt",
+        "/work/fixtures/ill_barcodes_dup.txt",
+        "/work/fixtures/ill_barcodes_two.txt"
+      ],
+      "--BARCODE": [
+        "null"
+      ],
+      "--LANE": [
+        "1"
+      ],
+      "--OUTPUT_DIR": [
+        "/work/out"
+      ],
+      "--METRICS_FILE": [
+        "/work/out/metrics.txt"
+      ],
+      "--MAX_MISMATCHES": [
+        "1",
+        "0",
+        "2"
+      ],
+      "--MIN_MISMATCH_DELTA": [
+        "1",
+        "2",
+        "0"
+      ],
+      "--MAX_NO_CALLS": [
+        "2",
+        "0"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "0",
+        "20"
+      ],
+      "--MINIMUM_QUALITY": [
+        "2",
+        "40"
+      ],
+      "--DISTANCE_MODE": [
+        "HAMMING",
+        "LENIENT_HAMMING",
+        "FREE"
+      ],
+      "--INPUT_PARAMS_FILE": [
+        "null",
+        "/work/fixtures/ill_barcodes_one.txt"
+      ],
+      "--NUM_PROCESSORS": [
+        "1",
+        "4"
+      ],
+      "--COMPRESS_OUTPUTS": [
+        "false"
+      ]
     }
   },
   "constraints": [
@@ -4328,6 +4410,66 @@
         "--OBSERVED_SAMPLE_ALIAS": "sampleA"
       },
       "why": "IGNORE_READ_GROUPS is refused beside a VCF input and OBSERVED_SAMPLE_ALIAS beside a BAM, so a row giving both has no input the tool accepts, and the generator would otherwise fill one in that carries a refusal."
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2B2B",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes.txt"
+      },
+      "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2B2B",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_one.txt"
+      },
+      "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2B2B",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_tie.txt"
+      },
+      "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2B2B",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_dup.txt"
+      },
+      "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2T2B",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_two.txt"
+      },
+      "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2B2T",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_two.txt"
+      },
+      "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
     }
   ],
   "exclude": {

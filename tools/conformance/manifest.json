@@ -842,6 +842,13 @@
         "t": 2,
         "status": "measured",
         "output_name": "@all"
+      },
+      {
+        "tool": "ExtractIlluminaBarcodes",
+        "port": "extract-illumina-barcodes",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
       }
     ]
   },
