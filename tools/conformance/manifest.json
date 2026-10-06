@@ -690,6 +690,14 @@
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
+      },
+      {
+        "tool": "CheckFingerprint",
+        "port": "check-fingerprint",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all",
+        "exit_code_is_a_result": true
       }
     ]
   },
