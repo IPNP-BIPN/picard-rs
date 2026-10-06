@@ -796,6 +796,13 @@
         "status": "measured",
         "output_name": "output.vcf",
         "exit_code_is_a_result": true
+      },
+      {
+        "tool": "CollectArraysVariantCallingMetrics",
+        "port": "collect-arrays-variant-calling-metrics",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
       }
     ]
   },
