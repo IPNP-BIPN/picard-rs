@@ -1,19 +1,12 @@
 {
-  "tool": "CompareSAMs",
+  "tool": "FifoBuffer",
   "origin": "picard",
   "t": 2,
   "numeric_policy": "strict",
-  "arguments_total": 23,
+  "arguments_total": 19,
   "arguments_in_array": 6,
-  "arguments_excluded": 17,
+  "arguments_excluded": 13,
   "excluded": [
-    {
-      "argument": "[NA - Positional]",
-      "type": "List[File]",
-      "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
-      "held_at": null,
-      "source": "none"
-    },
     {
       "argument": "--arguments_file",
       "type": "List[File]",
@@ -43,32 +36,11 @@
       "source": "none"
     },
     {
-      "argument": "--LENIENT_DUP",
-      "type": "boolean",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "false",
-      "source": "fixture"
-    },
-    {
-      "argument": "--LENIENT_HEADER",
-      "type": "boolean",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "false",
-      "source": "fixture"
-    },
-    {
       "argument": "--MAX_RECORDS_IN_RAM",
       "type": "Integer",
       "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--OUTPUT",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/out/output.txt",
-      "source": "fixture"
     },
     {
       "argument": "--QUIET",
@@ -127,9 +99,9 @@
       "source": "none"
     }
   ],
-  "rows": 9,
-  "tuples_total": 70,
-  "tuples_covered": 70,
+  "rows": 10,
+  "tuples_total": 81,
+  "tuples_covered": 81,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -139,172 +111,191 @@
     {
       "row": 0,
       "labels": {
-        "--COMPARE_MQ": "true",
+        "--BUFFER_SIZE": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
+        "--DEBUG_FREQUENCY": "fixture[0]",
+        "--IO_SIZE": "fixture[0]",
+        "--NAME": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--COMPARE_MQ=true",
+        "--BUFFER_SIZE=65536",
         "--CREATE_INDEX=true",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=3",
+        "--DEBUG_FREQUENCY=0",
+        "--IO_SIZE=4096",
+        "--NAME=alpha",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 1,
       "labels": {
-        "--COMPARE_MQ": "true",
+        "--BUFFER_SIZE": "fixture[0]",
         "--CREATE_INDEX": "false",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
-        "--LOW_MQ_THRESHOLD": "fixture[1]",
+        "--DEBUG_FREQUENCY": "fixture[1]",
+        "--IO_SIZE": "fixture[1]",
+        "--NAME": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--COMPARE_MQ=true",
+        "--BUFFER_SIZE=65536",
         "--CREATE_INDEX=false",
-        "--LENIENT_LOW_MQ_ALIGNMENT=false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=false",
-        "--LOW_MQ_THRESHOLD=30",
+        "--DEBUG_FREQUENCY=1",
+        "--IO_SIZE=7",
+        "--NAME=beta",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 2,
       "labels": {
-        "--COMPARE_MQ": "false",
+        "--BUFFER_SIZE": "fixture[1]",
         "--CREATE_INDEX": "true",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[1]",
+        "--DEBUG_FREQUENCY": "fixture[1]",
+        "--IO_SIZE": "fixture[0]",
+        "--NAME": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--COMPARE_MQ=false",
+        "--BUFFER_SIZE=1000",
         "--CREATE_INDEX=true",
-        "--LENIENT_LOW_MQ_ALIGNMENT=false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=30",
+        "--DEBUG_FREQUENCY=1",
+        "--IO_SIZE=4096",
+        "--NAME=beta",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 3,
       "labels": {
-        "--COMPARE_MQ": "false",
+        "--BUFFER_SIZE": "fixture[1]",
         "--CREATE_INDEX": "false",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
+        "--DEBUG_FREQUENCY": "fixture[0]",
+        "--IO_SIZE": "fixture[1]",
+        "--NAME": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--COMPARE_MQ=false",
+        "--BUFFER_SIZE=1000",
         "--CREATE_INDEX=false",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=false",
-        "--LOW_MQ_THRESHOLD=3",
+        "--DEBUG_FREQUENCY=0",
+        "--IO_SIZE=7",
+        "--NAME=alpha",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 4,
       "labels": {
-        "--COMPARE_MQ": "false",
+        "--BUFFER_SIZE": "fixture[2]",
         "--CREATE_INDEX": "true",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
+        "--DEBUG_FREQUENCY": "fixture[0]",
+        "--IO_SIZE": "fixture[1]",
+        "--NAME": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--COMPARE_MQ=false",
+        "--BUFFER_SIZE=16",
         "--CREATE_INDEX=true",
-        "--LENIENT_LOW_MQ_ALIGNMENT=false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=false",
-        "--LOW_MQ_THRESHOLD=3",
+        "--DEBUG_FREQUENCY=0",
+        "--IO_SIZE=7",
+        "--NAME=beta",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 5,
       "labels": {
-        "--COMPARE_MQ": "false",
+        "--BUFFER_SIZE": "fixture[2]",
         "--CREATE_INDEX": "false",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
+        "--DEBUG_FREQUENCY": "fixture[1]",
+        "--IO_SIZE": "fixture[0]",
+        "--NAME": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--COMPARE_MQ=false",
+        "--BUFFER_SIZE=16",
         "--CREATE_INDEX=false",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=3",
+        "--DEBUG_FREQUENCY=1",
+        "--IO_SIZE=4096",
+        "--NAME=alpha",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 6,
       "labels": {
-        "--COMPARE_MQ": "true",
-        "--CREATE_INDEX": "false",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--BUFFER_SIZE": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--DEBUG_FREQUENCY": "fixture[0]",
+        "--IO_SIZE": "fixture[0]",
+        "--NAME": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--COMPARE_MQ=true",
-        "--CREATE_INDEX=false",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=30",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--BUFFER_SIZE=65536",
+        "--CREATE_INDEX=true",
+        "--DEBUG_FREQUENCY=0",
+        "--IO_SIZE=4096",
+        "--NAME=alpha",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 7,
       "labels": {
-        "--COMPARE_MQ": "true",
-        "--CREATE_INDEX": "true",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--BUFFER_SIZE": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--DEBUG_FREQUENCY": "fixture[1]",
+        "--IO_SIZE": "fixture[0]",
+        "--NAME": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--COMPARE_MQ=true",
-        "--CREATE_INDEX=true",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=3",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--BUFFER_SIZE=1000",
+        "--CREATE_INDEX=false",
+        "--DEBUG_FREQUENCY=1",
+        "--IO_SIZE=4096",
+        "--NAME=alpha",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 8,
       "labels": {
-        "--COMPARE_MQ": "true",
+        "--BUFFER_SIZE": "fixture[1]",
         "--CREATE_INDEX": "true",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
+        "--DEBUG_FREQUENCY": "fixture[0]",
+        "--IO_SIZE": "fixture[0]",
+        "--NAME": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--COMPARE_MQ=true",
+        "--BUFFER_SIZE=1000",
         "--CREATE_INDEX=true",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=3",
+        "--DEBUG_FREQUENCY=0",
+        "--IO_SIZE=4096",
+        "--NAME=alpha",
         "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--BUFFER_SIZE": "fixture[2]",
+        "--CREATE_INDEX": "true",
+        "--DEBUG_FREQUENCY": "fixture[0]",
+        "--IO_SIZE": "fixture[0]",
+        "--NAME": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--BUFFER_SIZE=16",
+        "--CREATE_INDEX=true",
+        "--DEBUG_FREQUENCY=0",
+        "--IO_SIZE=4096",
+        "--NAME=alpha",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     }
   ]

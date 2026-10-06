@@ -142,6 +142,47 @@ def tool_spec(tool):
     return list(spec.get("$positional", [])), tuple(spec.get("$lists", []))
 
 
+def tool_extras(tool):
+    """A tool's `$writable` argument names and its `$stdin` fixture, from the fixtures file.
+
+    `$writable` lists arguments whose file the tool asks to WRITE to before it reads it
+    (`AddCommentsToBam` asserts its input is writable), and the corpus is read-only on both sides,
+    so each row is given a private copy of that input in its own output directory. `$stdin` is a
+    file, or a list of files taken in turn by row number, fed to the tool's standard input, for a
+    tool that is a filter (`FifoBuffer`): a filter answers its input, so one input is one answer
+    for every row. It is compared through `--stdout`, decoded as latin-1 so that no byte is lost
+    to the decoding.
+    """
+    fixtures = json.loads((REPO / "tools" / "coverage" / "fixtures.json").read_text())
+    spec = fixtures.get("per_tool", {}).get(tool, {})
+    return list(spec.get("$writable", [])), spec.get("$stdin")
+
+
+def stdin_file(spec, row):
+    """The file one row feeds to standard input: the only one, or the list's `row`-th, cyclically."""
+    if isinstance(spec, list):
+        return spec[row % len(spec)]
+    return spec
+
+
+def run_captured(argv, stdin_bytes=None):
+    """`subprocess.run` that returns text, and feeds standard input when a tool has one.
+
+    With no standard input this is exactly the call the runner always made. With one the streams
+    are read as bytes and decoded as latin-1, which is lossless, so a binary payload survives the
+    trip into the comparison.
+    """
+    if stdin_bytes is None:
+        return subprocess.run(argv, capture_output=True, text=True)
+    raw = subprocess.run(argv, capture_output=True, input=stdin_bytes)
+    return subprocess.CompletedProcess(
+        argv,
+        raw.returncode,
+        raw.stdout.decode("latin-1"),
+        raw.stderr.decode("utf-8", errors="replace"),
+    )
+
+
 def fresh_directory(workdir, stem):
     """A directory no previous row has written into, for this row's output.
 
@@ -163,7 +204,7 @@ def fresh_directory(workdir, stem):
 
 
 def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt",
-               fixtures=None):
+               fixtures=None, row=0):
     """Run one row in the container. Returns (exit code, output text, stdout tail).
 
     `on_stdout` is for the tools that HAVE no output argument: `ViewSam` and `BamIndexStats` print
@@ -176,19 +217,33 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_
     fixtures = fixtures or workdir / "fixtures"
 
     positional, lists = tool_spec(tool)
+    writable, stdin_spec = tool_extras(tool)
+    stdin_name = stdin_file(stdin_spec, row) if stdin_spec else None
+    copies = ""
+    if writable:
+        copied = []
+        for pair in row_args:
+            name, _, value = pair.partition("=")
+            if name in writable and value.startswith("/work/fixtures/"):
+                target = f"/work/out/inputs/{Path(value).name}"
+                copies += f"mkdir -p /work/out/inputs && cp {value} {target} && chmod u+w {target} && "
+                pair = f"{name}={target}"
+            copied.append(pair)
+        row_args = copied
+    stdin_bytes = (fixtures / Path(stdin_name).name).read_bytes() if stdin_name else None
     cli = " ".join(as_cli(row_args, lists) + positional)
     # `java -jar picard.jar <Tool> <args>`: the tool name is the first token, and the arguments
     # follow in Barclay long form.
-    command = f"mkdir -p /work/tmp /work/out && java -jar $PICARD_JAR {tool} {cli}"
-    result = subprocess.run(
+    command = f"mkdir -p /work/tmp /work/out && {copies}java -jar $PICARD_JAR {tool} {cli}"
+    result = run_captured(
         [
             "docker", "run", "--rm", "--platform", PLATFORM,
+            *(["-i"] if stdin_name else []),
             "-v", f"{fixtures}:/work/fixtures:ro",
             "-v", f"{out_dir}:/work/out",
             "-w", "/work", IMAGE, command,
         ],
-        capture_output=True,
-        text=True,
+        stdin_bytes,
     )
     text = result.stdout if on_stdout else read_output(out_dir, strip_pg, output_name)
     return result.returncode, text, first_error(result.stderr or result.stdout)
@@ -223,6 +278,19 @@ def read_output(out_dir, strip_program_records=False, output_name="output.txt"):
     # (`CompareMetrics` exits 1 for "the files differ" and writes its report, and exits 1 for an
     # unknown METRICS_TO_IGNORE name and writes nothing) was recorded as the file headers alone,
     # and every refusal looked like every other one.
+    if output_name == "@all":
+        # Every file the run left in its output directory, by relative path, for a tool whose
+        # file NAMES depend on its arguments (`BaitDesigner` writes `<DESIGN_NAME>.pool0...`):
+        # a name no row can predict cannot be listed in advance. A run that wrote nothing
+        # answers with the empty string, as a single missing file does.
+        names = sorted(
+            str(p.relative_to(out_dir)) for p in out_dir.rglob("*") if p.is_file()
+        )
+        if not names:
+            return ""
+        return "".join(
+            f"== {name}\n{read_output(out_dir, strip_program_records, name)}\n" for name in names
+        )
     if "," in output_name:
         parts = [
             (name, read_output(out_dir, strip_program_records, name))
@@ -329,7 +397,7 @@ def first_error(text):
 
 
 def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_name="output.txt",
-             fixtures=None, tool=None):
+             fixtures=None, tool=None, row=0):
     """Run the port binary on the same row, with the fixture paths rewritten to the host."""
     out_dir = fresh_directory(workdir, "port")
     fixtures = fixtures or workdir / "fixtures"
@@ -338,9 +406,19 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_
     def host(value):
         return value.replace("/work/fixtures", str(fixtures)).replace("/work/out", str(out_dir))
 
+    writable, stdin_spec = tool_extras(tool) if tool else ([], None)
+    stdin_name = stdin_file(stdin_spec, row) if stdin_spec else None
+    stdin_bytes = (fixtures / Path(stdin_name).name).read_bytes() if stdin_name else None
     rewritten = []
     for pair in row_args:
         name, _, value = pair.partition("=")
+        if name in writable and value.startswith("/work/fixtures/"):
+            private = out_dir / "inputs"
+            private.mkdir(exist_ok=True)
+            copy = private / Path(value).name
+            shutil.copyfile(host(value), copy)
+            copy.chmod(0o644)
+            value = f"/work/out/inputs/{copy.name}"
         elements = value.split() if name in lists else [value]
         for element in elements:
             rewritten.append(f"{name}={host(element)}")
@@ -349,7 +427,7 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_
     # the Barclay command line is a later slice. Passing both forms keeps this working when it
     # lands, without pretending the binary understands more than it does.
     argv = [str(binary)] + [a.lstrip("-") for a in rewritten] + [host(p) for p in positional]
-    result = subprocess.run(argv, capture_output=True, text=True)
+    result = run_captured(argv, stdin_bytes)
     # The mount points are mapped back BEFORE the message is read, not after: `first_error` caps
     # what it returns, and a host path is longer than the container path it stands for, so mapping
     # afterwards left a message that had been truncated mid-path.
@@ -500,6 +578,7 @@ def main(argv):
                 args.strip_program_records,
                 args.output_name,
                 fixtures,
+                row["row"],
             )
             entry = {
                 "row": row["row"],
@@ -521,6 +600,7 @@ def main(argv):
                     args.output_name,
                     fixtures,
                     args.tool,
+                    row["row"],
                 )
                 entry["port_exit"] = p_code
                 entry["port_output"] = outcome(

@@ -1,19 +1,12 @@
 {
-  "tool": "CompareSAMs",
+  "tool": "AccumulateVariantCallingMetrics",
   "origin": "picard",
   "t": 2,
   "numeric_policy": "strict",
-  "arguments_total": 23,
-  "arguments_in_array": 6,
-  "arguments_excluded": 17,
+  "arguments_total": 17,
+  "arguments_in_array": 3,
+  "arguments_excluded": 14,
   "excluded": [
-    {
-      "argument": "[NA - Positional]",
-      "type": "List[File]",
-      "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
-      "held_at": null,
-      "source": "none"
-    },
     {
       "argument": "--arguments_file",
       "type": "List[File]",
@@ -41,20 +34,6 @@
       "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--LENIENT_DUP",
-      "type": "boolean",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "false",
-      "source": "fixture"
-    },
-    {
-      "argument": "--LENIENT_HEADER",
-      "type": "boolean",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "false",
-      "source": "fixture"
     },
     {
       "argument": "--MAX_RECORDS_IN_RAM",
@@ -127,9 +106,9 @@
       "source": "none"
     }
   ],
-  "rows": 9,
-  "tuples_total": 70,
-  "tuples_covered": 70,
+  "rows": 15,
+  "tuples_total": 31,
+  "tuples_covered": 31,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -139,172 +118,196 @@
     {
       "row": 0,
       "labels": {
-        "--COMPARE_MQ": "true",
         "--CREATE_INDEX": "true",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
+        "--INPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--COMPARE_MQ=true",
         "--CREATE_INDEX=true",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=3",
+        "--INPUT=/work/fixtures/vcm_a /work/fixtures/vcm_c",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 1,
       "labels": {
-        "--COMPARE_MQ": "true",
-        "--CREATE_INDEX": "false",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
-        "--LOW_MQ_THRESHOLD": "fixture[1]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--COMPARE_MQ=true",
-        "--CREATE_INDEX=false",
-        "--LENIENT_LOW_MQ_ALIGNMENT=false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=false",
-        "--LOW_MQ_THRESHOLD=30",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/vcm_b",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 2,
       "labels": {
-        "--COMPARE_MQ": "false",
         "--CREATE_INDEX": "true",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[1]",
+        "--INPUT": "fixture[2]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--COMPARE_MQ=false",
         "--CREATE_INDEX=true",
-        "--LENIENT_LOW_MQ_ALIGNMENT=false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=30",
+        "--INPUT=/work/fixtures/vcm_a /work/fixtures/vcm_b /work/fixtures/vcm_d",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 3,
       "labels": {
-        "--COMPARE_MQ": "false",
-        "--CREATE_INDEX": "false",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[3]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--COMPARE_MQ=false",
-        "--CREATE_INDEX=false",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=false",
-        "--LOW_MQ_THRESHOLD=3",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/vcm_d /work/fixtures/vcm_c",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 4,
       "labels": {
-        "--COMPARE_MQ": "false",
         "--CREATE_INDEX": "true",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
+        "--INPUT": "fixture[4]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--COMPARE_MQ=false",
         "--CREATE_INDEX=true",
-        "--LENIENT_LOW_MQ_ALIGNMENT=false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=false",
-        "--LOW_MQ_THRESHOLD=3",
+        "--INPUT=/work/fixtures/vcm_a /work/fixtures/vcm_bad",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 5,
       "labels": {
-        "--COMPARE_MQ": "false",
         "--CREATE_INDEX": "false",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
+        "--INPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--COMPARE_MQ=false",
         "--CREATE_INDEX=false",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=3",
+        "--INPUT=/work/fixtures/vcm_a /work/fixtures/vcm_c",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 6,
       "labels": {
-        "--COMPARE_MQ": "true",
         "--CREATE_INDEX": "false",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[1]",
+        "--INPUT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--COMPARE_MQ=true",
         "--CREATE_INDEX=false",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=30",
+        "--INPUT=/work/fixtures/vcm_b",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 7,
       "labels": {
-        "--COMPARE_MQ": "true",
-        "--CREATE_INDEX": "true",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[2]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--COMPARE_MQ=true",
-        "--CREATE_INDEX=true",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=3",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/vcm_a /work/fixtures/vcm_b /work/fixtures/vcm_d",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 8,
       "labels": {
-        "--COMPARE_MQ": "true",
-        "--CREATE_INDEX": "true",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[3]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/vcm_d /work/fixtures/vcm_c",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[4]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--COMPARE_MQ=true",
-        "--CREATE_INDEX=true",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=3",
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/vcm_a /work/fixtures/vcm_bad",
         "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/vcm_a /work/fixtures/vcm_c",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 11,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/vcm_b",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[2]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/vcm_a /work/fixtures/vcm_b /work/fixtures/vcm_d",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 13,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[3]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/vcm_d /work/fixtures/vcm_c",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 14,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[4]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/vcm_a /work/fixtures/vcm_bad",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     }
   ]

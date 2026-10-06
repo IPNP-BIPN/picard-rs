@@ -561,18 +561,24 @@
     },
     "AddCommentsToBam": {
       "$why": [
-        "Two BAMs of different sort orders, which the tool copies alike, and a SAM file it refuses by",
-        "name. COMMENT is required and holds one comment per row; the values carry no space because",
-        "the oracle's command line is split by a shell."
+        "Two BAMs of different sort orders and one of one read group, which the tool copies alike, and a SAM",
+        "file it refuses by name. `$writable`: the tool asserts its input is writable before it copies a block,",
+        "so a read-only corpus refused every BAM row and the array measured one refusal; each row now gets a",
+        "private copy of its input. COMMENT is required and holds one comment per row; the values carry no",
+        "space because the oracle's command line is split by a shell."
       ],
       "--INPUT": [
         "/work/fixtures/small.bam",
         "/work/fixtures/queryname.bam",
+        "/work/fixtures/one_read_group.bam",
         "/work/fixtures/small.sam"
       ],
       "--COMMENT": [
         "reviewed_by_qc",
         "batch:2026-09"
+      ],
+      "$writable": [
+        "--INPUT"
       ]
     },
     "GatherBamFiles": {
@@ -636,14 +642,20 @@
     },
     "CompareSAMs": {
       "$why": [
-        "The two files are positional, so they are held: small.bam against inconsistent_duplicates.bam,",
-        "which agree on every mapping and differ on sixty-three duplicate marks, so the verdict is the",
-        "exit code one with the file written. LENIENT_HEADER and LENIENT_DUP are held at false: they",
-        "are the port's limitation. The OUTPUT is optional and named, so the rows compare the file."
+        "The two files are positional, so they are held: compare_left.bam against compare_right.bam, two",
+        "queryname-sorted files that agree on the header, on every duplicate mark and on every mapping but",
+        "one. The reference therefore ACCEPTS them (exit 0) unless the one differing mapping is counted",
+        "against the pair: it is a read with the unknown mapping quality (255) in both files, placed seven",
+        "bases apart, which LENIENT_UNKNOWN_MQ_ALIGNMENT (listed true first, so it is the filler) forgives.",
+        "The right file also re-draws the mapping quality of every fifth read, which COMPARE_MQ shows as",
+        "histogram rows. The pair used to be small.bam against inconsistent_duplicates.bam, which differ on",
+        "sixty-three duplicate marks, so every row was exit one and none was accepted. LENIENT_HEADER and",
+        "LENIENT_DUP are held at false: they are the port's limitation. The OUTPUT is optional and named, so",
+        "the rows compare the file."
       ],
       "$positional": [
-        "/work/fixtures/small.bam",
-        "/work/fixtures/inconsistent_duplicates.bam"
+        "/work/fixtures/compare_left.bam",
+        "/work/fixtures/compare_right.bam"
       ],
       "--LENIENT_HEADER": [
         "false"
@@ -654,6 +666,10 @@
       "--LOW_MQ_THRESHOLD": [
         "3",
         "30"
+      ],
+      "--LENIENT_UNKNOWN_MQ_ALIGNMENT": [
+        "true",
+        "false"
       ]
     },
     "MakeSitesOnlyVcf": {
@@ -1005,9 +1021,11 @@
     "CollectRawWgsMetrics": {
       "$why": [
         "CollectWgsMetrics' domain (see its $why), around this tool's own defaults: no mapping-quality",
-        "floor, a base-quality floor of 3, COVERAGE_CAP 100000 and LOCUS_ACCUMULATION_CAP 200000. The",
-        "default cap is kept although every row holding it writes a histogram of 100001 bins: it is the",
-        "tool's default and the HET_SNP_SENSITIVITY estimate then samples a thousand and one depths."
+        "floor, a base-quality floor of 3 and LOCUS_ACCUMULATION_CAP 200000. COVERAGE_CAP is 250 and 5, not the",
+        "tool's 100000: a cap of a hundred thousand writes a histogram of 100001 bins into every accepted row,",
+        "which made the row corpus 12.5 MB and is why this array stayed pending, a corpus that size not being",
+        "committable with its measurement. 250 is above every depth this corpus reaches, so it is the",
+        "uncapped case; 5 is the capped one."
       ],
       "--INPUT": [
         "/work/fixtures/small.bam",
@@ -1032,7 +1050,7 @@
         "0"
       ],
       "--COVERAGE_CAP": [
-        "100000",
+        "250",
         "5"
       ],
       "--LOCUS_ACCUMULATION_CAP": [
@@ -2007,6 +2025,236 @@
         "SILENT"
       ],
       "--CREATE_INDEX": [
+        "false"
+      ]
+    },
+    "FifoBuffer": {
+      "$why": [
+        "FifoBuffer copies standard input to standard output, so its answer is its input. $stdin is the",
+        "list of inputs the rows take in turn: nothing at all, every byte value (a NUL, a lone carriage",
+        "return, bytes above 127), a BAM and a FASTA. The buffer is a size the whole of a file fits in, a",
+        "size a fraction of it, and 16 bytes; the read size is the default's order of magnitude and 7. A",
+        "buffer or a read of zero bytes never finishes in the reference and a negative one is an",
+        "exception on a thread, so neither is a value here. DEBUG_FREQUENCY at one second starts the log",
+        "thread, which writes to standard error and not to the compared stream."
+      ],
+      "$stdin": [
+        "/work/fixtures/fifo_bytes.bin",
+        "/work/fixtures/unmapped.bam",
+        "/work/fixtures/fifo_empty.bin",
+        "/work/fixtures/ref.fasta"
+      ],
+      "--BUFFER_SIZE": [
+        "65536",
+        "1000",
+        "16"
+      ],
+      "--IO_SIZE": [
+        "4096",
+        "7"
+      ],
+      "--DEBUG_FREQUENCY": [
+        "0",
+        "1"
+      ],
+      "--NAME": [
+        "alpha",
+        "beta"
+      ]
+    },
+    "CollectQualityYieldMetricsFlow": {
+      "$why": [
+        "The tool refuses any read whose read group is not a flow platform, which is every read of the",
+        "Illumina files the other arrays use, so INPUT lists the flow files first: flow.bam, a",
+        "coordinate-sorted file of two ULTIMA read groups (one with its own longest homopolymer) whose",
+        "reads are mapped, soft and hard clipped, unmapped, vendor-failed, secondary and supplementary and",
+        "carry tp and (two in three) t0 tags, and flow_queryname.bam, the same reads in queryname order.",
+        "small.bam is the one refusal, the platform's. The two flow arguments take a second value:",
+        "ignoring the t0 tag changes the flow matrix of every read that has one, and a filling value",
+        "replaces the minimum error probability the tool estimates from each read's best quality."
+      ],
+      "--INPUT": [
+        "/work/fixtures/flow.bam",
+        "/work/fixtures/flow_queryname.bam",
+        "/work/fixtures/small.bam"
+      ],
+      "--flow-fill-empty-bins-value": [
+        "0.0",
+        "0.001"
+      ],
+      "--flow-ignore-t0-tag": [
+        "false",
+        "true"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "25"
+      ],
+      "--ASSUME_SORTED": [
+        "true",
+        "false"
+      ]
+    },
+    "CollectQualityYieldMetricsSNVQ": {
+      "$why": [
+        "The tool reads the quality of the three bases a read does not have from the tags qa, qc, qg and",
+        "qt and throws a null pointer on a read without them, so INPUT is snvq.bam, the corpus's reads",
+        "with the four tags added (a vendor-failed, a secondary and a supplementary read among them), and",
+        "queryname.bam, which has none and is the one refusal. ALTERNATE_QUALITY_ATTRIBUTE names a tag of",
+        "FASTQ-encoded qualities that the tool counts in place of the base qualities: XQ, a tag of its",
+        "own on every read, and qa, which is one too; null is the default and comes first."
+      ],
+      "--INPUT": [
+        "/work/fixtures/snvq.bam",
+        "/work/fixtures/queryname.bam"
+      ],
+      "--ALTERNATE_QUALITY_ATTRIBUTE": [
+        "null",
+        "XQ",
+        "qa"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "60"
+      ],
+      "--ASSUME_SORTED": [
+        "true",
+        "false"
+      ]
+    },
+    "AccumulateVariantCallingMetrics": {
+      "$why": [
+        "INPUT and OUTPUT are PREFIXES of two files each, and INPUT is a list the tool merges as a whole,",
+        "so each value is a whole list. The corpus carries four pairs written by CollectVariantCallingMetrics",
+        "itself: vcm_a (two samples), vcm_b (a trio), vcm_c (the first file's two samples again, under",
+        "another dbSNP and an interval list) and vcm_d (one sample), and vcm_bad, whose summary has two",
+        "rows and which the merge refuses. The lists put the same sample in several shards (a, c), a sample",
+        "in one shard only, and a single shard, which the merge changes already: it is lossy. OUTPUT is",
+        "the prefix of the two files compared."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/vcm_a /work/fixtures/vcm_c",
+        "/work/fixtures/vcm_b",
+        "/work/fixtures/vcm_a /work/fixtures/vcm_b /work/fixtures/vcm_d",
+        "/work/fixtures/vcm_d /work/fixtures/vcm_c",
+        "/work/fixtures/vcm_a /work/fixtures/vcm_bad"
+      ]
+    },
+    "BaitDesigner": {
+      "$why": [
+        "TARGETS is an interval list here (a BAM in the shared values): targets.interval_list, and the",
+        "corpus's baits.interval_list, four more intervals, one of them short enough for the minimum number",
+        "of baits to widen it and one on a contig's last stretch. targets_mixed.interval_list is not a value:",
+        "it is not sorted, so the reference walker is asked to go back a contig and refuses, and a file that",
+        "refuses every row it is in would take a third of the array for that one message.",
+        "REFERENCE_SEQUENCE is the plain reference or masked.fasta, the same reference with soft masked",
+        "stretches and an N run, which is what REPEAT_TOLERANCE, and the sliding of a bait out of a masked",
+        "stretch, can see: on ref.fasta no base is masked. OUTPUT_DIRECTORY is the run's output directory",
+        "and every file in it is compared (--output-name *), since DESIGN_NAME, two values, names them.",
+        "POOL_SIZE is 20, 7 and 0, not the tool's 55000: with FILL_POOLS the pool repeats the whole design",
+        "until it holds POOL_SIZE baits, so the default writes several megabytes a row; 0 writes no pool at",
+        "all. LEFT_PRIMER carries one value that is not bases, which the reference refuses in",
+        "customCommandLineValidation."
+      ],
+      "--TARGETS": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/baits.interval_list"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/masked.fasta"
+      ],
+      "--DESIGN_NAME": [
+        "design",
+        "probes_for_the_panel"
+      ],
+      "--OUTPUT_DIRECTORY": [
+        "/work/out"
+      ],
+      "--BAIT_SIZE": [
+        "120",
+        "60"
+      ],
+      "--BAIT_OFFSET": [
+        "80",
+        "40"
+      ],
+      "--MINIMUM_BAITS_PER_TARGET": [
+        "2",
+        "3"
+      ],
+      "--PADDING": [
+        "0",
+        "25"
+      ],
+      "--REPEAT_TOLERANCE": [
+        "50",
+        "10"
+      ],
+      "--POOL_SIZE": [
+        "20",
+        "7",
+        "0"
+      ],
+      "--LEFT_PRIMER": [
+        "ATCGCACCAGCGTGT",
+        "acgtACGT",
+        "AXGT"
+      ],
+      "--RIGHT_PRIMER": [
+        "CACTGCGGCTCCTCA",
+        "TTTT"
+      ]
+    },
+    "UmiAwareMarkDuplicatesWithMateCigar": {
+      "$why": [
+        "Three files, each every read in ONE library (the tool compares the first UMI's length against the",
+        "metrics of the library it is in, so it refuses the second library it meets, which every corpus",
+        "file with rg1 and rg2 reads would make a refusal of every row): umi_dup.bam, whose duplicate sets",
+        "hold UMIs that are the same, one base apart, a chain two apart at its ends, one with an N and",
+        "far apart; umi_duplex.bam, the same with X-Y UMIs and every other copy on the bottom strand with",
+        "its UMI swapped; and umi_partial.bam, the first with the RX of every seventh read missing,",
+        "which ALLOW_MISSING_UMIS lets through (true comes first, so it is the filler). UMI_TAG_NAME can be",
+        "BC, the same UMIs reversed. ASSUME_SORT_ORDER is held at coordinate: any other value refuses the",
+        "run before a record is read, which the parent's own array measures, and ASSUME_SORTED, the other",
+        "side of its mutex, is excluded for it. METRICS_FILE and the duplication metrics it holds are",
+        "written and not compared, as in the parent's array; UMI_METRICS_FILE, which is this tool's own",
+        "answer, is."
+      ],
+      "--INPUT": [
+        "/work/fixtures/umi_dup.bam",
+        "/work/fixtures/umi_duplex.bam",
+        "/work/fixtures/umi_partial.bam"
+      ],
+      "--UMI_METRICS_FILE": [
+        "/work/out/umi_metrics.txt"
+      ],
+      "--ASSUME_SORT_ORDER": [
+        "coordinate"
+      ],
+      "--ASSUME_SORTED": [],
+      "--UMI_TAG_NAME": [
+        "RX",
+        "BC"
+      ],
+      "--MAX_EDIT_DISTANCE_TO_JOIN": [
+        "1",
+        "0",
+        "2"
+      ],
+      "--MOLECULAR_IDENTIFIER_TAG": [
+        "null",
+        "MI"
+      ],
+      "--DUPLEX_UMI": [
+        "false",
+        "true"
+      ],
+      "--ALLOW_MISSING_UMIS": [
+        "true",
         "false"
       ]
     }

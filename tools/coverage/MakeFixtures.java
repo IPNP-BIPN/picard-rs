@@ -145,6 +145,254 @@ public class MakeFixtures {
         if (flipped == 0) throw new IllegalStateException("no duplicate flag was flipped");
         writeBam(new File(dir, "inconsistent_duplicates.bam"), inconsistentHeader, inconsistentReads, false);
 
+        // `FifoBuffer` copies its standard input to its output, so its answer is its input and one
+        // input would be one answer for every row. These are three: a file with nothing in it (the
+        // tool must not hang), every byte value once in a row that a text tool would mangle (a NUL, a
+        // lone carriage return, a byte above 127), and a run of text longer than the smallest buffer.
+        java.nio.file.Files.write(new File(dir, "fifo_empty.bin").toPath(), new byte[0]);
+        byte[] allBytes = new byte[1024];
+        for (int i = 0; i < allBytes.length; i++) allBytes[i] = (byte) ((i * 37 + (i >> 8)) & 0xff);
+        java.nio.file.Files.write(new File(dir, "fifo_bytes.bin").toPath(), allBytes);
+
+        // `CollectQualityYieldMetricsFlow` reads flow-based files: a read group on the ULTIMA
+        // platform with a flow order, reads whose `tp` tag says how far each base's homopolymer is
+        // from the called length and whose `t0` tag carries the quality of one-to-zero errors.
+        // Every other corpus file is Illumina, and the tool refuses a read group that is not a flow
+        // platform, so none of them gets past its first read. Two read groups, one with its own
+        // longest homopolymer (`mc`), so that the read group's value is observable; reads that are
+        // mapped, soft clipped, hard clipped at either end and unmapped (the unmapped and hard
+        // clipped ones are the reads whose boundary flows the tool spreads); a third of them
+        // without a `t0`; secondary, supplementary and vendor-failed reads, which the counting
+        // arguments tell apart.
+        // The queryname file keeps every mapped read on the first contig: sorted by name the
+        // contigs would alternate, and the reference walker the driver builds for REFERENCE_SEQUENCE
+        // refuses to go back to an earlier one, which would make ASSUME_SORTED a refusal either way.
+        for (SAMFileHeader.SortOrder order : new SAMFileHeader.SortOrder[] {
+                SAMFileHeader.SortOrder.coordinate, SAMFileHeader.SortOrder.queryname}) {
+            SAMFileHeader flowHeader = header(order);
+            java.util.List<SAMReadGroupRecord> flowGroups = new java.util.ArrayList<>();
+            for (String[] rg : new String[][] {{"flow1", "12"}, {"flow2", "8"}}) {
+                SAMReadGroupRecord g = new SAMReadGroupRecord(rg[0]);
+                g.setSample("flowsample");
+                g.setLibrary("flowlib");
+                g.setPlatform("ULTIMA");
+                g.setFlowOrder("TGCA");
+                g.setAttribute("mc", rg[1]);
+                flowGroups.add(g);
+            }
+            flowHeader.setReadGroups(flowGroups);
+            Random flowRng = new Random(20260901L);
+            java.util.List<SAMRecord> flowReads = new java.util.ArrayList<>();
+            for (int i = 0; i < 60; i++) {
+                SAMRecord r = new SAMRecord(flowHeader);
+                r.setReadName(String.format("flow%03d", i));
+                java.io.ByteArrayOutputStream bases = new java.io.ByteArrayOutputStream();
+                int target = 30 + flowRng.nextInt(40);
+                while (bases.size() < target) {
+                    byte b = (byte) "ACGT".charAt(flowRng.nextInt(4));
+                    int run = 1 + (flowRng.nextInt(4) == 0 ? flowRng.nextInt(5) : 0);
+                    for (int k = 0; k < run; k++) bases.write(b);
+                }
+                byte[] seq = bases.toByteArray();
+                if (i % 9 == 4) seq[5] = 'N';
+                byte[] quals = new byte[seq.length];
+                byte[] tp = new byte[seq.length];
+                StringBuilder t0 = new StringBuilder();
+                for (int b = 0; b < seq.length; b++) {
+                    quals[b] = (byte) (3 + flowRng.nextInt(45));
+                    int roll = flowRng.nextInt(10);
+                    tp[b] = (byte) (roll < 6 ? 0 : roll < 8 ? 1 : roll < 9 ? -1 : (flowRng.nextBoolean() ? 2 : -2));
+                    t0.append((char) (33 + flowRng.nextInt(40)));
+                }
+                r.setReadBases(seq);
+                r.setBaseQualities(quals);
+                r.setAttribute("RG", i % 3 == 0 ? "flow2" : "flow1");
+                r.setAttribute("tp", tp);
+                if (i % 3 != 1) r.setAttribute("t0", t0.toString());
+                r.setReadNegativeStrandFlag(i % 2 == 0);
+                if (i % 10 == 7) r.setReadFailsVendorQualityCheckFlag(true);
+                if (i % 13 == 5) r.setNotPrimaryAlignmentFlag(true);
+                if (i % 17 == 6) r.setSupplementaryAlignmentFlag(true);
+                if (i % 11 == 10) {
+                    r.setReadUnmappedFlag(true);
+                    r.setMappingQuality(0);
+                    r.setReadNegativeStrandFlag(false);
+                    r.setNotPrimaryAlignmentFlag(false);
+                    r.setSupplementaryAlignmentFlag(false);
+                } else {
+                    boolean second = order == SAMFileHeader.SortOrder.coordinate && i % 2 == 1;
+                    r.setReferenceIndex(second ? 1 : 0);
+                    r.setAlignmentStart(1 + flowRng.nextInt((second ? CHR2 : CHR1) - 120));
+                    r.setMappingQuality(20 + flowRng.nextInt(40));
+                    String cigar;
+                    if (i % 8 == 2) cigar = "4S" + (seq.length - 4) + "M";
+                    else if (i % 8 == 3) cigar = "6H" + seq.length + "M";
+                    else if (i % 8 == 5) cigar = seq.length + "M" + "5H";
+                    else cigar = seq.length + "M";
+                    r.setCigarString(cigar);
+                }
+                flowReads.add(r);
+            }
+            if (order == SAMFileHeader.SortOrder.coordinate) {
+                flowReads.sort(new SAMRecordCoordinateComparator());
+            } else {
+                flowReads.sort(new SAMRecordQueryNameComparator());
+            }
+            writeBam(new File(dir, order == SAMFileHeader.SortOrder.coordinate
+                    ? "flow.bam" : "flow_queryname.bam"), flowHeader, flowReads, false);
+        }
+
+        // `CollectQualityYieldMetricsSNVQ` reads the quality of the OTHER three bases at every
+        // position from the tags `qa`, `qc`, `qg` and `qt` (FASTQ encoded) and throws a null
+        // pointer on a read without them, so these are the corpus's reads with the four tags, and
+        // `XQ`, a fifth string of qualities for ALTERNATE_QUALITY_ATTRIBUTE to read in place of the
+        // base qualities. The reads that fail vendor quality, the secondary and the supplementary
+        // ones are the ones `reads` already carries.
+        SAMFileHeader snvqHeader = header(SAMFileHeader.SortOrder.coordinate);
+        java.util.List<SAMRecord> snvqReads = reads(snvqHeader, true);
+        Random snvqRng = new Random(20260902L);
+        for (SAMRecord r : snvqReads) {
+            for (String tag : new String[] {"qa", "qc", "qg", "qt", "XQ"}) {
+                StringBuilder q = new StringBuilder();
+                for (int b = 0; b < r.getReadLength(); b++) {
+                    q.append((char) (33 + snvqRng.nextInt(tag.equals("XQ") ? 45 : 50)));
+                }
+                r.setAttribute(tag, q.toString());
+            }
+        }
+        writeBam(new File(dir, "snvq.bam"), snvqHeader, snvqReads, false);
+
+        // `UmiAwareMarkDuplicatesWithMateCigar`: duplicate sets that UMIs can break up. Every read
+        // carries `RX` (and `BC`, the same UMIs reversed, for UMI_TAG_NAME) and every mapped pair
+        // carries `MC`, which the duplicate-set iterator reads the mate's cigar from; every read is
+        // in one library (rg1), because the tool compares the first UMI's length against the
+        // metrics of the library it is in and so refuses the second library it meets. The copies of
+        // a template sit at one place and differ in UMI: the same, one base apart, a chain whose two
+        // ends are two apart (joined only through the middle), one with an N, and far apart.
+        // Copies differ in quality, in mapped length (a soft clip moves the alignment but not the
+        // unclipped start) and so in which the scoring strategies keep. `umi_dup.bam` is single
+        // stranded, `umi_duplex.bam` carries `X-Y` UMIs and puts every other copy on the bottom
+        // strand, with its UMI swapped, and `umi_partial.bam` is the first with some `RX` missing.
+        String[][] umiSets = {
+            {"AACCGGTT", "AACCGGTT", "AACCGGTA", "AACCGCTA"},
+            {"ACGTACGT", "ACGTACGT", "TTTTACGT"},
+            {"GGGGCCCC", "GGGGCNCC", "GGGGCCCC", "GGGGCCCT"},
+            {"TTAACCGG", "TTAACCGG"},
+            {"CATGCATG", "CATGCATC", "GATGCATC", "CATGCATG", "CATGTTTT"},
+        };
+        for (String variant : new String[] {"umi_dup.bam", "umi_duplex.bam", "umi_partial.bam"}) {
+            boolean duplex = variant.equals("umi_duplex.bam");
+            SAMFileHeader awareHeader = header(SAMFileHeader.SortOrder.coordinate);
+            java.util.List<SAMRecord> awareReads = new java.util.ArrayList<>();
+            Random awareRng = new Random(20260903L);
+            for (int family = 0; family < 14; family++) {
+                String[] umiChoices = umiSets[family % umiSets.length];
+                int start = 100 + family * 100;
+                boolean fragment = family % 5 == 4;
+                for (int copy = 0; copy < umiChoices.length; copy++) {
+                    boolean bottom = duplex && copy % 2 == 1;
+                    String umi = umiChoices[copy];
+                    if (duplex) {
+                        String half = umi.substring(0, 4) + "-" + umi.substring(4);
+                        umi = bottom ? umi.substring(4) + "-" + umi.substring(0, 4) : half;
+                    }
+                    String name = String.format("fam%03d_%d", family, copy);
+                    boolean clipped = copy % 3 == 1;
+                    SAMRecord forward = new SAMRecord(awareHeader);
+                    SAMRecord reverse = new SAMRecord(awareHeader);
+                    for (SAMRecord r : new SAMRecord[] {forward, reverse}) {
+                        byte[] bases = new byte[READ_LENGTH];
+                        byte[] quals = new byte[READ_LENGTH];
+                        for (int b = 0; b < READ_LENGTH; b++) {
+                            bases[b] = (byte) "ACGT".charAt(awareRng.nextInt(4));
+                            quals[b] = (byte) (8 + awareRng.nextInt(33));
+                        }
+                        r.setReadName(name);
+                        r.setReadBases(bases);
+                        r.setBaseQualities(quals);
+                        r.setReferenceIndex(0);
+                        r.setMappingQuality(20 + awareRng.nextInt(41));
+                        r.setAttribute("RG", "rg1");
+                        r.setAttribute("RX", umi);
+                        r.setAttribute("BC", new StringBuilder(umi).reverse().toString());
+                    }
+                    forward.setAlignmentStart(clipped ? start + 3 : start);
+                    forward.setCigarString(clipped ? "3S" + (READ_LENGTH - 3) + "M" : READ_LENGTH + "M");
+                    awareReads.add(forward);
+                    if (!fragment) {
+                        reverse.setAlignmentStart(start + 200);
+                        reverse.setCigarString(READ_LENGTH + "M");
+                        reverse.setReadNegativeStrandFlag(true);
+                        forward.setReadPairedFlag(true);
+                        reverse.setReadPairedFlag(true);
+                        forward.setProperPairFlag(true);
+                        reverse.setProperPairFlag(true);
+                        if (bottom) {
+                            forward.setSecondOfPairFlag(true);
+                            reverse.setFirstOfPairFlag(true);
+                        } else {
+                            forward.setFirstOfPairFlag(true);
+                            reverse.setSecondOfPairFlag(true);
+                        }
+                        SamPairUtil.setMateInfo(forward, reverse, true);
+                        awareReads.add(reverse);
+                    }
+                }
+            }
+            for (int u = 0; u < 2; u++) {
+                SAMRecord unmapped = new SAMRecord(awareHeader);
+                unmapped.setReadName("unmapped" + u);
+                unmapped.setReadBases("ACGTACGTAC".getBytes());
+                unmapped.setBaseQualities(new byte[] {30, 30, 30, 30, 30, 30, 30, 30, 30, 30});
+                unmapped.setReadUnmappedFlag(true);
+                unmapped.setAttribute("RG", "rg1");
+                unmapped.setAttribute("RX", duplex ? "ACGT-ACGT" : "ACGTACGT");
+                unmapped.setAttribute("BC", duplex ? "TGCA-TGCA" : "TGCATGCA");
+                awareReads.add(unmapped);
+            }
+            if (variant.equals("umi_partial.bam")) {
+                int dropped = 0;
+                for (int i = 0; i < awareReads.size(); i += 7) {
+                    awareReads.get(i).setAttribute("RX", null);
+                    dropped++;
+                }
+            }
+            awareReads.sort(new SAMRecordCoordinateComparator());
+            writeBam(new File(dir, variant), awareHeader, awareReads, false);
+        }
+
+        // `CompareSAMs` verdicts, for the pair the covering array holds. Two queryname-sorted files
+        // that agree on every mapping, every duplicate mark and the header, so the reference
+        // ACCEPTS them (exit 0) whenever nothing below is counted against the pair. They differ in
+        // two ways, and each is observable through exactly one argument:
+        //   - the right file re-draws the mapping quality of every fifth mapped primary read, which
+        //     only COMPARE_MQ sees, as the rows of its histogram;
+        //   - one read (the first of read0004) has the unknown mapping quality, 255, in BOTH files
+        //     and is placed seven bases further on in the right one. The mappings differ, so the
+        //     verdict is "differ" (exit 1, the file still written) unless
+        //     LENIENT_UNKNOWN_MQ_ALIGNMENT counts it a match. Only one such read is planted: a
+        //     second one forgiven by another argument would have to be forgiven by BOTH, and the
+        //     rows that set either to false would all be refused.
+        SAMFileHeader compareHeader = header(SAMFileHeader.SortOrder.queryname);
+        java.util.List<SAMRecord> compareLeft = reads(compareHeader, false);
+        java.util.List<SAMRecord> compareRight = reads(compareHeader, false);
+        for (java.util.List<SAMRecord> side : java.util.Arrays.asList(compareLeft, compareRight)) {
+            for (SAMRecord r : side) {
+                if (r.getReadName().equals("read0004") && r.getFirstOfPairFlag()) {
+                    r.setMappingQuality(255);
+                    if (side == compareRight) r.setAlignmentStart(r.getAlignmentStart() + 7);
+                }
+            }
+        }
+        int redrawn = 0;
+        for (SAMRecord r : compareRight) {
+            if (r.getReadUnmappedFlag() || r.isSecondaryOrSupplementary()
+                    || r.getMappingQuality() == 255) continue;
+            if (redrawn++ % 5 == 0) r.setMappingQuality(1 + (r.getMappingQuality() * 7) % 59);
+        }
+        writeBam(new File(dir, "compare_left.bam"), compareHeader, compareLeft, false);
+        writeBam(new File(dir, "compare_right.bam"), compareHeader, compareRight, false);
+
         // Reads whose ends really are Illumina adapters, for `MarkIlluminaAdapters`. On the random
         // bases of the other fixtures no adapter is ever found, so every accepted row produces the
         // same output and the array covers the search without running it.
@@ -555,6 +803,22 @@ public class MakeFixtures {
         writeDescribedFasta(new File(dir, "described.fasta"), chr2);
         writeDict(new File(dir, "ref.dict"), chr1, chr2);
 
+        // The same reference with stretches soft masked (lower case) and one hard masked (N), for
+        // `BaitDesigner`, which counts every base that is not an upper case A, C, G or T and
+        // refuses, or moves, a bait with more than REPEAT_TOLERANCE of them. On `ref.fasta` no base
+        // is masked, so the tolerance and the shift it triggers can never be seen. 180-230 sits
+        // inside the first bait of the first target and the second of its tiling, 820-860 inside
+        // the second target, N at 1000-1010 and chr2:100-140 inside the third.
+        StringBuilder maskedChr1 = new StringBuilder(chr1);
+        for (int i = 179; i < 230; i++) maskedChr1.setCharAt(i, Character.toLowerCase(chr1.charAt(i)));
+        for (int i = 819; i < 860; i++) maskedChr1.setCharAt(i, Character.toLowerCase(chr1.charAt(i)));
+        for (int i = 999; i < 1010; i++) maskedChr1.setCharAt(i, 'N');
+        StringBuilder maskedChr2 = new StringBuilder(chr2);
+        for (int i = 99; i < 140; i++) maskedChr2.setCharAt(i, Character.toLowerCase(chr2.charAt(i)));
+        writeFasta(new File(dir, "masked.fasta"), maskedChr1.toString(), maskedChr2.toString());
+        writeFai(new File(dir, "masked.fasta.fai"), maskedChr1.toString(), maskedChr2.toString());
+        writeDict(new File(dir, "masked.dict"), maskedChr1.toString(), maskedChr2.toString());
+
         // Hand-written VCFs for the picard.vcf manipulation tools (MakeSitesOnlyVcf,
         // RenameSampleInVcf, VcfToIntervalList, SortVcf, UpdateVcfSequenceDictionary). These are
         // text on purpose, unlike variants.vcf: what these tools write depends on bytes htsjdk's
@@ -568,6 +832,44 @@ public class MakeFixtures {
         writeVcfSplitFixture(dir);
         writeVcfConverterFixture(dir);
         writeVcfFixHeaderFixtures(dir);
+
+        // `AccumulateVariantCallingMetrics` merges the files `CollectVariantCallingMetrics` wrote,
+        // named by their PREFIX, so the corpus carries four such pairs, produced by the tool itself
+        // from the VCFs above: two samples (variants.vcf), a trio (trio.vcf), the first file again
+        // under a different dbSNP and interval list so that two shards hold the same samples with
+        // different counts, and a single sample. A fifth pair has two summary rows, which the merge
+        // refuses.
+        String vcfDir = dir.getPath();
+        String[][] shards = {
+            {"vcm_a", "variants.vcf", "dbsnp.vcf", null},
+            {"vcm_b", "trio.vcf", "dbsnp.vcf", null},
+            {"vcm_c", "variants.vcf", "variants.vcf", "targets.interval_list"},
+            {"vcm_d", "single_sample.vcf", "dbsnp.vcf", null},
+        };
+        for (String[] shard : shards) {
+            java.util.List<String> collect = new java.util.ArrayList<>(java.util.Arrays.asList(
+                    "INPUT=" + vcfDir + "/" + shard[1],
+                    "DBSNP=" + vcfDir + "/" + shard[2],
+                    "OUTPUT=" + vcfDir + "/" + shard[0],
+                    "TMP_DIR=" + vcfDir));
+            if (shard[3] != null) collect.add("TARGET_INTERVALS=" + vcfDir + "/" + shard[3]);
+            int code = new picard.vcf.CollectVariantCallingMetrics().instanceMain(
+                    collect.toArray(new String[0]));
+            if (code != 0) throw new IllegalStateException("CollectVariantCallingMetrics " + shard[0]);
+        }
+        java.nio.file.Files.copy(new File(dir, "vcm_a.variant_calling_detail_metrics").toPath(),
+                new File(dir, "vcm_bad.variant_calling_detail_metrics").toPath());
+        java.util.List<String> summaryLines = java.nio.file.Files.readAllLines(
+                new File(dir, "vcm_a.variant_calling_summary_metrics").toPath());
+        java.util.List<String> doubled = new java.util.ArrayList<>();
+        for (int i = 0; i < summaryLines.size(); i++) {
+            doubled.add(summaryLines.get(i));
+            if (i > 0 && summaryLines.get(i - 1).startsWith("TOTAL_SNPS\t")) {
+                doubled.add(summaryLines.get(i));
+            }
+        }
+        java.nio.file.Files.write(new File(dir, "vcm_bad.variant_calling_summary_metrics").toPath(),
+                doubled);
         writeFastq(new File(dir, "reads_1.fastq"), 1);
         writeFastq(new File(dir, "reads_2.fastq"), 2);
 
