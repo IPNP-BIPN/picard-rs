@@ -813,6 +813,14 @@
         "strip_line_prefixes": [
           "Generated on:"
         ]
+      },
+      {
+        "tool": "CheckIlluminaDirectory",
+        "port": "check-illumina-directory",
+        "t": 2,
+        "status": "measured",
+        "output": "stderr",
+        "exit_code_is_a_result": true
       }
     ]
   },

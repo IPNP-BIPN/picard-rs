@@ -995,6 +995,8 @@ public class MakeFixtures {
 
         // The genotyping-array family reads a corpus of its own: see MakeArraysFixtures.
         MakeArraysFixtures.write(dir);
+        // And the Illumina family reads run directories: see MakeIlluminaCoverageFixtures.
+        MakeIlluminaCoverageFixtures.write(dir);
     }
 
     /**

@@ -3146,6 +3146,49 @@
       "--SUPPORTED_REFERENCE_FILE": [
         "null"
       ]
+    },
+    "CheckIlluminaDirectory": {
+      "$why": [
+        "ill_run (MakeIlluminaCoverageFixtures) is four cycles of one tile, so a read structure of eight cycles",
+        "is missing four of them; ill_run24 has the twenty-four. Lane 2 has no directory, which is refused, and tile",
+        "1102 is not in the run. DATA_TYPES chooses which files count: Position asks for locs the default does",
+        "not. The answer is the tool's log. FAKE_FILES and LINK_LOCS write into the basecalls directory, which",
+        "the oracle mounts read-only and the port would share between rows, so both are held at false."
+      ],
+      "$lists": [
+        "--DATA_TYPES",
+        "--LANES",
+        "--TILE_NUMBERS"
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run24/Data/Intensities/BaseCalls"
+      ],
+      "--READ_STRUCTURE": [
+        "4T",
+        "2T2B",
+        "8T"
+      ],
+      "--LANES": [
+        "1",
+        "2"
+      ],
+      "--TILE_NUMBERS": [
+        "null",
+        "1101",
+        "1102"
+      ],
+      "--DATA_TYPES": [
+        "null",
+        "Position",
+        "BaseCalls QualityScores PF"
+      ],
+      "--FAKE_FILES": [
+        "false"
+      ],
+      "--LINK_LOCS": [
+        "false"
+      ]
     }
   },
   "constraints": [

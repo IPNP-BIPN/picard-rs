@@ -252,9 +252,10 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_
 
 # The lines Picard's command line wraps every run in on standard error: htsjdk's start-up log
 # (`17:17:34.305 INFO  NativeLibraryLoader - ...`), the bracketed invocation, host and elapsed-time
-# lines, the memory footer, and the help pointer printed after a non-zero exit. None is the tool's.
+# lines, the memory footer, the help pointer printed after a non-zero exit, and the frames of a
+# stack trace below an exception's own line. None is the tool's.
 STDERR_FRAME = re.compile(
-    r"^(\d\d:\d\d:\d\d\.\d+ |\[\w{3} \w{3} \d\d \d\d:\d\d:\d\d \w+ \d{4}\] |Runtime\.totalMemory\(\)=|To get help, see http)"
+    r"^(\d\d:\d\d:\d\d\.\d+ |\[\w{3} \w{3} \d\d \d\d:\d\d:\d\d \w+ \d{4}\] |Runtime\.totalMemory\(\)=|To get help, see http|\tat |\t\.\.\. \d+ more)"
 )
 
 
@@ -267,7 +268,13 @@ def stream_answer(result, on_stdout):
     """
     if on_stdout != "stderr":
         return result.stdout
-    kept = [line for line in result.stderr.split("\n") if line and not STDERR_FRAME.match(line)]
+    # A log line keeps its level, class and message; the second it was written at is dropped, as
+    # `first_error` drops it.
+    kept = [
+        LOG_TIME.sub(r"\1\t", line)
+        for line in result.stderr.split("\n")
+        if line and not STDERR_FRAME.match(line)
+    ]
     return "\n".join(kept) + "\n" if kept else ""
 
 
