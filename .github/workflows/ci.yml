@@ -626,8 +626,6 @@ jobs:
             --log /tmp/ConvertHaplotypeDatabaseToVcf.log \
             --log /tmp/ClusterCrosscheckMetrics.log \
             --pending CollectRawWgsMetrics \
-            --pending ConvertHaplotypeDatabaseToVcf \
-            --pending ClusterCrosscheckMetrics \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -726,7 +724,9 @@ jobs:
             tools/coverage/corpus/MergePedIntoVcf.t2.txt \
             tools/coverage/corpus/BamToBfq.t2.txt \
             tools/coverage/corpus/CompareMetrics.t2.txt \
-            tools/coverage/corpus/MergeBamAlignment.t2.txt)
+            tools/coverage/corpus/MergeBamAlignment.t2.txt \
+            tools/coverage/corpus/ConvertHaplotypeDatabaseToVcf.t2.txt \
+            tools/coverage/corpus/ClusterCrosscheckMetrics.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"

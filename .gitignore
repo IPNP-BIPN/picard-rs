@@ -101,6 +101,8 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/BamToBfq.t2.txt
 !tools/coverage/corpus/CompareMetrics.t2.txt
 !tools/coverage/corpus/MergeBamAlignment.t2.txt
+!tools/coverage/corpus/ConvertHaplotypeDatabaseToVcf.t2.txt
+!tools/coverage/corpus/ClusterCrosscheckMetrics.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real
