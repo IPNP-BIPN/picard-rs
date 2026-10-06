@@ -770,6 +770,16 @@
         "t": 2,
         "status": "measured",
         "output_name": "@all"
+      },
+      {
+        "tool": "GtcToVcf",
+        "port": "gtc-to-vcf",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.vcf",
+        "strip_line_prefixes": [
+          "##fileDate="
+        ]
       }
     ]
   },

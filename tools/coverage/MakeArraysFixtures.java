@@ -136,6 +136,12 @@ public class MakeArraysFixtures {
         gtcToVcf(g1, dir.resolve("arr_s1.vcf"), reference, manifest, egt, bpm, "sample1", "Female");
         gtcToVcf(g2, dir.resolve("arr_s2.vcf"), reference, manifest, egt, bpm, "sample2", "Male");
 
+        // A fingerprint VCF whose header carries the sex GtcToVcf reports as fingerprintGender.
+        Files.writeString(dir.resolve("arr_fp_male.vcf"),
+                "##fileformat=VCFv4.2\n##gender=Male\n##contig=<ID=1,length=" + LENGTH + ">\n"
+                        + "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsample1\n",
+                StandardCharsets.UTF_8);
+
         // What bafRegress and VerifyIDIntensity print, in the shapes Picard's parsers read.
         Files.writeString(dir.resolve("arr_bafregress.txt"),
                 "sample\testimate\tstderr\ttval\tpval\tcallrate\tNhom\n"

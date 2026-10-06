@@ -2956,6 +2956,66 @@
         "/work/fixtures/arr.bpm",
         "/work/fixtures/arr_two.bpm"
       ]
+    },
+    "GtcToVcf": {
+      "$why": [
+        "MakeArraysFixtures' chip: three call files over one bead pool manifest, cluster file and extended",
+        "manifest (arr_two.bpm normalizes two of the four loci and leaves the others raw), on arr_ref.fasta, whose",
+        "dictionary says GRCh37; ref.fasta's says nothing, which the validation refuses. GENDER_GTC takes the",
+        "autocall gender from another call file and arr_fp_male.vcf gives the fingerprint gender. No assay is",
+        "zeroed out in the cluster file, so DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS changes nothing here."
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_s1.gtc",
+        "/work/fixtures/arr_s2.gtc",
+        "/work/fixtures/arr_s1b.gtc"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--EXTENDED_ILLUMINA_MANIFEST": [
+        "/work/fixtures/arr_extended.csv"
+      ],
+      "--CLUSTER_FILE": [
+        "/work/fixtures/arr.egt"
+      ],
+      "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": [
+        "/work/fixtures/arr.bpm",
+        "/work/fixtures/arr_two.bpm"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/arr_ref.fasta",
+        "/work/fixtures/ref.fasta"
+      ],
+      "--EXPECTED_GENDER": [
+        "Female",
+        "Male",
+        "null"
+      ],
+      "--SAMPLE_ALIAS": [
+        "sample1",
+        "aliasX"
+      ],
+      "--PIPELINE_VERSION": [
+        "1.0",
+        "null"
+      ],
+      "--ANALYSIS_VERSION_NUMBER": [
+        "1",
+        "2"
+      ],
+      "--GENDER_GTC": [
+        "null",
+        "/work/fixtures/arr_s2.gtc"
+      ],
+      "--FINGERPRINT_GENOTYPES_VCF_FILE": [
+        "null",
+        "/work/fixtures/arr_fp_male.vcf"
+      ],
+      "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": [
+        "false",
+        "true"
+      ]
     }
   },
   "constraints": [

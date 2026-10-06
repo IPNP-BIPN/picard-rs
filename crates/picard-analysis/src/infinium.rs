@@ -641,3 +641,99 @@ impl Gtc {
         Ok(())
     }
 }
+
+/// `Build37ExtendedIlluminaManifest`: the heading, and the assay rows as `GtcToVcf` reads them.
+#[derive(Debug, Clone)]
+pub struct ExtendedManifest {
+    pub descriptor_file_name: String,
+    pub extended_manifest_version: String,
+    pub num_assays: usize,
+    pub records: Vec<crate::gtc_to_vcf::ManifestRecord>,
+}
+
+/// `CsvInputParser`'s split: commas, nothing quoted.
+fn csv(line: &str) -> Vec<String> {
+    line.trim_end_matches('\r')
+        .split(',')
+        .map(str::to_string)
+        .collect()
+}
+
+impl ExtendedManifest {
+    /// `new Build37ExtendedIlluminaManifest(file)` and its `extendedIterator`.
+    pub fn parse(text: &str, path: &str) -> Result<ExtendedManifest, String> {
+        let lines: Vec<&str> = text.lines().collect();
+        let mut descriptor = String::new();
+        let mut version = "?".to_string();
+        let mut count = 0usize;
+        for line in &lines {
+            let row = csv(line);
+            let tag = row[0].trim();
+            match tag {
+                "Descriptor File Name" => descriptor = row.get(1).cloned().unwrap_or_default(),
+                "CreateExtendedIlluminaManifest.version" => {
+                    version = row.get(1).cloned().unwrap_or_default()
+                }
+                "Loci Count" => {
+                    count = row.get(1).and_then(|v| v.trim().parse().ok()).unwrap_or(0);
+                    break;
+                }
+                _ => {}
+            }
+        }
+        let assay = lines
+            .iter()
+            .position(|l| l.trim() == "[Assay]")
+            .ok_or_else(|| {
+                format!("java.io.IOException: Unable to find section [Assay] in {path}")
+            })?;
+        let header = csv(lines.get(assay + 1).copied().unwrap_or("").trim());
+        let column = |name: &str| header.iter().position(|h| h == name);
+        let mut records = Vec::new();
+        for line in lines.iter().skip(assay + 2).take(count) {
+            let row = csv(line);
+            let get = |name: &str| -> String {
+                column(name)
+                    .and_then(|i| row.get(i).cloned())
+                    .unwrap_or_default()
+            };
+            let end = row.len();
+            let flag_name = row.last().cloned().unwrap_or_default();
+            let flag = crate::gtc_to_vcf::Flag::parse(&flag_name).ok_or_else(|| {
+                format!(
+                    "java.lang.IllegalArgumentException: No enum constant picard.arrays.illumina.Build37ExtendedIlluminaManifestRecord.Flag.{flag_name}"
+                )
+            })?;
+            let at = |back: usize| row.get(end.wrapping_sub(back)).cloned().unwrap_or_default();
+            let failed = flag.is_fail();
+            records.push(crate::gtc_to_vcf::ManifestRecord {
+                name: get("Name"),
+                chr: get("Chr"),
+                position: get("MapInfo").trim().parse().unwrap_or(0),
+                genome_build: get("GenomeBuild"),
+                b37_chr: if failed { "0".to_string() } else { at(7) },
+                b37_pos: if failed {
+                    0
+                } else {
+                    at(6).trim().parse().unwrap_or(0)
+                },
+                ref_allele: if failed { String::new() } else { at(5) },
+                allele_a: if failed { String::new() } else { at(4) },
+                allele_b: if failed { String::new() } else { at(3) },
+                rs_id: if failed { String::new() } else { at(2) },
+                ilmn_strand: get("IlmnStrand"),
+                probe_a: get("AlleleA_ProbeSeq"),
+                probe_b: get("AlleleB_ProbeSeq"),
+                bead_set_id: get("BeadSetID").trim().parse().unwrap_or(0),
+                source: get("Source"),
+                flag,
+            });
+        }
+        Ok(ExtendedManifest {
+            descriptor_file_name: descriptor,
+            extended_manifest_version: version,
+            num_assays: count,
+            records,
+        })
+    }
+}
