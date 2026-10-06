@@ -56,6 +56,14 @@ public class MakeFixtures {
         SAMFileHeader queryname = header(SAMFileHeader.SortOrder.queryname);
         writeBam(new File(dir, "queryname.bam"), queryname, reads(queryname, false), false);
 
+        // CheckTerminatorBlock's three answers: small.bam ends in the empty terminator block, the
+        // same bytes without it end in a healthy data block, and five more bytes off cut that block.
+        byte[] whole = java.nio.file.Files.readAllBytes(new File(dir, "small.bam").toPath());
+        java.nio.file.Files.write(new File(dir, "no_terminator.bam").toPath(),
+                java.util.Arrays.copyOf(whole, whole.length - 28));
+        java.nio.file.Files.write(new File(dir, "truncated.bam").toPath(),
+                java.util.Arrays.copyOf(whole, whole.length - 33));
+
         SAMFileHeader oneGroup = header(SAMFileHeader.SortOrder.coordinate);
         oneGroup.setReadGroups(java.util.Collections.singletonList(oneGroup.getReadGroup("rg1")));
         java.util.List<SAMRecord> oneGroupReads = reads(oneGroup, true);

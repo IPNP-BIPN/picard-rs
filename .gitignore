@@ -111,6 +111,8 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/UmiAwareMarkDuplicatesWithMateCigar.t2.txt
 !tools/coverage/corpus/ConvertHaplotypeDatabaseToVcf.t2.txt
 !tools/coverage/corpus/ClusterCrosscheckMetrics.t2.txt
+!tools/coverage/corpus/SetNmAndUqTags.t2.txt
+!tools/coverage/corpus/CheckTerminatorBlock.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

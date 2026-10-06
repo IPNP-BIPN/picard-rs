@@ -245,8 +245,29 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_
         ],
         stdin_bytes,
     )
-    text = result.stdout if on_stdout else read_output(out_dir, strip_pg, output_name)
+    text = stream_answer(result, on_stdout) if on_stdout else read_output(out_dir, strip_pg, output_name)
     return result.returncode, text, first_error(result.stderr or result.stdout)
+
+
+# The lines Picard's command line wraps every run in on standard error: htsjdk's start-up log
+# (`17:17:34.305 INFO  NativeLibraryLoader - ...`), the bracketed invocation, host and elapsed-time
+# lines, the memory footer, and the help pointer printed after a non-zero exit. None is the tool's.
+STDERR_FRAME = re.compile(
+    r"^(\d\d:\d\d:\d\d\.\d+ |\[\w{3} \w{3} \d\d \d\d:\d\d:\d\d \w+ \d{4}\] |Runtime\.totalMemory\(\)=|To get help, see http)"
+)
+
+
+def stream_answer(result, on_stdout):
+    """The tool's answer when it prints one instead of writing a file.
+
+    `on_stdout` is True for a tool that prints to standard output. It is "stderr" for one that
+    prints its answer to standard error: `CheckTerminatorBlock` writes the termination's name there
+    and nothing else, between the frame lines above, which are dropped and nothing more.
+    """
+    if on_stdout != "stderr":
+        return result.stdout
+    kept = [line for line in result.stderr.split("\n") if line and not STDERR_FRAME.match(line)]
+    return "\n".join(kept) + "\n" if kept else ""
 
 
 def read_output(out_dir, strip_program_records=False, output_name="output.txt"):
@@ -442,7 +463,7 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_
     # other difference in it still fails the row.
     message = message.replace(str(fixtures), "/work/fixtures")
     message = message.replace(str(out_dir), "/work/out")
-    text = result.stdout if on_stdout else read_output(out_dir, strip_pg, output_name)
+    text = stream_answer(result, on_stdout) if on_stdout else read_output(out_dir, strip_pg, output_name)
     # The same inverse on the OUTPUT, for the same reason and no other: a tool that writes a path it
     # was given writes the one it was given. `CreateSequenceDictionary` puts the reference's own
     # `file:` URI in every `@SQ` line's `UR`, so the port's rows differed from the reference's on
@@ -525,6 +546,12 @@ def main(argv):
         help="build the corpus into this directory and exit, for a suite that will share it",
     )
     ap.add_argument(
+        "--stderr",
+        action="store_true",
+        help="compare standard error without Picard's own frame lines, for a tool that prints its "
+        "answer there",
+    )
+    ap.add_argument(
         "--stdout",
         action="store_true",
         help="compare standard output rather than the output file, for a tool that writes no file",
@@ -574,7 +601,7 @@ def main(argv):
                 args.tool,
                 row_args,
                 workdir,
-                args.stdout,
+                "stderr" if args.stderr else args.stdout,
                 args.strip_program_records,
                 args.output_name,
                 fixtures,
@@ -595,7 +622,7 @@ def main(argv):
                     args.port,
                     row_args,
                     workdir,
-                    args.stdout,
+                    "stderr" if args.stderr else args.stdout,
                     args.strip_program_records,
                     args.output_name,
                     fixtures,

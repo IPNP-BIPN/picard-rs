@@ -2834,6 +2834,19 @@
         "false",
         "true"
       ]
+    },
+    "CheckTerminatorBlock": {
+      "$why": [
+        "The tool's answer is the termination of its INPUT's last block, printed on standard error, with",
+        "exit code 100 when that is DEFECTIVE. small.bam has the terminator, no_terminator.bam is the same bytes",
+        "without it and ends in a healthy block, truncated.bam cuts that block, and small.sam is not BGZF at all."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/no_terminator.bam",
+        "/work/fixtures/truncated.bam",
+        "/work/fixtures/small.sam"
+      ]
     }
   },
   "constraints": [
