@@ -100,6 +100,16 @@
       "t": 2,
       "share": 1.0
     },
+    "BpmToNormalizationManifestCsv": {
+      "rows": 10,
+      "accepted": 4,
+      "rejected": 6,
+      "distinct_outputs": 2,
+      "distinct_rejections": 2,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
     "BuildBamIndex": {
       "rows": 18,
       "accepted": 9,
@@ -107,6 +117,16 @@
       "distinct_outputs": 3,
       "distinct_rejections": 2,
       "matched": 18,
+      "t": 2,
+      "share": 1.0
+    },
+    "CalculateFingerprintMetrics": {
+      "rows": 19,
+      "accepted": 19,
+      "rejected": 0,
+      "distinct_outputs": 12,
+      "distinct_rejections": 0,
+      "matched": 19,
       "t": 2,
       "share": 1.0
     },
@@ -127,6 +147,26 @@
       "distinct_outputs": 1,
       "distinct_rejections": 4,
       "matched": 13,
+      "t": 2,
+      "share": 1.0
+    },
+    "CheckFingerprint": {
+      "rows": 18,
+      "accepted": 8,
+      "rejected": 10,
+      "distinct_outputs": 8,
+      "distinct_rejections": 6,
+      "matched": 18,
+      "t": 2,
+      "share": 1.0
+    },
+    "CheckTerminatorBlock": {
+      "rows": 12,
+      "accepted": 6,
+      "rejected": 6,
+      "distinct_outputs": 2,
+      "distinct_rejections": 1,
+      "matched": 12,
       "t": 2,
       "share": 1.0
     },
@@ -157,6 +197,16 @@
       "distinct_outputs": 11,
       "distinct_rejections": 0,
       "matched": 16,
+      "t": 2,
+      "share": 1.0
+    },
+    "CollectArraysVariantCallingMetrics": {
+      "rows": 9,
+      "accepted": 6,
+      "rejected": 3,
+      "distinct_outputs": 3,
+      "distinct_rejections": 1,
+      "matched": 9,
       "t": 2,
       "share": 1.0
     },
@@ -380,6 +430,26 @@
       "t": 2,
       "share": 1.0
     },
+    "CombineGenotypingArrayVcfs": {
+      "rows": 15,
+      "accepted": 9,
+      "rejected": 6,
+      "distinct_outputs": 3,
+      "distinct_rejections": 2,
+      "matched": 15,
+      "t": 2,
+      "share": 1.0
+    },
+    "CompareGtcFiles": {
+      "rows": 10,
+      "accepted": 4,
+      "rejected": 6,
+      "distinct_outputs": 1,
+      "distinct_rejections": 2,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
     "CompareMetrics": {
       "rows": 32,
       "accepted": 6,
@@ -420,6 +490,26 @@
       "t": 2,
       "share": 1.0
     },
+    "CreateBafRegressMetricsFile": {
+      "rows": 9,
+      "accepted": 6,
+      "rejected": 3,
+      "distinct_outputs": 2,
+      "distinct_rejections": 1,
+      "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
+    "CreateExtendedIlluminaManifest": {
+      "rows": 10,
+      "accepted": 6,
+      "rejected": 4,
+      "distinct_outputs": 4,
+      "distinct_rejections": 3,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
     "CreateSequenceDictionary": {
       "rows": 7,
       "accepted": 7,
@@ -427,6 +517,36 @@
       "distinct_outputs": 4,
       "distinct_rejections": 0,
       "matched": 7,
+      "t": 2,
+      "share": 1.0
+    },
+    "CreateVerifyIDIntensityContaminationMetricsFile": {
+      "rows": 9,
+      "accepted": 6,
+      "rejected": 3,
+      "distinct_outputs": 2,
+      "distinct_rejections": 1,
+      "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
+    "CrosscheckFingerprints": {
+      "rows": 21,
+      "accepted": 6,
+      "rejected": 15,
+      "distinct_outputs": 6,
+      "distinct_rejections": 14,
+      "matched": 21,
+      "t": 2,
+      "share": 1.0
+    },
+    "CrosscheckReadGroupFingerprints": {
+      "rows": 16,
+      "accepted": 10,
+      "rejected": 6,
+      "distinct_outputs": 9,
+      "distinct_rejections": 6,
+      "matched": 16,
       "t": 2,
       "share": 1.0
     },
@@ -447,6 +567,16 @@
       "distinct_outputs": 4,
       "distinct_rejections": 0,
       "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
+    "ExtractFingerprint": {
+      "rows": 15,
+      "accepted": 15,
+      "rejected": 0,
+      "distinct_outputs": 12,
+      "distinct_rejections": 0,
+      "matched": 15,
       "t": 2,
       "share": 1.0
     },
@@ -487,6 +617,16 @@
       "distinct_outputs": 4,
       "distinct_rejections": 6,
       "matched": 25,
+      "t": 2,
+      "share": 1.0
+    },
+    "FilterVcf": {
+      "rows": 15,
+      "accepted": 12,
+      "rejected": 3,
+      "distinct_outputs": 9,
+      "distinct_rejections": 1,
+      "matched": 15,
       "t": 2,
       "share": 1.0
     },
@@ -547,6 +687,26 @@
       "distinct_outputs": 4,
       "distinct_rejections": 0,
       "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
+    "GtcToVcf": {
+      "rows": 14,
+      "accepted": 9,
+      "rejected": 5,
+      "distinct_outputs": 9,
+      "distinct_rejections": 1,
+      "matched": 14,
+      "t": 2,
+      "share": 1.0
+    },
+    "IdentifyContaminant": {
+      "rows": 13,
+      "accepted": 13,
+      "rejected": 0,
+      "distinct_outputs": 11,
+      "distinct_rejections": 0,
+      "matched": 13,
       "t": 2,
       "share": 1.0
     },
@@ -830,6 +990,16 @@
       "t": 2,
       "share": 1.0
     },
+    "SetNmAndUqTags": {
+      "rows": 11,
+      "accepted": 8,
+      "rejected": 3,
+      "distinct_outputs": 4,
+      "distinct_rejections": 1,
+      "matched": 11,
+      "t": 2,
+      "share": 1.0
+    },
     "SetNmMdAndUqTags": {
       "rows": 11,
       "accepted": 8,
@@ -947,6 +1117,16 @@
       "distinct_outputs": 5,
       "distinct_rejections": 5,
       "matched": 16,
+      "t": 2,
+      "share": 1.0
+    },
+    "VcfToAdpc": {
+      "rows": 12,
+      "accepted": 9,
+      "rejected": 3,
+      "distinct_outputs": 3,
+      "distinct_rejections": 1,
+      "matched": 12,
       "t": 2,
       "share": 1.0
     },
