@@ -350,7 +350,7 @@ jobs:
             | tee /tmp/AccumulateQualityYieldMetrics.log
           python3 tools/coverage/run_array.py --tool GenotypeConcordance --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/genotype-concordance --output-name output.txt.genotype_concordance_summary_metrics \
+            --port target/release/genotype-concordance --output-name output.txt.genotype_concordance_summary_metrics,output.txt.genotype_concordance.vcf.gz \
             | tee /tmp/GenotypeConcordance.log
           python3 tools/coverage/run_array.py --tool EstimateLibraryComplexity --t 2 \
             --fixtures-dir /tmp/corpus \

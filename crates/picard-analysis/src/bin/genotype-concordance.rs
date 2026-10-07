@@ -23,20 +23,30 @@
 //! given, so the call is read from its alleles like any other -- and a filtered TRUTH site has no
 //! such escape.
 //!
-//! Not ported: `OUTPUT_VCF`, which writes a fourth file holding both samples' genotypes and the
-//! contingency state as an INFO attribute. The array compares the summary metrics, so a row that
-//! asks for it is measured on everything but that file.
+//! `OUTPUT_VCF` writes a fourth file, `<OUTPUT>.genotype_concordance.vcf.gz` and its `.tbi`: one
+//! record per pair whose normalised alleles are not empty, the truth and call genotypes renamed
+//! `truth` and `call`, and the pair's contingency as the `CONC_ST` INFO attribute. Its header is
+//! both inputs' lines through a `HashSet`, which looks like a hash order and is not one, because the
+//! writer sorts them; a symbolic site is left out; and `MISSING_SITES_HOM_REF` turns an unread truth
+//! genotype into a hom-ref rather than a no-call, the second place that flag changes an answer.
 
 use std::collections::HashMap;
+use std::io::Write;
 
-use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
+use htsjdk_metrics::file::{MetricBean, MetricsFile, Value as MetricValue};
+use htsjdk_tribble::tabix::{FeatureRef, TabixFormat, TabixIndexCreator};
+use htsjdk_vcf::allele::Allele;
+use htsjdk_vcf::encoder::{MissingFields, VcfEncoder};
+use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::reader::read_vcf;
-use htsjdk_vcf::variant::VariantContext;
+use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
 use picard_analysis::genotype_concordance::{
-    contingency, contingency_string, determine_state, file_names, is_var, CallState, Cell, Counts,
-    GenotypeView, SiteView, TruthState, CALL_DECLARATION_ORDER, GA4GH, GA4GH_MISSING_AS_HOM_REF,
-    HET_CALL_STATES, HET_TRUTH_STATES, HOM_VAR_CALL_STATES, HOM_VAR_TRUTH_STATES,
-    TRUTH_DECLARATION_ORDER, VAR_CALL_STATES, VAR_TRUTH_STATES,
+    contingency, contingency_state_value, contingency_string, determine_state, file_names, is_var,
+    normalize_alleles, CallState, Cell, Counts, GenotypeView, SiteView, TruthState,
+    CALL_DECLARATION_ORDER, CONTINGENCY_STATE_DESCRIPTION, CONTINGENCY_STATE_TAG, GA4GH,
+    GA4GH_MISSING_AS_HOM_REF, HET_CALL_STATES, HET_TRUTH_STATES, HOM_VAR_CALL_STATES,
+    HOM_VAR_TRUTH_STATES, NO_CALL_STRING, OUTPUT_VCF_CALL_SAMPLE_NAME, OUTPUT_VCF_FILE_EXTENSION,
+    OUTPUT_VCF_TRUTH_SAMPLE_NAME, TRUTH_DECLARATION_ORDER, VAR_CALL_STATES, VAR_TRUTH_STATES,
 };
 
 /// `VariantContext.Type`, as far as the counter cares.
@@ -46,6 +56,8 @@ enum VariantType {
     Snp,
     Indel,
     Mixed,
+    /// Every alternate symbolic: `isSymbolic()`, a site `writeVcfTuple` leaves out.
+    Symbolic,
     Other,
 }
 
@@ -214,7 +226,7 @@ fn variant_type(
             continue;
         }
         let biallelic = if allele.is_symbolic() {
-            VariantType::Other
+            VariantType::Symbolic
         } else if reference.len() == allele.len() {
             if allele.len() == 1 {
                 VariantType::Snp
@@ -264,13 +276,13 @@ impl MetricBean for SummaryMetrics {
     fn columns(&self) -> &[&'static str] {
         &SUMMARY_COLUMNS
     }
-    fn values(&self) -> Vec<Value> {
+    fn values(&self) -> Vec<MetricValue> {
         let mut out = vec![
-            Value::Str(self.variant_type.to_string()),
-            Value::Str(self.truth_sample.clone()),
-            Value::Str(self.call_sample.clone()),
+            MetricValue::Str(self.variant_type.to_string()),
+            MetricValue::Str(self.truth_sample.clone()),
+            MetricValue::Str(self.call_sample.clone()),
         ];
-        out.extend(self.values.iter().map(|value| Value::Double(*value)));
+        out.extend(self.values.iter().map(|value| MetricValue::Double(*value)));
         out
     }
 }
@@ -302,15 +314,15 @@ impl MetricBean for DetailMetrics {
     fn columns(&self) -> &[&'static str] {
         &DETAIL_COLUMNS
     }
-    fn values(&self) -> Vec<Value> {
+    fn values(&self) -> Vec<MetricValue> {
         vec![
-            Value::Str(self.variant_type.to_string()),
-            Value::Str(self.truth_sample.clone()),
-            Value::Str(self.call_sample.clone()),
-            Value::Str(self.truth_state.name().to_string()),
-            Value::Str(self.call_state.name().to_string()),
-            Value::Long(self.count),
-            Value::Str(self.contingency_values.clone()),
+            MetricValue::Str(self.variant_type.to_string()),
+            MetricValue::Str(self.truth_sample.clone()),
+            MetricValue::Str(self.call_sample.clone()),
+            MetricValue::Str(self.truth_state.name().to_string()),
+            MetricValue::Str(self.call_state.name().to_string()),
+            MetricValue::Long(self.count),
+            MetricValue::Str(self.contingency_values.clone()),
         ]
     }
 }
@@ -340,13 +352,13 @@ impl MetricBean for ContingencyMetrics {
     fn columns(&self) -> &[&'static str] {
         &CONTINGENCY_COLUMNS
     }
-    fn values(&self) -> Vec<Value> {
+    fn values(&self) -> Vec<MetricValue> {
         let mut out = vec![
-            Value::Str(self.variant_type.to_string()),
-            Value::Str(self.truth_sample.clone()),
-            Value::Str(self.call_sample.clone()),
+            MetricValue::Str(self.variant_type.to_string()),
+            MetricValue::Str(self.truth_sample.clone()),
+            MetricValue::Str(self.call_sample.clone()),
         ];
-        out.extend(self.counts.iter().map(|count| Value::Long(*count)));
+        out.extend(self.counts.iter().map(|count| MetricValue::Long(*count)));
         out
     }
 }
@@ -372,6 +384,242 @@ fn dictionary(header: &htsjdk_vcf::header::VcfHeader) -> Vec<(String, i64)> {
             _ => None,
         })
         .collect()
+}
+
+/// The `OUTPUT_VCF` writer: `VariantContextWriterBuilder` with `ALLOW_MISSING_FIELDS_IN_HEADER`
+/// and `INDEX_ON_THE_FLY` over a `.vcf.gz`, so a BGZF file and a tabix index beside it.
+struct OutputVcf {
+    path: String,
+    header: VcfHeader,
+    bgzf: htsjdk_bgzf::BgzfWriter<Vec<u8>>,
+    index: TabixIndexCreator,
+    /// The CALL file's dictionary, which `setReferenceDictionary` hands the index creator. It
+    /// only sizes the bins it allocates, so a contig it lacks is a zero here.
+    lengths: HashMap<String, i32>,
+    /// The input samples whose genotypes the two output columns copy.
+    truth_sample: String,
+    call_sample: String,
+}
+
+impl OutputVcf {
+    /// `getVariantContextWriter`: the header lines of both inputs through a `HashSet`, plus the
+    /// `CONC_ST` line, over the two fixed sample names. The set's hash order is never seen, because
+    /// `VCFWriter.writeHeader` writes `getMetaDataInSortedOrder()`, which sorts and drops the lines
+    /// the two files share.
+    fn new(
+        output: &str,
+        truth: &VcfHeader,
+        call: &VcfHeader,
+        truth_sample: &str,
+        call_sample: &str,
+    ) -> std::io::Result<Self> {
+        let mut lines = call.lines.clone();
+        lines.extend(truth.lines.iter().cloned());
+        lines.push(HeaderLine::info(
+            CONTINGENCY_STATE_TAG,
+            Cardinality::Unbounded,
+            LineType::String,
+            CONTINGENCY_STATE_DESCRIPTION,
+        ));
+        let header = VcfHeader {
+            lines,
+            samples: vec![
+                OUTPUT_VCF_CALL_SAMPLE_NAME.to_string(),
+                OUTPUT_VCF_TRUTH_SAMPLE_NAME.to_string(),
+            ],
+        };
+        let mut bgzf = htsjdk_bgzf::BgzfWriter::new(Vec::new());
+        bgzf.write_all(header.write().as_bytes())?;
+        let lengths = dictionary(call)
+            .into_iter()
+            .map(|(name, length)| (name, length as i32))
+            .collect();
+        Ok(Self {
+            path: format!("{output}{OUTPUT_VCF_FILE_EXTENSION}"),
+            header,
+            bgzf,
+            index: TabixIndexCreator::new(TabixFormat::VCF),
+            lengths,
+            truth_sample: truth_sample.to_string(),
+            call_sample: call_sample.to_string(),
+        })
+    }
+
+    /// `writeVcfTuple`: one record per pair whose normalised alleles are not empty, holding both
+    /// samples' genotypes and the pair's contingency.
+    #[allow(clippy::too_many_arguments)]
+    fn add(
+        &mut self,
+        truth: Option<(&VariantContext, &SiteView, VariantType)>,
+        call: Option<(&VariantContext, &SiteView, VariantType)>,
+        states: (TruthState, CallState),
+        scheme: &[(CallState, [Cell; 11])],
+        missing_sites_hom_ref: bool,
+        ignore_filter_status: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // "Don't write symbolic alleles to output VCF", tested on the sample's own sub-context.
+        let symbolic = |side: &Option<(&VariantContext, &SiteView, VariantType)>| {
+            side.is_some_and(|(_, _, kind)| kind == VariantType::Symbolic)
+        };
+        if symbolic(&truth) || symbolic(&call) {
+            return Ok(());
+        }
+        let alleles = match normalize_alleles(
+            truth.map(|(_, view, _)| view),
+            call.map(|(_, view, _)| view),
+            ignore_filter_status,
+        ) {
+            Ok(alleles) => alleles,
+            Err(message) => throw(&message),
+        };
+        if alleles.all.is_empty() {
+            return Ok(());
+        }
+
+        // The call's record when there is one, else the truth's: position and quality.
+        let (initial, _, _) = call.or(truth).expect("a pair has at least one side");
+        let site_alleles = alleles
+            .site_alleles()
+            .iter()
+            .map(|(bases, is_ref)| allele(bases, *is_ref))
+            .collect::<Vec<_>>();
+        let mut record = VariantContext::new(&initial.contig, initial.start, site_alleles);
+        // `computeEndFromAlleles(allAlleles, start)`: the normalised reference's length, which a
+        // splice may have made longer than either input's.
+        record.stop = initial.start + alleles.all[0].len() as i64 - 1;
+        record.log10_p_error = initial.log10_p_error;
+
+        let all = alleles.as_list();
+        record.genotypes = vec![
+            genotype(
+                truth.map(|(record, _, _)| record),
+                &self.truth_sample,
+                OUTPUT_VCF_TRUTH_SAMPLE_NAME,
+                &alleles.truth_alleles(),
+                &all,
+                missing_sites_hom_ref,
+            ),
+            genotype(
+                call.map(|(record, _, _)| record),
+                &self.call_sample,
+                OUTPUT_VCF_CALL_SAMPLE_NAME,
+                &alleles.call_alleles(),
+                &all,
+                false,
+            ),
+        ]
+        .into();
+
+        let (truth_state, call_state) = states;
+        let value = contingency(scheme, call_state, truth_state)
+            .and_then(contingency_state_value)
+            .unwrap_or_else(|| {
+                eprintln!("Exception in thread \"main\" java.lang.NullPointerException");
+                std::process::exit(1);
+            });
+        record
+            .attributes
+            .push((CONTINGENCY_STATE_TAG.to_string(), Value::Str(value)));
+
+        let line = VcfEncoder::new(&self.header)
+            .with_missing_fields(MissingFields::Allow)
+            .encode(&record)
+            .map_err(|error| format!("{error:?}"))?;
+        // `IndexingVariantContextWriter.add`: the position before the line is the feature's.
+        let description = record.contig.clone();
+        let feature = FeatureRef {
+            contig: &record.contig,
+            start: record.start as i32,
+            end: record.stop as i32,
+            description: &description,
+            sequence_length: *self.lengths.get(&record.contig).unwrap_or(&0),
+        };
+        if let Err(error) = self
+            .index
+            .add_feature(feature, self.bgzf.file_pointer() as i64)
+        {
+            eprintln!(
+                "Exception in thread \"main\" {}: {}",
+                error.java_class(),
+                error.message()
+            );
+            std::process::exit(1);
+        }
+        self.bgzf.write_all(line.as_bytes())?;
+        self.bgzf.write_all(b"\n")?;
+        Ok(())
+    }
+
+    /// `close()`: the index is finalised at the position the last line ended, then the stream is
+    /// closed with its empty terminating block, and the `.tbi` is written beside it.
+    fn close(self) -> Result<(), Box<dyn std::error::Error>> {
+        let end = self.bgzf.file_pointer() as i64;
+        std::fs::write(&self.path, self.bgzf.into_inner()?)?;
+        let index = self
+            .index
+            .finish(end)
+            .map_err(|error| format!("{}: {}", error.java_class(), error.message()))?;
+        std::fs::write(format!("{}.tbi", self.path), index.write())?;
+        Ok(())
+    }
+}
+
+/// One side of a pair as the writer reads it: the record, its sample's view, and its type.
+fn side<'a>(
+    site: Option<&'a VariantContext>,
+    view: &'a Option<(VariantType, SiteView)>,
+) -> Option<(&'a VariantContext, &'a SiteView, VariantType)> {
+    site.zip(view.as_ref())
+        .map(|(record, (kind, view))| (record, view, *kind))
+}
+
+/// `Allele.create(bases, isRef)`, where `.` is the no-call.
+fn allele(bases: &str, is_ref: bool) -> Allele {
+    if bases == NO_CALL_STRING {
+        return Allele::no_call();
+    }
+    Allele::from_str(bases, is_ref).expect("an allele the input already parsed")
+}
+
+/// `addToGenotypes`: the input genotype renamed and given the normalised alleles, or a no-call
+/// when that side was not read -- absent, mixed or filtered. `MISSING_SITES_HOM_REF` makes the
+/// truth's no-call a hom-ref instead, which is a second place the flag changes the answer.
+fn genotype(
+    record: Option<&VariantContext>,
+    input_sample: &str,
+    sample: &str,
+    side_alleles: &[(String, bool)],
+    all: &[(String, bool)],
+    missing_sites_hom_ref: bool,
+) -> Genotype {
+    let alleles = |list: &[(String, bool)]| {
+        list.iter()
+            .map(|(bases, is_ref)| allele(bases, *is_ref))
+            .collect::<Vec<_>>()
+    };
+    if let (Some(record), false) = (record, side_alleles.is_empty()) {
+        // `new GenotypeBuilder(genotype)` copies every field; only the name and alleles change.
+        // The `GT` attribute it adds when the input had none is never needed: a genotype with
+        // alleles always has one.
+        let mut copy = record
+            .genotypes
+            .iter()
+            .find(|genotype| genotype.sample_name == input_sample)
+            .cloned()
+            .expect("the side's own sample");
+        copy.sample_name = sample.to_string();
+        copy.alleles = alleles(side_alleles);
+        return copy;
+    }
+    let pair = if missing_sites_hom_ref {
+        vec![all[0].clone(), all[0].clone()]
+    } else {
+        vec![
+            (NO_CALL_STRING.to_string(), false),
+            (NO_CALL_STRING.to_string(), false),
+        ]
+    };
+    Genotype::new(sample, alleles(&pair))
 }
 
 fn metrics_file<B: MetricBean>(beans: Vec<B>) -> String {
@@ -402,6 +650,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_all_rows = flag("OUTPUT_ALL_ROWS=", false);
     let missing_sites_hom_ref = flag("MISSING_SITES_HOM_REF=", false);
     let ignore_filter_status = flag("IGNORE_FILTER_STATUS=", false);
+    let output_vcf = flag("OUTPUT_VCF=", false);
 
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {
@@ -440,6 +689,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let truth_sample = sample_of(arg(&args, "TRUTH_SAMPLE="), &truth, "TRUTH", &truth_vcf);
     let call_sample = sample_of(arg(&args, "CALL_SAMPLE="), &call, "CALL", &call_vcf);
+
+    let scheme: &[(CallState, [Cell; 11])] = if missing_sites_hom_ref {
+        &GA4GH_MISSING_AS_HOM_REF
+    } else {
+        &GA4GH
+    };
+    // `getVariantContextWriter`, before any record is read: the header is written first.
+    let mut vcf_writer = if output_vcf {
+        Some(OutputVcf::new(
+            &output,
+            &truth.header,
+            &call.header,
+            &truth_sample,
+            &call_sample,
+        )?)
+    } else {
+        None
+    };
 
     // The intervals decide two things: which sites are compared, and -- through the base count --
     // how many missing/missing sites `MISSING_SITES_HOM_REF` adds.
@@ -561,6 +828,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(counter) = counter {
             counter.increment(truth_state, call_state);
         }
+
+        if let Some(writer) = vcf_writer.as_mut() {
+            writer.add(
+                side(truth_site, &truth_view),
+                side(call_site, &call_view),
+                (truth_state, call_state),
+                scheme,
+                missing_sites_hom_ref,
+                ignore_filter_status,
+            )?;
+        }
     }
 
     if missing_sites_hom_ref {
@@ -588,12 +866,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             base_count - indel_seen,
         );
     }
-
-    let scheme: &[(CallState, [Cell; 11])] = if missing_sites_hom_ref {
-        &GA4GH_MISSING_AS_HOM_REF
-    } else {
-        &GA4GH
-    };
 
     for (kind, counter) in [("SNP", &snp_counter), ("INDEL", &indel_counter)] {
         if let Err((truth_state, call_state)) = counter.validate_against(scheme) {
@@ -669,6 +941,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::write(summary_path, metrics_file(summary))?;
     std::fs::write(detail_path, metrics_file(detail))?;
     std::fs::write(contingency_path, metrics_file(contingency_metrics))?;
+    if let Some(writer) = vcf_writer {
+        writer.close()?;
+    }
     let _ = is_var;
     Ok(())
 }

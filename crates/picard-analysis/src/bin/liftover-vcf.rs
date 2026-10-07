@@ -312,7 +312,7 @@ fn lift_variant(
             vc.alleles = alleles;
         }
         if let Some(fixed) = fix_genotypes(&source.genotypes, &original, &vc.alleles) {
-            vc.genotypes = fixed;
+            vc.genotypes = fixed.into();
             touched = true;
         }
     }
@@ -391,7 +391,7 @@ fn swap_ref_alt(vc: &VariantContext, to_reverse: &[String], to_drop: &[String]) 
             g
         })
         .collect();
-    swapped.genotypes = genotypes;
+    swapped.genotypes = genotypes.into();
     for (key, value) in &vc.attributes {
         if to_drop.contains(key) {
             remove_attribute(&mut swapped, key);
