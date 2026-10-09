@@ -330,13 +330,17 @@
         "Both sides are the same file, and the two samples are what makes the comparison say",
         "anything: sample1 against sample1 is perfect concordance, sample1 against sample2 is a",
         "real contingency table. CALL_SAMPLE is held at one value so the array varies the truth",
-        "side alone, which is enough to reach both shapes."
+        "side alone, which is enough to reach both shapes.",
+        "call_partial.vcf is a second call set, sample1 at three of variants.vcf's six sites",
+        "and at two sites of its own, so a row reaches the MISSING state from both sides.",
+        "It is listed second so the rows the first value fills keep their answers."
       ],
       "--TRUTH_VCF": [
         "/work/fixtures/variants.vcf"
       ],
       "--CALL_VCF": [
-        "/work/fixtures/variants.vcf"
+        "/work/fixtures/variants.vcf",
+        "/work/fixtures/call_partial.vcf"
       ],
       "--TRUTH_SAMPLE": [
         "sample1",

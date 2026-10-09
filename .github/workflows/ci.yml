@@ -785,6 +785,7 @@ jobs:
             --log /tmp/ExtractIlluminaBarcodes.log \
             --log /tmp/IlluminaBasecallsToFastq.log \
             --log /tmp/IlluminaBasecallsToSam.log \
+            --pending GenotypeConcordance \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -840,7 +841,6 @@ jobs:
             tools/coverage/corpus/SimpleMarkDuplicatesWithMateCigar.t2.txt \
             tools/coverage/corpus/CheckDuplicateMarking.t2.txt \
             tools/coverage/corpus/AccumulateQualityYieldMetrics.t2.txt \
-            tools/coverage/corpus/GenotypeConcordance.t2.txt \
             tools/coverage/corpus/EstimateLibraryComplexity.t2.txt \
             tools/coverage/corpus/CollectUmiPrevalenceMetrics.t2.txt \
             tools/coverage/corpus/RevertOriginalBaseQualitiesAndAddMateCigar.t2.txt \

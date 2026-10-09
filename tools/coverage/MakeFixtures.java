@@ -615,6 +615,11 @@ public class MakeFixtures {
         writeVcf(new File(dir, "variants.vcf"), chr1, chr2, true);
         writeVcf(new File(dir, "dbsnp.vcf"), chr1, chr2, false);
         writeVcf(new File(dir, "single_sample.vcf"), chr1, chr2, true, 1);
+        // A call set that overlaps `variants.vcf` in part, for GenotypeConcordance: sample1 at
+        // three of its six sites (the same genotypes), none at the other three, and two sites
+        // `variants.vcf` does not have. A site on one side only is the MISSING state, which a
+        // truth and a call read from one file can never reach.
+        writeVcf(new File(dir, "call_partial.vcf"), chr1, chr2, true, 1, new int[] {0, 2, 6, 4, 7});
 
         // Two `CollectQualityYieldMetrics` outputs, for the tools that accumulate metrics files
         // rather than reads. The header comments are what that tool writes, command line and
@@ -2014,6 +2019,16 @@ public class MakeFixtures {
 
     static void writeVcf(File f, String chr1, String chr2, boolean withGenotypes, int sampleCount)
             throws Exception {
+        writeVcf(f, chr1, chr2, withGenotypes, sampleCount, new int[] {0, 1, 2, 3, 4, 5});
+    }
+
+    /**
+     * The same writer over a chosen list of SITES, by index into the positions below. Indices 0 to
+     * 5 are the six sites every variant fixture shares; 6 and 7 exist only for a file that has to
+     * hold a site the others do not.
+     */
+    static void writeVcf(File f, String chr1, String chr2, boolean withGenotypes, int sampleCount,
+            int[] sites) throws Exception {
         htsjdk.samtools.SAMSequenceDictionary dict = new htsjdk.samtools.SAMSequenceDictionary();
         dict.addSequence(new SAMSequenceRecord("chr1", chr1.length()));
         dict.addSequence(new SAMSequenceRecord("chr2", chr2.length()));
@@ -2043,14 +2058,16 @@ public class MakeFixtures {
                              .setOption(htsjdk.variant.variantcontext.writer.Options.INDEX_ON_THE_FLY)
                              .build()) {
             writer.writeHeader(header);
-            // The first four are on chr1 (2,000 bases), the last two on chr2 (1,000).
-            int[] positions = {100, 300, 500, 700, 200, 600};
-            for (int i = 0; i < positions.length; i++) {
+            // The first four are on chr1 (2,000 bases), the next two on chr2 (1,000), and the two
+            // extra sites one on each.
+            int[] positions = {100, 300, 500, 700, 200, 600, 900, 800};
+            boolean[] onChr1 = {true, true, true, true, false, false, true, false};
+            for (int i : sites) {
                 // The sites-only file keeps every other variant, so half of the full file is known.
                 if (!withGenotypes && i % 2 == 1) continue;
-                String contig = i < 4 ? "chr1" : "chr2";
+                String contig = onChr1[i] ? "chr1" : "chr2";
                 int position = positions[i];
-                String reference = String.valueOf((i < 4 ? chr1 : chr2).charAt(position - 1));
+                String reference = String.valueOf((onChr1[i] ? chr1 : chr2).charAt(position - 1));
                 boolean indel = i == 3;
                 htsjdk.variant.variantcontext.Allele ref = htsjdk.variant.variantcontext.Allele
                         .create(indel ? reference + "AT" : reference, true);
