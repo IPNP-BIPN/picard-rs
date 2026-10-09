@@ -1,0 +1,13 @@
+# VcfToAdpc t=2 rows=12 from VcfToAdpc.t2.json
+row	0:CREATE_INDEX=true,VALIDATION_STRINGENCY=STRICT,VCF=fixture[0]	== markers.txt\n4\n== output.adpc.bin\nBINARY sha256=40b1e1d696d14c653b29dabe84a52a2d7ca3c854f7e624dde7a82ea2e39fdfa5 bytes=88\n== samples.txt\narr_s1\n
+row	1:CREATE_INDEX=true,VALIDATION_STRINGENCY=LENIENT,VCF=fixture[1]	== markers.txt\n4\n== output.adpc.bin\nBINARY sha256=3d9e58655c1f3a58457b9d7c37b1f973bbeca06d79e8fbc855aaa7476eef077e bytes=160\n== samples.txt\narr_s1\narr_s2\n
+row	2:CREATE_INDEX=true,VALIDATION_STRINGENCY=SILENT,VCF=fixture[2]	== markers.txt\n4\n== output.adpc.bin\nBINARY sha256=5f3f4f4f4f082a6b7b30855455196a58b5b411e043d9564b2c0a12e350d3b520 bytes=88\n== samples.txt\narr_s2\n
+row	3:CREATE_INDEX=false,VALIDATION_STRINGENCY=STRICT,VCF=fixture[1]	== markers.txt\n4\n== output.adpc.bin\nBINARY sha256=3d9e58655c1f3a58457b9d7c37b1f973bbeca06d79e8fbc855aaa7476eef077e bytes=160\n== samples.txt\narr_s1\narr_s2\n
+row	4:CREATE_INDEX=false,VALIDATION_STRINGENCY=LENIENT,VCF=fixture[0]	== markers.txt\n4\n== output.adpc.bin\nBINARY sha256=40b1e1d696d14c653b29dabe84a52a2d7ca3c854f7e624dde7a82ea2e39fdfa5 bytes=88\n== samples.txt\narr_s1\n
+row	5:CREATE_INDEX=false,VALIDATION_STRINGENCY=SILENT,VCF=fixture[3]	EXIT=1 == output.adpc.bin\n1234567890123456\n
+row	6:CREATE_INDEX=true,VALIDATION_STRINGENCY=STRICT,VCF=fixture[3]	EXIT=1 == output.adpc.bin\n1234567890123456\n
+row	7:CREATE_INDEX=false,VALIDATION_STRINGENCY=STRICT,VCF=fixture[2]	== markers.txt\n4\n== output.adpc.bin\nBINARY sha256=5f3f4f4f4f082a6b7b30855455196a58b5b411e043d9564b2c0a12e350d3b520 bytes=88\n== samples.txt\narr_s2\n
+row	8:CREATE_INDEX=true,VALIDATION_STRINGENCY=LENIENT,VCF=fixture[2]	== markers.txt\n4\n== output.adpc.bin\nBINARY sha256=5f3f4f4f4f082a6b7b30855455196a58b5b411e043d9564b2c0a12e350d3b520 bytes=88\n== samples.txt\narr_s2\n
+row	9:CREATE_INDEX=true,VALIDATION_STRINGENCY=LENIENT,VCF=fixture[3]	EXIT=1 == output.adpc.bin\n1234567890123456\n
+row	10:CREATE_INDEX=true,VALIDATION_STRINGENCY=SILENT,VCF=fixture[0]	== markers.txt\n4\n== output.adpc.bin\nBINARY sha256=40b1e1d696d14c653b29dabe84a52a2d7ca3c854f7e624dde7a82ea2e39fdfa5 bytes=88\n== samples.txt\narr_s1\n
+row	11:CREATE_INDEX=true,VALIDATION_STRINGENCY=SILENT,VCF=fixture[1]	== markers.txt\n4\n== output.adpc.bin\nBINARY sha256=3d9e58655c1f3a58457b9d7c37b1f973bbeca06d79e8fbc855aaa7476eef077e bytes=160\n== samples.txt\narr_s1\narr_s2\n
