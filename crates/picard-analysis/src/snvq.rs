@@ -16,9 +16,14 @@
 //! base at that position, the corresponding tag's quality is one SNVQ observation. A non-`ACGT`
 //! base (an `N`) is unequal to all four, so it contributes four SNVQ observations.
 
+use std::collections::BTreeMap;
+
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
-use htsjdk_metrics::file::{MetricBean, Value};
+use htsjdk_metrics::file::{Histogram, MetricBean, Value};
+
+use crate::quality_yield_flow::integer_histogram;
+use crate::series_stats::SeriesStats;
 
 const SECONDARY_ALIGNMENT: u16 = 0x100;
 const READ_FAILS_VENDOR_QUALITY: u16 = 0x200;
@@ -150,6 +155,15 @@ pub struct SnvqCollector {
     include_secondary: bool,
     include_supplemental: bool,
     metrics: SnvqMetrics,
+    /// `ALTERNATE_QUALITY_ATTRIBUTE`: a tag of FASTQ-encoded qualities read instead of the base
+    /// qualities.
+    alternate_quality_attribute: Option<String>,
+    /// `INCLUDE_BQ_HISTOGRAM`.
+    include_histogram: bool,
+    quality_histogram: BTreeMap<i64, i64>,
+    snvq_histogram: BTreeMap<i64, i64>,
+    read_position_quality_stats: Vec<SeriesStats>,
+    read_position_snvq_stats: Vec<SeriesStats>,
 }
 
 impl SnvqCollector {
@@ -157,24 +171,96 @@ impl SnvqCollector {
         SnvqCollector {
             include_secondary,
             include_supplemental,
-            metrics: SnvqMetrics::default(),
+            ..Default::default()
         }
     }
 
-    fn tag_bytes<'a>(rec: &'a BamRecord, name: &[u8; 2]) -> &'a [u8] {
+    /// The whole constructor: the alternate quality tag and the histogram switch as well.
+    pub fn with_options(
+        alternate_quality_attribute: Option<String>,
+        include_secondary: bool,
+        include_supplemental: bool,
+        include_histogram: bool,
+    ) -> Self {
+        SnvqCollector {
+            include_secondary,
+            include_supplemental,
+            alternate_quality_attribute,
+            include_histogram,
+            ..Default::default()
+        }
+    }
+
+    fn tag_bytes<'a>(rec: &'a BamRecord, name: &[u8; 2]) -> Result<&'a [u8], String> {
         match rec.tags.get(Tag::new(name)) {
-            Some(TagValue::Str(s)) => s.as_bytes(),
-            _ => panic!("CollectQualityYieldMetricsSNVQ requires the {:?} tag", name),
+            Some(TagValue::Str(s)) => Ok(s.as_bytes()),
+            _ => Err(
+                "java.lang.NullPointerException: Cannot invoke \"String.getBytes()\" because the \
+                 return value of \"htsjdk.samtools.SAMRecord.getStringAttribute(String)\" is null"
+                    .to_string(),
+            ),
         }
     }
 
     pub fn accept(&mut self, rec: &BamRecord) {
+        self.try_accept(rec)
+            .unwrap_or_else(|message| panic!("{message}"));
+    }
+
+    /// `acceptRecord`. An `Err` is the Java exception, class and message.
+    pub fn try_accept(&mut self, rec: &BamRecord) -> Result<(), String> {
         if !self.include_secondary && rec.flags & SECONDARY_ALIGNMENT != 0 {
-            return;
+            return Ok(());
         }
         if !self.include_supplemental && rec.flags & SUPPLEMENTARY_ALIGNMENT != 0 {
-            return;
+            return Ok(());
         }
+
+        let alternate: Vec<u8>;
+        let quals: &[u8] = match &self.alternate_quality_attribute {
+            Some(name) => {
+                let tag = name.as_bytes();
+                let text =
+                    match (tag.len() == 2)
+                        .then(|| rec.tags.get(Tag::new(&[tag[0], tag[1]])))
+                        .flatten()
+                    {
+                        Some(TagValue::Str(s)) => s.as_bytes(),
+                        _ => return Err(
+                            "java.lang.NullPointerException: Cannot invoke \"String.getBytes()\" \
+                             because the return value of \
+                             \"htsjdk.samtools.SAMRecord.getStringAttribute(String)\" is null"
+                                .to_string(),
+                        ),
+                    };
+                let mut phred = Vec::with_capacity(text.len());
+                for &b in text {
+                    if !(33..=126).contains(&b) {
+                        return Err(format!(
+                            "java.lang.IllegalArgumentException: Invalid fastq character: {}",
+                            b as char
+                        ));
+                    }
+                    phred.push(b - 33);
+                }
+                alternate = phred;
+                &alternate
+            }
+            None => &rec.base_qualities,
+        };
+        let bases = &rec.read_bases;
+        if quals.len() != bases.len() {
+            return Err(
+                "picard.PicardException: quality string length does not match bases string"
+                    .to_string(),
+            );
+        }
+        let snvq: [&[u8]; 4] = [
+            Self::tag_bytes(rec, SNVQ_TAGS[0])?,
+            Self::tag_bytes(rec, SNVQ_TAGS[1])?,
+            Self::tag_bytes(rec, SNVQ_TAGS[2])?,
+            Self::tag_bytes(rec, SNVQ_TAGS[3])?,
+        ];
 
         let m = &mut self.metrics;
         let length = rec.read_length() as i64;
@@ -186,20 +272,6 @@ impl SnvqCollector {
             m.pf_reads += 1;
             m.pf_bases += length;
         }
-
-        let quals = &rec.base_qualities;
-        let bases = &rec.read_bases;
-        assert_eq!(
-            quals.len(),
-            bases.len(),
-            "quality string length does not match bases string"
-        );
-        let snvq: [&[u8]; 4] = [
-            Self::tag_bytes(rec, SNVQ_TAGS[0]),
-            Self::tag_bytes(rec, SNVQ_TAGS[1]),
-            Self::tag_bytes(rec, SNVQ_TAGS[2]),
-            Self::tag_bytes(rec, SNVQ_TAGS[3]),
-        ];
 
         for (read_position, &qb) in quals.iter().enumerate() {
             let qual = qb as i32;
@@ -230,8 +302,22 @@ impl SnvqCollector {
             let base = bases[read_position];
             for i in 0..BASE_ORDER.len() {
                 if base != BASE_ORDER[i] {
-                    // fastqToPhred: the FASTQ character minus 33.
-                    let q = snvq[i][read_position] as i32 - 33;
+                    // fastqToPhred: the FASTQ character minus 33, which refuses a character
+                    // outside the printable range.
+                    let character = *snvq[i].get(read_position).ok_or_else(|| {
+                        format!(
+                            "java.lang.ArrayIndexOutOfBoundsException: Index {read_position} \
+                             out of bounds for length {}",
+                            snvq[i].len()
+                        )
+                    })?;
+                    if !(33..=126).contains(&character) {
+                        return Err(format!(
+                            "java.lang.IllegalArgumentException: Invalid fastq character: {}",
+                            character as char
+                        ));
+                    }
+                    let q = character as i32 - 33;
                     m.total_snvq += 1;
                     if is_pf {
                         m.pf_snvq += 1;
@@ -258,9 +344,56 @@ impl SnvqCollector {
                             m.pf_q20_snvq += 1;
                         }
                     }
+                    if self.include_histogram {
+                        *self.snvq_histogram.entry(i64::from(q)).or_insert(0) += 1;
+                        while self.read_position_snvq_stats.len() <= read_position {
+                            self.read_position_snvq_stats.push(SeriesStats::new());
+                        }
+                        self.read_position_snvq_stats[read_position].add(f64::from(q));
+                    }
                 }
             }
+            if self.include_histogram {
+                *self.quality_histogram.entry(i64::from(qual)).or_insert(0) += 1;
+                while self.read_position_quality_stats.len() <= read_position {
+                    self.read_position_quality_stats.push(SeriesStats::new());
+                }
+                self.read_position_quality_stats[read_position].add(f64::from(qual));
+            }
         }
+        Ok(())
+    }
+
+    /// `finish` and `addHistograms`: the metrics, and with `INCLUDE_BQ_HISTOGRAM` the four
+    /// histograms the tool adds to its file, in its order.
+    pub fn finish_with_histograms(self) -> (SnvqMetrics, Vec<Histogram>) {
+        let mut histograms = Vec::new();
+        if self.include_histogram {
+            let counts = |label: &str, map: &BTreeMap<i64, i64>| {
+                integer_histogram(label, map.iter().map(|(k, v)| (*k, *v as f64)).collect())
+            };
+            let means = |label: &str, stats: &[SeriesStats]| {
+                integer_histogram(
+                    label,
+                    stats
+                        .iter()
+                        .enumerate()
+                        .map(|(i, s)| (i as i64, s.mean()))
+                        .collect(),
+                )
+            };
+            histograms.push(counts("BQ_COUNT", &self.quality_histogram));
+            histograms.push(counts("SNVQ_COUNT", &self.snvq_histogram));
+            histograms.push(means(
+                "READ_INDEX_MEAN_BQ",
+                &self.read_position_quality_stats,
+            ));
+            histograms.push(means(
+                "READ_INDEX_MEAN_SNVQ",
+                &self.read_position_snvq_stats,
+            ));
+        }
+        (self.finish(), histograms)
     }
 
     /// `calculateDerivedFields`: the ratios and the floored mean read length.

@@ -492,7 +492,7 @@
         "tool": "CollectRawWgsMetrics",
         "port": "collect-raw-wgs-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectWgsMetricsWithNonZeroCoverage",
@@ -608,6 +608,261 @@
         "t": 2,
         "status": "measured",
         "output_name": "output.bam"
+      },
+      {
+        "tool": "CollectSamErrorMetrics",
+        "port": "collect-sam-error-metrics",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
+      },
+      {
+        "tool": "AccumulateVariantCallingMetrics",
+        "port": "accumulate-variant-calling-metrics",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.txt.variant_calling_detail_metrics,output.txt.variant_calling_summary_metrics"
+      },
+      {
+        "tool": "BaitDesigner",
+        "port": "bait-designer",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
+      },
+      {
+        "tool": "CollectQualityYieldMetricsFlow",
+        "port": "collect-quality-yield-metrics-flow",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "CollectQualityYieldMetricsSNVQ",
+        "port": "collect-quality-yield-metrics-snvq",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "FifoBuffer",
+        "port": "fifo-buffer",
+        "t": 2,
+        "status": "measured",
+        "output": "stdout"
+      },
+      {
+        "tool": "UmiAwareMarkDuplicatesWithMateCigar",
+        "port": "umi-aware-mark-duplicates-with-mate-cigar",
+        "t": 2,
+        "status": "measured",
+        "strip_program_records": true,
+        "output_name": "output.txt,umi_metrics.txt"
+      },
+      {
+        "tool": "ConvertHaplotypeDatabaseToVcf",
+        "port": "convert-haplotype-database-to-vcf",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.vcf"
+      },
+      {
+        "tool": "ClusterCrosscheckMetrics",
+        "port": "cluster-crosscheck-metrics",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "SetNmAndUqTags",
+        "port": "set-nm-md-and-uq-tags",
+        "t": 2,
+        "status": "measured"
+      },
+      {
+        "tool": "CheckTerminatorBlock",
+        "port": "check-terminator-block",
+        "t": 2,
+        "status": "measured",
+        "output": "stderr",
+        "exit_code_is_a_result": true
+      },
+      {
+        "tool": "FilterVcf",
+        "port": "filter-vcf",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.vcf"
+      },
+      {
+        "tool": "CheckFingerprint",
+        "port": "check-fingerprint",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all",
+        "exit_code_is_a_result": true
+      },
+      {
+        "tool": "CrosscheckFingerprints",
+        "port": "crosscheck-fingerprints",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all",
+        "exit_code_is_a_result": true
+      },
+      {
+        "tool": "CrosscheckReadGroupFingerprints",
+        "port": "crosscheck-read-group-fingerprints",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all",
+        "exit_code_is_a_result": true
+      },
+      {
+        "tool": "CalculateFingerprintMetrics",
+        "port": "calculate-fingerprint-metrics",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all",
+        "exit_code_is_a_result": true
+      },
+      {
+        "tool": "ExtractFingerprint",
+        "port": "extract-fingerprint",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.vcf",
+        "strip_line_prefixes": [
+          "##fileDate="
+        ]
+      },
+      {
+        "tool": "IdentifyContaminant",
+        "port": "identify-contaminant",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.vcf",
+        "strip_line_prefixes": [
+          "##fileDate="
+        ]
+      },
+      {
+        "tool": "CreateBafRegressMetricsFile",
+        "port": "create-baf-regress-metrics-file",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
+      },
+      {
+        "tool": "CreateVerifyIDIntensityContaminationMetricsFile",
+        "port": "create-verify-id-intensity-contamination-metrics-file",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
+      },
+      {
+        "tool": "BpmToNormalizationManifestCsv",
+        "port": "bpm-to-normalization-manifest-csv",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.csv"
+      },
+      {
+        "tool": "CompareGtcFiles",
+        "port": "compare-gtc-files",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
+      },
+      {
+        "tool": "GtcToVcf",
+        "port": "gtc-to-vcf",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.vcf",
+        "strip_line_prefixes": [
+          "##fileDate="
+        ]
+      },
+      {
+        "tool": "VcfToAdpc",
+        "port": "vcf-to-adpc",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all",
+        "exit_code_is_a_result": true
+      },
+      {
+        "tool": "CombineGenotypingArrayVcfs",
+        "port": "combine-genotyping-array-vcfs",
+        "t": 2,
+        "status": "measured",
+        "output_name": "output.vcf",
+        "exit_code_is_a_result": true
+      },
+      {
+        "tool": "CollectArraysVariantCallingMetrics",
+        "port": "collect-arrays-variant-calling-metrics",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
+      },
+      {
+        "tool": "CreateExtendedIlluminaManifest",
+        "port": "create-extended-illumina-manifest",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all",
+        "strip_line_prefixes": [
+          "Generated on:"
+        ]
+      },
+      {
+        "tool": "CheckIlluminaDirectory",
+        "port": "check-illumina-directory",
+        "t": 2,
+        "status": "measured",
+        "output": "stderr",
+        "exit_code_is_a_result": true
+      },
+      {
+        "tool": "CollectIlluminaLaneMetrics",
+        "port": "collect-illumina-lane-metrics",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
+      },
+      {
+        "tool": "CollectHiSeqXPfFailMetrics",
+        "port": "collect-hi-seq-x-pf-fail-metrics",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
+      },
+      {
+        "tool": "CollectIlluminaBasecallingMetrics",
+        "port": "collect-illumina-basecalling-metrics",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
+      },
+      {
+        "tool": "ExtractIlluminaBarcodes",
+        "port": "extract-illumina-barcodes",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
+      },
+      {
+        "tool": "IlluminaBasecallsToFastq",
+        "port": "illumina-basecalls-to-fastq",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
+      },
+      {
+        "tool": "IlluminaBasecallsToSam",
+        "port": "illumina-basecalls-to-sam",
+        "t": 2,
+        "status": "measured",
+        "output_name": "@all"
       }
     ]
   },

@@ -142,7 +142,7 @@
         "--COMPARE_MQ": "true",
         "--CREATE_INDEX": "true",
         "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
         "--LOW_MQ_THRESHOLD": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
@@ -161,7 +161,7 @@
         "--COMPARE_MQ": "true",
         "--CREATE_INDEX": "false",
         "--LENIENT_LOW_MQ_ALIGNMENT": "false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "false",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
         "--LOW_MQ_THRESHOLD": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
@@ -180,7 +180,7 @@
         "--COMPARE_MQ": "false",
         "--CREATE_INDEX": "true",
         "--LENIENT_LOW_MQ_ALIGNMENT": "false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
         "--LOW_MQ_THRESHOLD": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
@@ -199,7 +199,7 @@
         "--COMPARE_MQ": "false",
         "--CREATE_INDEX": "false",
         "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "false",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
         "--LOW_MQ_THRESHOLD": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
@@ -218,7 +218,7 @@
         "--COMPARE_MQ": "false",
         "--CREATE_INDEX": "true",
         "--LENIENT_LOW_MQ_ALIGNMENT": "false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "false",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
         "--LOW_MQ_THRESHOLD": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
@@ -237,7 +237,7 @@
         "--COMPARE_MQ": "false",
         "--CREATE_INDEX": "false",
         "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
         "--LOW_MQ_THRESHOLD": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
@@ -256,7 +256,7 @@
         "--COMPARE_MQ": "true",
         "--CREATE_INDEX": "false",
         "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
         "--LOW_MQ_THRESHOLD": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
@@ -275,7 +275,7 @@
         "--COMPARE_MQ": "true",
         "--CREATE_INDEX": "true",
         "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
         "--LOW_MQ_THRESHOLD": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
@@ -294,7 +294,7 @@
         "--COMPARE_MQ": "true",
         "--CREATE_INDEX": "true",
         "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
         "--LOW_MQ_THRESHOLD": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },

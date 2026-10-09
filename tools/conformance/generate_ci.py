@@ -202,6 +202,8 @@ def coverage_job(manifest):
         # A tool with no output argument is compared on its standard output; see run_array.py.
         f"            --port target/release/{t['port']}"
         f"{' --stdout' if t.get('output') == 'stdout' else ''}"
+        f"{' --stderr' if t.get('output') == 'stderr' else ''}"
+        f"{''.join(f' --strip-line-prefix={p!r}' for p in t.get('strip_line_prefixes', []))}"
         # A tool that stamps a @PG carrying its command line: see run_array.py.
         f"{' --strip-program-records' if t.get('strip_program_records') else ''}"
         # A tool whose exit code says what it FOUND rather than that it failed.

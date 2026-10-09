@@ -262,10 +262,34 @@ pub fn design_fixed_offset(target: &Target, reference: &[u8], options: &Options)
 
     let mut baits = Vec::new();
     for index in 1..=count {
-        let start = first_start + bait_offset * (index - 1);
-        let end = start + bait_size - 1;
+        let mut start = first_start + bait_offset * (index - 1);
+        let mut end = start + bait_size - 1;
         if end > reference_length {
             break;
+        }
+        // A bait with too many masked bases is slid, a base at a time and backwards before
+        // forwards, until one position under the tolerance is found, up to three quarters of the
+        // offset away; if none is, it stays where it was and is discarded later.
+        let masked =
+            |from: i32, until: i32| masked_base_count(&reference[from as usize..until as usize]);
+        if masked(start - 1, end) > options.repeat_tolerance {
+            let max_move = bait_offset * 3 / 4;
+            for step in 1..=max_move {
+                if start - step >= 1
+                    && masked(start - step - 1, end - step) <= options.repeat_tolerance
+                {
+                    start -= step;
+                    end -= step;
+                    break;
+                }
+                if end + step <= reference_length
+                    && masked(start + step - 1, end + step) <= options.repeat_tolerance
+                {
+                    start += step;
+                    end += step;
+                    break;
+                }
+            }
         }
         baits.push(bait(&widened, start, end, index, count, reference, options));
     }

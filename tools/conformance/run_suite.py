@@ -56,7 +56,7 @@ def build_fixtures(manifest, into):
     oracle = manifest["oracle"]
     into.mkdir(parents=True, exist_ok=True)
     command = (
-        'cp /harness/MakeFixtures.java . && javac -cp "$ORACLE_CP" -d . MakeFixtures.java '
+        'cp /harness/*.java . && javac -cp "$ORACLE_CP" -d . *.java '
         '&& java -Dsamjdk.try_use_intel_deflater=false -cp ".:$ORACLE_CP" MakeFixtures /out'
     )
     return subprocess.run(
@@ -222,24 +222,48 @@ def main(argv):
             print(f"{probe['id']:28} {'probe':14} {probe['class']}")
         return 0
 
-    with tempfile.TemporaryDirectory() as workdir:
-        if args.suites:
-            ids = args.suites.split()
-            # Every suite runs even after one fails: the run exists to say which suites diverge,
-            # not that at least one does.
-            failed = sum(
-                run_suite(manifest, comparator.suite_by_id(manifest, suite_id), workdir)
-                for suite_id in ids
-            )
-            print(f"suites={len(ids)} failing={failed}")
-            return 1 if failed else 0
-        if args.probe:
-            for probe in manifest.get("probes", []):
-                if probe["id"] == args.probe:
-                    return run_probe(manifest, probe, workdir)
-            raise SystemExit(f"no probe {args.probe!r} in the manifest")
+    if not args.suites and not args.probe:
+        ap.error("pass --suites, --probe or --list")
 
-    ap.error("pass --suites, --probe or --list")
+    with tempfile.TemporaryDirectory() as workdir:
+        try:
+            return run_requested(manifest, args, workdir)
+        finally:
+            empty_as_root(manifest, workdir)
+
+
+def empty_as_root(manifest, workdir):
+    """Remove what the container wrote under `workdir`, as root, which is who owns it.
+
+    The Illumina fixtures are directories (`ill_run/Data/Intensities/BaseCalls`, `InterOp`), and a
+    directory the container creates belongs to root, so the host cannot unlink anything inside it
+    and the temporary directory's teardown fails a run whose suites all passed.
+    """
+    oracle = manifest["oracle"]
+    subprocess.run(
+        [
+            "docker", "run", "--rm", "--platform", oracle["platform"],
+            "-v", f"{workdir}:/scratch", oracle["image"], "rm -rf /scratch/* /scratch/.[!.]*",
+        ],
+        capture_output=True,
+    )
+
+
+def run_requested(manifest, args, workdir):
+    if args.suites:
+        ids = args.suites.split()
+        # Every suite runs even after one fails: the run exists to say which suites diverge,
+        # not that at least one does.
+        failed = sum(
+            run_suite(manifest, comparator.suite_by_id(manifest, suite_id), workdir)
+            for suite_id in ids
+        )
+        print(f"suites={len(ids)} failing={failed}")
+        return 1 if failed else 0
+    for probe in manifest.get("probes", []):
+        if probe["id"] == args.probe:
+            return run_probe(manifest, probe, workdir)
+    raise SystemExit(f"no probe {args.probe!r} in the manifest")
 
 
 if __name__ == "__main__":

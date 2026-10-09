@@ -284,6 +284,11 @@ pub fn chromosome_counts(record: &ManifestRecord, call: &Call) -> (Vec<i32>, i32
 
 /// One INFO entry.
 fn attribute(key: &str, value: String) -> (String, String) {
+    // `VCFEncoder.formatVCFField` writes an empty string as the missing value: a manifest row with
+    // no B probe (an assay of type 0) is `PROBE_B=.`.
+    if value.is_empty() {
+        return (key.to_string(), ".".to_string());
+    }
     (key.to_string(), value)
 }
 

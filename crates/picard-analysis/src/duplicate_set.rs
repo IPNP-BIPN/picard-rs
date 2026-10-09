@@ -255,7 +255,7 @@ fn sorted_set(
 /// set is a run of equal keys, so the numbering cannot move a record between sets, but it is the
 /// major sort key and decides the order the sets come out in, which a tool that walks them
 /// (`CollectIndependentReplicateMetrics`) sees.
-fn library_ids(records: &[Record]) -> Vec<i32> {
+pub(crate) fn library_ids(records: &[Record]) -> Vec<i32> {
     let mut names: Vec<&str> = records.iter().map(|r| r.library.as_str()).collect();
     names.sort_unstable();
     names.dedup();

@@ -18,7 +18,9 @@
 //! `picard.sam.SamErrorMetric.BaseErrorAggregation` and
 //! `picard.sam.SamErrorMetric.ReadBaseStratification` in Picard 3.4.0.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
+
+use crate::theoretical_sensitivity::JavaRandom;
 
 /// The error probability a phred-scaled prior stands for: `PRIOR_Q` of 30 is one error in a
 /// thousand.
@@ -54,15 +56,20 @@ pub enum AlignmentType {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Read {
     pub name: String,
-    /// One-based, on the single contig these fixtures use.
+    /// One-based, on the single (possibly concatenated) contig the reads are placed on.
     pub start: i32,
     pub bases: Vec<u8>,
     /// Phred, not ASCII.
     pub qualities: Vec<u8>,
     pub flags: u16,
+    /// One-based, on the same coordinate as `start`; zero when the mate has no position.
     pub mate_start: i32,
     pub cigar: Vec<(usize, char)>,
     pub mapping_quality: u8,
+    /// The `RG` tag, which the read-group stratifier reads.
+    pub read_group: String,
+    /// The template length, which the insert-length stratifier reads.
+    pub insert_size: i32,
 }
 
 impl Read {
@@ -71,6 +78,9 @@ impl Read {
     }
     pub fn is_first_of_pair(&self) -> bool {
         self.flags & 0x40 != 0
+    }
+    pub fn is_second_of_pair(&self) -> bool {
+        self.flags & 0x80 != 0
     }
     pub fn is_unmapped(&self) -> bool {
         self.flags & 0x4 != 0
@@ -87,11 +97,11 @@ impl Read {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Observation {
     pub read: usize,
-    /// The offset into the read's bases, which is what the cycle is counted from.
-    pub offset: usize,
+    /// The offset into the read's bases, which is what the cycle is counted from. A deletion is
+    /// shown at the offset of the base BEFORE it, which is minus one for a read that starts with
+    /// one.
+    pub offset: i64,
     pub alignment: AlignmentType,
-    /// The length of the cigar element an insertion or a deletion belongs to.
-    pub indel_length: usize,
 }
 
 /// A locus and everything read over it.
@@ -121,6 +131,9 @@ pub struct Options {
     pub max_loci: u64,
     /// One-based positions the sample is known to be polymorphic at.
     pub known_sites: Vec<i32>,
+    /// The chance a locus is looked at at all; a locus that is not is neither counted nor
+    /// skipped.
+    pub probability: f64,
 }
 
 impl Default for Options {
@@ -131,80 +144,150 @@ impl Default for Options {
             prior_q: 30,
             max_loci: 0,
             known_sites: Vec::new(),
+            probability: 1.0,
         }
     }
+}
+
+/// What one locus holds before it is flattened into a [`Locus`]: the matched bases, then the
+/// deletions, then the insertions, which is the order `addLocusBases` shows them in.
+#[derive(Default)]
+struct Pile {
+    matches: Vec<Observation>,
+    deletions: Vec<Observation>,
+    insertions: Vec<Observation>,
+}
+
+fn consumes_read(operator: char) -> bool {
+    matches!(operator, 'M' | 'I' | 'S' | '=' | 'X')
+}
+
+fn consumes_reference(operator: char) -> bool {
+    matches!(operator, 'M' | 'D' | 'N' | '=' | 'X')
 }
 
 /// The pileup the tool walks: every locus a read covers, indels included, with the two thresholds
 /// already applied.
 ///
+/// Ported from htsjdk 4.2.0's `SamLocusIterator`, as `CollectSamErrorMetrics` configures it:
+///
+/// * secondary, supplementary and duplicate reads are filtered out, and so are unmapped reads and
+///   reads below the mapping-quality cutoff;
+/// * a matched base below the base-quality cutoff is not accumulated;
+/// * an insertion is shown at the base BEFORE it, and is dropped when its first base is below the
+///   cutoff; **the read offset only moves past an insertion that is kept**, so a dropped one
+///   leaves every later offset of the read short by its length (an htsjdk quirk, ported);
+/// * a deletion is shown at every reference position it spans, at the offset of the base before
+///   it, and the base quality does not apply to it;
+/// * a locus holding nothing at all is not emitted.
+///
 /// The thresholds drop observations rather than loci, one by read and one by base, which is why a
 /// mismatch below `--MIN_BASE_Q` lowers the denominator instead of raising the error count.
 pub fn pileup(reads: &[Read], options: &Options) -> Vec<Locus> {
-    let mut loci: BTreeMap<i32, Vec<Observation>> = BTreeMap::new();
+    let mut loci: BTreeMap<i32, Pile> = BTreeMap::new();
+    let cutoff = options.min_base_q;
+    let passes = |read: &Read, offset: usize| {
+        cutoff == 0
+            || read.qualities.is_empty()
+            || read.qualities.get(offset).is_none_or(|&q| q >= cutoff)
+    };
     for (index, read) in reads.iter().enumerate() {
-        if read.mapping_quality < options.min_mapping_q || read.is_unmapped() {
+        if read.flags & (0x100 | 0x800 | 0x400) != 0
+            || read.is_unmapped()
+            || read.mapping_quality < options.min_mapping_q
+        {
             continue;
         }
+        // accumulateSamRecord: one observation per aligned base that meets the cutoff.
         let mut position = read.start;
         let mut offset = 0usize;
         for &(length, operator) in &read.cigar {
-            match operator {
-                'M' | '=' | 'X' => {
-                    for step in 0..length {
-                        if read.qualities[offset + step] >= options.min_base_q {
-                            loci.entry(position + step as i32)
-                                .or_default()
-                                .push(Observation {
-                                    read: index,
-                                    offset: offset + step,
-                                    alignment: AlignmentType::Match,
-                                    indel_length: 0,
-                                });
-                        }
+            if matches!(operator, 'M' | '=' | 'X') {
+                for step in 0..length {
+                    if passes(read, offset + step) {
+                        loci.entry(position + step as i32)
+                            .or_default()
+                            .matches
+                            .push(Observation {
+                                read: index,
+                                offset: (offset + step) as i64,
+                                alignment: AlignmentType::Match,
+                            });
                     }
-                    position += length as i32;
-                    offset += length;
                 }
-                'D' | 'N' => {
+            }
+            if consumes_read(operator) {
+                offset += length;
+            }
+            if consumes_reference(operator) {
+                position += length as i32;
+            }
+        }
+        // accumulateIndels.
+        let mut read_base: i64 = 0;
+        let mut position = read.start;
+        for &(length, operator) in &read.cigar {
+            match operator {
+                'I' => {
+                    if passes(read, read_base.max(0) as usize) {
+                        loci.entry(position - 1)
+                            .or_default()
+                            .insertions
+                            .push(Observation {
+                                read: index,
+                                offset: read_base,
+                                alignment: AlignmentType::Insertion,
+                            });
+                        read_base += length as i64;
+                    }
+                }
+                'D' => {
                     for step in 0..length {
                         loci.entry(position + step as i32)
                             .or_default()
+                            .deletions
                             .push(Observation {
                                 read: index,
-                                offset,
+                                offset: read_base - 1,
                                 alignment: AlignmentType::Deletion,
-                                indel_length: length,
                             });
                     }
                     position += length as i32;
                 }
-                'I' => {
-                    loci.entry(position).or_default().push(Observation {
-                        read: index,
-                        offset,
-                        alignment: AlignmentType::Insertion,
-                        indel_length: length,
-                    });
-                    offset += length;
+                other => {
+                    if consumes_read(other) {
+                        read_base += length as i64;
+                    }
+                    if consumes_reference(other) {
+                        position += length as i32;
+                    }
                 }
-                'S' => offset += length,
-                _ => {}
             }
         }
     }
     loci.into_iter()
-        .map(|(position, records)| Locus { position, records })
+        .map(|(position, pile)| {
+            let mut records = pile.matches;
+            records.extend(pile.deletions);
+            records.extend(pile.insertions);
+            Locus { position, records }
+        })
         .collect()
 }
 
-/// The loci a run actually counts: the known sites removed, and then the cap applied.
+/// The loci a run actually counts, in the order the tool's loop takes them.
 ///
-/// The order matters. A skipped locus is not a processed one, so `--MAX_LOCI` counts what is left
-/// after the VCF has taken its sites out.
+/// Each locus first draws from `Random(42)` and is not looked at when the draw is above
+/// `--PROBABILITY`; a known site is then skipped; the rest are counted, and `--MAX_LOCI` stops
+/// the run once that many have been. So the cap counts what is left after the VCF and the draw
+/// have taken their loci out.
 pub fn processed_loci(loci: Vec<Locus>, options: &Options) -> Vec<Locus> {
+    let mut random = JavaRandom::new(42);
     let mut kept = Vec::new();
     for locus in loci {
+        if random.next_double() > options.probability {
+            continue;
+        }
         if options.known_sites.contains(&locus.position) {
             continue;
         }
@@ -244,16 +327,45 @@ impl Calculator {
     }
 }
 
-/// The stratifiers whose binning is ported, which are the ones the goldens exercise.
+/// The stratifiers whose binning is ported.
 ///
-/// Every stratifier's file suffix is in [`stratifier_suffix`]; these four are the ones that also
-/// put a base in a bin here.
+/// Every stratifier's file suffix is in [`stratifier_suffix`]; these are the ones that also put a
+/// base in a bin here, and [`Stratifier::parse`] names them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stratifier {
     All,
     BaseQuality,
     Cycle,
     GcContent,
+    ReadDirection,
+    ReadOrdinality,
+    MappingQuality,
+    ReadGroup,
+    ReadBase,
+    ReferenceBase,
+    InsertLength,
+    SoftClips,
+}
+
+impl Stratifier {
+    /// `ReadBaseStratification.Stratifier.valueOf`, for the stratifiers this port bins.
+    pub fn parse(name: &str) -> Option<Stratifier> {
+        Some(match name {
+            "ALL" => Stratifier::All,
+            "BASE_QUALITY" => Stratifier::BaseQuality,
+            "CYCLE" => Stratifier::Cycle,
+            "GC_CONTENT" => Stratifier::GcContent,
+            "READ_DIRECTION" => Stratifier::ReadDirection,
+            "READ_ORDINALITY" => Stratifier::ReadOrdinality,
+            "MAPPING_QUALITY" => Stratifier::MappingQuality,
+            "READ_GROUP" => Stratifier::ReadGroup,
+            "READ_BASE" => Stratifier::ReadBase,
+            "REFERENCE_BASE" => Stratifier::ReferenceBase,
+            "INSERT_LENGTH" => Stratifier::InsertLength,
+            "SOFT_CLIPS" => Stratifier::SoftClips,
+            _ => return None,
+        })
+    }
 }
 
 /// `ReadBaseStratification.Stratifier`, name to file suffix.
@@ -269,15 +381,15 @@ pub fn stratifier_suffix(name: &str) -> Option<&'static str> {
         "READ_DIRECTION" => "read_direction",
         "PAIR_ORIENTATION" => "pair_orientation",
         "PAIR_PROPERNESS" => "pair_proper",
-        "REFERENCE_BASE" => "reference_base",
+        "REFERENCE_BASE" => "ref_base",
         "PRE_DINUC" => "pre_dinuc",
         "POST_DINUC" => "post_dinuc",
         "HOMOPOLYMER_LENGTH" => "homopolymer_length",
         "HOMOPOLYMER" => "homopolymer_and_following_ref_base",
         "BINNED_HOMOPOLYMER" => "binned_length_homopolymer_and_following_ref_base",
         "FLOWCELL_TILE" => "tile",
-        "FLOWCELL_X" => "flowcell_x",
-        "FLOWCELL_Y" => "flowcell_y",
+        "FLOWCELL_X" => "x",
+        "FLOWCELL_Y" => "y",
         "READ_GROUP" => "read_group",
         "CYCLE" => "cycle",
         "BINNED_CYCLE" => "binned_cycle",
@@ -290,8 +402,8 @@ pub fn stratifier_suffix(name: &str) -> Option<&'static str> {
         "TWO_BASE_PADDED_CONTEXT" => "two_base_padded_context",
         "CONSENSUS" => "consensus",
         "NS_IN_READ" => "ns_in_read",
-        "INSERTIONS_IN_READ" => "insertions_in_read",
-        "DELETIONS_IN_READ" => "deletions_in_read",
+        "INSERTIONS_IN_READ" => "cigar_elements_I_in_read",
+        "DELETIONS_IN_READ" => "cigar_elements_D_in_read",
         "INDELS_IN_READ" => "indels_in_read",
         "INDEL_LENGTH" => "indel_length",
         _ => return None,
@@ -385,44 +497,209 @@ pub fn suffixes(directives: &[String]) -> Result<Vec<String>, Refusal> {
     Ok(seen)
 }
 
+/// How the two halves of a pair order two strata, which is how the tool's sorted set does.
+#[derive(Debug, Clone, PartialEq)]
+enum Order {
+    /// An `Integer`, a `Byte` or a `Double`.
+    Number(f64),
+    /// An enum, by declaration order.
+    Ordinal(u8),
+    /// A `String` or a `Character`.
+    Text(String),
+}
+
+/// One stratifier's answer for one base: what it sorts by, and what `toString` prints.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Part {
+    order: Order,
+    text: String,
+}
+
+impl Part {
+    fn number(value: i64) -> Part {
+        Part {
+            order: Order::Number(value as f64),
+            text: value.to_string(),
+        }
+    }
+    fn text(value: String) -> Part {
+        Part {
+            order: Order::Text(value.clone()),
+            text: value,
+        }
+    }
+}
+
+fn compare_parts(left: &Part, right: &Part) -> std::cmp::Ordering {
+    match (&left.order, &right.order) {
+        (Order::Number(a), Order::Number(b)) => {
+            a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+        }
+        (Order::Ordinal(a), Order::Ordinal(b)) => a.cmp(b),
+        (Order::Text(a), Order::Text(b)) => a.cmp(b),
+        _ => std::cmp::Ordering::Equal,
+    }
+}
+
+/// A stratum: one part per stratifier, which a `Pair` of pairs compares left to right and prints
+/// joined by a comma.
+#[derive(Debug, Clone, PartialEq)]
+struct Key(Vec<Part>);
+
+impl Key {
+    fn text(&self) -> String {
+        self.0
+            .iter()
+            .map(|part| part.text.as_str())
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+}
+
+impl Eq for Key {}
+
+impl Ord for Key {
+    fn cmp(&self, other: &Key) -> std::cmp::Ordering {
+        for (left, right) in self.0.iter().zip(&other.0) {
+            let order = compare_parts(left, right);
+            if order != std::cmp::Ordering::Equal {
+                return order;
+            }
+        }
+        std::cmp::Ordering::Equal
+    }
+}
+
+impl PartialOrd for Key {
+    fn partial_cmp(&self, other: &Key) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// `SequenceUtil.complement`, which leaves anything but a plain base as it is.
+fn complement(base: u8) -> u8 {
+    match base {
+        b'A' => b'T',
+        b'C' => b'G',
+        b'G' => b'C',
+        b'T' => b'A',
+        b'a' => b't',
+        b'c' => b'g',
+        b'g' => b'c',
+        b't' => b'a',
+        other => other,
+    }
+}
+
+/// `ReadBaseStratification.stratifySequenceBase`: complemented on the reverse strand, upper case.
+fn sequence_base(base: u8, reverse: bool) -> char {
+    let base = if reverse { complement(base) } else { base };
+    char::from(base.to_ascii_uppercase())
+}
+
 /// The bin one observation falls in, or nothing, which drops it.
 pub fn stratify(
     stratifier: Stratifier,
     reads: &[Read],
     observation: &Observation,
-) -> Option<String> {
+    reference_base: u8,
+) -> Option<Part> {
     let read = &reads[observation.read];
+    let offset = observation.offset;
+    let at = |index: i64| -> Option<u8> {
+        usize::try_from(index)
+            .ok()
+            .and_then(|i| read.bases.get(i).copied())
+    };
     Some(match stratifier {
-        Stratifier::All => "all".to_string(),
-        Stratifier::BaseQuality => read.qualities.get(observation.offset)?.to_string(),
-        Stratifier::Cycle => cycle(read, observation.offset).to_string(),
-        Stratifier::GcContent => format_double(gc_content(&read.bases)),
+        Stratifier::All => Part::text("all".to_string()),
+        Stratifier::BaseQuality => Part::number(i64::from(
+            *read.qualities.get(usize::try_from(offset).ok()?)?,
+        )),
+        Stratifier::Cycle => Part::number(cycle(read, offset) as i64),
+        Stratifier::GcContent => {
+            let value = gc_content(&read.bases);
+            Part {
+                order: Order::Number(value),
+                text: format_double(value),
+            }
+        }
+        Stratifier::ReadDirection => {
+            if read.is_negative_strand() {
+                Part {
+                    order: Order::Ordinal(1),
+                    text: "-".to_string(),
+                }
+            } else {
+                Part {
+                    order: Order::Ordinal(0),
+                    text: "+".to_string(),
+                }
+            }
+        }
+        Stratifier::ReadOrdinality => {
+            if !read.is_paired() {
+                return None;
+            }
+            if read.is_first_of_pair() {
+                Part {
+                    order: Order::Ordinal(0),
+                    text: "FIRST".to_string(),
+                }
+            } else {
+                Part {
+                    order: Order::Ordinal(1),
+                    text: "SECOND".to_string(),
+                }
+            }
+        }
+        Stratifier::MappingQuality => Part::number(i64::from(read.mapping_quality)),
+        Stratifier::ReadGroup => Part::text(read.read_group.clone()),
+        Stratifier::ReadBase => {
+            let base = at(offset)?;
+            Part::text(sequence_base(base, read.is_negative_strand()).to_string())
+        }
+        Stratifier::ReferenceBase => {
+            if is_no_call(reference_base) {
+                return None;
+            }
+            Part::text(sequence_base(reference_base, read.is_negative_strand()).to_string())
+        }
+        Stratifier::InsertLength => Part::number(i64::from(
+            (read.bases.len() as i32 * 10).min(read.insert_size.abs()),
+        )),
+        Stratifier::SoftClips => Part::number(
+            read.cigar
+                .iter()
+                .filter(|(_, operator)| *operator == 'S')
+                .map(|(length, _)| *length as i64)
+                .sum(),
+        ),
     })
 }
 
 /// The one-based cycle a base was read at, counted from whichever end the machine read from.
-pub fn cycle(read: &Read, offset: usize) -> usize {
-    if read.is_negative_strand() {
-        read.bases.len() - offset - 1 + 1
+pub fn cycle(read: &Read, offset: i64) -> usize {
+    let length = read.bases.len() as i64;
+    let zero_based = if read.is_negative_strand() {
+        length - offset - 1
     } else {
-        offset + 1
-    }
+        offset
+    };
+    (zero_based + 1).max(0) as usize
 }
 
 /// The read's GC, rounded to whole percents and reported as a fraction.
+///
+/// `SequenceUtil.calculateGc` divides by every base of the read, an N included, and the stratifier
+/// then takes `Math.round(100 * gc) / 100`.
 pub fn gc_content(bases: &[u8]) -> f64 {
-    let counted = bases
-        .iter()
-        .filter(|base| matches!(base.to_ascii_uppercase(), b'A' | b'C' | b'G' | b'T'))
-        .count();
-    if counted == 0 {
-        return 0.0;
-    }
     let gc = bases
         .iter()
-        .filter(|base| matches!(base.to_ascii_uppercase(), b'C' | b'G'))
+        .filter(|base| matches!(base, b'C' | b'G' | b'c' | b'g'))
         .count();
-    (100.0 * gc as f64 / counted as f64).round() / 100.0
+    let fraction = gc as f64 / bases.len() as f64;
+    (100.0 * fraction).round() / 100.0
 }
 
 /// `Double.toString`, as far as the covariates go: a whole number keeps its `.0`, and the rest
@@ -434,6 +711,42 @@ fn format_double(value: f64) -> String {
     } else {
         format!("{text}.0")
     }
+}
+
+/// `ReadBaseStratification.getIndelElement`: the cigar element an insertion or a deletion was
+/// recorded for, found from the read offset it carries, or nothing when the offset points at no
+/// element.
+fn indel_element(read: &Read, observation: &Observation) -> Option<(char, usize)> {
+    let offset = observation.offset;
+    if read.cigar.is_empty() {
+        return None;
+    }
+    if offset == -1 {
+        return Some((read.cigar[0].1, read.cigar[0].0));
+    }
+    let mut read_position: i64 = 0;
+    for &(length, operator) in &read.cigar {
+        if read_position > offset + 1 {
+            return None;
+        }
+        match observation.alignment {
+            AlignmentType::Insertion => {
+                if consumes_read(operator) && read_position == offset {
+                    return Some((operator, length));
+                }
+            }
+            AlignmentType::Deletion => {
+                if read_position == offset + 1 {
+                    return Some((operator, length));
+                }
+            }
+            AlignmentType::Match => return None,
+        }
+        if consumes_read(operator) {
+            read_position += length as i64;
+        }
+    }
+    None
 }
 
 /// One row of an `error_by_*` table.
@@ -504,11 +817,13 @@ struct Counts {
     three_ways: u64,
 }
 
-/// Whether two records are the two halves of one template.
+/// `OverlappingReadsErrorCalculator.areReadsMates`, which is asked one way round only: the first
+/// read's mate position must be the second's start, and nothing checks the reverse.
 fn are_mates(left: &Read, right: &Read) -> bool {
     left.name == right.name
         && left.is_paired()
         && left.is_first_of_pair() != right.is_first_of_pair()
+        && left.is_second_of_pair() != right.is_second_of_pair()
         && !left.is_unmapped()
         && !right.is_unmapped()
         && !left.is_secondary()
@@ -528,21 +843,73 @@ pub fn collect(
     stratifier: Stratifier,
     options: &Options,
 ) -> Table {
+    collect_joint(
+        reads,
+        reference,
+        reference_start,
+        loci,
+        calculator,
+        &[stratifier],
+        options,
+    )
+}
+
+/// Run one calculator, split by several stratifiers at once.
+///
+/// `ERROR:READ_ORDINALITY:CYCLE` folds its stratifiers into pairs from the left, so a stratum is
+/// the tuple of every stratifier's answer, ordered left to right and printed with commas, and a
+/// base is dropped when any one of them answers nothing. No stratifier at all is the single
+/// stratum `all`.
+pub fn collect_joint(
+    reads: &[Read],
+    reference: &[u8],
+    reference_start: i32,
+    loci: &[Locus],
+    calculator: Calculator,
+    stratifiers: &[Stratifier],
+    options: &Options,
+) -> Table {
     let prior = prior_error(options.prior_q);
     let mut strata: BTreeMap<Key, Counts> = BTreeMap::new();
+    let all = [Stratifier::All];
+    let stratifiers = if stratifiers.is_empty() {
+        &all[..]
+    } else {
+        stratifiers
+    };
     // A deletion spans several loci, and the same record is shown at each of them; it is counted
-    // once, at the first.
-    let mut seen_deletions: Vec<(usize, i32)> = Vec::new();
+    // once, at the first, and only for the loci that were counted at all.
+    let mut seen_deletions: HashSet<(usize, i32)> = HashSet::new();
 
     for locus in loci {
-        let reference_base = reference[(locus.position - reference_start) as usize];
+        let reference_base = reference
+            .get((locus.position - reference_start) as usize)
+            .copied()
+            .unwrap_or(b'N');
         for observation in &locus.records {
-            let Some(stratum) = stratify(stratifier, reads, observation) else {
-                continue;
-            };
-            let counts = strata.entry(Key::new(&stratum)).or_default();
+            if observation.alignment == AlignmentType::Deletion {
+                let already = seen_deletions.contains(&(observation.read, locus.position - 1));
+                seen_deletions.insert((observation.read, locus.position));
+                if already {
+                    continue;
+                }
+            }
+            let parts: Option<Vec<Part>> = stratifiers
+                .iter()
+                .map(|&stratifier| stratify(stratifier, reads, observation, reference_base))
+                .collect();
+            let Some(parts) = parts else { continue };
+            let counts = strata.entry(Key(parts)).or_default();
             let read = &reads[observation.read];
-            let base = read.bases.get(observation.offset).copied().unwrap_or(b'N');
+            let base = usize::try_from(observation.offset)
+                .ok()
+                .and_then(|i| read.bases.get(i))
+                .copied()
+                .unwrap_or(b'N');
+            let element = match observation.alignment {
+                AlignmentType::Match => None,
+                _ => indel_element(read, observation),
+            };
 
             // Every calculator counts its denominator the same way: matched bases that were
             // called, and the whole length of an insertion.
@@ -552,7 +919,11 @@ pub fn collect(
                         counts.bases += 1;
                     }
                 }
-                AlignmentType::Insertion => counts.bases += observation.indel_length as u64,
+                AlignmentType::Insertion => {
+                    if let Some((_, length)) = element {
+                        counts.bases += length as u64;
+                    }
+                }
                 AlignmentType::Deletion => {}
             }
 
@@ -568,28 +939,30 @@ pub fn collect(
                 Calculator::IndelError => match observation.alignment {
                     AlignmentType::Insertion => {
                         counts.insertions += 1;
-                        counts.inserted_bases += observation.indel_length as u64;
+                        if let Some((_, length)) = element {
+                            counts.inserted_bases += length as u64;
+                        }
                     }
                     AlignmentType::Deletion => {
-                        let previous = (observation.read, locus.position - 1);
-                        if !seen_deletions.contains(&previous) {
-                            counts.deletions += 1;
-                            counts.deleted_bases += observation.indel_length as u64;
+                        counts.deletions += 1;
+                        if let Some((_, length)) = element {
+                            counts.deleted_bases += length as u64;
                         }
-                        seen_deletions.push((observation.read, locus.position));
                     }
                     AlignmentType::Match => {}
                 },
                 Calculator::OverlappingError => {
+                    // The mate is looked for among the bases READ at the locus, not among its
+                    // indels: the tool builds its name sets from `getRecordAndOffsets()`.
                     let mate = locus.records.iter().find(|other| {
-                        other.read != observation.read
+                        other.alignment == AlignmentType::Match
+                            && other.read != observation.read
                             && are_mates(read, &reads[other.read])
-                            && are_mates(&reads[other.read], read)
                     });
                     let Some(mate) = mate else { continue };
-                    let mate_base = reads[mate.read]
-                        .bases
-                        .get(mate.offset)
+                    let mate_base = usize::try_from(mate.offset)
+                        .ok()
+                        .and_then(|i| reads[mate.read].bases.get(i))
                         .copied()
                         .unwrap_or(b'N');
                     if is_no_call(base) || is_no_call(mate_base) {
@@ -620,7 +993,7 @@ pub fn collect(
                 // with no header at all.
                 .filter(|(_, counts)| counts.bases != 0)
                 .map(|(key, counts)| BaseErrorMetric {
-                    covariate: key.text,
+                    covariate: key.text(),
                     total_bases: counts.bases,
                     error_bases: counts.mismatches,
                     q_score: q_score(counts.mismatches, counts.bases, prior),
@@ -631,7 +1004,7 @@ pub fn collect(
             strata
                 .into_iter()
                 .map(|(key, counts)| OverlappingErrorMetric {
-                    covariate: key.text,
+                    covariate: key.text(),
                     total_bases: counts.bases,
                     bases_with_overlapping_reads: counts.overlapping_bases,
                     disagrees_with_reference_only: counts.both_disagree,
@@ -659,7 +1032,7 @@ pub fn collect(
             strata
                 .into_iter()
                 .map(|(key, counts)| IndelErrorMetric {
-                    covariate: key.text,
+                    covariate: key.text(),
                     total_bases: counts.bases,
                     insertions: counts.insertions,
                     inserted_bases: counts.inserted_bases,
@@ -672,42 +1045,6 @@ pub fn collect(
                 })
                 .collect(),
         ),
-    }
-}
-
-/// A stratum, ordered the way the tool's own sorted set orders it: numbers by value and everything
-/// else by text.
-#[derive(Debug, Clone, PartialEq)]
-struct Key {
-    text: String,
-    number: Option<f64>,
-}
-
-impl Key {
-    fn new(text: &str) -> Key {
-        Key {
-            text: text.to_string(),
-            number: text.parse::<f64>().ok(),
-        }
-    }
-}
-
-impl Eq for Key {}
-
-impl Ord for Key {
-    fn cmp(&self, other: &Key) -> std::cmp::Ordering {
-        match (self.number, other.number) {
-            (Some(left), Some(right)) => left
-                .partial_cmp(&right)
-                .unwrap_or(std::cmp::Ordering::Equal),
-            _ => self.text.cmp(&other.text),
-        }
-    }
-}
-
-impl PartialOrd for Key {
-    fn partial_cmp(&self, other: &Key) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
     }
 }
 
@@ -780,4 +1117,143 @@ pub fn render(table: &Table) -> String {
         text.push_str(&row);
     }
     text
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn read(cigar: Vec<(usize, char)>, bases: &[u8], qualities: Vec<u8>) -> Read {
+        Read {
+            name: "r".to_string(),
+            start: 11,
+            bases: bases.to_vec(),
+            qualities,
+            flags: 0,
+            mate_start: 0,
+            cigar,
+            mapping_quality: 60,
+            read_group: "rg1".to_string(),
+            insert_size: 0,
+        }
+    }
+
+    fn at(loci: &[Locus], position: i32) -> &Locus {
+        loci.iter()
+            .find(|locus| locus.position == position)
+            .expect("a locus")
+    }
+
+    /// `SequenceUtil.calculateGc` divides by every base, so an N counts against the fraction.
+    #[test]
+    fn gc_divides_by_every_base() {
+        assert_eq!(gc_content(b"GCGCNNAAAA"), 0.4);
+        assert_eq!(gc_content(b"GGGGGGGGGG"), 1.0);
+        assert_eq!(gc_content(b"ACGTACGTAA"), 0.4);
+    }
+
+    /// An insertion is shown at the base before it, a deletion at every position it spans and at
+    /// the offset of the base before it.
+    #[test]
+    fn indels_are_shown_where_htsjdk_shows_them() {
+        let reads = [read(
+            vec![(5, 'M'), (2, 'I'), (3, 'M'), (2, 'D'), (4, 'M')],
+            b"ACGTACCACGTACG",
+            vec![40; 14],
+        )];
+        let loci = pileup(&reads, &Options::default());
+        let insertion = at(&loci, 15)
+            .records
+            .iter()
+            .find(|o| o.alignment == AlignmentType::Insertion)
+            .expect("the insertion rides the fifth base");
+        assert_eq!(insertion.offset, 5);
+        assert!(at(&loci, 16)
+            .records
+            .iter()
+            .all(|o| o.alignment == AlignmentType::Match));
+        for position in [19, 20] {
+            let deletion = at(&loci, position)
+                .records
+                .iter()
+                .find(|o| o.alignment == AlignmentType::Deletion)
+                .expect("the deletion spans two positions");
+            assert_eq!(deletion.offset, 9);
+        }
+    }
+
+    /// An insertion whose first base is below the cutoff is dropped, and the read offset does not
+    /// move past it, so the deletion after it is shown at an offset that is two short.
+    #[test]
+    fn a_dropped_insertion_leaves_the_offsets_short() {
+        let mut qualities = vec![40; 14];
+        qualities[5] = 2;
+        let reads = [read(
+            vec![(5, 'M'), (2, 'I'), (3, 'M'), (2, 'D'), (4, 'M')],
+            b"ACGTACCACGTACG",
+            qualities,
+        )];
+        let loci = pileup(&reads, &Options::default());
+        assert!(at(&loci, 15)
+            .records
+            .iter()
+            .all(|o| o.alignment != AlignmentType::Insertion));
+        let deletion = at(&loci, 19)
+            .records
+            .iter()
+            .find(|o| o.alignment == AlignmentType::Deletion)
+            .expect("the deletion");
+        assert_eq!(deletion.offset, 7);
+    }
+
+    /// A joint stratum prints its parts with commas and sorts them left to right, numbers by
+    /// value, so cycle 10 comes after cycle 2 rather than before it.
+    #[test]
+    fn a_joint_stratum_sorts_part_by_part() {
+        let mut first = read(vec![(12, 'M')], b"ACGTACGTACGT", vec![40; 12]);
+        first.flags = 0x1 | 0x40;
+        let mut second = first.clone();
+        second.flags = 0x1 | 0x80;
+        let reads = [first, second];
+        let loci = pileup(&reads, &Options::default());
+        let reference: Vec<u8> = (0..40).map(|i| b"ACGT"[i % 4]).collect();
+        let table = collect_joint(
+            &reads,
+            &reference,
+            1,
+            &loci,
+            Calculator::Error,
+            &[Stratifier::ReadOrdinality, Stratifier::Cycle],
+            &Options::default(),
+        );
+        let Table::Base(rows) = table else {
+            panic!("a simple error table")
+        };
+        let covariates: Vec<&str> = rows.iter().map(|r| r.covariate.as_str()).collect();
+        assert_eq!(covariates[0], "FIRST,1");
+        assert_eq!(covariates[1], "FIRST,2");
+        assert_eq!(covariates[9], "FIRST,10");
+        assert_eq!(covariates[12], "SECOND,1");
+        assert_eq!(rows.len(), 24);
+    }
+
+    /// The draw happens at every locus, so a probability of nothing keeps nothing, and the same
+    /// seed keeps the same loci twice.
+    #[test]
+    fn the_draw_is_seeded() {
+        let reads = [read(vec![(40, 'M')], &[b'A'; 40], vec![40; 40])];
+        let loci = pileup(&reads, &Options::default());
+        let none = Options {
+            probability: 0.0,
+            ..Options::default()
+        };
+        assert!(processed_loci(loci.clone(), &none).is_empty());
+        let half = Options {
+            probability: 0.5,
+            ..Options::default()
+        };
+        let kept = processed_loci(loci.clone(), &half);
+        assert_eq!(kept, processed_loci(loci.clone(), &half));
+        assert!(!kept.is_empty() && kept.len() < loci.len());
+    }
 }
