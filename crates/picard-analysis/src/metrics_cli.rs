@@ -59,6 +59,12 @@ impl Args {
             .filter(|v| *v != "null")
     }
 
+    /// Whether the argument was given at all, `null` included: for a scalar whose default is not
+    /// null, where `null` and absence differ.
+    pub fn given(&self, name: &str) -> bool {
+        self.pairs.iter().any(|(n, _)| n == name)
+    }
+
     /// Every value of a collection argument. Barclay appends each one; `null` empties it.
     pub fn all(&self, name: &str) -> Vec<String> {
         let mut out = Vec::new();

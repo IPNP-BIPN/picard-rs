@@ -13,6 +13,8 @@ pub mod annotation;
 pub mod bait_designer;
 pub mod bam_index_stats;
 pub mod bam_to_bfq;
+pub mod barcode_extractor;
+pub mod basecalls_converter;
 pub mod bed_to_interval_list;
 pub mod build_bam_index;
 pub mod calculate_fingerprint_metrics;

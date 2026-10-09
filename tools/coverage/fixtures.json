@@ -3362,6 +3362,343 @@
       "--COMPRESS_OUTPUTS": [
         "false"
       ]
+    },
+    "IlluminaBasecallsToFastq": {
+      "$why": [
+        "ill_run's four clusters (three PF) read AG, AG, CT, CT at cycles three and four; ill_run_n has a no-call",
+        "and a quality of ten among them, which the EAMSS filter masks. MULTIPLEX_PARAMS writes /work/out/<prefix>",
+        "files per barcode (ill_multiplex.txt: AG, CT and the unmatched N row; _partial.txt: AG and N, so CT is",
+        "unexpected; _one.txt: no barcode column, for 4T). OUTPUT_PREFIX is mutually exclusive with it and held",
+        "absent. Barcodes come from ill_bcdir's per-tile file or, with MATCH_BARCODES_INLINE, are matched against",
+        "the MULTIPLEX_PARAMS barcodes, and only then is METRICS_FILE written. TRIMMING_QUALITY and the adapters",
+        "cut a template read, and a cut shorter than MIN_TRIMMED_LENGTH is padded back to it with zero bytes.",
+        "COMPRESS_OUTPUTS writes BGZF, compared decompressed. The answer is every file in /work/out."
+      ],
+      "$lists": [
+        "--LANE",
+        "--ADAPTERS_TO_CHECK"
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+      ],
+      "--BARCODES_DIR": [
+        "/work/fixtures/ill_bcdir",
+        "null"
+      ],
+      "--LANE": [
+        "1"
+      ],
+      "--READ_STRUCTURE": [
+        "2T2B",
+        "1T1T2B",
+        "1M1T2B",
+        "4T"
+      ],
+      "--MULTIPLEX_PARAMS": [
+        "/work/fixtures/ill_multiplex.txt",
+        "/work/fixtures/ill_multiplex_partial.txt",
+        "/work/fixtures/ill_multiplex_one.txt"
+      ],
+      "--OUTPUT_PREFIX": [
+        "null"
+      ],
+      "--RUN_BARCODE": [
+        "R1",
+        "null"
+      ],
+      "--MACHINE_NAME": [
+        "M1",
+        "null"
+      ],
+      "--FLOWCELL_BARCODE": [
+        "FC1"
+      ],
+      "--READ_NAME_FORMAT": [
+        "CASAVA_1_8",
+        "ILLUMINA"
+      ],
+      "--MATCH_BARCODES_INLINE": [
+        "false",
+        "true"
+      ],
+      "--METRICS_FILE": [
+        "/work/out/metrics.txt"
+      ],
+      "--INCLUDE_NON_PF_READS": [
+        "true",
+        "false"
+      ],
+      "--APPLY_EAMSS_FILTER": [
+        "true",
+        "false"
+      ],
+      "--SORT": [
+        "true",
+        "false"
+      ],
+      "--IGNORE_UNEXPECTED_BARCODES": [
+        "false",
+        "true"
+      ],
+      "--TRIMMING_QUALITY": [
+        "null",
+        "20",
+        "40"
+      ],
+      "--MIN_TRIMMED_LENGTH": [
+        "20",
+        "1"
+      ],
+      "--ADAPTERS_TO_CHECK": [
+        "null",
+        "INDEXED",
+        "NEXTERA_V2 FLUIDIGM"
+      ],
+      "--FIVE_PRIME_ADAPTER": [
+        "null",
+        "AATGATACGGCGACCACCGAGATCTACAC"
+      ],
+      "--THREE_PRIME_ADAPTER": [
+        "null",
+        "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
+      ],
+      "--FIRST_TILE": [
+        "null",
+        "1101",
+        "1102"
+      ],
+      "--TILE_LIMIT": [
+        "null",
+        "1",
+        "0"
+      ],
+      "--NUM_PROCESSORS": [
+        "1",
+        "2"
+      ],
+      "--COMPRESS_OUTPUTS": [
+        "false",
+        "true"
+      ],
+      "--MAX_MISMATCHES": [
+        "1",
+        "0"
+      ],
+      "--MIN_MISMATCH_DELTA": [
+        "1",
+        "2"
+      ],
+      "--MAX_NO_CALLS": [
+        "2",
+        "0"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "0",
+        "20"
+      ],
+      "--DISTANCE_MODE": [
+        "HAMMING",
+        "FREE"
+      ],
+      "--MINIMUM_QUALITY": [
+        "2"
+      ],
+      "--FORCE_GC": [
+        "true",
+        "false"
+      ],
+      "--INPUT_PARAMS_FILE": [
+        "null"
+      ],
+      "--MAX_READS_IN_RAM_PER_TILE": [
+        "-1"
+      ]
+    },
+    "IlluminaBasecallsToSam": {
+      "$why": [
+        "ill_run's four clusters (three PF) read AG, AG, CT, CT at cycles three and four; ill_run_n has a no-call",
+        "and a quality of ten among them. LIBRARY_PARAMS names one output per barcode: ill_library.txt (AG, CT and",
+        "the N row, BAM), _partial.txt (AG and N, so CT is unexpected), _tags.txt (a BARCODE column, a DS read",
+        "group column, SAM outputs) and _one.txt (no barcode column, for 4T). OUTPUT, SAMPLE_ALIAS and LIBRARY_NAME",
+        "are mutually exclusive with it and held absent, as is BARCODE_PARAMS (its alias) and PROCESS_SINGLE_TILE",
+        "(exclusive with FIRST_TILE and TILE_LIMIT). The read group, the barcode population strategy, the",
+        "molecular index tags and inline matching vary; a BAM is compared decompressed. The answer is every file",
+        "in /work/out."
+      ],
+      "$lists": [
+        "--LANE",
+        "--ADAPTERS_TO_CHECK",
+        "--TAG_PER_MOLECULAR_INDEX"
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+      ],
+      "--BARCODES_DIR": [
+        "/work/fixtures/ill_bcdir",
+        "null"
+      ],
+      "--LANE": [
+        "1"
+      ],
+      "--READ_STRUCTURE": [
+        "2T2B",
+        "1T1T2B",
+        "1M1T2B",
+        "4T"
+      ],
+      "--LIBRARY_PARAMS": [
+        "/work/fixtures/ill_library.txt",
+        "/work/fixtures/ill_library_partial.txt",
+        "/work/fixtures/ill_library_tags.txt",
+        "/work/fixtures/ill_library_one.txt"
+      ],
+      "--BARCODE_PARAMS": [
+        "null"
+      ],
+      "--OUTPUT": [
+        "null"
+      ],
+      "--SAMPLE_ALIAS": [
+        "null"
+      ],
+      "--LIBRARY_NAME": [
+        "null"
+      ],
+      "--PROCESS_SINGLE_TILE": [
+        "null"
+      ],
+      "--RUN_BARCODE": [
+        "R1",
+        "RUNBARCODE7"
+      ],
+      "--READ_GROUP_ID": [
+        "null",
+        "RG9"
+      ],
+      "--SEQUENCING_CENTER": [
+        "null",
+        "BI"
+      ],
+      "--PLATFORM": [
+        "ILLUMINA",
+        "null"
+      ],
+      "--RUN_START_DATE": [
+        "null",
+        "2011/04/23"
+      ],
+      "--INCLUDE_BC_IN_RG_TAG": [
+        "false",
+        "true"
+      ],
+      "--BARCODE_POPULATION_STRATEGY": [
+        "ORPHANS_ONLY",
+        "INEXACT_MATCH",
+        "ALWAYS"
+      ],
+      "--INCLUDE_BARCODE_QUALITY": [
+        "false",
+        "true"
+      ],
+      "--MOLECULAR_INDEX_TAG": [
+        "RX",
+        "ZR"
+      ],
+      "--MOLECULAR_INDEX_BASE_QUALITY_TAG": [
+        "QX",
+        "ZQ"
+      ],
+      "--TAG_PER_MOLECULAR_INDEX": [
+        "null",
+        "ZA"
+      ],
+      "--MATCH_BARCODES_INLINE": [
+        "false",
+        "true"
+      ],
+      "--METRICS_FILE": [
+        "/work/out/metrics.txt"
+      ],
+      "--INCLUDE_NON_PF_READS": [
+        "true",
+        "false"
+      ],
+      "--APPLY_EAMSS_FILTER": [
+        "true",
+        "false"
+      ],
+      "--SORT": [
+        "true",
+        "false"
+      ],
+      "--IGNORE_UNEXPECTED_BARCODES": [
+        "false",
+        "true"
+      ],
+      "--ADAPTERS_TO_CHECK": [
+        "null",
+        "INDEXED",
+        "NEXTERA_V2 FLUIDIGM"
+      ],
+      "--FIVE_PRIME_ADAPTER": [
+        "null",
+        "AATGATACGGCGACCACCGAGATCTACAC"
+      ],
+      "--THREE_PRIME_ADAPTER": [
+        "null",
+        "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
+      ],
+      "--FIRST_TILE": [
+        "null",
+        "1101",
+        "1102"
+      ],
+      "--TILE_LIMIT": [
+        "null",
+        "1",
+        "0"
+      ],
+      "--NUM_PROCESSORS": [
+        "1",
+        "2"
+      ],
+      "--MAX_MISMATCHES": [
+        "1",
+        "0"
+      ],
+      "--MIN_MISMATCH_DELTA": [
+        "1",
+        "2"
+      ],
+      "--MAX_NO_CALLS": [
+        "2",
+        "0"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "0",
+        "20"
+      ],
+      "--DISTANCE_MODE": [
+        "HAMMING",
+        "FREE"
+      ],
+      "--MINIMUM_QUALITY": [
+        "2"
+      ],
+      "--INPUT_PARAMS_FILE": [
+        "null"
+      ],
+      "--MAX_READS_IN_RAM_PER_TILE": [
+        "-1"
+      ],
+      "--COMPRESS_OUTPUTS": [
+        "false"
+      ],
+      "--CREATE_INDEX": [
+        "false"
+      ]
     }
   },
   "constraints": [
@@ -4470,6 +4807,136 @@
         "--BARCODE_FILE": "/work/fixtures/ill_barcodes_two.txt"
       },
       "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--FIVE_PRIME_ADAPTER": "null",
+        "--THREE_PRIME_ADAPTER": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
+      },
+      "why": "Only one of the two adapters set is refused before anything is read ('must either both be null or both be set'). Kept as one case rather than a third of the array."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "4T",
+        "--MULTIPLEX_PARAMS": "/work/fixtures/ill_multiplex_partial.txt"
+      },
+      "why": "A MULTIPLEX_PARAMS with a barcode column under 4T, which has no sample barcode, keys every row by null and is refused as a duplicate; the barcode-less file under a barcoded structure is refused for its missing column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "1T1T2B",
+        "--MULTIPLEX_PARAMS": "/work/fixtures/ill_multiplex_one.txt"
+      },
+      "why": "A MULTIPLEX_PARAMS with a barcode column under 4T, which has no sample barcode, keys every row by null and is refused as a duplicate; the barcode-less file under a barcoded structure is refused for its missing column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "1M1T2B",
+        "--MULTIPLEX_PARAMS": "/work/fixtures/ill_multiplex_one.txt"
+      },
+      "why": "A MULTIPLEX_PARAMS with a barcode column under 4T, which has no sample barcode, keys every row by null and is refused as a duplicate; the barcode-less file under a barcoded structure is refused for its missing column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--FIVE_PRIME_ADAPTER": "null",
+        "--THREE_PRIME_ADAPTER": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
+      },
+      "why": "Only one of the two adapters set is refused before anything is read. Kept as one case rather than a third of the array."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "4T",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library.txt"
+      },
+      "why": "A barcoded LIBRARY_PARAMS under 4T is refused for its barcode column (an unrecognised read group tag), and the barcode-less one under a barcoded structure for its missing BARCODE column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "4T",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_partial.txt"
+      },
+      "why": "A barcoded LIBRARY_PARAMS under 4T is refused for its barcode column (an unrecognised read group tag), and the barcode-less one under a barcoded structure for its missing BARCODE column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "1T1T2B",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_one.txt"
+      },
+      "why": "A barcoded LIBRARY_PARAMS under 4T is refused for its barcode column (an unrecognised read group tag), and the barcode-less one under a barcoded structure for its missing BARCODE column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "1M1T2B",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_one.txt"
+      },
+      "why": "A barcoded LIBRARY_PARAMS under 4T is refused for its barcode column (an unrecognised read group tag), and the barcode-less one under a barcoded structure for its missing BARCODE column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2T2B",
+        "--TAG_PER_MOLECULAR_INDEX": "ZA"
+      },
+      "why": "TAG_PER_MOLECULAR_INDEX must name one tag per molecular index; under a structure without one, a tag is refused. Kept once."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "1T1T2B",
+        "--TAG_PER_MOLECULAR_INDEX": "ZA"
+      },
+      "why": "TAG_PER_MOLECULAR_INDEX must name one tag per molecular index; under a structure without one, a tag is refused. Kept once."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--MULTIPLEX_PARAMS": "/work/fixtures/ill_multiplex_partial.txt",
+        "--IGNORE_UNEXPECTED_BARCODES": "false"
+      },
+      "why": "The reference throws 'Read records with barcode CT, but this barcode was not expected' from its main thread and then never exits: the executor its tile workers ran on is not shut down on that path, so a non-daemon pool thread keeps the JVM alive and the row waits until the job's own timeout. The refusal cannot be observed as an answer, so the pair is not run."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_partial.txt",
+        "--IGNORE_UNEXPECTED_BARCODES": "false"
+      },
+      "why": "The reference throws 'Read records with barcode CT, but this barcode was not expected' from its main thread and then never exits: the executor its tile workers ran on is not shut down on that path, so a non-daemon pool thread keeps the JVM alive and the row waits until the job's own timeout. The refusal cannot be observed as an answer, so the pair is not run."
     }
   ],
   "exclude": {

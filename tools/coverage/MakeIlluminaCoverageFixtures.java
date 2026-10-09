@@ -106,6 +106,27 @@ public class MakeIlluminaCoverageFixtures {
         Files.writeString(dir.resolve("ill_multiplex.txt"),
                 "OUTPUT_PREFIX\tBARCODE_1\n/work/out/first\tAG\n/work/out/second\tCT\n/work/out/rest\tN\n",
                 StandardCharsets.UTF_8);
+        // A MULTIPLEX_PARAMS without a barcode column, for a structure with no sample barcode, and one
+        // that declares AG alone, so the CT clusters are a barcode nobody expected.
+        Files.writeString(dir.resolve("ill_multiplex_one.txt"),
+                "OUTPUT_PREFIX\n/work/out/all\n", StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("ill_multiplex_partial.txt"),
+                "OUTPUT_PREFIX\tBARCODE_1\n/work/out/first\tAG\n/work/out/rest\tN\n",
+                StandardCharsets.UTF_8);
+        // LIBRARY_PARAMS for IlluminaBasecallsToSam: one without a barcode column, for 4T; one that
+        // declares AG alone; and one whose barcode column is BARCODE, with a DS read group column
+        // and SAM rather than BAM outputs.
+        Files.writeString(dir.resolve("ill_library_one.txt"),
+                "OUTPUT\tSAMPLE_ALIAS\tLIBRARY_NAME\n/work/out/all.bam\tsampleA\tlibraryA\n",
+                StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("ill_library_partial.txt"),
+                "OUTPUT\tSAMPLE_ALIAS\tLIBRARY_NAME\tBARCODE_1\n/work/out/first.bam\tsampleA\tlibraryA\tAG\n"
+                        + "/work/out/rest.bam\trest\trest\tN\n",
+                StandardCharsets.UTF_8);
+        Files.writeString(dir.resolve("ill_library_tags.txt"),
+                "OUTPUT\tSAMPLE_ALIAS\tLIBRARY_NAME\tBARCODE\tDS\n/work/out/first.sam\tsampleA\tlibraryA\tAG\tfirst library\n"
+                        + "/work/out/second.sam\tsampleB\tlibraryB\tCT\tsecond library\n/work/out/rest.sam\trest\trest\tN\tthe rest\n",
+                StandardCharsets.UTF_8);
         Files.writeString(dir.resolve("ill_library.txt"),
                 "OUTPUT\tSAMPLE_ALIAS\tLIBRARY_NAME\tBARCODE_1\n/work/out/first.bam\tsampleA\tlibraryA\tAG\n"
                         + "/work/out/second.bam\tsampleB\tlibraryB\tCT\n/work/out/rest.bam\trest\trest\tN\n",

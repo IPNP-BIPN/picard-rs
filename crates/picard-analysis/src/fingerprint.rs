@@ -1065,6 +1065,23 @@ pub fn reference_path(path: &str) -> String {
     absolute
 }
 
+/// The reverse of `reference_path`: a path the reference was given inside its mounts (read from an
+/// input file rather than the command line, which the harness rewrites) as it is on this host.
+pub fn host_path(path: &str) -> String {
+    if let Ok(map) = std::env::var("PICARD_RS_PATH_MAP") {
+        for pair in map.split(';') {
+            if let Some((host, reference)) = pair.split_once('=') {
+                if let Some(rest) = path.strip_prefix(reference) {
+                    if rest.is_empty() || rest.starts_with('/') {
+                        return format!("{host}{rest}");
+                    }
+                }
+            }
+        }
+    }
+    path.to_string()
+}
+
 /// The `file:` URI `Path.toUri().toString()` gives a local path.
 pub fn file_uri(path: &str) -> String {
     format!("file://{}", reference_path(path))
