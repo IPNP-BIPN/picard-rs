@@ -96,7 +96,7 @@ fn merge(step: &[&VariantContext]) -> Result<VariantContext, String> {
     let first = step[0];
     let first_site = site(first);
     let mut out = first.clone();
-    out.genotypes = Vec::new();
+    out.genotypes = Vec::new().into();
     let mut filters: Vec<String> = Vec::new();
     let mut applied = false;
     let mut log10 = None;

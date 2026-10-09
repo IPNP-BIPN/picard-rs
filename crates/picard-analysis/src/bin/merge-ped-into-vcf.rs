@@ -280,7 +280,7 @@ fn merge_record(
             ));
         }
     }
-    merged.genotypes = vec![genotype];
+    merged.genotypes = vec![genotype].into();
 
     // `calculateChromosomeCounts(builder, false)`.
     let counts = calculate_chromosome_counts(&merged, false, &[]);

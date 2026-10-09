@@ -114,7 +114,7 @@ fn variant(
     genotype.pl = Some(pls(gls));
     genotype.ad = Some(vec![obs_ref, obs_alt]);
     let mut vc = VariantContext::new(&snp.chrom, i64::from(snp.pos), alleles);
-    vc.genotypes = vec![genotype];
+    vc.genotypes = vec![genotype].into();
     Ok(vc)
 }
 

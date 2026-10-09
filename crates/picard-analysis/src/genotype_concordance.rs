@@ -21,6 +21,34 @@ pub fn file_names(basename: &str) -> [String; 3] {
     ]
 }
 
+/// `OUTPUT_VCF_FILE_EXTENSION`: the fourth file `OUTPUT_VCF=true` adds to the basename.
+pub const OUTPUT_VCF_FILE_EXTENSION: &str = ".genotype_concordance.vcf.gz";
+/// `CONTINGENCY_STATE_TAG`, the INFO key each output record carries its contingency under.
+pub const CONTINGENCY_STATE_TAG: &str = "CONC_ST";
+/// The description of `CONTINGENCY_STATE_HEADER_LINE`.
+pub const CONTINGENCY_STATE_DESCRIPTION: &str = "The genotype concordance contingency state(s)";
+/// The two samples of the output VCF, whatever the inputs called theirs. The header lists the
+/// call first.
+pub const OUTPUT_VCF_TRUTH_SAMPLE_NAME: &str = "truth";
+pub const OUTPUT_VCF_CALL_SAMPLE_NAME: &str = "call";
+
+/// The `CONC_ST` value a cell writes: `VCFEncoder.formatVCFField` over the list of states, which
+/// joins them with commas and writes an empty list as `.`. `None` for a cell the scheme says
+/// cannot happen, where the reference's `Arrays.asList(null)` throws.
+pub fn contingency_state_value(cell: Cell) -> Option<String> {
+    match cell {
+        Cell::Unreachable => None,
+        Cell::Values([]) => Some(NO_CALL_STRING.to_string()),
+        Cell::Values(values) => Some(
+            values
+                .iter()
+                .map(|value| value.name())
+                .collect::<Vec<_>>()
+                .join(","),
+        ),
+    }
+}
+
 /// What one truth genotype resolves to.
 ///
 /// A missing site, a no-call, a filter, a low quality and a low depth are STATES here and not
@@ -1226,7 +1254,10 @@ pub enum StateCode {
 /// Truth/Call State LOW_GQ". A genotype called on one chromosome only comes back as `NO_CALL`
 /// rather than as a state of its own.
 pub fn state_code(site: Option<&SiteView>, min_gq: i32, min_dp: i32) -> Option<StateCode> {
-    let site = site?;
+    // `if (ctx == null) return MISSING_CODE`: a site the other file has and this one does not.
+    let Some(site) = site else {
+        return Some(StateCode::Missing);
+    };
     if site.is_mixed {
         return Some(StateCode::IsMixed);
     }
@@ -1310,6 +1341,53 @@ pub struct Alleles {
     pub truth2: Option<String>,
     pub call1: Option<String>,
     pub call2: Option<String>,
+}
+
+impl Alleles {
+    /// `Allele.create(allele, index == 0)`: an allele is the reference by its POSITION in the
+    /// list, so a spliced reference that only one side carried is still the reference here.
+    fn with_reference_flag(&self, allele: &str) -> (String, bool) {
+        let first = self.all.first().is_some_and(|zeroth| zeroth == allele);
+        (allele.to_string(), first)
+    }
+
+    /// `asList()`: every allele, the zeroth marked as the reference.
+    pub fn as_list(&self) -> Vec<(String, bool)> {
+        self.all
+            .iter()
+            .enumerate()
+            .map(|(index, allele)| (allele.clone(), index == 0))
+            .collect()
+    }
+
+    /// The site's alleles in the output VCF: `asList()` through a `LinkedHashSet` with the
+    /// no-call removed, so a no-call genotype adds nothing to the record's alleles.
+    pub fn site_alleles(&self) -> Vec<(String, bool)> {
+        self.as_list()
+            .into_iter()
+            .filter(|(allele, _)| allele != NO_CALL_STRING)
+            .collect()
+    }
+
+    /// `truthAlleles()`: empty when the truth genotype was not read (mixed, filtered or absent).
+    pub fn truth_alleles(&self) -> Vec<(String, bool)> {
+        self.pair(&self.truth1, &self.truth2)
+    }
+
+    /// `callAlleles()`, the same for the call.
+    pub fn call_alleles(&self) -> Vec<(String, bool)> {
+        self.pair(&self.call1, &self.call2)
+    }
+
+    fn pair(&self, first: &Option<String>, second: &Option<String>) -> Vec<(String, bool)> {
+        match (first, second) {
+            (Some(first), Some(second)) if !self.all.is_empty() => vec![
+                self.with_reference_flag(first),
+                self.with_reference_flag(second),
+            ],
+            _ => Vec::new(),
+        }
+    }
 }
 
 /// `normalizeAlleles`: one list of alleles both sides index into.

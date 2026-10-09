@@ -140,7 +140,12 @@ pub fn write_records(header: &VcfHeader, records: &[Record]) -> Result<String, E
                 out.push('\t');
                 out.push_str(block);
             }
-            None => encoder.encode_into(&record.variant, &mut out)?,
+            // The reader keeps its own copy of the block whatever the sample order, so a record
+            // this module decoded is marked decoded there too, or the encoder would copy it.
+            None => {
+                record.variant.genotypes.decode();
+                encoder.encode_into(&record.variant, &mut out)?
+            }
         }
         out.push('\n');
     }

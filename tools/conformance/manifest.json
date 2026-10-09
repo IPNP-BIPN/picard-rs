@@ -316,7 +316,7 @@
         "port": "genotype-concordance",
         "t": 2,
         "status": "measured",
-        "output_name": "output.txt.genotype_concordance_summary_metrics"
+        "output_name": "output.txt.genotype_concordance_summary_metrics,output.txt.genotype_concordance.vcf.gz"
       },
       {
         "tool": "EstimateLibraryComplexity",

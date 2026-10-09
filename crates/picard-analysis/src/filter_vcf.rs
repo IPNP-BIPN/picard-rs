@@ -109,7 +109,7 @@ pub fn filter_record(vc: &mut VariantContext, t: &Thresholds) -> Result<(), Stri
 
     let mut variant_samples = 0usize;
     let mut all_filtered = true;
-    for gt in &mut vc.genotypes {
+    for gt in vc.genotypes.iter_mut() {
         let mut filters: Vec<&str> = Vec::new();
         if gt.gq.unwrap_or(-1) < t.min_gq {
             filters.push("LowGQ");
