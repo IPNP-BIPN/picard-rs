@@ -2,11 +2,11 @@
 //! which lane and cycle directories exist, which tiles each per-tile file covers, and which tiles
 //! the lane has according to `InterOp/TileMetricsOut.bin`.
 //!
-//! Ported from `IlluminaFileUtil`, `ParameterizedFileUtil`, `PerTileFileUtil`,
-//! `PerTileOrPerRunFileUtil` and `PerTilePerCycleFileUtil` at tag 3.4.0, for the per-tile formats
-//! (`.bcl`, `.filter`, `.locs`, `s.locs`). The multi-tile and `.cbcl` layouts need a tile index or
-//! compressed cycle files and are reported as unavailable, as they are for a directory without
-//! them.
+//! Ported from `picard.illumina.parser.IlluminaFileUtil`, `ParameterizedFileUtil`,
+//! `PerTileFileUtil`, `PerTileOrPerRunFileUtil` and `PerTilePerCycleFileUtil` at tag 3.4.0, for
+//! the per-tile formats (`.bcl`, `.filter`, `.locs`, `s.locs`). The multi-tile and `.cbcl`
+//! layouts need a tile index or compressed cycle files and are reported as unavailable, as they
+//! are for a directory without them.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

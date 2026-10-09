@@ -2,11 +2,12 @@
 //! out for a per-tile `.bcl` run: per tile, per cluster, the bases and qualities of each output
 //! read, the filter's verdict and the position.
 //!
-//! Ported from `IlluminaDataProviderFactory`, `IlluminaDataProvider`, `BclParser`,
-//! `BaseBclReader`, `FilterParser`, `LocsFileReader` and `BclQualityEvaluationStrategy` at tag
-//! 3.4.0. A basecall byte's low two bits are the base and its high six the quality, a byte of zero
-//! is a no-call (`N`), and every quality is raised to at least `minimum_quality` (Illumina's
-//! alleged minimum, two). A position is `Math.round(coordinate * 10 + 1000)` in float arithmetic.
+//! Ported from `picard.illumina.parser.IlluminaDataProviderFactory`, `IlluminaDataProvider`,
+//! `BclParser`, `BaseBclReader`, `FilterParser`, `LocsFileReader` and
+//! `BclQualityEvaluationStrategy` at tag 3.4.0. A basecall byte's low two bits are the base and
+//! its high six the quality, a byte of zero is a no-call (`N`), and every quality is raised to at
+//! least `minimum_quality` (Illumina's alleged minimum, two). A position is
+//! `Math.round(coordinate * 10 + 1000)` in float arithmetic.
 
 use crate::illumina_dir::{long_lane, per_tile_files, Layout, PerTilePerCycle};
 
@@ -156,6 +157,67 @@ impl Run {
             });
         }
         Ok(out)
+    }
+}
+
+/// `BclParser.runEamssForReadInPlace`: from the end of a read, a tally that falls by two at a
+/// quality of thirty or more and rises by one under fifteen; where it peaks at one or more, every
+/// quality from there on is masked to two, the mask first pulled back over a run of ten or more
+/// `G`s (allowing one exception per ten).
+pub fn eamss(bases: &[u8], qualities: &mut [u8]) {
+    let mut tally: i32 = 0;
+    let mut max_tally = i32::MIN;
+    let mut index_of_max: i32 = -1;
+    for i in (0..bases.len()).rev() {
+        let quality = qualities[i];
+        if quality >= 30 {
+            tally -= 2;
+        } else if quality < 15 {
+            tally += 1;
+        }
+        if tally >= max_tally {
+            index_of_max = i as i32;
+            max_tally = tally;
+        }
+    }
+    if max_tally < 1 {
+        return;
+    }
+    let mut gs: i32 = 0;
+    let mut exceptions: i32 = 0;
+    let mut i = index_of_max;
+    while i >= 0 {
+        if bases[i as usize] == b'G' {
+            gs += 1;
+        } else {
+            // `skipBy`: the nearest `G` behind, within the exceptions a run this long allows.
+            let mut skip = None;
+            for backup in 1..=i {
+                let limit = ((gs + backup) / 10).max(1);
+                if exceptions + backup > limit {
+                    break;
+                }
+                if bases[(i - backup) as usize] == b'G' {
+                    skip = Some(backup);
+                    break;
+                }
+            }
+            match skip {
+                Some(s) => {
+                    exceptions += s;
+                    gs += s;
+                    i -= s - 1;
+                }
+                None => break,
+            }
+        }
+        i -= 1;
+    }
+    if gs >= 10 {
+        index_of_max = (index_of_max + 1) - gs;
+    }
+    for q in qualities.iter_mut().skip(index_of_max.max(0) as usize) {
+        *q = 2;
     }
 }
 
