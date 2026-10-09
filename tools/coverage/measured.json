@@ -730,6 +730,16 @@
       "t": 2,
       "share": 1.0
     },
+    "GenotypeConcordance": {
+      "rows": 11,
+      "accepted": 11,
+      "rejected": 0,
+      "distinct_outputs": 7,
+      "distinct_rejections": 0,
+      "matched": 11,
+      "t": 2,
+      "share": 1.0
+    },
     "GtcToVcf": {
       "rows": 14,
       "accepted": 9,
