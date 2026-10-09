@@ -1,0 +1,443 @@
+{
+  "tool": "CollectQualityYieldMetricsFlow",
+  "origin": "picard",
+  "t": 2,
+  "numeric_policy": "strict",
+  "arguments_total": 24,
+  "arguments_in_array": 10,
+  "arguments_excluded": 14,
+  "excluded": [
+    {
+      "argument": "--OUTPUT",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/out/output.txt",
+      "source": "fixture"
+    },
+    {
+      "argument": "--arguments_file",
+      "type": "File",
+      "reason": "File needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--COMPRESSION_LEVEL",
+      "type": "Integer",
+      "reason": "excluded by the repository: changes the deflate level of a written BAM. Varying it would make the output bytes differ for a reason that is not the tool's logic, and the deflate pin is asserted by its own suite (htsjdk-rs decision 0001)",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CREATE_MD5_FILE",
+      "type": "Boolean",
+      "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--help",
+      "type": "Boolean",
+      "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--MAX_RECORDS_IN_RAM",
+      "type": "Integer",
+      "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--QUIET",
+      "type": "Boolean",
+      "reason": "excluded by the repository: suppresses the log on stderr; the compared output is stdout and the output file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--REFERENCE_SEQUENCE",
+      "type": "PicardHtsPath",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/ref.fasta",
+      "source": "fixture"
+    },
+    {
+      "argument": "--TMP_DIR",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/tmp",
+      "source": "fixture"
+    },
+    {
+      "argument": "--USE_JDK_DEFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract; varying it would compare zlib output against GKL output and call the difference a divergence",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--USE_JDK_INFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--VERBOSITY",
+      "type": "LogLevel",
+      "reason": "excluded by the repository: log level on stderr, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--version",
+      "type": "Boolean",
+      "reason": "excluded by the repository: prints the version and exits, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--showHidden",
+      "type": "Boolean",
+      "reason": "excluded by the repository: changes the usage text only",
+      "held_at": null,
+      "source": "none"
+    }
+  ],
+  "rows": 12,
+  "tuples_total": 217,
+  "tuples_covered": 217,
+  "tuples_forbidden": 0,
+  "constraint_notes": [
+    "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
+  ],
+  "coverage": 1.0,
+  "array": [
+    {
+      "row": 0,
+      "labels": {
+        "--ASSUME_SORTED": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--flow-fill-empty-bins-value": "fixture[0]",
+        "--flow-ignore-t0-tag": "fixture[0]"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/flow.bam",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--flow-fill-empty-bins-value=0.0",
+        "--flow-ignore-t0-tag=false"
+      ]
+    },
+    {
+      "row": 1,
+      "labels": {
+        "--ASSUME_SORTED": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_BQ_HISTOGRAM": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "false",
+        "--INPUT": "fixture[1]",
+        "--STOP_AFTER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--flow-fill-empty-bins-value": "fixture[1]",
+        "--flow-ignore-t0-tag": "fixture[1]"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_BQ_HISTOGRAM=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=false",
+        "--INPUT=/work/fixtures/flow_queryname.bam",
+        "--STOP_AFTER=25",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--flow-fill-empty-bins-value=0.001",
+        "--flow-ignore-t0-tag=true"
+      ]
+    },
+    {
+      "row": 2,
+      "labels": {
+        "--ASSUME_SORTED": "fixture[1]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "false",
+        "--INPUT": "fixture[2]",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--flow-fill-empty-bins-value": "fixture[1]",
+        "--flow-ignore-t0-tag": "fixture[0]"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=false",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=false",
+        "--INPUT=/work/fixtures/small.bam",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--flow-fill-empty-bins-value=0.001",
+        "--flow-ignore-t0-tag=false"
+      ]
+    },
+    {
+      "row": 3,
+      "labels": {
+        "--ASSUME_SORTED": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[2]",
+        "--STOP_AFTER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--flow-fill-empty-bins-value": "fixture[0]",
+        "--flow-ignore-t0-tag": "fixture[1]"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=false",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--STOP_AFTER=25",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--flow-fill-empty-bins-value=0.0",
+        "--flow-ignore-t0-tag=true"
+      ]
+    },
+    {
+      "row": 4,
+      "labels": {
+        "--ASSUME_SORTED": "fixture[1]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--flow-fill-empty-bins-value": "fixture[0]",
+        "--flow-ignore-t0-tag": "fixture[0]"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=false",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/flow.bam",
+        "--STOP_AFTER=25",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--flow-fill-empty-bins-value=0.0",
+        "--flow-ignore-t0-tag=false"
+      ]
+    },
+    {
+      "row": 5,
+      "labels": {
+        "--ASSUME_SORTED": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--flow-fill-empty-bins-value": "fixture[0]",
+        "--flow-ignore-t0-tag": "fixture[1]"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=false",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/flow_queryname.bam",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--flow-fill-empty-bins-value=0.0",
+        "--flow-ignore-t0-tag=true"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--ASSUME_SORTED": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "false",
+        "--INPUT": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--flow-fill-empty-bins-value": "fixture[1]",
+        "--flow-ignore-t0-tag": "fixture[0]"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=false",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=false",
+        "--INPUT=/work/fixtures/flow.bam",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--flow-fill-empty-bins-value=0.001",
+        "--flow-ignore-t0-tag=false"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--ASSUME_SORTED": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[2]",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--flow-fill-empty-bins-value": "fixture[0]",
+        "--flow-ignore-t0-tag": "fixture[0]"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--flow-fill-empty-bins-value=0.0",
+        "--flow-ignore-t0-tag=false"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--ASSUME_SORTED": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "false",
+        "--INPUT": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--flow-fill-empty-bins-value": "fixture[0]",
+        "--flow-ignore-t0-tag": "fixture[0]"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=false",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=false",
+        "--INPUT=/work/fixtures/flow_queryname.bam",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--flow-fill-empty-bins-value=0.0",
+        "--flow-ignore-t0-tag=false"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--ASSUME_SORTED": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--flow-fill-empty-bins-value": "fixture[0]",
+        "--flow-ignore-t0-tag": "fixture[0]"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/flow.bam",
+        "--STOP_AFTER=25",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--flow-fill-empty-bins-value=0.0",
+        "--flow-ignore-t0-tag=false"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--ASSUME_SORTED": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--flow-fill-empty-bins-value": "fixture[0]",
+        "--flow-ignore-t0-tag": "fixture[1]"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=false",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/flow.bam",
+        "--STOP_AFTER=25",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--flow-fill-empty-bins-value=0.0",
+        "--flow-ignore-t0-tag=true"
+      ]
+    },
+    {
+      "row": 11,
+      "labels": {
+        "--ASSUME_SORTED": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_BQ_HISTOGRAM": "true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS": "true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS": "true",
+        "--INPUT": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--flow-fill-empty-bins-value": "fixture[1]",
+        "--flow-ignore-t0-tag": "fixture[0]"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_BQ_HISTOGRAM=true",
+        "--INCLUDE_SECONDARY_ALIGNMENTS=true",
+        "--INCLUDE_SUPPLEMENTAL_ALIGNMENTS=true",
+        "--INPUT=/work/fixtures/flow.bam",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--flow-fill-empty-bins-value=0.001",
+        "--flow-ignore-t0-tag=false"
+      ]
+    }
+  ]
+}

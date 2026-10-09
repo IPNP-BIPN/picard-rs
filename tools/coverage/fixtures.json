@@ -561,18 +561,24 @@
     },
     "AddCommentsToBam": {
       "$why": [
-        "Two BAMs of different sort orders, which the tool copies alike, and a SAM file it refuses by",
-        "name. COMMENT is required and holds one comment per row; the values carry no space because",
-        "the oracle's command line is split by a shell."
+        "Two BAMs of different sort orders and one of one read group, which the tool copies alike, and a SAM",
+        "file it refuses by name. `$writable`: the tool asserts its input is writable before it copies a block,",
+        "so a read-only corpus refused every BAM row and the array measured one refusal; each row now gets a",
+        "private copy of its input. COMMENT is required and holds one comment per row; the values carry no",
+        "space because the oracle's command line is split by a shell."
       ],
       "--INPUT": [
         "/work/fixtures/small.bam",
         "/work/fixtures/queryname.bam",
+        "/work/fixtures/one_read_group.bam",
         "/work/fixtures/small.sam"
       ],
       "--COMMENT": [
         "reviewed_by_qc",
         "batch:2026-09"
+      ],
+      "$writable": [
+        "--INPUT"
       ]
     },
     "GatherBamFiles": {
@@ -636,14 +642,20 @@
     },
     "CompareSAMs": {
       "$why": [
-        "The two files are positional, so they are held: small.bam against inconsistent_duplicates.bam,",
-        "which agree on every mapping and differ on sixty-three duplicate marks, so the verdict is the",
-        "exit code one with the file written. LENIENT_HEADER and LENIENT_DUP are held at false: they",
-        "are the port's limitation. The OUTPUT is optional and named, so the rows compare the file."
+        "The two files are positional, so they are held: compare_left.bam against compare_right.bam, two",
+        "queryname-sorted files that agree on the header, on every duplicate mark and on every mapping but",
+        "one. The reference therefore ACCEPTS them (exit 0) unless the one differing mapping is counted",
+        "against the pair: it is a read with the unknown mapping quality (255) in both files, placed seven",
+        "bases apart, which LENIENT_UNKNOWN_MQ_ALIGNMENT (listed true first, so it is the filler) forgives.",
+        "The right file also re-draws the mapping quality of every fifth read, which COMPARE_MQ shows as",
+        "histogram rows. The pair used to be small.bam against inconsistent_duplicates.bam, which differ on",
+        "sixty-three duplicate marks, so every row was exit one and none was accepted. LENIENT_HEADER and",
+        "LENIENT_DUP are held at false: they are the port's limitation. The OUTPUT is optional and named, so",
+        "the rows compare the file."
       ],
       "$positional": [
-        "/work/fixtures/small.bam",
-        "/work/fixtures/inconsistent_duplicates.bam"
+        "/work/fixtures/compare_left.bam",
+        "/work/fixtures/compare_right.bam"
       ],
       "--LENIENT_HEADER": [
         "false"
@@ -654,6 +666,10 @@
       "--LOW_MQ_THRESHOLD": [
         "3",
         "30"
+      ],
+      "--LENIENT_UNKNOWN_MQ_ALIGNMENT": [
+        "true",
+        "false"
       ]
     },
     "MakeSitesOnlyVcf": {
@@ -1005,9 +1021,11 @@
     "CollectRawWgsMetrics": {
       "$why": [
         "CollectWgsMetrics' domain (see its $why), around this tool's own defaults: no mapping-quality",
-        "floor, a base-quality floor of 3, COVERAGE_CAP 100000 and LOCUS_ACCUMULATION_CAP 200000. The",
-        "default cap is kept although every row holding it writes a histogram of 100001 bins: it is the",
-        "tool's default and the HET_SNP_SENSITIVITY estimate then samples a thousand and one depths."
+        "floor, a base-quality floor of 3 and LOCUS_ACCUMULATION_CAP 200000. COVERAGE_CAP is 250 and 5, not the",
+        "tool's 100000: a cap of a hundred thousand writes a histogram of 100001 bins into every accepted row,",
+        "which made the row corpus 12.5 MB and is why this array stayed pending, a corpus that size not being",
+        "committable with its measurement. 250 is above every depth this corpus reaches, so it is the",
+        "uncapped case; 5 is the capped one."
       ],
       "--INPUT": [
         "/work/fixtures/small.bam",
@@ -1032,7 +1050,7 @@
         "0"
       ],
       "--COVERAGE_CAP": [
-        "100000",
+        "250",
         "5"
       ],
       "--LOCUS_ACCUMULATION_CAP": [
@@ -1051,6 +1069,95 @@
         "10000",
         "100"
       ]
+    },
+    "CollectSamErrorMetrics": {
+      "$why": [
+        "The tool writes one file per ERROR_METRICS directive, named for the directive, so the rows compare",
+        "every file the run left (output_name @all). ERROR_METRICS and INTERVALS are whole lists ($lists). A",
+        "collection is APPENDED to, and the tool's default carries twenty-seven directives, so every value",
+        "but the last starts with `null`, which empties it first; the last is `ERROR` alone, which asks for",
+        "the default's own first file twice and is the refusal for a duplicated suffix. The directives are",
+        "the ones the port bins (ALL, BASE_QUALITY, CYCLE, GC_CONTENT, READ_DIRECTION, READ_ORDINALITY,",
+        "MAPPING_QUALITY, READ_GROUP, READ_BASE, REFERENCE_BASE, INSERT_LENGTH, SOFT_CLIPS), one or two to a",
+        "directive, under the three calculators. The VCF takes sites out of the count and must be indexed",
+        "(vcf_sites_only.vcf is not, and is the refusal for that); INTERVALS is none, one list, or two whose",
+        "intersection is taken, all on the reference's own dictionary. small.bam carries pairs that overlap,",
+        "indels, soft clips, duplicates and unmapped mates, one_read_group.bam the same reads in one read",
+        "group, and queryname.bam is the refusal for the sort order. The three refusals happen before a base",
+        "is read, so each is kept beside the other two and beside the first value of everything else, which",
+        "the constraints below say. LONG_HOMOPOLYMER, LOCATION_BIN_SIZE and PROGRESS_STEP_INTERVAL belong to",
+        "stratifiers the port does not bin or to the log, and take a second value so that their being inert",
+        "is observed rather than assumed. ERROR_VALUE and STRATIFIER_VALUE are fake arguments that the tool",
+        "refuses whenever they are set."
+      ],
+      "$lists": [
+        "--ERROR_METRICS",
+        "--INTERVALS"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/one_read_group.bam",
+        "/work/fixtures/queryname.bam"
+      ],
+      "--ERROR_METRICS": [
+        "null ERROR ERROR:BASE_QUALITY ERROR:READ_GROUP INDEL_ERROR",
+        "null OVERLAPPING_ERROR OVERLAPPING_ERROR:READ_ORDINALITY ERROR:READ_DIRECTION ERROR:CYCLE",
+        "null ERROR:READ_ORDINALITY:CYCLE ERROR:GC_CONTENT ERROR:MAPPING_QUALITY INDEL_ERROR:READ_DIRECTION",
+        "null ERROR:INSERT_LENGTH ERROR:SOFT_CLIPS ERROR:READ_BASE ERROR:REFERENCE_BASE",
+        "null ERROR:MAPPING_QUALITY:READ_DIRECTION OVERLAPPING_ERROR:GC_CONTENT INDEL_ERROR:CYCLE",
+        "ERROR"
+      ],
+      "--VCF": [
+        "null",
+        "/work/fixtures/variants.vcf",
+        "/work/fixtures/dbsnp.vcf",
+        "/work/fixtures/vcf_sites_only.vcf"
+      ],
+      "--INTERVALS": [
+        "null",
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets.interval_list /work/fixtures/baits.interval_list"
+      ],
+      "--MIN_MAPPING_Q": [
+        "20",
+        "0",
+        "45"
+      ],
+      "--MIN_BASE_Q": [
+        "20",
+        "0",
+        "30"
+      ],
+      "--PRIOR_Q": [
+        "30",
+        "10"
+      ],
+      "--MAX_LOCI": [
+        "0",
+        "40"
+      ],
+      "--LONG_HOMOPOLYMER": [
+        "6",
+        "3"
+      ],
+      "--LOCATION_BIN_SIZE": [
+        "2500",
+        "100"
+      ],
+      "--PROGRESS_STEP_INTERVAL": [
+        "100000",
+        "50"
+      ],
+      "--INTERVAL_ITERATOR": [
+        "false",
+        "true"
+      ],
+      "--FILE_EXTENSION": [
+        ".txt",
+        ".tsv"
+      ],
+      "--ERROR_VALUE": [],
+      "--STRATIFIER_VALUE": []
     },
     "CollectWgsMetricsWithNonZeroCoverage": {
       "$why": [
@@ -2010,6 +2117,236 @@
         "false"
       ]
     },
+    "FifoBuffer": {
+      "$why": [
+        "FifoBuffer copies standard input to standard output, so its answer is its input. $stdin is the",
+        "list of inputs the rows take in turn: nothing at all, every byte value (a NUL, a lone carriage",
+        "return, bytes above 127), a BAM and a FASTA. The buffer is a size the whole of a file fits in, a",
+        "size a fraction of it, and 16 bytes; the read size is the default's order of magnitude and 7. A",
+        "buffer or a read of zero bytes never finishes in the reference and a negative one is an",
+        "exception on a thread, so neither is a value here. DEBUG_FREQUENCY at one second starts the log",
+        "thread, which writes to standard error and not to the compared stream."
+      ],
+      "$stdin": [
+        "/work/fixtures/fifo_bytes.bin",
+        "/work/fixtures/unmapped.bam",
+        "/work/fixtures/fifo_empty.bin",
+        "/work/fixtures/ref.fasta"
+      ],
+      "--BUFFER_SIZE": [
+        "65536",
+        "1000",
+        "16"
+      ],
+      "--IO_SIZE": [
+        "4096",
+        "7"
+      ],
+      "--DEBUG_FREQUENCY": [
+        "0",
+        "1"
+      ],
+      "--NAME": [
+        "alpha",
+        "beta"
+      ]
+    },
+    "CollectQualityYieldMetricsFlow": {
+      "$why": [
+        "The tool refuses any read whose read group is not a flow platform, which is every read of the",
+        "Illumina files the other arrays use, so INPUT lists the flow files first: flow.bam, a",
+        "coordinate-sorted file of two ULTIMA read groups (one with its own longest homopolymer) whose",
+        "reads are mapped, soft and hard clipped, unmapped, vendor-failed, secondary and supplementary and",
+        "carry tp and (two in three) t0 tags, and flow_queryname.bam, the same reads in queryname order.",
+        "small.bam is the one refusal, the platform's. The two flow arguments take a second value:",
+        "ignoring the t0 tag changes the flow matrix of every read that has one, and a filling value",
+        "replaces the minimum error probability the tool estimates from each read's best quality."
+      ],
+      "--INPUT": [
+        "/work/fixtures/flow.bam",
+        "/work/fixtures/flow_queryname.bam",
+        "/work/fixtures/small.bam"
+      ],
+      "--flow-fill-empty-bins-value": [
+        "0.0",
+        "0.001"
+      ],
+      "--flow-ignore-t0-tag": [
+        "false",
+        "true"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "25"
+      ],
+      "--ASSUME_SORTED": [
+        "true",
+        "false"
+      ]
+    },
+    "CollectQualityYieldMetricsSNVQ": {
+      "$why": [
+        "The tool reads the quality of the three bases a read does not have from the tags qa, qc, qg and",
+        "qt and throws a null pointer on a read without them, so INPUT is snvq.bam, the corpus's reads",
+        "with the four tags added (a vendor-failed, a secondary and a supplementary read among them), and",
+        "queryname.bam, which has none and is the one refusal. ALTERNATE_QUALITY_ATTRIBUTE names a tag of",
+        "FASTQ-encoded qualities that the tool counts in place of the base qualities: XQ, a tag of its",
+        "own on every read, and qa, which is one too; null is the default and comes first."
+      ],
+      "--INPUT": [
+        "/work/fixtures/snvq.bam",
+        "/work/fixtures/queryname.bam"
+      ],
+      "--ALTERNATE_QUALITY_ATTRIBUTE": [
+        "null",
+        "XQ",
+        "qa"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "60"
+      ],
+      "--ASSUME_SORTED": [
+        "true",
+        "false"
+      ]
+    },
+    "AccumulateVariantCallingMetrics": {
+      "$why": [
+        "INPUT and OUTPUT are PREFIXES of two files each, and INPUT is a list the tool merges as a whole,",
+        "so each value is a whole list. The corpus carries four pairs written by CollectVariantCallingMetrics",
+        "itself: vcm_a (two samples), vcm_b (a trio), vcm_c (the first file's two samples again, under",
+        "another dbSNP and an interval list) and vcm_d (one sample), and vcm_bad, whose summary has two",
+        "rows and which the merge refuses. The lists put the same sample in several shards (a, c), a sample",
+        "in one shard only, and a single shard, which the merge changes already: it is lossy. OUTPUT is",
+        "the prefix of the two files compared."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/vcm_a /work/fixtures/vcm_c",
+        "/work/fixtures/vcm_b",
+        "/work/fixtures/vcm_a /work/fixtures/vcm_b /work/fixtures/vcm_d",
+        "/work/fixtures/vcm_d /work/fixtures/vcm_c",
+        "/work/fixtures/vcm_a /work/fixtures/vcm_bad"
+      ]
+    },
+    "BaitDesigner": {
+      "$why": [
+        "TARGETS is an interval list here (a BAM in the shared values): targets.interval_list, and the",
+        "corpus's baits.interval_list, four more intervals, one of them short enough for the minimum number",
+        "of baits to widen it and one on a contig's last stretch. targets_mixed.interval_list is not a value:",
+        "it is not sorted, so the reference walker is asked to go back a contig and refuses, and a file that",
+        "refuses every row it is in would take a third of the array for that one message.",
+        "REFERENCE_SEQUENCE is the plain reference or masked.fasta, the same reference with soft masked",
+        "stretches and an N run, which is what REPEAT_TOLERANCE, and the sliding of a bait out of a masked",
+        "stretch, can see: on ref.fasta no base is masked. OUTPUT_DIRECTORY is the run's output directory",
+        "and every file in it is compared (--output-name *), since DESIGN_NAME, two values, names them.",
+        "POOL_SIZE is 20, 7 and 0, not the tool's 55000: with FILL_POOLS the pool repeats the whole design",
+        "until it holds POOL_SIZE baits, so the default writes several megabytes a row; 0 writes no pool at",
+        "all. LEFT_PRIMER carries one value that is not bases, which the reference refuses in",
+        "customCommandLineValidation."
+      ],
+      "--TARGETS": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/baits.interval_list"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/masked.fasta"
+      ],
+      "--DESIGN_NAME": [
+        "design",
+        "probes_for_the_panel"
+      ],
+      "--OUTPUT_DIRECTORY": [
+        "/work/out"
+      ],
+      "--BAIT_SIZE": [
+        "120",
+        "60"
+      ],
+      "--BAIT_OFFSET": [
+        "80",
+        "40"
+      ],
+      "--MINIMUM_BAITS_PER_TARGET": [
+        "2",
+        "3"
+      ],
+      "--PADDING": [
+        "0",
+        "25"
+      ],
+      "--REPEAT_TOLERANCE": [
+        "50",
+        "10"
+      ],
+      "--POOL_SIZE": [
+        "20",
+        "7",
+        "0"
+      ],
+      "--LEFT_PRIMER": [
+        "ATCGCACCAGCGTGT",
+        "acgtACGT",
+        "AXGT"
+      ],
+      "--RIGHT_PRIMER": [
+        "CACTGCGGCTCCTCA",
+        "TTTT"
+      ]
+    },
+    "UmiAwareMarkDuplicatesWithMateCigar": {
+      "$why": [
+        "Three files, each every read in ONE library (the tool compares the first UMI's length against the",
+        "metrics of the library it is in, so it refuses the second library it meets, which every corpus",
+        "file with rg1 and rg2 reads would make a refusal of every row): umi_dup.bam, whose duplicate sets",
+        "hold UMIs that are the same, one base apart, a chain two apart at its ends, one with an N and",
+        "far apart; umi_duplex.bam, the same with X-Y UMIs and every other copy on the bottom strand with",
+        "its UMI swapped; and umi_partial.bam, the first with the RX of every seventh read missing,",
+        "which ALLOW_MISSING_UMIS lets through (true comes first, so it is the filler). UMI_TAG_NAME can be",
+        "BC, the same UMIs reversed. ASSUME_SORT_ORDER is held at coordinate: any other value refuses the",
+        "run before a record is read, which the parent's own array measures, and ASSUME_SORTED, the other",
+        "side of its mutex, is excluded for it. METRICS_FILE and the duplication metrics it holds are",
+        "written and not compared, as in the parent's array; UMI_METRICS_FILE, which is this tool's own",
+        "answer, is."
+      ],
+      "--INPUT": [
+        "/work/fixtures/umi_dup.bam",
+        "/work/fixtures/umi_duplex.bam",
+        "/work/fixtures/umi_partial.bam"
+      ],
+      "--UMI_METRICS_FILE": [
+        "/work/out/umi_metrics.txt"
+      ],
+      "--ASSUME_SORT_ORDER": [
+        "coordinate"
+      ],
+      "--ASSUME_SORTED": [],
+      "--UMI_TAG_NAME": [
+        "RX",
+        "BC"
+      ],
+      "--MAX_EDIT_DISTANCE_TO_JOIN": [
+        "1",
+        "0",
+        "2"
+      ],
+      "--MOLECULAR_IDENTIFIER_TAG": [
+        "null",
+        "MI"
+      ],
+      "--DUPLEX_UMI": [
+        "false",
+        "true"
+      ],
+      "--ALLOW_MISSING_UMIS": [
+        "true",
+        "false"
+      ]
+    },
     "ConvertHaplotypeDatabaseToVcf": {
       "$why": [
         "fp_haplotypes.txt is MakeFixtures' (see writeFingerprintFixtures): seven SNPs in five blocks, each with the",
@@ -2497,6 +2834,871 @@
         "false",
         "true"
       ]
+    },
+    "CheckTerminatorBlock": {
+      "$why": [
+        "The tool's answer is the termination of its INPUT's last block, printed on standard error, with",
+        "exit code 100 when that is DEFECTIVE. small.bam has the terminator, no_terminator.bam is the same bytes",
+        "without it and ends in a healthy block, truncated.bam cuts that block, and small.sam is not BGZF at all."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/no_terminator.bam",
+        "/work/fixtures/truncated.bam",
+        "/work/fixtures/small.sam"
+      ]
+    },
+    "FilterVcf": {
+      "$why": [
+        "filter.vcf (MakeFixtures) has a site for each filter on each side of the thresholds below, and missing",
+        "QD, FS, GQ and DP, which the reference reads as their defaults (-1 for a genotype's GQ and DP, so MIN_GQ=0",
+        "still filters a genotype without one). filter_no_contigs.vcf is refused because an output named .vcf needs a",
+        "dictionary; trio.vcf, vcf_unsorted_samples.vcf and vcf_sites_only.vcf are the corpus's other shapes. The",
+        "compared file is output.vcf; the .idx beside it records a timestamp and is not compared. JAVASCRIPT_FILE",
+        "runs a script engine and has no fixture."
+      ],
+      "--INPUT": [
+        "/work/fixtures/filter.vcf",
+        "/work/fixtures/trio.vcf",
+        "/work/fixtures/vcf_unsorted_samples.vcf",
+        "/work/fixtures/vcf_sites_only.vcf",
+        "/work/fixtures/filter_no_contigs.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--MIN_AB": [
+        "0.0",
+        "0.3"
+      ],
+      "--MIN_DP": [
+        "0",
+        "9"
+      ],
+      "--MIN_GQ": [
+        "0",
+        "30"
+      ],
+      "--MAX_FS": [
+        "60.0",
+        "20.0"
+      ],
+      "--MIN_QD": [
+        "0.0",
+        "2.0"
+      ]
+    },
+    "CreateBafRegressMetricsFile": {
+      "$why": [
+        "arr_bafregress.txt and arr_bafregress_two.txt (MakeArraysFixtures) are bafRegress' own output for one and two",
+        "samples; the VerifyIDIntensity output beside them has another header line, which the parser refuses by name."
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_bafregress.txt",
+        "/work/fixtures/arr_bafregress_two.txt",
+        "/work/fixtures/arr_verifyidintensity.txt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ]
+    },
+    "CreateVerifyIDIntensityContaminationMetricsFile": {
+      "$why": [
+        "arr_verifyidintensity.txt and _four.txt (MakeArraysFixtures) are VerifyIDIntensity's own output, header, dashes and",
+        "two or four rows, negative LLKs included; the bafRegress output fails the header pattern and is refused by name."
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_verifyidintensity.txt",
+        "/work/fixtures/arr_verifyidintensity_four.txt",
+        "/work/fixtures/arr_bafregress.txt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ]
+    },
+    "BpmToNormalizationManifestCsv": {
+      "$why": [
+        "arr.bpm and arr_two.bpm (MakeArraysFixtures) are bead pool manifests of four and two loci of two assay",
+        "types, which arr.egt covers. A cluster file given as the manifest is refused by its identifier, and",
+        "arr_truncated.egt ends inside its header, which is refused as unreadable. A manifest given as the cluster",
+        "file is not a value: the parser allocates for a count read from the wrong bytes, and the JVM's answer is",
+        "an OutOfMemoryError whose threshold is the heap's, not the tool's."
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr.bpm",
+        "/work/fixtures/arr_two.bpm",
+        "/work/fixtures/arr.egt"
+      ],
+      "--CLUSTER_FILE": [
+        "/work/fixtures/arr.egt",
+        "/work/fixtures/arr_truncated.egt"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.csv"
+      ]
+    },
+    "CompareGtcFiles": {
+      "$why": [
+        "MakeArraysFixtures' call files: arr_s1.gtc against itself, against arr_s1b.gtc, which differs in its call",
+        "rate alone (the report lists differences in the JVM's reflection order, so one difference is the pair",
+        "whose report is the tool's), and against a manifest, which is not a GTC. arr_two.bpm normalizes two of the",
+        "four loci and leaves the others raw."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_s1.gtc /work/fixtures/arr_s1.gtc",
+        "/work/fixtures/arr_s1.gtc /work/fixtures/arr_s1b.gtc",
+        "/work/fixtures/arr_s1.gtc /work/fixtures/arr.bpm"
+      ],
+      "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": [
+        "/work/fixtures/arr.bpm",
+        "/work/fixtures/arr_two.bpm"
+      ]
+    },
+    "GtcToVcf": {
+      "$why": [
+        "MakeArraysFixtures' chip: three call files over one bead pool manifest, cluster file and extended",
+        "manifest (arr_two.bpm normalizes two of the four loci and leaves the others raw), on arr_ref.fasta, whose",
+        "dictionary says GRCh37; ref.fasta's says nothing, which the validation refuses. GENDER_GTC takes the",
+        "autocall gender from another call file and arr_fp_male.vcf gives the fingerprint gender. No assay is",
+        "zeroed out in the cluster file, so DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS changes nothing here."
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_s1.gtc",
+        "/work/fixtures/arr_s2.gtc",
+        "/work/fixtures/arr_s1b.gtc"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ],
+      "--EXTENDED_ILLUMINA_MANIFEST": [
+        "/work/fixtures/arr_extended.csv"
+      ],
+      "--CLUSTER_FILE": [
+        "/work/fixtures/arr.egt"
+      ],
+      "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": [
+        "/work/fixtures/arr.bpm",
+        "/work/fixtures/arr_two.bpm"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/arr_ref.fasta",
+        "/work/fixtures/ref.fasta"
+      ],
+      "--EXPECTED_GENDER": [
+        "Female",
+        "Male",
+        "null"
+      ],
+      "--SAMPLE_ALIAS": [
+        "sample1",
+        "aliasX"
+      ],
+      "--PIPELINE_VERSION": [
+        "1.0",
+        "null"
+      ],
+      "--ANALYSIS_VERSION_NUMBER": [
+        "1",
+        "2"
+      ],
+      "--GENDER_GTC": [
+        "null",
+        "/work/fixtures/arr_s2.gtc"
+      ],
+      "--FINGERPRINT_GENOTYPES_VCF_FILE": [
+        "null",
+        "/work/fixtures/arr_fp_male.vcf"
+      ],
+      "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": [
+        "false",
+        "true"
+      ]
+    },
+    "VcfToAdpc": {
+      "$why": [
+        "arr_s1.vcf and arr_s2.vcf are the array VCFs the reference's GtcToVcf made of MakeArraysFixtures' call",
+        "files, alone and together; fp_genotypes.vcf is a VCF that is not an array's, with no GC_SCORE, which the",
+        "run logs and answers with exit code 1 after writing the header of the .adpc.bin."
+      ],
+      "$lists": [
+        "--VCF"
+      ],
+      "--VCF": [
+        "/work/fixtures/arr_s1.vcf",
+        "/work/fixtures/arr_s1.vcf /work/fixtures/arr_s2.vcf",
+        "/work/fixtures/arr_s2.vcf",
+        "/work/fixtures/fp_genotypes.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.adpc.bin"
+      ],
+      "--SAMPLES_FILE": [
+        "/work/out/samples.txt"
+      ],
+      "--NUM_MARKERS_FILE": [
+        "/work/out/markers.txt"
+      ]
+    },
+    "CombineGenotypingArrayVcfs": {
+      "$why": [
+        "arr_s1.vcf and arr_s2.vcf are the array VCFs the reference's GtcToVcf made of MakeArraysFixtures' call",
+        "files, combined in either order and alone; one file twice repeats its sample, which is refused, and",
+        "arr_short.vcf runs out one locus early, which is refused after the records merged so far. Two files whose",
+        "headers disagree on a kept line are not a value: the reference merges headers in the order of a HashSet",
+        "of VCFHeader, which has no hashCode of its own, so which line wins changes from one run to the next."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_s1.vcf /work/fixtures/arr_s2.vcf",
+        "/work/fixtures/arr_s2.vcf /work/fixtures/arr_s1.vcf",
+        "/work/fixtures/arr_s1.vcf",
+        "/work/fixtures/arr_s1.vcf /work/fixtures/arr_s1.vcf",
+        "/work/fixtures/arr_s1.vcf /work/fixtures/arr_short.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.vcf"
+      ]
+    },
+    "CollectArraysVariantCallingMetrics": {
+      "$why": [
+        "arr_s1.vcf and arr_s2.vcf are the indexed array VCFs the reference's GtcToVcf made of MakeArraysFixtures'",
+        "call files, and arr_dbsnp.vcf knows two of their four loci. arr_short.vcf has no index, which the reader",
+        "requires. The dictionary comes from the input or from arr_ref.dict, which agree; the call-rate threshold",
+        "is on both sides of the two samples' call rates."
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_s1.vcf",
+        "/work/fixtures/arr_s2.vcf",
+        "/work/fixtures/arr_short.vcf"
+      ],
+      "--DBSNP": [
+        "/work/fixtures/arr_dbsnp.vcf"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "null",
+        "/work/fixtures/arr_ref.dict"
+      ],
+      "--CALL_RATE_PF_THRESHOLD": [
+        "0.98",
+        "0.5"
+      ],
+      "--NUM_PROCESSORS": [
+        "1",
+        "2"
+      ]
+    },
+    "CreateExtendedIlluminaManifest": {
+      "$why": [
+        "arr_manifest.csv is the plain manifest of MakeArraysFixtures' four loci, on arr_ref.fasta (GRCh37);",
+        "arr_manifest_flags.csv adds a second assay at rs1's position (a locus off the reference makes the tool throw",
+        "instead of flagging it). arr_flags.egt scores all five, which FLAG_DUPLICATES needs to pick the survivor, and",
+        "arr_dbsnp.vcf knows two loci. Build 37 is the only target the tool supports; 36 is refused. No chain",
+        "file exists for a supported build, so SUPPORTED_* stay empty. The report's 'Generated on:' line is the",
+        "clock's."
+      ],
+      "--INPUT": [
+        "/work/fixtures/arr_manifest.csv",
+        "/work/fixtures/arr_manifest_flags.csv"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.csv"
+      ],
+      "--REPORT_FILE": [
+        "/work/out/report.txt"
+      ],
+      "--BAD_ASSAYS_FILE": [
+        "/work/out/bad.txt",
+        "null"
+      ],
+      "--CLUSTER_FILE": [
+        "/work/fixtures/arr_flags.egt",
+        "null"
+      ],
+      "--DBSNP_FILE": [
+        "/work/fixtures/arr_dbsnp.vcf",
+        "null"
+      ],
+      "--FLAG_DUPLICATES": [
+        "true",
+        "false"
+      ],
+      "--TARGET_BUILD": [
+        "37",
+        "36"
+      ],
+      "--REFERENCE_SEQUENCE": [
+        "/work/fixtures/arr_ref.fasta"
+      ],
+      "--SUPPORTED_BUILD": [
+        "null"
+      ],
+      "--SUPPORTED_CHAIN_FILE": [
+        "null"
+      ],
+      "--SUPPORTED_REFERENCE_FILE": [
+        "null"
+      ]
+    },
+    "CheckIlluminaDirectory": {
+      "$why": [
+        "ill_run (MakeIlluminaCoverageFixtures) is four cycles of one tile, so a read structure of eight cycles",
+        "is missing four of them; ill_run24 has the twenty-four. Lane 2 has no directory, which is refused, and tile",
+        "1102 is not in the run. DATA_TYPES chooses which files count: Position asks for locs the default does",
+        "not. The answer is the tool's log. FAKE_FILES and LINK_LOCS write into the basecalls directory, which",
+        "the oracle mounts read-only and the port would share between rows, so both are held at false."
+      ],
+      "$lists": [
+        "--DATA_TYPES",
+        "--LANES",
+        "--TILE_NUMBERS"
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run24/Data/Intensities/BaseCalls"
+      ],
+      "--READ_STRUCTURE": [
+        "4T",
+        "2T2B",
+        "8T"
+      ],
+      "--LANES": [
+        "1",
+        "2"
+      ],
+      "--TILE_NUMBERS": [
+        "null",
+        "1101",
+        "1102"
+      ],
+      "--DATA_TYPES": [
+        "null",
+        "Position",
+        "BaseCalls QualityScores PF"
+      ],
+      "--FAKE_FILES": [
+        "false"
+      ],
+      "--LINK_LOCS": [
+        "false"
+      ]
+    },
+    "CollectIlluminaLaneMetrics": {
+      "$why": [
+        "MakeIlluminaCoverageFixtures' tile-metrics-only runs: ill_lanes_a has two tiles of lane 1 and the phasing",
+        "of one template read, ill_lanes_b two lanes and the phasing of 4T8B4T's two template reads, ill_lanes_bare",
+        "counts and densities and no phasing (refused under STRICT, zero otherwise) and no RunInfo.xml, which a",
+        "run without READ_STRUCTURE must have. A read structure whose template reads the file has no phasing for",
+        "is refused under STRICT."
+      ],
+      "--RUN_DIRECTORY": [
+        "/work/fixtures/ill_lanes_a",
+        "/work/fixtures/ill_lanes_b",
+        "/work/fixtures/ill_lanes_bare"
+      ],
+      "--OUTPUT_DIRECTORY": [
+        "/work/out"
+      ],
+      "--OUTPUT_PREFIX": [
+        "run",
+        "flowcell17"
+      ],
+      "--READ_STRUCTURE": [
+        "4T",
+        "4T8B4T",
+        "null"
+      ],
+      "--FILE_EXTENSION": [
+        "null",
+        ".txt"
+      ]
+    },
+    "CollectHiSeqXPfFailMetrics": {
+      "$why": [
+        "The tool reads twenty-four cycles whatever N_CYCLES says (its read structure is built in a field",
+        "initialiser, before the argument is set), so ill_run24 is the run it reads and ill_run, of four cycles, is",
+        "refused. PROB_EXPLICIT_READS draws from an unseeded Random between 0 and 1, so only those two are values:",
+        "none written, or every failing cluster written."
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/ill_run24/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls"
+      ],
+      "--OUTPUT": [
+        "/work/out/output"
+      ],
+      "--LANE": [
+        "1"
+      ],
+      "--N_CYCLES": [
+        "24",
+        "4"
+      ],
+      "--PROB_EXPLICIT_READS": [
+        "0.0",
+        "1.0"
+      ],
+      "--NUM_PROCESSORS": [
+        "1",
+        "2"
+      ]
+    },
+    "CollectIlluminaBasecallingMetrics": {
+      "$why": [
+        "ill_run's four clusters, three passing the filter; ill_bcdir holds the per-tile barcode file",
+        "ExtractIlluminaBarcodes would write for 2T2B (three matched, one not), and ill_barcodes.txt declares AG",
+        "and CT. Without INPUT the lane is counted as one non-indexed row; with INPUT and no barcode files the",
+        "Barcodes data type has no format and is refused."
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls"
+      ],
+      "--BARCODES_DIR": [
+        "/work/fixtures/ill_bcdir",
+        "null"
+      ],
+      "--INPUT": [
+        "null",
+        "/work/fixtures/ill_barcodes.txt",
+        "/work/fixtures/ill_barcodes_one.txt"
+      ],
+      "--LANE": [
+        "1"
+      ],
+      "--READ_STRUCTURE": [
+        "2T2B",
+        "4T",
+        "1T1S2B"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt"
+      ]
+    },
+    "ExtractIlluminaBarcodes": {
+      "$why": [
+        "ill_run reads AG, AG, CT, CT at cycles three and four and AA, CC, GG, TT at one and two; ill_run_n",
+        "has a no-call and a quality of ten among its barcode bases. The barcode files declare the two, one,",
+        "a tie (AC and GG, each one mismatch from AG), a duplicate (refused) and a two-read set for 2B2B, which",
+        "a one-read structure refuses by column count. BARCODE is mutually exclusive with BARCODE_FILE, so it",
+        "is held absent; INPUT_PARAMS_FILE is overwritten by BARCODE_FILE before it is read, and MINIMUM_QUALITY",
+        "is read in a field initialiser before the parser runs, so both change nothing. COMPRESS_OUTPUTS is",
+        "held false: the gzip stream is the JDK's deflater, not the tool's logic. The answer is every file in",
+        "OUTPUT_DIR: the per-tile barcode file and the metrics."
+      ],
+      "$lists": [
+        "--LANE"
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+      ],
+      "--READ_STRUCTURE": [
+        "2T2B",
+        "2B2T",
+        "2B2B",
+        "1M1S2B"
+      ],
+      "--BARCODE_FILE": [
+        "/work/fixtures/ill_barcodes.txt",
+        "/work/fixtures/ill_barcodes_one.txt",
+        "/work/fixtures/ill_barcodes_tie.txt",
+        "/work/fixtures/ill_barcodes_dup.txt",
+        "/work/fixtures/ill_barcodes_two.txt"
+      ],
+      "--BARCODE": [
+        "null"
+      ],
+      "--LANE": [
+        "1"
+      ],
+      "--OUTPUT_DIR": [
+        "/work/out"
+      ],
+      "--METRICS_FILE": [
+        "/work/out/metrics.txt"
+      ],
+      "--MAX_MISMATCHES": [
+        "1",
+        "0",
+        "2"
+      ],
+      "--MIN_MISMATCH_DELTA": [
+        "1",
+        "2",
+        "0"
+      ],
+      "--MAX_NO_CALLS": [
+        "2",
+        "0"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "0",
+        "20"
+      ],
+      "--MINIMUM_QUALITY": [
+        "2",
+        "40"
+      ],
+      "--DISTANCE_MODE": [
+        "HAMMING",
+        "LENIENT_HAMMING",
+        "FREE"
+      ],
+      "--INPUT_PARAMS_FILE": [
+        "null",
+        "/work/fixtures/ill_barcodes_one.txt"
+      ],
+      "--NUM_PROCESSORS": [
+        "1",
+        "4"
+      ],
+      "--COMPRESS_OUTPUTS": [
+        "false"
+      ]
+    },
+    "IlluminaBasecallsToFastq": {
+      "$why": [
+        "ill_run's four clusters (three PF) read AG, AG, CT, CT at cycles three and four; ill_run_n has a no-call",
+        "and a quality of ten among them, which the EAMSS filter masks. MULTIPLEX_PARAMS writes /work/out/<prefix>",
+        "files per barcode (ill_multiplex.txt: AG, CT and the unmatched N row; _partial.txt: AG and N, so CT is",
+        "unexpected; _one.txt: no barcode column, for 4T). OUTPUT_PREFIX is mutually exclusive with it and held",
+        "absent. Barcodes come from ill_bcdir's per-tile file or, with MATCH_BARCODES_INLINE, are matched against",
+        "the MULTIPLEX_PARAMS barcodes, and only then is METRICS_FILE written. TRIMMING_QUALITY and the adapters",
+        "cut a template read, and a cut shorter than MIN_TRIMMED_LENGTH is padded back to it with zero bytes.",
+        "COMPRESS_OUTPUTS writes BGZF, compared decompressed. The answer is every file in /work/out."
+      ],
+      "$lists": [
+        "--LANE",
+        "--ADAPTERS_TO_CHECK"
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+      ],
+      "--BARCODES_DIR": [
+        "/work/fixtures/ill_bcdir",
+        "null"
+      ],
+      "--LANE": [
+        "1"
+      ],
+      "--READ_STRUCTURE": [
+        "2T2B",
+        "1T1T2B",
+        "1M1T2B",
+        "4T"
+      ],
+      "--MULTIPLEX_PARAMS": [
+        "/work/fixtures/ill_multiplex.txt",
+        "/work/fixtures/ill_multiplex_partial.txt",
+        "/work/fixtures/ill_multiplex_one.txt"
+      ],
+      "--OUTPUT_PREFIX": [
+        "null"
+      ],
+      "--RUN_BARCODE": [
+        "R1",
+        "null"
+      ],
+      "--MACHINE_NAME": [
+        "M1",
+        "null"
+      ],
+      "--FLOWCELL_BARCODE": [
+        "FC1"
+      ],
+      "--READ_NAME_FORMAT": [
+        "CASAVA_1_8",
+        "ILLUMINA"
+      ],
+      "--MATCH_BARCODES_INLINE": [
+        "false",
+        "true"
+      ],
+      "--METRICS_FILE": [
+        "/work/out/metrics.txt"
+      ],
+      "--INCLUDE_NON_PF_READS": [
+        "true",
+        "false"
+      ],
+      "--APPLY_EAMSS_FILTER": [
+        "true",
+        "false"
+      ],
+      "--SORT": [
+        "true",
+        "false"
+      ],
+      "--IGNORE_UNEXPECTED_BARCODES": [
+        "false",
+        "true"
+      ],
+      "--TRIMMING_QUALITY": [
+        "null",
+        "20",
+        "40"
+      ],
+      "--MIN_TRIMMED_LENGTH": [
+        "20",
+        "1"
+      ],
+      "--ADAPTERS_TO_CHECK": [
+        "null",
+        "INDEXED",
+        "NEXTERA_V2 FLUIDIGM"
+      ],
+      "--FIVE_PRIME_ADAPTER": [
+        "null",
+        "AATGATACGGCGACCACCGAGATCTACAC"
+      ],
+      "--THREE_PRIME_ADAPTER": [
+        "null",
+        "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
+      ],
+      "--FIRST_TILE": [
+        "null",
+        "1101",
+        "1102"
+      ],
+      "--TILE_LIMIT": [
+        "null",
+        "1",
+        "0"
+      ],
+      "--NUM_PROCESSORS": [
+        "1",
+        "2"
+      ],
+      "--COMPRESS_OUTPUTS": [
+        "false",
+        "true"
+      ],
+      "--MAX_MISMATCHES": [
+        "1",
+        "0"
+      ],
+      "--MIN_MISMATCH_DELTA": [
+        "1",
+        "2"
+      ],
+      "--MAX_NO_CALLS": [
+        "2",
+        "0"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "0",
+        "20"
+      ],
+      "--DISTANCE_MODE": [
+        "HAMMING",
+        "FREE"
+      ],
+      "--MINIMUM_QUALITY": [
+        "2"
+      ],
+      "--FORCE_GC": [
+        "true",
+        "false"
+      ],
+      "--INPUT_PARAMS_FILE": [
+        "null"
+      ],
+      "--MAX_READS_IN_RAM_PER_TILE": [
+        "-1"
+      ]
+    },
+    "IlluminaBasecallsToSam": {
+      "$why": [
+        "ill_run's four clusters (three PF) read AG, AG, CT, CT at cycles three and four; ill_run_n has a no-call",
+        "and a quality of ten among them. LIBRARY_PARAMS names one output per barcode: ill_library.txt (AG, CT and",
+        "the N row, BAM), _partial.txt (AG and N, so CT is unexpected), _tags.txt (a BARCODE column, a DS read",
+        "group column, SAM outputs) and _one.txt (no barcode column, for 4T). OUTPUT, SAMPLE_ALIAS and LIBRARY_NAME",
+        "are mutually exclusive with it and held absent, as is BARCODE_PARAMS (its alias) and PROCESS_SINGLE_TILE",
+        "(exclusive with FIRST_TILE and TILE_LIMIT). The read group, the barcode population strategy, the",
+        "molecular index tags and inline matching vary; a BAM is compared decompressed. The answer is every file",
+        "in /work/out."
+      ],
+      "$lists": [
+        "--LANE",
+        "--ADAPTERS_TO_CHECK",
+        "--TAG_PER_MOLECULAR_INDEX"
+      ],
+      "--BASECALLS_DIR": [
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+      ],
+      "--BARCODES_DIR": [
+        "/work/fixtures/ill_bcdir",
+        "null"
+      ],
+      "--LANE": [
+        "1"
+      ],
+      "--READ_STRUCTURE": [
+        "2T2B",
+        "1T1T2B",
+        "1M1T2B",
+        "4T"
+      ],
+      "--LIBRARY_PARAMS": [
+        "/work/fixtures/ill_library.txt",
+        "/work/fixtures/ill_library_partial.txt",
+        "/work/fixtures/ill_library_tags.txt",
+        "/work/fixtures/ill_library_one.txt"
+      ],
+      "--BARCODE_PARAMS": [
+        "null"
+      ],
+      "--OUTPUT": [
+        "null"
+      ],
+      "--SAMPLE_ALIAS": [
+        "null"
+      ],
+      "--LIBRARY_NAME": [
+        "null"
+      ],
+      "--PROCESS_SINGLE_TILE": [
+        "null"
+      ],
+      "--RUN_BARCODE": [
+        "R1",
+        "RUNBARCODE7"
+      ],
+      "--READ_GROUP_ID": [
+        "null",
+        "RG9"
+      ],
+      "--SEQUENCING_CENTER": [
+        "null",
+        "BI"
+      ],
+      "--PLATFORM": [
+        "ILLUMINA",
+        "null"
+      ],
+      "--RUN_START_DATE": [
+        "null",
+        "2011/04/23"
+      ],
+      "--INCLUDE_BC_IN_RG_TAG": [
+        "false",
+        "true"
+      ],
+      "--BARCODE_POPULATION_STRATEGY": [
+        "ORPHANS_ONLY",
+        "INEXACT_MATCH",
+        "ALWAYS"
+      ],
+      "--INCLUDE_BARCODE_QUALITY": [
+        "false",
+        "true"
+      ],
+      "--MOLECULAR_INDEX_TAG": [
+        "RX",
+        "ZR"
+      ],
+      "--MOLECULAR_INDEX_BASE_QUALITY_TAG": [
+        "QX",
+        "ZQ"
+      ],
+      "--TAG_PER_MOLECULAR_INDEX": [
+        "null",
+        "ZA"
+      ],
+      "--MATCH_BARCODES_INLINE": [
+        "false",
+        "true"
+      ],
+      "--METRICS_FILE": [
+        "/work/out/metrics.txt"
+      ],
+      "--INCLUDE_NON_PF_READS": [
+        "true",
+        "false"
+      ],
+      "--APPLY_EAMSS_FILTER": [
+        "true",
+        "false"
+      ],
+      "--SORT": [
+        "true",
+        "false"
+      ],
+      "--IGNORE_UNEXPECTED_BARCODES": [
+        "false",
+        "true"
+      ],
+      "--ADAPTERS_TO_CHECK": [
+        "null",
+        "INDEXED",
+        "NEXTERA_V2 FLUIDIGM"
+      ],
+      "--FIVE_PRIME_ADAPTER": [
+        "null",
+        "AATGATACGGCGACCACCGAGATCTACAC"
+      ],
+      "--THREE_PRIME_ADAPTER": [
+        "null",
+        "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
+      ],
+      "--FIRST_TILE": [
+        "null",
+        "1101",
+        "1102"
+      ],
+      "--TILE_LIMIT": [
+        "null",
+        "1",
+        "0"
+      ],
+      "--NUM_PROCESSORS": [
+        "1",
+        "2"
+      ],
+      "--MAX_MISMATCHES": [
+        "1",
+        "0"
+      ],
+      "--MIN_MISMATCH_DELTA": [
+        "1",
+        "2"
+      ],
+      "--MAX_NO_CALLS": [
+        "2",
+        "0"
+      ],
+      "--MINIMUM_BASE_QUALITY": [
+        "0",
+        "20"
+      ],
+      "--DISTANCE_MODE": [
+        "HAMMING",
+        "FREE"
+      ],
+      "--MINIMUM_QUALITY": [
+        "2"
+      ],
+      "--INPUT_PARAMS_FILE": [
+        "null"
+      ],
+      "--MAX_READS_IN_RAM_PER_TILE": [
+        "-1"
+      ],
+      "--COMPRESS_OUTPUTS": [
+        "false"
+      ],
+      "--CREATE_INDEX": [
+        "false"
+      ]
     }
   },
   "constraints": [
@@ -2508,6 +3710,656 @@
         "--OUTPUT_BY_READGROUP": "true"
       },
       "why": "OUTPUT_BY_READGROUP=true requires OUTPUT to be a DIRECTORY, and this harness compares one output file, so the repository has no directory to give it: every row carrying it is refused with 'When OUTPUT_BY_READGROUP=true and OUTPUT is provided, it must be a directory'. Eight of the first sixteen rows were that one refusal, and they crowded out the arguments the tool actually varies. The refusal is behaviour and is kept, but as one case rather than half the array, exactly as the FLOW_MODE constraint below keeps its own."
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--CREATE_INDEX": "false"
+      },
+      "why": "queryname.bam is refused for its sort order before a base is read, so what the other arguments say beside it cannot be observed; it is kept with each other refusal (which comes first) and with the first value of everything else."
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--ERROR_METRICS": "null OVERLAPPING_ERROR OVERLAPPING_ERROR:READ_ORDINALITY ERROR:READ_DIRECTION ERROR:CYCLE"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--ERROR_METRICS": "null ERROR:READ_ORDINALITY:CYCLE ERROR:GC_CONTENT ERROR:MAPPING_QUALITY INDEL_ERROR:READ_DIRECTION"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--ERROR_METRICS": "null ERROR:INSERT_LENGTH ERROR:SOFT_CLIPS ERROR:READ_BASE ERROR:REFERENCE_BASE"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--ERROR_METRICS": "null ERROR:MAPPING_QUALITY:READ_DIRECTION OVERLAPPING_ERROR:GC_CONTENT INDEL_ERROR:CYCLE"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--FILE_EXTENSION": ".tsv"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--INTERVALS": "/work/fixtures/targets.interval_list"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--INTERVALS": "/work/fixtures/targets.interval_list /work/fixtures/baits.interval_list"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--INTERVAL_ITERATOR": "true"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--LOCATION_BIN_SIZE": "100"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--LONG_HOMOPOLYMER": "3"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--MAX_LOCI": "40"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--MIN_BASE_Q": "0"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--MIN_BASE_Q": "30"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--MIN_MAPPING_Q": "0"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--MIN_MAPPING_Q": "45"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--PRIOR_Q": "10"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--PROBABILITY": "0.5"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--PROGRESS_STEP_INTERVAL": "50"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--VCF": "/work/fixtures/variants.vcf"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--INPUT": "/work/fixtures/queryname.bam",
+        "--VCF": "/work/fixtures/dbsnp.vcf"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--CREATE_INDEX": "false"
+      },
+      "why": "A VCF with no index is refused when the reader is opened, before the sort order is looked at and before a base is read, so what the other arguments say beside it cannot be observed; it is kept with each other refusal and with the first value of everything else."
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--ERROR_METRICS": "null OVERLAPPING_ERROR OVERLAPPING_ERROR:READ_ORDINALITY ERROR:READ_DIRECTION ERROR:CYCLE"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--ERROR_METRICS": "null ERROR:READ_ORDINALITY:CYCLE ERROR:GC_CONTENT ERROR:MAPPING_QUALITY INDEL_ERROR:READ_DIRECTION"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--ERROR_METRICS": "null ERROR:INSERT_LENGTH ERROR:SOFT_CLIPS ERROR:READ_BASE ERROR:REFERENCE_BASE"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--ERROR_METRICS": "null ERROR:MAPPING_QUALITY:READ_DIRECTION OVERLAPPING_ERROR:GC_CONTENT INDEL_ERROR:CYCLE"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--FILE_EXTENSION": ".tsv"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--INPUT": "/work/fixtures/one_read_group.bam"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--INTERVALS": "/work/fixtures/targets.interval_list"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--INTERVALS": "/work/fixtures/targets.interval_list /work/fixtures/baits.interval_list"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--INTERVAL_ITERATOR": "true"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--LOCATION_BIN_SIZE": "100"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--LONG_HOMOPOLYMER": "3"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--MAX_LOCI": "40"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--MIN_BASE_Q": "0"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--MIN_BASE_Q": "30"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--MIN_MAPPING_Q": "0"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--MIN_MAPPING_Q": "45"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--PRIOR_Q": "10"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--PROBABILITY": "0.5"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--PROGRESS_STEP_INTERVAL": "50"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--VCF": "/work/fixtures/vcf_sites_only.vcf",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--CREATE_INDEX": "false"
+      },
+      "why": "A directive the default list already carries is refused for its duplicated suffix while the aggregators are built, before any file is read, so what the other arguments say beside it cannot be observed; it is kept with each other refusal and with the first value of everything else."
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--FILE_EXTENSION": ".tsv"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--INPUT": "/work/fixtures/one_read_group.bam"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--INTERVALS": "/work/fixtures/targets.interval_list"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--INTERVALS": "/work/fixtures/targets.interval_list /work/fixtures/baits.interval_list"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--INTERVAL_ITERATOR": "true"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--LOCATION_BIN_SIZE": "100"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--LONG_HOMOPOLYMER": "3"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--MAX_LOCI": "40"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--MIN_BASE_Q": "0"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--MIN_BASE_Q": "30"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--MIN_MAPPING_Q": "0"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--MIN_MAPPING_Q": "45"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--PRIOR_Q": "10"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--PROBABILITY": "0.5"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--PROGRESS_STEP_INTERVAL": "50"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--VCF": "/work/fixtures/variants.vcf"
+      },
+      "why": "same as the first clause for this value"
+    },
+    {
+      "tools": [
+        "CollectSamErrorMetrics"
+      ],
+      "forbid": {
+        "--ERROR_METRICS": "ERROR",
+        "--VCF": "/work/fixtures/dbsnp.vcf"
+      },
+      "why": "same as the first clause for this value"
     },
     {
       "forbid": {
@@ -2895,6 +4747,196 @@
         "--OBSERVED_SAMPLE_ALIAS": "sampleA"
       },
       "why": "IGNORE_READ_GROUPS is refused beside a VCF input and OBSERVED_SAMPLE_ALIAS beside a BAM, so a row giving both has no input the tool accepts, and the generator would otherwise fill one in that carries a refusal."
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2B2B",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes.txt"
+      },
+      "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2B2B",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_one.txt"
+      },
+      "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2B2B",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_tie.txt"
+      },
+      "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2B2B",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_dup.txt"
+      },
+      "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2T2B",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_two.txt"
+      },
+      "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2B2T",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_two.txt"
+      },
+      "why": "A one-read barcode file under a two-read structure, or the two-read file under a one-read structure, is refused before any cluster is read (a missing column, or the column count). Kept as a pair of refusals the array would otherwise repeat in half its rows, crowding out the matching arguments."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--FIVE_PRIME_ADAPTER": "null",
+        "--THREE_PRIME_ADAPTER": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
+      },
+      "why": "Only one of the two adapters set is refused before anything is read ('must either both be null or both be set'). Kept as one case rather than a third of the array."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "4T",
+        "--MULTIPLEX_PARAMS": "/work/fixtures/ill_multiplex_partial.txt"
+      },
+      "why": "A MULTIPLEX_PARAMS with a barcode column under 4T, which has no sample barcode, keys every row by null and is refused as a duplicate; the barcode-less file under a barcoded structure is refused for its missing column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "1T1T2B",
+        "--MULTIPLEX_PARAMS": "/work/fixtures/ill_multiplex_one.txt"
+      },
+      "why": "A MULTIPLEX_PARAMS with a barcode column under 4T, which has no sample barcode, keys every row by null and is refused as a duplicate; the barcode-less file under a barcoded structure is refused for its missing column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "1M1T2B",
+        "--MULTIPLEX_PARAMS": "/work/fixtures/ill_multiplex_one.txt"
+      },
+      "why": "A MULTIPLEX_PARAMS with a barcode column under 4T, which has no sample barcode, keys every row by null and is refused as a duplicate; the barcode-less file under a barcoded structure is refused for its missing column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--FIVE_PRIME_ADAPTER": "null",
+        "--THREE_PRIME_ADAPTER": "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
+      },
+      "why": "Only one of the two adapters set is refused before anything is read. Kept as one case rather than a third of the array."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "4T",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library.txt"
+      },
+      "why": "A barcoded LIBRARY_PARAMS under 4T is refused for its barcode column (an unrecognised read group tag), and the barcode-less one under a barcoded structure for its missing BARCODE column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "4T",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_partial.txt"
+      },
+      "why": "A barcoded LIBRARY_PARAMS under 4T is refused for its barcode column (an unrecognised read group tag), and the barcode-less one under a barcoded structure for its missing BARCODE column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "1T1T2B",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_one.txt"
+      },
+      "why": "A barcoded LIBRARY_PARAMS under 4T is refused for its barcode column (an unrecognised read group tag), and the barcode-less one under a barcoded structure for its missing BARCODE column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "1M1T2B",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_one.txt"
+      },
+      "why": "A barcoded LIBRARY_PARAMS under 4T is refused for its barcode column (an unrecognised read group tag), and the barcode-less one under a barcoded structure for its missing BARCODE column. Each refusal is kept once rather than in most rows."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "2T2B",
+        "--TAG_PER_MOLECULAR_INDEX": "ZA"
+      },
+      "why": "TAG_PER_MOLECULAR_INDEX must name one tag per molecular index; under a structure without one, a tag is refused. Kept once."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--READ_STRUCTURE": "1T1T2B",
+        "--TAG_PER_MOLECULAR_INDEX": "ZA"
+      },
+      "why": "TAG_PER_MOLECULAR_INDEX must name one tag per molecular index; under a structure without one, a tag is refused. Kept once."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--MULTIPLEX_PARAMS": "/work/fixtures/ill_multiplex_partial.txt",
+        "--IGNORE_UNEXPECTED_BARCODES": "false"
+      },
+      "why": "The reference throws 'Read records with barcode CT, but this barcode was not expected' from its main thread and then never exits: the executor its tile workers ran on is not shut down on that path, so a non-daemon pool thread keeps the JVM alive and the row waits until the job's own timeout. The refusal cannot be observed as an answer, so the pair is not run."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_partial.txt",
+        "--IGNORE_UNEXPECTED_BARCODES": "false"
+      },
+      "why": "The reference throws 'Read records with barcode CT, but this barcode was not expected' from its main thread and then never exits: the executor its tile workers ran on is not shut down on that path, so a non-daemon pool thread keeps the JVM alive and the row waits until the job's own timeout. The refusal cannot be observed as an answer, so the pair is not run."
     }
   ],
   "exclude": {

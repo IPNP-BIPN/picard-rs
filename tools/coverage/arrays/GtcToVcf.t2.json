@@ -1,0 +1,560 @@
+{
+  "tool": "GtcToVcf",
+  "origin": "picard",
+  "t": 2,
+  "numeric_policy": "strict",
+  "arguments_total": 27,
+  "arguments_in_array": 12,
+  "arguments_excluded": 15,
+  "excluded": [
+    {
+      "argument": "--arguments_file",
+      "type": "List[File]",
+      "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CLUSTER_FILE",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/arr.egt",
+      "source": "fixture"
+    },
+    {
+      "argument": "--COMPRESSION_LEVEL",
+      "type": "int",
+      "reason": "excluded by the repository: changes the deflate level of a written BAM. Varying it would make the output bytes differ for a reason that is not the tool's logic, and the deflate pin is asserted by its own suite (htsjdk-rs decision 0001)",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--CREATE_MD5_FILE",
+      "type": "boolean",
+      "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--EXTENDED_ILLUMINA_MANIFEST",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/fixtures/arr_extended.csv",
+      "source": "fixture"
+    },
+    {
+      "argument": "--help",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--MAX_RECORDS_IN_RAM",
+      "type": "Integer",
+      "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--OUTPUT",
+      "type": "File",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/out/output.vcf",
+      "source": "fixture"
+    },
+    {
+      "argument": "--QUIET",
+      "type": "Boolean",
+      "reason": "excluded by the repository: suppresses the log on stderr; the compared output is stdout and the output file",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--showHidden",
+      "type": "boolean",
+      "reason": "excluded by the repository: changes the usage text only",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--TMP_DIR",
+      "type": "List[File]",
+      "reason": "only one value available (fixture[0])",
+      "held_at": "/work/tmp",
+      "source": "fixture"
+    },
+    {
+      "argument": "--USE_JDK_DEFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract; varying it would compare zlib output against GKL output and call the difference a divergence",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--USE_JDK_INFLATER",
+      "type": "Boolean",
+      "reason": "excluded by the repository: pinned true by the oracle contract, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--VERBOSITY",
+      "type": "LogLevel",
+      "reason": "excluded by the repository: log level on stderr, same reason",
+      "held_at": null,
+      "source": "none"
+    },
+    {
+      "argument": "--version",
+      "type": "boolean",
+      "reason": "excluded by the repository: prints the version and exits, same reason",
+      "held_at": null,
+      "source": "none"
+    }
+  ],
+  "rows": 14,
+  "tuples_total": 333,
+  "tuples_covered": 333,
+  "tuples_forbidden": 0,
+  "constraint_notes": [
+    "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
+  ],
+  "coverage": 1.0,
+  "array": [
+    {
+      "row": 0,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[0]",
+        "--EXPECTED_GENDER": "fixture[0]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[0]",
+        "--GENDER_GTC": "fixture[0]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[0]",
+        "--INPUT": "fixture[0]",
+        "--PIPELINE_VERSION": "fixture[0]",
+        "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--SAMPLE_ALIAS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=1",
+        "--CREATE_INDEX=true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=false",
+        "--EXPECTED_GENDER=Female",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=null",
+        "--GENDER_GTC=null",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr.bpm",
+        "--INPUT=/work/fixtures/arr_s1.gtc",
+        "--PIPELINE_VERSION=1.0",
+        "--REFERENCE_SEQUENCE=/work/fixtures/arr_ref.fasta",
+        "--SAMPLE_ALIAS=sample1",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 1,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[1]",
+        "--EXPECTED_GENDER": "fixture[1]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[1]",
+        "--GENDER_GTC": "fixture[1]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[1]",
+        "--INPUT": "fixture[1]",
+        "--PIPELINE_VERSION": "fixture[1]",
+        "--REFERENCE_SEQUENCE": "fixture[1]",
+        "--SAMPLE_ALIAS": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=1",
+        "--CREATE_INDEX=false",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=true",
+        "--EXPECTED_GENDER=Male",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=/work/fixtures/arr_fp_male.vcf",
+        "--GENDER_GTC=/work/fixtures/arr_s2.gtc",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr_two.bpm",
+        "--INPUT=/work/fixtures/arr_s2.gtc",
+        "--PIPELINE_VERSION=null",
+        "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--SAMPLE_ALIAS=aliasX",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 2,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[1]",
+        "--CREATE_INDEX": "true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[1]",
+        "--EXPECTED_GENDER": "fixture[2]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[0]",
+        "--GENDER_GTC": "fixture[1]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[0]",
+        "--INPUT": "fixture[2]",
+        "--PIPELINE_VERSION": "fixture[1]",
+        "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--SAMPLE_ALIAS": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=2",
+        "--CREATE_INDEX=true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=true",
+        "--EXPECTED_GENDER=null",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=null",
+        "--GENDER_GTC=/work/fixtures/arr_s2.gtc",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr.bpm",
+        "--INPUT=/work/fixtures/arr_s1b.gtc",
+        "--PIPELINE_VERSION=null",
+        "--REFERENCE_SEQUENCE=/work/fixtures/arr_ref.fasta",
+        "--SAMPLE_ALIAS=aliasX",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 3,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[0]",
+        "--EXPECTED_GENDER": "fixture[0]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[1]",
+        "--GENDER_GTC": "fixture[0]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[1]",
+        "--INPUT": "fixture[2]",
+        "--PIPELINE_VERSION": "fixture[0]",
+        "--REFERENCE_SEQUENCE": "fixture[1]",
+        "--SAMPLE_ALIAS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=2",
+        "--CREATE_INDEX=false",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=false",
+        "--EXPECTED_GENDER=Female",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=/work/fixtures/arr_fp_male.vcf",
+        "--GENDER_GTC=null",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr_two.bpm",
+        "--INPUT=/work/fixtures/arr_s1b.gtc",
+        "--PIPELINE_VERSION=1.0",
+        "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--SAMPLE_ALIAS=sample1",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 4,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[0]",
+        "--EXPECTED_GENDER": "fixture[2]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[0]",
+        "--GENDER_GTC": "fixture[0]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[1]",
+        "--INPUT": "fixture[1]",
+        "--PIPELINE_VERSION": "fixture[0]",
+        "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--SAMPLE_ALIAS": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=1",
+        "--CREATE_INDEX=false",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=false",
+        "--EXPECTED_GENDER=null",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=null",
+        "--GENDER_GTC=null",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr_two.bpm",
+        "--INPUT=/work/fixtures/arr_s2.gtc",
+        "--PIPELINE_VERSION=1.0",
+        "--REFERENCE_SEQUENCE=/work/fixtures/arr_ref.fasta",
+        "--SAMPLE_ALIAS=aliasX",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 5,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[1]",
+        "--CREATE_INDEX": "true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[0]",
+        "--EXPECTED_GENDER": "fixture[1]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[0]",
+        "--GENDER_GTC": "fixture[0]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[0]",
+        "--INPUT": "fixture[1]",
+        "--PIPELINE_VERSION": "fixture[1]",
+        "--REFERENCE_SEQUENCE": "fixture[1]",
+        "--SAMPLE_ALIAS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=2",
+        "--CREATE_INDEX=true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=false",
+        "--EXPECTED_GENDER=Male",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=null",
+        "--GENDER_GTC=null",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr.bpm",
+        "--INPUT=/work/fixtures/arr_s2.gtc",
+        "--PIPELINE_VERSION=null",
+        "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--SAMPLE_ALIAS=sample1",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[1]",
+        "--EXPECTED_GENDER": "fixture[0]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[0]",
+        "--GENDER_GTC": "fixture[0]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[0]",
+        "--INPUT": "fixture[0]",
+        "--PIPELINE_VERSION": "fixture[1]",
+        "--REFERENCE_SEQUENCE": "fixture[1]",
+        "--SAMPLE_ALIAS": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=2",
+        "--CREATE_INDEX=false",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=true",
+        "--EXPECTED_GENDER=Female",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=null",
+        "--GENDER_GTC=null",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr.bpm",
+        "--INPUT=/work/fixtures/arr_s1.gtc",
+        "--PIPELINE_VERSION=null",
+        "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--SAMPLE_ALIAS=aliasX",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[1]",
+        "--EXPECTED_GENDER": "fixture[2]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[1]",
+        "--GENDER_GTC": "fixture[0]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[0]",
+        "--INPUT": "fixture[0]",
+        "--PIPELINE_VERSION": "fixture[0]",
+        "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--SAMPLE_ALIAS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=1",
+        "--CREATE_INDEX=true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=true",
+        "--EXPECTED_GENDER=null",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=/work/fixtures/arr_fp_male.vcf",
+        "--GENDER_GTC=null",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr.bpm",
+        "--INPUT=/work/fixtures/arr_s1.gtc",
+        "--PIPELINE_VERSION=1.0",
+        "--REFERENCE_SEQUENCE=/work/fixtures/arr_ref.fasta",
+        "--SAMPLE_ALIAS=sample1",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[0]",
+        "--EXPECTED_GENDER": "fixture[0]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[0]",
+        "--GENDER_GTC": "fixture[1]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[0]",
+        "--INPUT": "fixture[0]",
+        "--PIPELINE_VERSION": "fixture[0]",
+        "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--SAMPLE_ALIAS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=1",
+        "--CREATE_INDEX=false",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=false",
+        "--EXPECTED_GENDER=Female",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=null",
+        "--GENDER_GTC=/work/fixtures/arr_s2.gtc",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr.bpm",
+        "--INPUT=/work/fixtures/arr_s1.gtc",
+        "--PIPELINE_VERSION=1.0",
+        "--REFERENCE_SEQUENCE=/work/fixtures/arr_ref.fasta",
+        "--SAMPLE_ALIAS=sample1",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[0]",
+        "--EXPECTED_GENDER": "fixture[1]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[0]",
+        "--GENDER_GTC": "fixture[0]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[1]",
+        "--INPUT": "fixture[0]",
+        "--PIPELINE_VERSION": "fixture[0]",
+        "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--SAMPLE_ALIAS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=1",
+        "--CREATE_INDEX=true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=false",
+        "--EXPECTED_GENDER=Male",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=null",
+        "--GENDER_GTC=null",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr_two.bpm",
+        "--INPUT=/work/fixtures/arr_s1.gtc",
+        "--PIPELINE_VERSION=1.0",
+        "--REFERENCE_SEQUENCE=/work/fixtures/arr_ref.fasta",
+        "--SAMPLE_ALIAS=sample1",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[0]",
+        "--EXPECTED_GENDER": "fixture[1]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[0]",
+        "--GENDER_GTC": "fixture[0]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[1]",
+        "--INPUT": "fixture[2]",
+        "--PIPELINE_VERSION": "fixture[0]",
+        "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--SAMPLE_ALIAS": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=1",
+        "--CREATE_INDEX=true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=false",
+        "--EXPECTED_GENDER=Male",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=null",
+        "--GENDER_GTC=null",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr_two.bpm",
+        "--INPUT=/work/fixtures/arr_s1b.gtc",
+        "--PIPELINE_VERSION=1.0",
+        "--REFERENCE_SEQUENCE=/work/fixtures/arr_ref.fasta",
+        "--SAMPLE_ALIAS=aliasX",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 11,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[0]",
+        "--EXPECTED_GENDER": "fixture[0]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[0]",
+        "--GENDER_GTC": "fixture[0]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[0]",
+        "--INPUT": "fixture[1]",
+        "--PIPELINE_VERSION": "fixture[0]",
+        "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--SAMPLE_ALIAS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=1",
+        "--CREATE_INDEX=true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=false",
+        "--EXPECTED_GENDER=Female",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=null",
+        "--GENDER_GTC=null",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr.bpm",
+        "--INPUT=/work/fixtures/arr_s2.gtc",
+        "--PIPELINE_VERSION=1.0",
+        "--REFERENCE_SEQUENCE=/work/fixtures/arr_ref.fasta",
+        "--SAMPLE_ALIAS=sample1",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[0]",
+        "--EXPECTED_GENDER": "fixture[2]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[0]",
+        "--GENDER_GTC": "fixture[0]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[0]",
+        "--INPUT": "fixture[0]",
+        "--PIPELINE_VERSION": "fixture[0]",
+        "--REFERENCE_SEQUENCE": "fixture[1]",
+        "--SAMPLE_ALIAS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=1",
+        "--CREATE_INDEX=true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=false",
+        "--EXPECTED_GENDER=null",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=null",
+        "--GENDER_GTC=null",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr.bpm",
+        "--INPUT=/work/fixtures/arr_s1.gtc",
+        "--PIPELINE_VERSION=1.0",
+        "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--SAMPLE_ALIAS=sample1",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 13,
+      "labels": {
+        "--ANALYSIS_VERSION_NUMBER": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS": "fixture[0]",
+        "--EXPECTED_GENDER": "fixture[0]",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE": "fixture[0]",
+        "--GENDER_GTC": "fixture[0]",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": "fixture[0]",
+        "--INPUT": "fixture[2]",
+        "--PIPELINE_VERSION": "fixture[0]",
+        "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--SAMPLE_ALIAS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ANALYSIS_VERSION_NUMBER=1",
+        "--CREATE_INDEX=true",
+        "--DO_NOT_ALLOW_CALLS_ON_ZEROED_OUT_ASSAYS=false",
+        "--EXPECTED_GENDER=Female",
+        "--FINGERPRINT_GENOTYPES_VCF_FILE=null",
+        "--GENDER_GTC=null",
+        "--ILLUMINA_BEAD_POOL_MANIFEST_FILE=/work/fixtures/arr.bpm",
+        "--INPUT=/work/fixtures/arr_s1b.gtc",
+        "--PIPELINE_VERSION=1.0",
+        "--REFERENCE_SEQUENCE=/work/fixtures/arr_ref.fasta",
+        "--SAMPLE_ALIAS=sample1",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    }
+  ]
+}

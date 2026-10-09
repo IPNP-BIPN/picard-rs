@@ -1,11 +1,14 @@
-# AddCommentsToBam t=2 rows=10 from AddCommentsToBam.t2.json
-row	0:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/small.bam
-row	1:COMMENT=fixture[0],CREATE_INDEX=false,INPUT=fixture[1],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/queryname.bam
-row	2:COMMENT=fixture[1],CREATE_INDEX=true,INPUT=fixture[1],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/queryname.bam
-row	3:COMMENT=fixture[1],CREATE_INDEX=false,INPUT=fixture[0],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/small.bam
-row	4:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[2],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" picard.PicardException: SAM files are not supported
-row	5:COMMENT=fixture[1],CREATE_INDEX=false,INPUT=fixture[2],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" picard.PicardException: SAM files are not supported
-row	6:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/small.bam
-row	7:COMMENT=fixture[1],CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/small.bam
-row	8:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[1],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" htsjdk.samtools.SAMException: File exists but is not writable: /work/fixtures/queryname.bam
-row	9:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[2],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" picard.PicardException: SAM files are not supported
+# AddCommentsToBam t=2 rows=13 from AddCommentsToBam.t2.json
+row	0:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=STRICT	BGZF-CONTENT sha256=3967599f50d9927c11d776d9159e48fb8a4cea261dc3d21c19364b1ba0844cf7 bytes=54866
+row	1:COMMENT=fixture[0],CREATE_INDEX=false,INPUT=fixture[1],VALIDATION_STRINGENCY=LENIENT	BGZF-CONTENT sha256=7efe1aa1f5e0ca235fac3acd1542e75f6f542e9dd707e3dfa70fa08613a8e2b2 bytes=54865
+row	2:COMMENT=fixture[1],CREATE_INDEX=true,INPUT=fixture[1],VALIDATION_STRINGENCY=SILENT	BGZF-CONTENT sha256=c8adf3e4c289539621cd846fa3e3645fc3773b7bc46310d15c768ef9b7d01881 bytes=54864
+row	3:COMMENT=fixture[1],CREATE_INDEX=false,INPUT=fixture[0],VALIDATION_STRINGENCY=STRICT	BGZF-CONTENT sha256=3a90f0b1976c0c5c55f8f363c23be989bbab63cf8bcf4faa34b165a0bb191975 bytes=54865
+row	4:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[2],VALIDATION_STRINGENCY=LENIENT	BGZF-CONTENT sha256=e286b58e0b63daba8aaf4780748dbe7d75acb0a44734a000914c525e4e856c43 bytes=54812
+row	5:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[3],VALIDATION_STRINGENCY=SILENT	EXIT=1 Exception in thread "main" picard.PicardException: SAM files are not supported
+row	6:COMMENT=fixture[1],CREATE_INDEX=false,INPUT=fixture[2],VALIDATION_STRINGENCY=SILENT	BGZF-CONTENT sha256=0d4b33412c9388d5a274e74b5ca743f5abb73f8a46722856f14c87088e3862ef bytes=54811
+row	7:COMMENT=fixture[1],CREATE_INDEX=false,INPUT=fixture[3],VALIDATION_STRINGENCY=LENIENT	EXIT=1 Exception in thread "main" picard.PicardException: SAM files are not supported
+row	8:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=LENIENT	BGZF-CONTENT sha256=3967599f50d9927c11d776d9159e48fb8a4cea261dc3d21c19364b1ba0844cf7 bytes=54866
+row	9:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[0],VALIDATION_STRINGENCY=SILENT	BGZF-CONTENT sha256=3967599f50d9927c11d776d9159e48fb8a4cea261dc3d21c19364b1ba0844cf7 bytes=54866
+row	10:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[1],VALIDATION_STRINGENCY=STRICT	BGZF-CONTENT sha256=7efe1aa1f5e0ca235fac3acd1542e75f6f542e9dd707e3dfa70fa08613a8e2b2 bytes=54865
+row	11:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[2],VALIDATION_STRINGENCY=STRICT	BGZF-CONTENT sha256=e286b58e0b63daba8aaf4780748dbe7d75acb0a44734a000914c525e4e856c43 bytes=54812
+row	12:COMMENT=fixture[0],CREATE_INDEX=true,INPUT=fixture[3],VALIDATION_STRINGENCY=STRICT	EXIT=1 Exception in thread "main" picard.PicardException: SAM files are not supported

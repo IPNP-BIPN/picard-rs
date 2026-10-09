@@ -106,9 +106,9 @@
       "source": "none"
     }
   ],
-  "rows": 10,
-  "tuples_total": 37,
-  "tuples_covered": 37,
+  "rows": 13,
+  "tuples_total": 44,
+  "tuples_covered": 44,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -186,12 +186,27 @@
       "arguments": [
         "--COMMENT=reviewed_by_qc",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.sam",
+        "--INPUT=/work/fixtures/one_read_group.bam",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 5,
+      "labels": {
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[3]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--COMMENT=reviewed_by_qc",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 6,
       "labels": {
         "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "false",
@@ -201,12 +216,42 @@
       "arguments": [
         "--COMMENT=batch:2026-09",
         "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/small.sam",
+        "--INPUT=/work/fixtures/one_read_group.bam",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
-      "row": 6,
+      "row": 7,
+      "labels": {
+        "--COMMENT": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[3]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--COMMENT=batch:2026-09",
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/small.sam",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--COMMENT=reviewed_by_qc",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 9,
       "labels": {
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
@@ -221,22 +266,7 @@
       ]
     },
     {
-      "row": 7,
-      "labels": {
-        "--COMMENT": "fixture[1]",
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
-      },
-      "arguments": [
-        "--COMMENT=batch:2026-09",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.bam",
-        "--VALIDATION_STRINGENCY=LENIENT"
-      ]
-    },
-    {
-      "row": 8,
+      "row": 10,
       "labels": {
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
@@ -251,11 +281,26 @@
       ]
     },
     {
-      "row": 9,
+      "row": 11,
       "labels": {
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[2]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--COMMENT=reviewed_by_qc",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/one_read_group.bam",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[3]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [

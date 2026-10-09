@@ -88,6 +88,24 @@ impl<V> JavaHashMap<V> {
         }
     }
 
+    /// `HashMap.computeIfAbsent` for a key that is not there: the new node goes at the HEAD of its
+    /// bucket, not the tail as `put` appends it, and the table is grown BEFORE the insertion, when
+    /// the size already exceeds the threshold, not after it as `put` does. The two differ in the
+    /// order a bucket iterates in, which is the order a report written from the map comes out in.
+    pub fn insert_front_if_absent(&mut self, key: &str, value: V) {
+        if self.table.is_empty() {
+            self.table = (0..16).map(|_| Vec::new()).collect();
+        } else if self.size > self.table.len() * 3 / 4 {
+            self.resize();
+        }
+        let index = self.index(key);
+        if self.table[index].iter().any(|(k, _)| k == key) {
+            return;
+        }
+        self.table[index].insert(0, (key.to_string(), value));
+        self.size += 1;
+    }
+
     /// `HashMap.remove`. The table keeps its width: Java never shrinks one.
     pub fn remove(&mut self, key: &str) -> Option<V> {
         if self.table.is_empty() {

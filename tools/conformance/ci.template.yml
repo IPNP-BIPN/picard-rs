@@ -83,7 +83,7 @@ jobs:
           mkdir -p target/fixtures
           docker run --rm --platform linux/amd64 -v "$PWD/tools/coverage":/harness:ro \
             -v "$PWD/target/fixtures":/out -w /work picard-rs-oracle:3.4.0 \
-            'cp /harness/MakeFixtures.java . && javac -cp "$ORACLE_CP" -d . MakeFixtures.java \
+            'cp /harness/*.java . && javac -cp "$ORACLE_CP" -d . *.java \
              && java -Dsamjdk.try_use_intel_deflater=false -cp ".:$ORACLE_CP" MakeFixtures /out'
 
       - name: The same input twice, under three environments, is the same bytes

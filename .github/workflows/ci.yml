@@ -83,7 +83,7 @@ jobs:
           mkdir -p target/fixtures
           docker run --rm --platform linux/amd64 -v "$PWD/tools/coverage":/harness:ro \
             -v "$PWD/target/fixtures":/out -w /work picard-rs-oracle:3.4.0 \
-            'cp /harness/MakeFixtures.java . && javac -cp "$ORACLE_CP" -d . MakeFixtures.java \
+            'cp /harness/*.java . && javac -cp "$ORACLE_CP" -d . *.java \
              && java -Dsamjdk.try_use_intel_deflater=false -cp ".:$ORACLE_CP" MakeFixtures /out'
 
       - name: The same input twice, under three environments, is the same bytes
@@ -161,7 +161,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
 
-      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools --bin position-based-downsample-sam --bin validate-sam-file --bin filter-sam-reads --bin mark-duplicates --bin fastq-to-sam --bin split-sam-by-number-of-reads --bin split-sam-by-library --bin make-vcf-sample-name-map --bin sam-to-fastq --bin collect-duplicate-metrics --bin mark-duplicates-with-mate-cigar --bin simple-mark-duplicates-with-mate-cigar --bin check-duplicate-marking --bin accumulate-quality-yield-metrics --bin genotype-concordance --bin estimate-library-complexity --bin collect-umi-prevalence-metrics --bin revert-original-base-qualities-and-add-mate-cigar --bin collect-variant-calling-metrics --bin collect-jumping-library-metrics --bin mark-illumina-adapters --bin sam-to-fastq-with-tags --bin find-mendelian-violations --bin lift-over-interval-list --bin compare-sams --bin collect-insert-size-metrics --bin build-bam-index --bin add-comments-to-bam --bin gather-bam-files --bin lift-over-haplotype-map --bin make-sites-only-vcf --bin rename-sample-in-vcf --bin vcf-to-interval-list --bin sort-vcf --bin update-vcf-sequence-dictionary --bin merge-vcfs --bin gather-vcfs --bin split-vcfs --bin vcf-format-converter --bin fix-vcf-header --bin collect-wgs-metrics --bin collect-raw-wgs-metrics --bin collect-wgs-metrics-with-non-zero-coverage --bin collect-hs-metrics --bin collect-targeted-pcr-metrics --bin collect-sequencing-artifact-metrics --bin convert-sequencing-artifact-to-oxog --bin collect-oxo-g-metrics --bin collect-gc-bias-metrics --bin collect-rrbs-metrics --bin collect-rna-seq-metrics --bin collect-independent-replicate-metrics --bin liftover-vcf --bin collect-multiple-metrics --bin sort-gff --bin merge-ped-into-vcf --bin bam-to-bfq --bin compare-metrics --bin merge-bam-alignment --bin convert-haplotype-database-to-vcf --bin cluster-crosscheck-metrics
+      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools --bin position-based-downsample-sam --bin validate-sam-file --bin filter-sam-reads --bin mark-duplicates --bin fastq-to-sam --bin split-sam-by-number-of-reads --bin split-sam-by-library --bin make-vcf-sample-name-map --bin sam-to-fastq --bin collect-duplicate-metrics --bin mark-duplicates-with-mate-cigar --bin simple-mark-duplicates-with-mate-cigar --bin check-duplicate-marking --bin accumulate-quality-yield-metrics --bin genotype-concordance --bin estimate-library-complexity --bin collect-umi-prevalence-metrics --bin revert-original-base-qualities-and-add-mate-cigar --bin collect-variant-calling-metrics --bin collect-jumping-library-metrics --bin mark-illumina-adapters --bin sam-to-fastq-with-tags --bin find-mendelian-violations --bin lift-over-interval-list --bin compare-sams --bin collect-insert-size-metrics --bin build-bam-index --bin add-comments-to-bam --bin gather-bam-files --bin lift-over-haplotype-map --bin make-sites-only-vcf --bin rename-sample-in-vcf --bin vcf-to-interval-list --bin sort-vcf --bin update-vcf-sequence-dictionary --bin merge-vcfs --bin gather-vcfs --bin split-vcfs --bin vcf-format-converter --bin fix-vcf-header --bin collect-wgs-metrics --bin collect-raw-wgs-metrics --bin collect-wgs-metrics-with-non-zero-coverage --bin collect-hs-metrics --bin collect-targeted-pcr-metrics --bin collect-sequencing-artifact-metrics --bin convert-sequencing-artifact-to-oxog --bin collect-oxo-g-metrics --bin collect-gc-bias-metrics --bin collect-rrbs-metrics --bin collect-rna-seq-metrics --bin collect-independent-replicate-metrics --bin liftover-vcf --bin collect-multiple-metrics --bin sort-gff --bin merge-ped-into-vcf --bin bam-to-bfq --bin compare-metrics --bin merge-bam-alignment --bin collect-sam-error-metrics --bin accumulate-variant-calling-metrics --bin bait-designer --bin collect-quality-yield-metrics-flow --bin collect-quality-yield-metrics-snvq --bin fifo-buffer --bin umi-aware-mark-duplicates-with-mate-cigar --bin convert-haplotype-database-to-vcf --bin cluster-crosscheck-metrics --bin set-nm-md-and-uq-tags --bin check-terminator-block --bin filter-vcf --bin check-fingerprint --bin crosscheck-fingerprints --bin crosscheck-read-group-fingerprints --bin calculate-fingerprint-metrics --bin extract-fingerprint --bin identify-contaminant --bin create-baf-regress-metrics-file --bin create-verify-id-intensity-contamination-metrics-file --bin bpm-to-normalization-manifest-csv --bin compare-gtc-files --bin gtc-to-vcf --bin vcf-to-adpc --bin combine-genotyping-array-vcfs --bin collect-arrays-variant-calling-metrics --bin create-extended-illumina-manifest --bin check-illumina-directory --bin collect-illumina-lane-metrics --bin collect-hi-seq-x-pf-fail-metrics --bin collect-illumina-basecalling-metrics --bin extract-illumina-barcodes --bin illumina-basecalls-to-fastq --bin illumina-basecalls-to-sam
 
       - name: Build the corpus once, for every array to share
         # `MakeFixtures` is deterministic, so one build is every array's corpus. Building it per
@@ -528,6 +528,34 @@ jobs:
             --fixtures-dir /tmp/corpus \
             --port target/release/merge-bam-alignment --output-name output.bam \
             | tee /tmp/MergeBamAlignment.log
+          python3 tools/coverage/run_array.py --tool CollectSamErrorMetrics --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/collect-sam-error-metrics --output-name @all \
+            | tee /tmp/CollectSamErrorMetrics.log
+          python3 tools/coverage/run_array.py --tool AccumulateVariantCallingMetrics --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/accumulate-variant-calling-metrics --output-name output.txt.variant_calling_detail_metrics,output.txt.variant_calling_summary_metrics \
+            | tee /tmp/AccumulateVariantCallingMetrics.log
+          python3 tools/coverage/run_array.py --tool BaitDesigner --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/bait-designer --output-name @all \
+            | tee /tmp/BaitDesigner.log
+          python3 tools/coverage/run_array.py --tool CollectQualityYieldMetricsFlow --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/collect-quality-yield-metrics-flow \
+            | tee /tmp/CollectQualityYieldMetricsFlow.log
+          python3 tools/coverage/run_array.py --tool CollectQualityYieldMetricsSNVQ --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/collect-quality-yield-metrics-snvq \
+            | tee /tmp/CollectQualityYieldMetricsSNVQ.log
+          python3 tools/coverage/run_array.py --tool FifoBuffer --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/fifo-buffer --stdout \
+            | tee /tmp/FifoBuffer.log
+          python3 tools/coverage/run_array.py --tool UmiAwareMarkDuplicatesWithMateCigar --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/umi-aware-mark-duplicates-with-mate-cigar --strip-program-records --output-name output.txt,umi_metrics.txt \
+            | tee /tmp/UmiAwareMarkDuplicatesWithMateCigar.log
           python3 tools/coverage/run_array.py --tool ConvertHaplotypeDatabaseToVcf --t 2 \
             --fixtures-dir /tmp/corpus \
             --port target/release/convert-haplotype-database-to-vcf --output-name output.vcf \
@@ -536,6 +564,106 @@ jobs:
             --fixtures-dir /tmp/corpus \
             --port target/release/cluster-crosscheck-metrics \
             | tee /tmp/ClusterCrosscheckMetrics.log
+          python3 tools/coverage/run_array.py --tool SetNmAndUqTags --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/set-nm-md-and-uq-tags \
+            | tee /tmp/SetNmAndUqTags.log
+          python3 tools/coverage/run_array.py --tool CheckTerminatorBlock --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/check-terminator-block --stderr --exit-code-is-a-result \
+            | tee /tmp/CheckTerminatorBlock.log
+          python3 tools/coverage/run_array.py --tool FilterVcf --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/filter-vcf --output-name output.vcf \
+            | tee /tmp/FilterVcf.log
+          python3 tools/coverage/run_array.py --tool CheckFingerprint --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/check-fingerprint --exit-code-is-a-result --output-name @all \
+            | tee /tmp/CheckFingerprint.log
+          python3 tools/coverage/run_array.py --tool CrosscheckFingerprints --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/crosscheck-fingerprints --exit-code-is-a-result --output-name @all \
+            | tee /tmp/CrosscheckFingerprints.log
+          python3 tools/coverage/run_array.py --tool CrosscheckReadGroupFingerprints --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/crosscheck-read-group-fingerprints --exit-code-is-a-result --output-name @all \
+            | tee /tmp/CrosscheckReadGroupFingerprints.log
+          python3 tools/coverage/run_array.py --tool CalculateFingerprintMetrics --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/calculate-fingerprint-metrics --exit-code-is-a-result --output-name @all \
+            | tee /tmp/CalculateFingerprintMetrics.log
+          python3 tools/coverage/run_array.py --tool ExtractFingerprint --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/extract-fingerprint --strip-line-prefix='##fileDate=' --output-name output.vcf \
+            | tee /tmp/ExtractFingerprint.log
+          python3 tools/coverage/run_array.py --tool IdentifyContaminant --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/identify-contaminant --strip-line-prefix='##fileDate=' --output-name output.vcf \
+            | tee /tmp/IdentifyContaminant.log
+          python3 tools/coverage/run_array.py --tool CreateBafRegressMetricsFile --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/create-baf-regress-metrics-file --output-name @all \
+            | tee /tmp/CreateBafRegressMetricsFile.log
+          python3 tools/coverage/run_array.py --tool CreateVerifyIDIntensityContaminationMetricsFile --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/create-verify-id-intensity-contamination-metrics-file --output-name @all \
+            | tee /tmp/CreateVerifyIDIntensityContaminationMetricsFile.log
+          python3 tools/coverage/run_array.py --tool BpmToNormalizationManifestCsv --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/bpm-to-normalization-manifest-csv --output-name output.csv \
+            | tee /tmp/BpmToNormalizationManifestCsv.log
+          python3 tools/coverage/run_array.py --tool CompareGtcFiles --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/compare-gtc-files --output-name @all \
+            | tee /tmp/CompareGtcFiles.log
+          python3 tools/coverage/run_array.py --tool GtcToVcf --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/gtc-to-vcf --strip-line-prefix='##fileDate=' --output-name output.vcf \
+            | tee /tmp/GtcToVcf.log
+          python3 tools/coverage/run_array.py --tool VcfToAdpc --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/vcf-to-adpc --exit-code-is-a-result --output-name @all \
+            | tee /tmp/VcfToAdpc.log
+          python3 tools/coverage/run_array.py --tool CombineGenotypingArrayVcfs --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/combine-genotyping-array-vcfs --exit-code-is-a-result --output-name output.vcf \
+            | tee /tmp/CombineGenotypingArrayVcfs.log
+          python3 tools/coverage/run_array.py --tool CollectArraysVariantCallingMetrics --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/collect-arrays-variant-calling-metrics --output-name @all \
+            | tee /tmp/CollectArraysVariantCallingMetrics.log
+          python3 tools/coverage/run_array.py --tool CreateExtendedIlluminaManifest --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/create-extended-illumina-manifest --strip-line-prefix='Generated on:' --output-name @all \
+            | tee /tmp/CreateExtendedIlluminaManifest.log
+          python3 tools/coverage/run_array.py --tool CheckIlluminaDirectory --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/check-illumina-directory --stderr --exit-code-is-a-result \
+            | tee /tmp/CheckIlluminaDirectory.log
+          python3 tools/coverage/run_array.py --tool CollectIlluminaLaneMetrics --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/collect-illumina-lane-metrics --output-name @all \
+            | tee /tmp/CollectIlluminaLaneMetrics.log
+          python3 tools/coverage/run_array.py --tool CollectHiSeqXPfFailMetrics --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/collect-hi-seq-x-pf-fail-metrics --output-name @all \
+            | tee /tmp/CollectHiSeqXPfFailMetrics.log
+          python3 tools/coverage/run_array.py --tool CollectIlluminaBasecallingMetrics --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/collect-illumina-basecalling-metrics --output-name @all \
+            | tee /tmp/CollectIlluminaBasecallingMetrics.log
+          python3 tools/coverage/run_array.py --tool ExtractIlluminaBarcodes --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/extract-illumina-barcodes --output-name @all \
+            | tee /tmp/ExtractIlluminaBarcodes.log
+          python3 tools/coverage/run_array.py --tool IlluminaBasecallsToFastq --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/illumina-basecalls-to-fastq --output-name @all \
+            | tee /tmp/IlluminaBasecallsToFastq.log
+          python3 tools/coverage/run_array.py --tool IlluminaBasecallsToSam --t 2 \
+            --fixtures-dir /tmp/corpus \
+            --port target/release/illumina-basecalls-to-sam --output-name @all \
+            | tee /tmp/IlluminaBasecallsToSam.log
           python3 tools/coverage/measure.py --log /tmp/AddOATag.log \
             --log /tmp/CollectAlignmentSummaryMetrics.log \
             --log /tmp/CollectQualityYieldMetrics.log \
@@ -623,9 +751,40 @@ jobs:
             --log /tmp/BamToBfq.log \
             --log /tmp/CompareMetrics.log \
             --log /tmp/MergeBamAlignment.log \
+            --log /tmp/CollectSamErrorMetrics.log \
+            --log /tmp/AccumulateVariantCallingMetrics.log \
+            --log /tmp/BaitDesigner.log \
+            --log /tmp/CollectQualityYieldMetricsFlow.log \
+            --log /tmp/CollectQualityYieldMetricsSNVQ.log \
+            --log /tmp/FifoBuffer.log \
+            --log /tmp/UmiAwareMarkDuplicatesWithMateCigar.log \
             --log /tmp/ConvertHaplotypeDatabaseToVcf.log \
             --log /tmp/ClusterCrosscheckMetrics.log \
-            --pending CollectRawWgsMetrics \
+            --log /tmp/SetNmAndUqTags.log \
+            --log /tmp/CheckTerminatorBlock.log \
+            --log /tmp/FilterVcf.log \
+            --log /tmp/CheckFingerprint.log \
+            --log /tmp/CrosscheckFingerprints.log \
+            --log /tmp/CrosscheckReadGroupFingerprints.log \
+            --log /tmp/CalculateFingerprintMetrics.log \
+            --log /tmp/ExtractFingerprint.log \
+            --log /tmp/IdentifyContaminant.log \
+            --log /tmp/CreateBafRegressMetricsFile.log \
+            --log /tmp/CreateVerifyIDIntensityContaminationMetricsFile.log \
+            --log /tmp/BpmToNormalizationManifestCsv.log \
+            --log /tmp/CompareGtcFiles.log \
+            --log /tmp/GtcToVcf.log \
+            --log /tmp/VcfToAdpc.log \
+            --log /tmp/CombineGenotypingArrayVcfs.log \
+            --log /tmp/CollectArraysVariantCallingMetrics.log \
+            --log /tmp/CreateExtendedIlluminaManifest.log \
+            --log /tmp/CheckIlluminaDirectory.log \
+            --log /tmp/CollectIlluminaLaneMetrics.log \
+            --log /tmp/CollectHiSeqXPfFailMetrics.log \
+            --log /tmp/CollectIlluminaBasecallingMetrics.log \
+            --log /tmp/ExtractIlluminaBarcodes.log \
+            --log /tmp/IlluminaBasecallsToFastq.log \
+            --log /tmp/IlluminaBasecallsToSam.log \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -708,6 +867,7 @@ jobs:
             tools/coverage/corpus/VcfFormatConverter.t2.txt \
             tools/coverage/corpus/FixVcfHeader.t2.txt \
             tools/coverage/corpus/CollectWgsMetrics.t2.txt \
+            tools/coverage/corpus/CollectRawWgsMetrics.t2.txt \
             tools/coverage/corpus/CollectWgsMetricsWithNonZeroCoverage.t2.txt \
             tools/coverage/corpus/CollectHsMetrics.t2.txt \
             tools/coverage/corpus/CollectTargetedPcrMetrics.t2.txt \
@@ -725,8 +885,40 @@ jobs:
             tools/coverage/corpus/BamToBfq.t2.txt \
             tools/coverage/corpus/CompareMetrics.t2.txt \
             tools/coverage/corpus/MergeBamAlignment.t2.txt \
+            tools/coverage/corpus/CollectSamErrorMetrics.t2.txt \
+            tools/coverage/corpus/AccumulateVariantCallingMetrics.t2.txt \
+            tools/coverage/corpus/BaitDesigner.t2.txt \
+            tools/coverage/corpus/CollectQualityYieldMetricsFlow.t2.txt \
+            tools/coverage/corpus/CollectQualityYieldMetricsSNVQ.t2.txt \
+            tools/coverage/corpus/FifoBuffer.t2.txt \
+            tools/coverage/corpus/UmiAwareMarkDuplicatesWithMateCigar.t2.txt \
             tools/coverage/corpus/ConvertHaplotypeDatabaseToVcf.t2.txt \
-            tools/coverage/corpus/ClusterCrosscheckMetrics.t2.txt)
+            tools/coverage/corpus/ClusterCrosscheckMetrics.t2.txt \
+            tools/coverage/corpus/SetNmAndUqTags.t2.txt \
+            tools/coverage/corpus/CheckTerminatorBlock.t2.txt \
+            tools/coverage/corpus/FilterVcf.t2.txt \
+            tools/coverage/corpus/CheckFingerprint.t2.txt \
+            tools/coverage/corpus/CrosscheckFingerprints.t2.txt \
+            tools/coverage/corpus/CrosscheckReadGroupFingerprints.t2.txt \
+            tools/coverage/corpus/CalculateFingerprintMetrics.t2.txt \
+            tools/coverage/corpus/ExtractFingerprint.t2.txt \
+            tools/coverage/corpus/IdentifyContaminant.t2.txt \
+            tools/coverage/corpus/CreateBafRegressMetricsFile.t2.txt \
+            tools/coverage/corpus/CreateVerifyIDIntensityContaminationMetricsFile.t2.txt \
+            tools/coverage/corpus/BpmToNormalizationManifestCsv.t2.txt \
+            tools/coverage/corpus/CompareGtcFiles.t2.txt \
+            tools/coverage/corpus/GtcToVcf.t2.txt \
+            tools/coverage/corpus/VcfToAdpc.t2.txt \
+            tools/coverage/corpus/CombineGenotypingArrayVcfs.t2.txt \
+            tools/coverage/corpus/CollectArraysVariantCallingMetrics.t2.txt \
+            tools/coverage/corpus/CreateExtendedIlluminaManifest.t2.txt \
+            tools/coverage/corpus/CheckIlluminaDirectory.t2.txt \
+            tools/coverage/corpus/CollectIlluminaLaneMetrics.t2.txt \
+            tools/coverage/corpus/CollectHiSeqXPfFailMetrics.t2.txt \
+            tools/coverage/corpus/CollectIlluminaBasecallingMetrics.t2.txt \
+            tools/coverage/corpus/ExtractIlluminaBarcodes.t2.txt \
+            tools/coverage/corpus/IlluminaBasecallsToFastq.t2.txt \
+            tools/coverage/corpus/IlluminaBasecallsToSam.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
