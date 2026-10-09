@@ -818,7 +818,7 @@
         "tool": "CheckIlluminaDirectory",
         "port": "check-illumina-directory",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output": "stderr",
         "exit_code_is_a_result": true
       },
@@ -826,42 +826,42 @@
         "tool": "CollectIlluminaLaneMetrics",
         "port": "collect-illumina-lane-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CollectHiSeqXPfFailMetrics",
         "port": "collect-hi-seq-x-pf-fail-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CollectIlluminaBasecallingMetrics",
         "port": "collect-illumina-basecalling-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "ExtractIlluminaBarcodes",
         "port": "extract-illumina-barcodes",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "IlluminaBasecallsToFastq",
         "port": "illumina-basecalls-to-fastq",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "IlluminaBasecallsToSam",
         "port": "illumina-basecalls-to-sam",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       }
     ]

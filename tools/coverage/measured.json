@@ -160,6 +160,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CheckIlluminaDirectory": {
+      "rows": 13,
+      "accepted": 5,
+      "rejected": 8,
+      "distinct_outputs": 2,
+      "distinct_rejections": 6,
+      "matched": 13,
+      "t": 2,
+      "share": 1.0
+    },
     "CheckTerminatorBlock": {
       "rows": 12,
       "accepted": 6,
@@ -240,6 +250,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectHiSeqXPfFailMetrics": {
+      "rows": 9,
+      "accepted": 5,
+      "rejected": 4,
+      "distinct_outputs": 2,
+      "distinct_rejections": 1,
+      "matched": 9,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectHsMetrics": {
       "rows": 18,
       "accepted": 13,
@@ -247,6 +267,26 @@
       "distinct_outputs": 11,
       "distinct_rejections": 1,
       "matched": 18,
+      "t": 2,
+      "share": 1.0
+    },
+    "CollectIlluminaBasecallingMetrics": {
+      "rows": 11,
+      "accepted": 9,
+      "rejected": 2,
+      "distinct_outputs": 5,
+      "distinct_rejections": 1,
+      "matched": 11,
+      "t": 2,
+      "share": 1.0
+    },
+    "CollectIlluminaLaneMetrics": {
+      "rows": 12,
+      "accepted": 9,
+      "rejected": 3,
+      "distinct_outputs": 7,
+      "distinct_rejections": 2,
+      "matched": 12,
       "t": 2,
       "share": 1.0
     },
@@ -580,6 +620,16 @@
       "t": 2,
       "share": 1.0
     },
+    "ExtractIlluminaBarcodes": {
+      "rows": 23,
+      "accepted": 18,
+      "rejected": 5,
+      "distinct_outputs": 14,
+      "distinct_rejections": 2,
+      "matched": 23,
+      "t": 2,
+      "share": 1.0
+    },
     "ExtractSequences": {
       "rows": 7,
       "accepted": 7,
@@ -707,6 +757,26 @@
       "distinct_outputs": 11,
       "distinct_rejections": 0,
       "matched": 13,
+      "t": 2,
+      "share": 1.0
+    },
+    "IlluminaBasecallsToFastq": {
+      "rows": 28,
+      "accepted": 17,
+      "rejected": 11,
+      "distinct_outputs": 12,
+      "distinct_rejections": 5,
+      "matched": 28,
+      "t": 2,
+      "share": 1.0
+    },
+    "IlluminaBasecallsToSam": {
+      "rows": 25,
+      "accepted": 13,
+      "rejected": 12,
+      "distinct_outputs": 10,
+      "distinct_rejections": 5,
+      "matched": 25,
       "t": 2,
       "share": 1.0
     },

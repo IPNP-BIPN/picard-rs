@@ -785,13 +785,6 @@ jobs:
             --log /tmp/ExtractIlluminaBarcodes.log \
             --log /tmp/IlluminaBasecallsToFastq.log \
             --log /tmp/IlluminaBasecallsToSam.log \
-            --pending CheckIlluminaDirectory \
-            --pending CollectIlluminaLaneMetrics \
-            --pending CollectHiSeqXPfFailMetrics \
-            --pending CollectIlluminaBasecallingMetrics \
-            --pending ExtractIlluminaBarcodes \
-            --pending IlluminaBasecallsToFastq \
-            --pending IlluminaBasecallsToSam \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -918,7 +911,14 @@ jobs:
             tools/coverage/corpus/VcfToAdpc.t2.txt \
             tools/coverage/corpus/CombineGenotypingArrayVcfs.t2.txt \
             tools/coverage/corpus/CollectArraysVariantCallingMetrics.t2.txt \
-            tools/coverage/corpus/CreateExtendedIlluminaManifest.t2.txt)
+            tools/coverage/corpus/CreateExtendedIlluminaManifest.t2.txt \
+            tools/coverage/corpus/CheckIlluminaDirectory.t2.txt \
+            tools/coverage/corpus/CollectIlluminaLaneMetrics.t2.txt \
+            tools/coverage/corpus/CollectHiSeqXPfFailMetrics.t2.txt \
+            tools/coverage/corpus/CollectIlluminaBasecallingMetrics.t2.txt \
+            tools/coverage/corpus/ExtractIlluminaBarcodes.t2.txt \
+            tools/coverage/corpus/IlluminaBasecallsToFastq.t2.txt \
+            tools/coverage/corpus/IlluminaBasecallsToSam.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
