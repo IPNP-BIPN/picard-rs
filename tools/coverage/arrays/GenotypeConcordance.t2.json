@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 29,
-  "arguments_in_array": 9,
-  "arguments_excluded": 20,
+  "arguments_in_array": 10,
+  "arguments_excluded": 19,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -19,13 +19,6 @@
       "type": "String",
       "reason": "only one value available (fixture[0])",
       "held_at": "sample1",
-      "source": "fixture"
-    },
-    {
-      "argument": "--CALL_VCF",
-      "type": "PicardHtsPath",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/variants.vcf",
       "source": "fixture"
     },
     {
@@ -148,9 +141,9 @@
       "source": "none"
     }
   ],
-  "rows": 10,
-  "tuples_total": 160,
-  "tuples_covered": 160,
+  "rows": 11,
+  "tuples_total": 198,
+  "tuples_covered": 198,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -160,6 +153,7 @@
     {
       "row": 0,
       "labels": {
+        "--CALL_VCF": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--IGNORE_FILTER_STATUS": "true",
         "--INTERSECT_INTERVALS": "true",
@@ -171,6 +165,7 @@
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--CALL_VCF=/work/fixtures/variants.vcf",
         "--CREATE_INDEX=true",
         "--IGNORE_FILTER_STATUS=true",
         "--INTERSECT_INTERVALS=true",
@@ -185,7 +180,8 @@
     {
       "row": 1,
       "labels": {
-        "--CREATE_INDEX": "true",
+        "--CALL_VCF": "fixture[0]",
+        "--CREATE_INDEX": "false",
         "--IGNORE_FILTER_STATUS": "false",
         "--INTERSECT_INTERVALS": "false",
         "--MISSING_SITES_HOM_REF": "false",
@@ -196,7 +192,8 @@
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
+        "--CALL_VCF=/work/fixtures/variants.vcf",
+        "--CREATE_INDEX=false",
         "--IGNORE_FILTER_STATUS=false",
         "--INTERSECT_INTERVALS=false",
         "--MISSING_SITES_HOM_REF=false",
@@ -210,32 +207,8 @@
     {
       "row": 2,
       "labels": {
-        "--CREATE_INDEX": "false",
-        "--IGNORE_FILTER_STATUS": "true",
-        "--INTERSECT_INTERVALS": "false",
-        "--MISSING_SITES_HOM_REF": "true",
-        "--OUTPUT_ALL_ROWS": "false",
-        "--OUTPUT_VCF": "true",
-        "--TRUTH_SAMPLE": "fixture[1]",
-        "--USE_VCF_INDEX": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
-      },
-      "arguments": [
-        "--CREATE_INDEX=false",
-        "--IGNORE_FILTER_STATUS=true",
-        "--INTERSECT_INTERVALS=false",
-        "--MISSING_SITES_HOM_REF=true",
-        "--OUTPUT_ALL_ROWS=false",
-        "--OUTPUT_VCF=true",
-        "--TRUTH_SAMPLE=sample2",
-        "--USE_VCF_INDEX=true",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 3,
-      "labels": {
-        "--CREATE_INDEX": "false",
+        "--CALL_VCF": "fixture[1]",
+        "--CREATE_INDEX": "true",
         "--IGNORE_FILTER_STATUS": "false",
         "--INTERSECT_INTERVALS": "true",
         "--MISSING_SITES_HOM_REF": "false",
@@ -246,7 +219,8 @@
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--CREATE_INDEX=false",
+        "--CALL_VCF=/work/fixtures/call_partial.vcf",
+        "--CREATE_INDEX=true",
         "--IGNORE_FILTER_STATUS=false",
         "--INTERSECT_INTERVALS=true",
         "--MISSING_SITES_HOM_REF=false",
@@ -258,51 +232,82 @@
       ]
     },
     {
-      "row": 4,
+      "row": 3,
       "labels": {
+        "--CALL_VCF": "fixture[1]",
         "--CREATE_INDEX": "false",
         "--IGNORE_FILTER_STATUS": "true",
         "--INTERSECT_INTERVALS": "false",
-        "--MISSING_SITES_HOM_REF": "false",
-        "--OUTPUT_ALL_ROWS": "true",
+        "--MISSING_SITES_HOM_REF": "true",
+        "--OUTPUT_ALL_ROWS": "false",
         "--OUTPUT_VCF": "true",
-        "--TRUTH_SAMPLE": "fixture[0]",
-        "--USE_VCF_INDEX": "false",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--TRUTH_SAMPLE": "fixture[1]",
+        "--USE_VCF_INDEX": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
+        "--CALL_VCF=/work/fixtures/call_partial.vcf",
         "--CREATE_INDEX=false",
         "--IGNORE_FILTER_STATUS=true",
         "--INTERSECT_INTERVALS=false",
-        "--MISSING_SITES_HOM_REF=false",
+        "--MISSING_SITES_HOM_REF=true",
+        "--OUTPUT_ALL_ROWS=false",
+        "--OUTPUT_VCF=true",
+        "--TRUTH_SAMPLE=sample2",
+        "--USE_VCF_INDEX=true",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 4,
+      "labels": {
+        "--CALL_VCF": "fixture[1]",
+        "--CREATE_INDEX": "true",
+        "--IGNORE_FILTER_STATUS": "false",
+        "--INTERSECT_INTERVALS": "false",
+        "--MISSING_SITES_HOM_REF": "true",
+        "--OUTPUT_ALL_ROWS": "true",
+        "--OUTPUT_VCF": "true",
+        "--TRUTH_SAMPLE": "fixture[1]",
+        "--USE_VCF_INDEX": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CALL_VCF=/work/fixtures/call_partial.vcf",
+        "--CREATE_INDEX=true",
+        "--IGNORE_FILTER_STATUS=false",
+        "--INTERSECT_INTERVALS=false",
+        "--MISSING_SITES_HOM_REF=true",
         "--OUTPUT_ALL_ROWS=true",
         "--OUTPUT_VCF=true",
-        "--TRUTH_SAMPLE=sample1",
+        "--TRUTH_SAMPLE=sample2",
         "--USE_VCF_INDEX=false",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 5,
       "labels": {
-        "--CREATE_INDEX": "true",
-        "--IGNORE_FILTER_STATUS": "false",
+        "--CALL_VCF": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--IGNORE_FILTER_STATUS": "true",
         "--INTERSECT_INTERVALS": "true",
         "--MISSING_SITES_HOM_REF": "true",
         "--OUTPUT_ALL_ROWS": "true",
-        "--OUTPUT_VCF": "true",
-        "--TRUTH_SAMPLE": "fixture[1]",
+        "--OUTPUT_VCF": "false",
+        "--TRUTH_SAMPLE": "fixture[0]",
         "--USE_VCF_INDEX": "true",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
-        "--IGNORE_FILTER_STATUS=false",
+        "--CALL_VCF=/work/fixtures/call_partial.vcf",
+        "--CREATE_INDEX=false",
+        "--IGNORE_FILTER_STATUS=true",
         "--INTERSECT_INTERVALS=true",
         "--MISSING_SITES_HOM_REF=true",
         "--OUTPUT_ALL_ROWS=true",
-        "--OUTPUT_VCF=true",
-        "--TRUTH_SAMPLE=sample2",
+        "--OUTPUT_VCF=false",
+        "--TRUTH_SAMPLE=sample1",
         "--USE_VCF_INDEX=true",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -310,22 +315,24 @@
     {
       "row": 6,
       "labels": {
+        "--CALL_VCF": "fixture[0]",
         "--CREATE_INDEX": "false",
-        "--IGNORE_FILTER_STATUS": "false",
-        "--INTERSECT_INTERVALS": "true",
+        "--IGNORE_FILTER_STATUS": "true",
+        "--INTERSECT_INTERVALS": "false",
         "--MISSING_SITES_HOM_REF": "false",
-        "--OUTPUT_ALL_ROWS": "false",
+        "--OUTPUT_ALL_ROWS": "true",
         "--OUTPUT_VCF": "true",
         "--TRUTH_SAMPLE": "fixture[0]",
         "--USE_VCF_INDEX": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--CALL_VCF=/work/fixtures/variants.vcf",
         "--CREATE_INDEX=false",
-        "--IGNORE_FILTER_STATUS=false",
-        "--INTERSECT_INTERVALS=true",
+        "--IGNORE_FILTER_STATUS=true",
+        "--INTERSECT_INTERVALS=false",
         "--MISSING_SITES_HOM_REF=false",
-        "--OUTPUT_ALL_ROWS=false",
+        "--OUTPUT_ALL_ROWS=true",
         "--OUTPUT_VCF=true",
         "--TRUTH_SAMPLE=sample1",
         "--USE_VCF_INDEX=true",
@@ -335,56 +342,88 @@
     {
       "row": 7,
       "labels": {
+        "--CALL_VCF": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--IGNORE_FILTER_STATUS": "true",
-        "--INTERSECT_INTERVALS": "false",
+        "--IGNORE_FILTER_STATUS": "false",
+        "--INTERSECT_INTERVALS": "true",
         "--MISSING_SITES_HOM_REF": "true",
-        "--OUTPUT_ALL_ROWS": "true",
-        "--OUTPUT_VCF": "false",
+        "--OUTPUT_ALL_ROWS": "false",
+        "--OUTPUT_VCF": "true",
         "--TRUTH_SAMPLE": "fixture[0]",
         "--USE_VCF_INDEX": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
+        "--CALL_VCF=/work/fixtures/variants.vcf",
         "--CREATE_INDEX=true",
-        "--IGNORE_FILTER_STATUS=true",
-        "--INTERSECT_INTERVALS=false",
+        "--IGNORE_FILTER_STATUS=false",
+        "--INTERSECT_INTERVALS=true",
         "--MISSING_SITES_HOM_REF=true",
-        "--OUTPUT_ALL_ROWS=true",
-        "--OUTPUT_VCF=false",
+        "--OUTPUT_ALL_ROWS=false",
+        "--OUTPUT_VCF=true",
         "--TRUTH_SAMPLE=sample1",
         "--USE_VCF_INDEX=true",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 8,
       "labels": {
+        "--CALL_VCF": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--IGNORE_FILTER_STATUS": "true",
         "--INTERSECT_INTERVALS": "true",
         "--MISSING_SITES_HOM_REF": "true",
-        "--OUTPUT_ALL_ROWS": "true",
-        "--OUTPUT_VCF": "true",
+        "--OUTPUT_ALL_ROWS": "false",
+        "--OUTPUT_VCF": "false",
         "--TRUTH_SAMPLE": "fixture[1]",
-        "--USE_VCF_INDEX": "false",
+        "--USE_VCF_INDEX": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--CALL_VCF=/work/fixtures/variants.vcf",
         "--CREATE_INDEX=true",
         "--IGNORE_FILTER_STATUS=true",
         "--INTERSECT_INTERVALS=true",
         "--MISSING_SITES_HOM_REF=true",
-        "--OUTPUT_ALL_ROWS=true",
-        "--OUTPUT_VCF=true",
+        "--OUTPUT_ALL_ROWS=false",
+        "--OUTPUT_VCF=false",
         "--TRUTH_SAMPLE=sample2",
-        "--USE_VCF_INDEX=false",
+        "--USE_VCF_INDEX=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 9,
       "labels": {
+        "--CALL_VCF": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--IGNORE_FILTER_STATUS": "true",
+        "--INTERSECT_INTERVALS": "true",
+        "--MISSING_SITES_HOM_REF": "true",
+        "--OUTPUT_ALL_ROWS": "true",
+        "--OUTPUT_VCF": "true",
+        "--TRUTH_SAMPLE": "fixture[0]",
+        "--USE_VCF_INDEX": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CALL_VCF=/work/fixtures/variants.vcf",
+        "--CREATE_INDEX=true",
+        "--IGNORE_FILTER_STATUS=true",
+        "--INTERSECT_INTERVALS=true",
+        "--MISSING_SITES_HOM_REF=true",
+        "--OUTPUT_ALL_ROWS=true",
+        "--OUTPUT_VCF=true",
+        "--TRUTH_SAMPLE=sample1",
+        "--USE_VCF_INDEX=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--CALL_VCF": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--IGNORE_FILTER_STATUS": "true",
         "--INTERSECT_INTERVALS": "true",
@@ -396,6 +435,7 @@
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
+        "--CALL_VCF=/work/fixtures/variants.vcf",
         "--CREATE_INDEX=true",
         "--IGNORE_FILTER_STATUS=true",
         "--INTERSECT_INTERVALS=true",
