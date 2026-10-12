@@ -128,10 +128,12 @@
         "the tool at all: SEQUENCE_TAG_GROUP is required. Two values, one naming a tag every read",
         "of tagged.bam carries and one naming a pair of them, and the quality groups match. FASTQ",
         "and SECOND_END_FASTQ are the base tool's, and the array compares the TAG file, which is",
-        "what this tool adds."
+        "what this tool adds.",
+        "The second INPUT: small.bam carries none of the tag groups named."
       ],
       "--INPUT": [
-        "/work/fixtures/tagged.bam"
+        "/work/fixtures/tagged.bam",
+        "/work/fixtures/small.bam"
       ],
       "--FASTQ": [
         "/work/out/reads.fastq",
@@ -214,10 +216,12 @@
         "MINIMUM_MQ and MINIMUM_BARCODE_BQ are declared because both have a default and no bounds,",
         "so the generator would hold them there and the array would vary one boolean. The values",
         "straddle what umi.bam carries: mapping qualities of 25 and 60, and a barcode quality of",
-        "twenty in the reads that carry a BQ tag at all."
+        "twenty in the reads that carry a BQ tag at all.",
+        "The second INPUT: umi_partial.bam lacks the UMI on some reads."
       ],
       "--INPUT": [
-        "/work/fixtures/umi.bam"
+        "/work/fixtures/umi.bam",
+        "/work/fixtures/umi_partial.bam"
       ],
       "--MINIMUM_MQ": [
         "30",
@@ -247,10 +251,12 @@
         "input, so the known and novel partitions are both non-empty. Its second value is the",
         "input itself, under which every site is known and the novel partition empties.",
         "TARGET_INTERVALS decides which sites are counted at all, and the two lists cover",
-        "different ones, so it is the argument that moves the totals."
+        "different ones, so it is the argument that moves the totals.",
+        "The second INPUT: filter.vcf is a second callset on the same contigs."
       ],
       "--INPUT": [
-        "/work/fixtures/variants.vcf"
+        "/work/fixtures/variants.vcf",
+        "/work/fixtures/filter.vcf"
       ],
       "--DBSNP": [
         "/work/fixtures/dbsnp.vcf",
@@ -387,10 +393,12 @@
         "The shared --INPUT list is BAMs, and this tool reads a FASTA. INTERVALS is optional in the",
         "tool and held by the shared list, so every row takes the masked path; two interval lists",
         "are declared because the count is the only output there is, and one list would make the",
-        "array cover the arguments without observing any of them."
+        "array cover the arguments without observing any of them.",
+        "The second INPUT: arr_ref.fasta is a second reference, whose dictionary the interval lists do not match."
       ],
       "--INPUT": [
-        "/work/fixtures/ref.fasta"
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/arr_ref.fasta"
       ],
       "--INTERVALS": [
         "/work/fixtures/targets.interval_list",
@@ -971,10 +979,12 @@
         "floor, the difference rate, the group floor the metrics apply, and the pixel distance the",
         "optical duplicates are found within.",
         "INPUT is complexity.bam, whose pairs actually repeat: on the shared fixtures every group",
-        "holds one pair and MIN_GROUP_COUNT drops the lot."
+        "holds one pair and MIN_GROUP_COUNT drops the lot.",
+        "The second INPUT: small.bam is a second library of pairs."
       ],
       "--INPUT": [
-        "/work/fixtures/complexity.bam"
+        "/work/fixtures/complexity.bam",
+        "/work/fixtures/small.bam"
       ],
       "--MIN_IDENTICAL_BASES": [
         "5",
@@ -1196,10 +1206,12 @@
         "TRIOS is a pedigree file with no default, so the tool cannot run without one declared;",
         "trio.vcf and trio.ped are the corpus. MIN_GQ and MIN_DP are declared because both have a",
         "default and no bounds: the values straddle the child genotype qualities the fixture",
-        "carries, so lowering the floor admits a de novo call the default refuses to judge."
+        "carries, so lowering the floor admits a de novo call the default refuses to judge.",
+        "The second INPUT: vcf_unsorted_samples.vcf names none of the trio, so every trio is dropped."
       ],
       "--INPUT": [
-        "/work/fixtures/trio.vcf"
+        "/work/fixtures/trio.vcf",
+        "/work/fixtures/vcf_unsorted_samples.vcf"
       ],
       "--TRIOS": [
         "/work/fixtures/trio.ped",
@@ -1253,10 +1265,12 @@
         "The input is a haplotype database, which no shared value provides, and CHAIN has no",
         "default. haplotypes.txt carries two SNPs past chr1:1500, where lift.chain covers nothing,",
         "so every row of this array is the partial answer AND the 101 exit code the tool reports",
-        "for it."
+        "for it.",
+        "The second INPUT: fp_haplotypes.txt is the fingerprint database, inside the chain."
       ],
       "--INPUT": [
-        "/work/fixtures/haplotypes.txt"
+        "/work/fixtures/haplotypes.txt",
+        "/work/fixtures/fp_haplotypes.txt"
       ],
       "--CHAIN": [
         "/work/fixtures/lift.chain",

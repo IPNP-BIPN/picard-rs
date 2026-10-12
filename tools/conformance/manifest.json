@@ -128,7 +128,7 @@
         "tool": "NonNFastaSize",
         "port": "non-n-fasta-size",
         "t": 2,
-        "status": "measured"
+        "status": "pending"
       },
       {
         "tool": "ScatterIntervalsByNs",
@@ -329,13 +329,13 @@
         "tool": "EstimateLibraryComplexity",
         "port": "estimate-library-complexity",
         "t": 2,
-        "status": "measured"
+        "status": "pending"
       },
       {
         "tool": "CollectUmiPrevalenceMetrics",
         "port": "collect-umi-prevalence-metrics",
         "t": 2,
-        "status": "measured"
+        "status": "pending"
       },
       {
         "tool": "RevertOriginalBaseQualitiesAndAddMateCigar",
@@ -347,7 +347,7 @@
         "tool": "CollectVariantCallingMetrics",
         "port": "collect-variant-calling-metrics",
         "t": 2,
-        "status": "measured",
+        "status": "pending",
         "output_name": "output.txt.variant_calling_summary_metrics"
       },
       {
@@ -367,14 +367,14 @@
         "tool": "SamToFastqWithTags",
         "port": "sam-to-fastq-with-tags",
         "t": 2,
-        "status": "measured",
+        "status": "pending",
         "output_name": "@all"
       },
       {
         "tool": "FindMendelianViolations",
         "port": "find-mendelian-violations",
         "t": 2,
-        "status": "measured",
+        "status": "pending",
         "output_name": "@all"
       },
       {
@@ -420,7 +420,7 @@
         "tool": "LiftOverHaplotypeMap",
         "port": "lift-over-haplotype-map",
         "t": 2,
-        "status": "measured",
+        "status": "pending",
         "exit_code_is_a_result": true
       },
       {

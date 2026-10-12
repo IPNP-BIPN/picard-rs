@@ -340,22 +340,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let vcf_dir = arg(&args, "VCF_DIR=");
-    // `IOUtil.assertDirectoryIsWritable(VCF_DIR)`, before anything is read.
-    if let Some(dir) = &vcf_dir {
-        if !std::path::Path::new(dir).is_dir() {
-            eprintln!(
-                "Exception in thread \"main\" htsjdk.samtools.SAMException: Directory does not exist: {}",
-                picard_analysis::metrics_cli::absolute(dir)
-            );
-            std::process::exit(1);
-        }
-    }
-    let vcf = read_vcf(&std::fs::read_to_string(&input)?).map_err(|e| format!("{e:?}"))?;
-    let tab_mode = arg(&args, "TAB_MODE=").is_some_and(|value| value == "true");
-    let pedigree = read_pedigree(&std::fs::read_to_string(&trios)?, tab_mode);
-    let samples = &vcf.header.samples;
-
     // `customCommandLineValidation`: a contig named as both sexes is refused before anything runs.
     {
         let mut both: Vec<&String> = options
@@ -373,6 +357,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     }
+    let vcf_dir = arg(&args, "VCF_DIR=");
+    // `IOUtil.assertDirectoryIsWritable(VCF_DIR)`, before anything is read.
+    if let Some(dir) = &vcf_dir {
+        if !std::path::Path::new(dir).is_dir() {
+            eprintln!(
+                "Exception in thread \"main\" htsjdk.samtools.SAMException: Directory does not exist: {}",
+                picard_analysis::metrics_cli::absolute(dir)
+            );
+            std::process::exit(1);
+        }
+    }
+    // `VariantProcessor` reads the input by interval, so it opens it requiring an index; a VCF
+    // without one is refused before a record is read.
+    if !std::path::Path::new(&format!("{input}.idx")).exists()
+        && !std::path::Path::new(&format!("{input}.tbi")).exists()
+    {
+        eprintln!(
+            "Exception in thread \"main\" htsjdk.tribble.TribbleException: An index is required, but none found with file ending .idx, for input source: {}",
+            picard_analysis::fingerprint::file_uri(&input)
+        );
+        std::process::exit(1);
+    }
+    let vcf = read_vcf(&std::fs::read_to_string(&input)?).map_err(|e| format!("{e:?}"))?;
+    let tab_mode = arg(&args, "TAB_MODE=").is_some_and(|value| value == "true");
+    let pedigree = read_pedigree(&std::fs::read_to_string(&trios)?, tab_mode);
+    let samples = &vcf.header.samples;
+
     let mut by_family: std::collections::HashMap<String, Vec<(usize, &'static str)>> =
         std::collections::HashMap::new();
     let mut file = MetricsFile::new();

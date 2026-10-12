@@ -785,7 +785,14 @@ jobs:
             --log /tmp/ExtractIlluminaBarcodes.log \
             --log /tmp/IlluminaBasecallsToFastq.log \
             --log /tmp/IlluminaBasecallsToSam.log \
+            --pending NonNFastaSize \
             --pending FilterSamReads \
+            --pending EstimateLibraryComplexity \
+            --pending CollectUmiPrevalenceMetrics \
+            --pending CollectVariantCallingMetrics \
+            --pending SamToFastqWithTags \
+            --pending FindMendelianViolations \
+            --pending LiftOverHaplotypeMap \
             --pending MergeBamAlignment \
             --pending FilterVcf \
             --out tools/coverage/measured.json \
@@ -814,7 +821,6 @@ jobs:
             tools/coverage/corpus/MergeSamFiles.t2.txt \
             tools/coverage/corpus/ReplaceSamHeader.t2.txt \
             tools/coverage/corpus/CalculateReadGroupChecksum.t2.txt \
-            tools/coverage/corpus/NonNFastaSize.t2.txt \
             tools/coverage/corpus/ScatterIntervalsByNs.t2.txt \
             tools/coverage/corpus/ViewSam.t2.txt \
             tools/coverage/corpus/BamIndexStats.t2.txt \
@@ -843,21 +849,15 @@ jobs:
             tools/coverage/corpus/CheckDuplicateMarking.t2.txt \
             tools/coverage/corpus/AccumulateQualityYieldMetrics.t2.txt \
             tools/coverage/corpus/GenotypeConcordance.t2.txt \
-            tools/coverage/corpus/EstimateLibraryComplexity.t2.txt \
-            tools/coverage/corpus/CollectUmiPrevalenceMetrics.t2.txt \
             tools/coverage/corpus/RevertOriginalBaseQualitiesAndAddMateCigar.t2.txt \
-            tools/coverage/corpus/CollectVariantCallingMetrics.t2.txt \
             tools/coverage/corpus/CollectJumpingLibraryMetrics.t2.txt \
             tools/coverage/corpus/MarkIlluminaAdapters.t2.txt \
-            tools/coverage/corpus/SamToFastqWithTags.t2.txt \
-            tools/coverage/corpus/FindMendelianViolations.t2.txt \
             tools/coverage/corpus/LiftOverIntervalList.t2.txt \
             tools/coverage/corpus/CompareSAMs.t2.txt \
             tools/coverage/corpus/CollectInsertSizeMetrics.t2.txt \
             tools/coverage/corpus/BuildBamIndex.t2.txt \
             tools/coverage/corpus/AddCommentsToBam.t2.txt \
             tools/coverage/corpus/GatherBamFiles.t2.txt \
-            tools/coverage/corpus/LiftOverHaplotypeMap.t2.txt \
             tools/coverage/corpus/MakeSitesOnlyVcf.t2.txt \
             tools/coverage/corpus/RenameSampleInVcf.t2.txt \
             tools/coverage/corpus/VcfToIntervalList.t2.txt \
