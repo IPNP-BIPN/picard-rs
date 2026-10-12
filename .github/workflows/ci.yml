@@ -258,7 +258,7 @@ jobs:
             | tee /tmp/CreateSequenceDictionary.log
           python3 tools/coverage/run_array.py --tool DownsampleSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/downsample-sam --strip-program-records \
+            --port target/release/downsample-sam --strip-program-records --output-name output.txt,metrics.txt \
             | tee /tmp/DownsampleSam.log
           python3 tools/coverage/run_array.py --tool FixMateInformation --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -290,7 +290,7 @@ jobs:
             | tee /tmp/ExtractSequences.log
           python3 tools/coverage/run_array.py --tool IntervalListTools --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/interval-list-tools --strip-program-records \
+            --port target/release/interval-list-tools --strip-program-records --output-name output.txt,count.txt \
             | tee /tmp/IntervalListTools.log
           python3 tools/coverage/run_array.py --tool PositionBasedDownsampleSam --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -326,11 +326,11 @@ jobs:
             | tee /tmp/MakeVcfSampleNameMap.log
           python3 tools/coverage/run_array.py --tool SamToFastq --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/sam-to-fastq \
+            --port target/release/sam-to-fastq --output-name @all \
             | tee /tmp/SamToFastq.log
           python3 tools/coverage/run_array.py --tool CollectDuplicateMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-duplicate-metrics --output-name metrics.txt \
+            --port target/release/collect-duplicate-metrics --output-name metrics.txt,metrics_b.txt \
             | tee /tmp/CollectDuplicateMetrics.log
           python3 tools/coverage/run_array.py --tool MarkDuplicatesWithMateCigar --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -374,11 +374,11 @@ jobs:
             | tee /tmp/CollectJumpingLibraryMetrics.log
           python3 tools/coverage/run_array.py --tool MarkIlluminaAdapters --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/mark-illumina-adapters \
+            --port target/release/mark-illumina-adapters --output-name output.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/MarkIlluminaAdapters.log
           python3 tools/coverage/run_array.py --tool SamToFastqWithTags --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/sam-to-fastq-with-tags --output-name CB.fastq \
+            --port target/release/sam-to-fastq-with-tags --output-name @all \
             | tee /tmp/SamToFastqWithTags.log
           python3 tools/coverage/run_array.py --tool FindMendelianViolations --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -386,7 +386,7 @@ jobs:
             | tee /tmp/FindMendelianViolations.log
           python3 tools/coverage/run_array.py --tool LiftOverIntervalList --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/lift-over-interval-list --exit-code-is-a-result \
+            --port target/release/lift-over-interval-list --exit-code-is-a-result --output-name output.txt,reject.interval_list \
             | tee /tmp/LiftOverIntervalList.log
           python3 tools/coverage/run_array.py --tool CompareSAMs --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -442,7 +442,7 @@ jobs:
             | tee /tmp/GatherVcfs.log
           python3 tools/coverage/run_array.py --tool SplitVcfs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/split-vcfs --output-name snp.vcf,indel.vcf \
+            --port target/release/split-vcfs --output-name snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf \
             | tee /tmp/SplitVcfs.log
           python3 tools/coverage/run_array.py --tool VcfFormatConverter --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -454,23 +454,23 @@ jobs:
             | tee /tmp/FixVcfHeader.log
           python3 tools/coverage/run_array.py --tool CollectWgsMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-wgs-metrics \
+            --port target/release/collect-wgs-metrics --output-name output.txt,theoretical.txt \
             | tee /tmp/CollectWgsMetrics.log
           python3 tools/coverage/run_array.py --tool CollectRawWgsMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-raw-wgs-metrics \
+            --port target/release/collect-raw-wgs-metrics --output-name output.txt,theoretical.txt \
             | tee /tmp/CollectRawWgsMetrics.log
           python3 tools/coverage/run_array.py --tool CollectWgsMetricsWithNonZeroCoverage --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-wgs-metrics-with-non-zero-coverage \
+            --port target/release/collect-wgs-metrics-with-non-zero-coverage --output-name output.txt,theoretical.txt \
             | tee /tmp/CollectWgsMetricsWithNonZeroCoverage.log
           python3 tools/coverage/run_array.py --tool CollectHsMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-hs-metrics \
+            --port target/release/collect-hs-metrics --output-name output.txt,per_target.txt,per_base.txt,theoretical.txt \
             | tee /tmp/CollectHsMetrics.log
           python3 tools/coverage/run_array.py --tool CollectTargetedPcrMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-targeted-pcr-metrics \
+            --port target/release/collect-targeted-pcr-metrics --output-name output.txt,per_target.txt,per_base.txt,theoretical.txt \
             | tee /tmp/CollectTargetedPcrMetrics.log
           python3 tools/coverage/run_array.py --tool CollectSequencingArtifactMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -486,7 +486,7 @@ jobs:
             | tee /tmp/CollectOxoGMetrics.log
           python3 tools/coverage/run_array.py --tool CollectGcBiasMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-gc-bias-metrics --output-name output.txt,summary.txt \
+            --port target/release/collect-gc-bias-metrics --output-name output.txt,summary.txt,summary_b.txt \
             | tee /tmp/CollectGcBiasMetrics.log
           python3 tools/coverage/run_array.py --tool CollectRrbsMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -502,7 +502,7 @@ jobs:
             | tee /tmp/CollectIndependentReplicateMetrics.log
           python3 tools/coverage/run_array.py --tool LiftoverVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/liftover-vcf --output-name output.vcf,reject.vcf \
+            --port target/release/liftover-vcf --output-name output.vcf,reject.vcf,reject_b.vcf \
             | tee /tmp/LiftoverVcf.log
           python3 tools/coverage/run_array.py --tool CollectMultipleMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -785,6 +785,61 @@ jobs:
             --log /tmp/ExtractIlluminaBarcodes.log \
             --log /tmp/IlluminaBasecallsToFastq.log \
             --log /tmp/IlluminaBasecallsToSam.log \
+            --pending AddOATag \
+            --pending CollectAlignmentSummaryMetrics \
+            --pending CollectQualityYieldMetrics \
+            --pending BedToIntervalList \
+            --pending IntervalListToBed \
+            --pending NormalizeFasta \
+            --pending AddOrReplaceReadGroups \
+            --pending MergeSamFiles \
+            --pending ScatterIntervalsByNs \
+            --pending ViewSam \
+            --pending ReorderSam \
+            --pending CreateSequenceDictionary \
+            --pending DownsampleSam \
+            --pending MeanQualityByCycle \
+            --pending CollectBaseDistributionByCycle \
+            --pending QualityScoreDistribution \
+            --pending IntervalListTools \
+            --pending PositionBasedDownsampleSam \
+            --pending ValidateSamFile \
+            --pending MarkDuplicates \
+            --pending FastqToSam \
+            --pending SplitSamByNumberOfReads \
+            --pending SamToFastq \
+            --pending CollectDuplicateMetrics \
+            --pending MarkDuplicatesWithMateCigar \
+            --pending SimpleMarkDuplicatesWithMateCigar \
+            --pending GenotypeConcordance \
+            --pending EstimateLibraryComplexity \
+            --pending CollectUmiPrevalenceMetrics \
+            --pending RevertOriginalBaseQualitiesAndAddMateCigar \
+            --pending CollectVariantCallingMetrics \
+            --pending CollectJumpingLibraryMetrics \
+            --pending MarkIlluminaAdapters \
+            --pending SamToFastqWithTags \
+            --pending FindMendelianViolations \
+            --pending LiftOverIntervalList \
+            --pending CollectInsertSizeMetrics \
+            --pending LiftOverHaplotypeMap \
+            --pending SplitVcfs \
+            --pending CollectWgsMetrics \
+            --pending CollectRawWgsMetrics \
+            --pending CollectWgsMetricsWithNonZeroCoverage \
+            --pending CollectHsMetrics \
+            --pending CollectTargetedPcrMetrics \
+            --pending CollectGcBiasMetrics \
+            --pending CollectRrbsMetrics \
+            --pending CollectRnaSeqMetrics \
+            --pending CollectIndependentReplicateMetrics \
+            --pending LiftoverVcf \
+            --pending CollectMultipleMetrics \
+            --pending UmiAwareMarkDuplicatesWithMateCigar \
+            --pending CheckFingerprint \
+            --pending VcfToAdpc \
+            --pending CollectHiSeqXPfFailMetrics \
+            --pending CollectIlluminaBasecallingMetrics \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -798,64 +853,26 @@ jobs:
         # suite's golden does.
         run: |
           dirty=$(git status --porcelain tools/coverage/measured.json \
-            tools/coverage/corpus/AddOATag.t2.txt \
-            tools/coverage/corpus/CollectAlignmentSummaryMetrics.t2.txt \
-            tools/coverage/corpus/CollectQualityYieldMetrics.t2.txt \
             tools/coverage/corpus/SortSam.t2.txt \
             tools/coverage/corpus/CleanSam.t2.txt \
             tools/coverage/corpus/SamFormatConverter.t2.txt \
-            tools/coverage/corpus/BedToIntervalList.t2.txt \
-            tools/coverage/corpus/IntervalListToBed.t2.txt \
-            tools/coverage/corpus/NormalizeFasta.t2.txt \
-            tools/coverage/corpus/AddOrReplaceReadGroups.t2.txt \
-            tools/coverage/corpus/MergeSamFiles.t2.txt \
             tools/coverage/corpus/ReplaceSamHeader.t2.txt \
             tools/coverage/corpus/CalculateReadGroupChecksum.t2.txt \
             tools/coverage/corpus/NonNFastaSize.t2.txt \
-            tools/coverage/corpus/ScatterIntervalsByNs.t2.txt \
-            tools/coverage/corpus/ViewSam.t2.txt \
             tools/coverage/corpus/BamIndexStats.t2.txt \
-            tools/coverage/corpus/ReorderSam.t2.txt \
-            tools/coverage/corpus/CreateSequenceDictionary.t2.txt \
-            tools/coverage/corpus/DownsampleSam.t2.txt \
             tools/coverage/corpus/FixMateInformation.t2.txt \
-            tools/coverage/corpus/MeanQualityByCycle.t2.txt \
-            tools/coverage/corpus/CollectBaseDistributionByCycle.t2.txt \
-            tools/coverage/corpus/QualityScoreDistribution.t2.txt \
             tools/coverage/corpus/SetNmMdAndUqTags.t2.txt \
             tools/coverage/corpus/RevertSam.t2.txt \
             tools/coverage/corpus/ExtractSequences.t2.txt \
-            tools/coverage/corpus/IntervalListTools.t2.txt \
-            tools/coverage/corpus/PositionBasedDownsampleSam.t2.txt \
-            tools/coverage/corpus/ValidateSamFile.t2.txt \
             tools/coverage/corpus/FilterSamReads.t2.txt \
-            tools/coverage/corpus/MarkDuplicates.t2.txt \
-            tools/coverage/corpus/FastqToSam.t2.txt \
-            tools/coverage/corpus/SplitSamByNumberOfReads.t2.txt \
             tools/coverage/corpus/SplitSamByLibrary.t2.txt \
             tools/coverage/corpus/MakeVcfSampleNameMap.t2.txt \
-            tools/coverage/corpus/SamToFastq.t2.txt \
-            tools/coverage/corpus/CollectDuplicateMetrics.t2.txt \
-            tools/coverage/corpus/MarkDuplicatesWithMateCigar.t2.txt \
-            tools/coverage/corpus/SimpleMarkDuplicatesWithMateCigar.t2.txt \
             tools/coverage/corpus/CheckDuplicateMarking.t2.txt \
             tools/coverage/corpus/AccumulateQualityYieldMetrics.t2.txt \
-            tools/coverage/corpus/GenotypeConcordance.t2.txt \
-            tools/coverage/corpus/EstimateLibraryComplexity.t2.txt \
-            tools/coverage/corpus/CollectUmiPrevalenceMetrics.t2.txt \
-            tools/coverage/corpus/RevertOriginalBaseQualitiesAndAddMateCigar.t2.txt \
-            tools/coverage/corpus/CollectVariantCallingMetrics.t2.txt \
-            tools/coverage/corpus/CollectJumpingLibraryMetrics.t2.txt \
-            tools/coverage/corpus/MarkIlluminaAdapters.t2.txt \
-            tools/coverage/corpus/SamToFastqWithTags.t2.txt \
-            tools/coverage/corpus/FindMendelianViolations.t2.txt \
-            tools/coverage/corpus/LiftOverIntervalList.t2.txt \
             tools/coverage/corpus/CompareSAMs.t2.txt \
-            tools/coverage/corpus/CollectInsertSizeMetrics.t2.txt \
             tools/coverage/corpus/BuildBamIndex.t2.txt \
             tools/coverage/corpus/AddCommentsToBam.t2.txt \
             tools/coverage/corpus/GatherBamFiles.t2.txt \
-            tools/coverage/corpus/LiftOverHaplotypeMap.t2.txt \
             tools/coverage/corpus/MakeSitesOnlyVcf.t2.txt \
             tools/coverage/corpus/RenameSampleInVcf.t2.txt \
             tools/coverage/corpus/VcfToIntervalList.t2.txt \
@@ -863,23 +880,11 @@ jobs:
             tools/coverage/corpus/UpdateVcfSequenceDictionary.t2.txt \
             tools/coverage/corpus/MergeVcfs.t2.txt \
             tools/coverage/corpus/GatherVcfs.t2.txt \
-            tools/coverage/corpus/SplitVcfs.t2.txt \
             tools/coverage/corpus/VcfFormatConverter.t2.txt \
             tools/coverage/corpus/FixVcfHeader.t2.txt \
-            tools/coverage/corpus/CollectWgsMetrics.t2.txt \
-            tools/coverage/corpus/CollectRawWgsMetrics.t2.txt \
-            tools/coverage/corpus/CollectWgsMetricsWithNonZeroCoverage.t2.txt \
-            tools/coverage/corpus/CollectHsMetrics.t2.txt \
-            tools/coverage/corpus/CollectTargetedPcrMetrics.t2.txt \
             tools/coverage/corpus/CollectSequencingArtifactMetrics.t2.txt \
             tools/coverage/corpus/ConvertSequencingArtifactToOxoG.t2.txt \
             tools/coverage/corpus/CollectOxoGMetrics.t2.txt \
-            tools/coverage/corpus/CollectGcBiasMetrics.t2.txt \
-            tools/coverage/corpus/CollectRrbsMetrics.t2.txt \
-            tools/coverage/corpus/CollectRnaSeqMetrics.t2.txt \
-            tools/coverage/corpus/CollectIndependentReplicateMetrics.t2.txt \
-            tools/coverage/corpus/LiftoverVcf.t2.txt \
-            tools/coverage/corpus/CollectMultipleMetrics.t2.txt \
             tools/coverage/corpus/SortGff.t2.txt \
             tools/coverage/corpus/MergePedIntoVcf.t2.txt \
             tools/coverage/corpus/BamToBfq.t2.txt \
@@ -891,13 +896,11 @@ jobs:
             tools/coverage/corpus/CollectQualityYieldMetricsFlow.t2.txt \
             tools/coverage/corpus/CollectQualityYieldMetricsSNVQ.t2.txt \
             tools/coverage/corpus/FifoBuffer.t2.txt \
-            tools/coverage/corpus/UmiAwareMarkDuplicatesWithMateCigar.t2.txt \
             tools/coverage/corpus/ConvertHaplotypeDatabaseToVcf.t2.txt \
             tools/coverage/corpus/ClusterCrosscheckMetrics.t2.txt \
             tools/coverage/corpus/SetNmAndUqTags.t2.txt \
             tools/coverage/corpus/CheckTerminatorBlock.t2.txt \
             tools/coverage/corpus/FilterVcf.t2.txt \
-            tools/coverage/corpus/CheckFingerprint.t2.txt \
             tools/coverage/corpus/CrosscheckFingerprints.t2.txt \
             tools/coverage/corpus/CrosscheckReadGroupFingerprints.t2.txt \
             tools/coverage/corpus/CalculateFingerprintMetrics.t2.txt \
@@ -908,14 +911,11 @@ jobs:
             tools/coverage/corpus/BpmToNormalizationManifestCsv.t2.txt \
             tools/coverage/corpus/CompareGtcFiles.t2.txt \
             tools/coverage/corpus/GtcToVcf.t2.txt \
-            tools/coverage/corpus/VcfToAdpc.t2.txt \
             tools/coverage/corpus/CombineGenotypingArrayVcfs.t2.txt \
             tools/coverage/corpus/CollectArraysVariantCallingMetrics.t2.txt \
             tools/coverage/corpus/CreateExtendedIlluminaManifest.t2.txt \
             tools/coverage/corpus/CheckIlluminaDirectory.t2.txt \
             tools/coverage/corpus/CollectIlluminaLaneMetrics.t2.txt \
-            tools/coverage/corpus/CollectHiSeqXPfFailMetrics.t2.txt \
-            tools/coverage/corpus/CollectIlluminaBasecallingMetrics.t2.txt \
             tools/coverage/corpus/ExtractIlluminaBarcodes.t2.txt \
             tools/coverage/corpus/IlluminaBasecallsToFastq.t2.txt \
             tools/coverage/corpus/IlluminaBasecallsToSam.t2.txt)

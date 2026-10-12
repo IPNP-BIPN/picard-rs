@@ -26,6 +26,9 @@ pub struct LiftOverResult {
     pub output: String,
     /// `0` if all intervals lifted, `1` if any were rejected.
     pub return_code: i32,
+    /// What `REJECT` receives: the input's own header, re-encoded the way every `IntervalList.write`
+    /// encodes one, and the intervals that did not lift, in input order.
+    pub rejects: String,
 }
 
 /// Why the liftover could not run.
@@ -79,13 +82,27 @@ pub fn lift_over_interval_list(
         .map_err(LiftOverIntervalListError::MissingToSequence)?;
 
     let mut lifted: Vec<Interval> = Vec::new();
-    let mut rejected = false;
+    let mut rejected: Vec<Interval> = Vec::new();
     for interval in &input.intervals {
         match lift.lift_over(interval) {
             Some(to) => lifted.push(to),
-            None => rejected = true,
+            None => rejected.push(interval.clone()),
         }
     }
+    let input_header: String = input_interval_list
+        .lines()
+        .take_while(|line| line.starts_with('@'))
+        .map(|line| format!("{line}\n"))
+        .collect();
+    let mut rejects =
+        htsjdk_bam::reader::parse_header_text(&input_header).encode_replacing_version();
+    rejects.push_str(
+        &IntervalList {
+            dictionary: Vec::new(),
+            intervals: rejected.clone(),
+        }
+        .write_body(),
+    );
 
     // Sort the lifted intervals by the target dictionary and render the file.
     let to_list = IntervalList {
@@ -103,7 +120,8 @@ pub fn lift_over_interval_list(
 
     Ok(LiftOverResult {
         output,
-        return_code: if rejected { 1 } else { 0 },
+        return_code: if rejected.is_empty() { 0 } else { 1 },
+        rejects,
     })
 }
 

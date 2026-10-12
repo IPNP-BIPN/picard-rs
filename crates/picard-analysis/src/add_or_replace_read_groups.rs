@@ -7,8 +7,8 @@
 //! `doWork` adds no `@PG` and no timestamp, and with `SORT_ORDER` unset the records are not
 //! re-ordered (`makeWriter` is told the output is presorted), so the whole SAM is comparable raw.
 //! The one new read group carries the four required fields in setter order, `LB PL SM PU`, after
-//! its `ID`; the optional fields (CN, DS, DT, PI, PG, PM, KS, FO) and an explicit `SORT_ORDER` are
-//! separate surfaces.
+//! its `ID`, then whichever optional fields were given, in `doWork`'s setter order: `CN DS DT PI PG
+//! PM KS FO`. An explicit `SORT_ORDER` is a separate surface.
 //!
 //! Replacing the `RG` tag is a sorted-insert that overwrites the existing tag in place, so a record
 //! that already carried an `RG` keeps its tag position and only its value changes.
@@ -27,6 +27,9 @@ pub struct Options {
     pub rgpl: String,
     pub rgpu: String,
     pub rgsm: String,
+    /// The optional fields that were given, as `(tag, value)` in setter order, values already in
+    /// the form htsjdk writes them (`DT` reformatted by [`iso8601`]).
+    pub optional: Vec<(&'static str, String)>,
 }
 
 impl Options {
@@ -37,6 +40,7 @@ impl Options {
             rgpl: rgpl.to_string(),
             rgpu: rgpu.to_string(),
             rgsm: rgsm.to_string(),
+            optional: Vec::new(),
         }
     }
 }
@@ -49,7 +53,76 @@ fn build_read_group(opts: &Options) -> ReadGroup {
     rg.attributes.set("PL", &opts.rgpl);
     rg.attributes.set("SM", &opts.rgsm);
     rg.attributes.set("PU", &opts.rgpu);
+    for (tag, value) in &opts.optional {
+        rg.attributes.set(tag, value);
+    }
     rg
+}
+
+/// `new Iso8601Date(String).toString()` in a JVM whose zone is UTC, which is the oracle's: htsjdk's
+/// `DateParser` reads `YYYY-MM-DD`, optionally followed by `THH:MM[:SS]` and a zone (`Z`, `+HH:MM`
+/// or `+HHMM`; none means UTC), and the date is written back as `yyyy-MM-dd'T'HH:mm:ssZ` in UTC.
+/// `None` for a shape this does not read.
+pub fn iso8601(text: &str) -> Option<String> {
+    let num = |s: &str| -> Option<i64> {
+        (!s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())).then(|| s.parse().ok())?
+    };
+    let (date, rest) = text.split_at(text.len().min(10));
+    let mut parts = date.split('-');
+    let (y, mo, d) = (
+        num(parts.next()?)?,
+        num(parts.next()?)?,
+        num(parts.next()?)?,
+    );
+    let (mut secs, mut offset) = (0i64, 0i64);
+    if let Some(time) = rest.strip_prefix('T') {
+        let zone_at = time.find(['Z', '+', '-']).unwrap_or(time.len());
+        let (clock, zone) = time.split_at(zone_at);
+        let fields: Vec<i64> = clock.split(':').map(num).collect::<Option<_>>()?;
+        if !(2..=3).contains(&fields.len()) {
+            return None;
+        }
+        secs = fields[0] * 3600 + fields[1] * 60 + fields.get(2).copied().unwrap_or(0);
+        if let Some(sign) = zone.chars().next().filter(|c| *c != 'Z') {
+            let digits: String = zone[1..].chars().filter(|c| *c != ':').collect();
+            if digits.len() != 4 {
+                return None;
+            }
+            let minutes = num(&digits[..2])? * 60 + num(&digits[2..])?;
+            offset = if sign == '-' {
+                -minutes * 60
+            } else {
+                minutes * 60
+            };
+        }
+    } else if !rest.is_empty() {
+        return None;
+    }
+    // Days from the civil date (Howard Hinnant's algorithm), then back after the shift to UTC.
+    let (yy, mm) = if mo <= 2 {
+        (y - 1, mo + 9)
+    } else {
+        (y, mo - 3)
+    };
+    let era = yy.div_euclid(400);
+    let yoe = yy - era * 400;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + (153 * mm + 2) / 5 + d - 1;
+    let total = (era * 146097 + doe) * 86400 + secs - offset;
+    let (days, sod) = (total.div_euclid(86400), total.rem_euclid(86400));
+    let era = days.div_euclid(146097);
+    let doe = days - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = era * 400 + yoe + i64::from(month <= 2);
+    Some(format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}+0000",
+        sod / 3600,
+        sod % 3600 / 60,
+        sod % 60
+    ))
 }
 
 fn replace_read_groups(header: &mut SamHeader, opts: &Options) {

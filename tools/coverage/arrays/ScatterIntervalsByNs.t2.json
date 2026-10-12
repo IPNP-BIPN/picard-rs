@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 18,
-  "arguments_in_array": 3,
-  "arguments_excluded": 15,
+  "arguments_in_array": 5,
+  "arguments_excluded": 13,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -43,13 +43,6 @@
       "source": "none"
     },
     {
-      "argument": "--MAX_TO_MERGE",
-      "type": "int",
-      "reason": "only one value available (default)",
-      "held_at": "1",
-      "source": "default"
-    },
-    {
       "argument": "--OUTPUT",
       "type": "File",
       "reason": "only one value available (fixture[0])",
@@ -62,13 +55,6 @@
       "reason": "excluded by the repository: suppresses the log on stderr; the compared output is stdout and the output file",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--REFERENCE",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/ref.fasta",
-      "source": "fixture"
     },
     {
       "argument": "--showHidden",
@@ -113,9 +99,9 @@
       "source": "none"
     }
   ],
-  "rows": 9,
-  "tuples_total": 21,
-  "tuples_covered": 21,
+  "rows": 10,
+  "tuples_total": 57,
+  "tuples_covered": 57,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -126,12 +112,16 @@
       "row": 0,
       "labels": {
         "--CREATE_INDEX": "true",
+        "--MAX_TO_MERGE": "fixture[0]",
         "--OUTPUT_TYPE": "N",
+        "--REFERENCE": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--MAX_TO_MERGE=1",
         "--OUTPUT_TYPE=N",
+        "--REFERENCE=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -139,25 +129,33 @@
       "row": 1,
       "labels": {
         "--CREATE_INDEX": "true",
+        "--MAX_TO_MERGE": "fixture[1]",
         "--OUTPUT_TYPE": "ACGT",
+        "--REFERENCE": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--MAX_TO_MERGE=10",
         "--OUTPUT_TYPE=ACGT",
+        "--REFERENCE=/work/fixtures/masked.fasta",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 2,
       "labels": {
-        "--CREATE_INDEX": "true",
-        "--OUTPUT_TYPE": "BOTH",
+        "--CREATE_INDEX": "false",
+        "--MAX_TO_MERGE": "fixture[0]",
+        "--OUTPUT_TYPE": "ACGT",
+        "--REFERENCE": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
-        "--OUTPUT_TYPE=BOTH",
+        "--CREATE_INDEX=false",
+        "--MAX_TO_MERGE=1",
+        "--OUTPUT_TYPE=ACGT",
+        "--REFERENCE=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -165,64 +163,84 @@
       "row": 3,
       "labels": {
         "--CREATE_INDEX": "false",
+        "--MAX_TO_MERGE": "fixture[1]",
         "--OUTPUT_TYPE": "N",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--REFERENCE": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
+        "--MAX_TO_MERGE=10",
         "--OUTPUT_TYPE=N",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--REFERENCE=/work/fixtures/masked.fasta",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 4,
       "labels": {
-        "--CREATE_INDEX": "false",
-        "--OUTPUT_TYPE": "ACGT",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--CREATE_INDEX": "true",
+        "--MAX_TO_MERGE": "fixture[0]",
+        "--OUTPUT_TYPE": "BOTH",
+        "--REFERENCE": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--CREATE_INDEX=false",
-        "--OUTPUT_TYPE=ACGT",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--CREATE_INDEX=true",
+        "--MAX_TO_MERGE=1",
+        "--OUTPUT_TYPE=BOTH",
+        "--REFERENCE=/work/fixtures/masked.fasta",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 5,
       "labels": {
         "--CREATE_INDEX": "false",
+        "--MAX_TO_MERGE": "fixture[1]",
         "--OUTPUT_TYPE": "BOTH",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--REFERENCE": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
+        "--MAX_TO_MERGE=10",
         "--OUTPUT_TYPE=BOTH",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--REFERENCE=/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 6,
       "labels": {
-        "--CREATE_INDEX": "false",
+        "--CREATE_INDEX": "true",
+        "--MAX_TO_MERGE": "fixture[0]",
         "--OUTPUT_TYPE": "N",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--REFERENCE": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=false",
+        "--CREATE_INDEX=true",
+        "--MAX_TO_MERGE=1",
         "--OUTPUT_TYPE=N",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--REFERENCE=/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 7,
       "labels": {
         "--CREATE_INDEX": "true",
-        "--OUTPUT_TYPE": "ACGT",
+        "--MAX_TO_MERGE": "fixture[1]",
+        "--OUTPUT_TYPE": "N",
+        "--REFERENCE": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
-        "--OUTPUT_TYPE=ACGT",
+        "--MAX_TO_MERGE=10",
+        "--OUTPUT_TYPE=N",
+        "--REFERENCE=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -230,13 +248,34 @@
       "row": 8,
       "labels": {
         "--CREATE_INDEX": "true",
-        "--OUTPUT_TYPE": "BOTH",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--MAX_TO_MERGE": "fixture[0]",
+        "--OUTPUT_TYPE": "ACGT",
+        "--REFERENCE": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--MAX_TO_MERGE=1",
+        "--OUTPUT_TYPE=ACGT",
+        "--REFERENCE=/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--MAX_TO_MERGE": "fixture[0]",
+        "--OUTPUT_TYPE": "BOTH",
+        "--REFERENCE": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--MAX_TO_MERGE=1",
         "--OUTPUT_TYPE=BOTH",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--REFERENCE=/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     }
   ]

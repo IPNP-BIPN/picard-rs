@@ -65,6 +65,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         read_sam(&text).map_err(|e| format!("{e:?}"))?
     };
 
+    // `makeItSo` stops once `STOP_AFTER` records have been handed over, and asks the reference
+    // walker for each one first, so the first `STOP_AFTER` records are the whole run.
+    let stop_after: i64 = arg(&args, "STOP_AFTER=")
+        .map(|v| v.parse())
+        .transpose()?
+        .unwrap_or(0);
+    let records: Vec<BamRecord> = match usize::try_from(stop_after) {
+        Ok(n) if n > 0 => records.into_iter().take(n).collect(),
+        _ => records,
+    };
+
     let refuse = |rejection: Rejection| -> ! {
         eprintln!(
             "Exception in thread \"main\" {}: {}",

@@ -36,7 +36,7 @@ use picard_analysis::estimate_library_complexity::{
     DEFAULT_MIN_IDENTICAL_BASES, DEFAULT_MIN_MEAN_QUALITY,
 };
 use picard_analysis::java_hash_map::{string_hash_code, JavaHashMap};
-use picard_analysis::mark_duplicates::{location, Location, DEFAULT_OPTICAL_DUPLICATE_DISTANCE};
+use picard_analysis::mark_duplicates::{Location, DEFAULT_OPTICAL_DUPLICATE_DISTANCE};
 
 const READ_PAIRED_FLAG: u16 = 0x1;
 const READ_STRAND_FLAG: u16 = 0x10;
@@ -82,6 +82,16 @@ fn tag_string(record: &BamRecord, name: &str) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // `READ_NAME_REGEX`, which a name has to match whole for its tile and position to be read.
+    let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
+        std::env::args()
+            .find_map(|a| a.strip_prefix("READ_NAME_REGEX=").map(str::to_string))
+            .as_deref(),
+    )
+    .unwrap_or_else(|thrown| {
+        eprintln!("Exception in thread \"main\" {thrown}");
+        std::process::exit(1);
+    });
     let args: Vec<String> = std::env::args().collect();
     let inputs = {
         let mut inputs = args_of(&args, "INPUT=");
@@ -108,6 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "OPTICAL_DUPLICATE_PIXEL_DISTANCE=",
         i64::from(DEFAULT_OPTICAL_DUPLICATE_DISTANCE),
     ) as i32;
+    let max_optical_set_size: i64 = number("MAX_OPTICAL_DUPLICATE_SET_SIZE=", 300_000);
     let max_diff_rate = arg(&args, "MAX_DIFF_RATE=")
         .and_then(|value| value.parse().ok())
         .unwrap_or(DEFAULT_MAX_DIFF_RATE);
@@ -172,7 +183,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             records_read += 1;
 
             let entry = pending.entry(record.read_name.clone()).or_insert_with(|| {
-                let parsed = location(&record.read_name);
+                let parsed = picard_analysis::mark_duplicates::location_with(
+                    &record.read_name,
+                    &read_name_regex,
+                );
                 // `addLocationInformation` returning false leaves the read group at -1, and the
                 // library then falls back to "Unknown" however the record was tagged.
                 let read_group = if parsed.known {
@@ -296,7 +310,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 seed,
                 max_diff_rate,
                 max_read_length,
-                optical_distance,
+                picard_analysis::estimate_library_complexity::OpticalLimits {
+                    distance: optical_distance,
+                    max_set_size: max_optical_set_size,
+                },
                 use_barcodes,
                 &mut entry,
             );

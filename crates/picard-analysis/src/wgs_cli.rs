@@ -78,6 +78,33 @@ impl MetricBean for Row<'_> {
     }
 }
 
+/// `TheoreticalSensitivityMetrics`, in its fields' declaration order.
+pub struct SensitivityMetric<'a>(pub &'a crate::theoretical_sensitivity::SensitivityRow);
+
+impl MetricBean for SensitivityMetric<'_> {
+    fn class_name(&self) -> &str {
+        "picard.analysis.TheoreticalSensitivityMetrics"
+    }
+    fn columns(&self) -> &[&'static str] {
+        &[
+            "ALLELE_FRACTION",
+            "THEORETICAL_SENSITIVITY",
+            "THEORETICAL_SENSITIVITY_Q",
+            "LOG_ODDS_THRESHOLD",
+            "SAMPLE_SIZE",
+        ]
+    }
+    fn values(&self) -> Vec<Value> {
+        vec![
+            Value::Double(self.0.allele_fraction),
+            Value::Double(self.0.theoretical_sensitivity),
+            Value::Long(self.0.theoretical_sensitivity_q as i64),
+            Value::Double(self.0.log_odds_threshold),
+            Value::Long(self.0.sample_size as i64),
+        ]
+    }
+}
+
 /// Every `NAME=value` the command line gave for one argument, under either of its names.
 fn values_of<'a>(args: &'a [String], long: &str, short: Option<&str>) -> Vec<&'a str> {
     let mut out = Vec::new();
@@ -222,8 +249,20 @@ pub fn main_for(tool: Tool) {
     if tool == Tool::NonZero && one(&args, "CHART_OUTPUT", Some("CHART")).is_none() {
         fail("Argument CHART_OUTPUT was missing: Argument 'CHART_OUTPUT' is required");
     }
-    if optional_path(&args, "THEORETICAL_SENSITIVITY_OUTPUT", None).is_some() {
-        fail("THEORETICAL_SENSITIVITY_OUTPUT is not ported");
+    let theoretical_output =
+        optional_path(&args, "THEORETICAL_SENSITIVITY_OUTPUT", None).map(|p| p.to_string());
+    // `ALLELE_FRACTION`: a collection appended to its default, emptied by `null`.
+    let mut allele_fractions: Vec<f64> = vec![0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5];
+    for value in values_of(&args, "ALLELE_FRACTION", None) {
+        if value == "null" {
+            allele_fractions.clear();
+        } else {
+            allele_fractions.push(
+                value
+                    .parse()
+                    .unwrap_or_else(|_| fail(&format!("bad ALLELE_FRACTION: {value}"))),
+            );
+        }
     }
     if let Some(stringency) = one(&args, "VALIDATION_STRINGENCY", None) {
         if !matches!(stringency, "STRICT" | "LENIENT" | "SILENT") {
@@ -425,6 +464,34 @@ pub fn main_for(tool: Tool) {
     text.push('\n');
     if let Err(e) = std::fs::write(&output, text) {
         fail(&format!("{e}"));
+    }
+    // `TheoreticalSensitivity.calculateSensitivities` over the unfiltered depth and base quality
+    // histograms, once per allele fraction, into a file of its own.
+    if let Some(path) = theoretical_output {
+        // The non-zero collector's `addToMetricsFile` zeroes the unfiltered array's first bin in
+        // place, before this reads it.
+        let mut unfiltered_depth = result.unfiltered_depth.clone();
+        if tool == Tool::NonZero {
+            if let Some(first) = unfiltered_depth.first_mut() {
+                *first = 0;
+            }
+        }
+        let rows = crate::theoretical_sensitivity::calculate_sensitivities(
+            sample_size,
+            &unfiltered_depth,
+            &result.unfiltered_baseq,
+            &allele_fractions,
+        )
+        .unwrap_or_else(|e| thrown(&e));
+        let mut sensitivity = MetricsFile::new();
+        sensitivity.add_header(&format!("{} <command line>", tool.name()));
+        sensitivity.add_header("Started on: <timestamp>");
+        for row in &rows {
+            sensitivity.add_metric(&SensitivityMetric(row));
+        }
+        if let Err(e) = std::fs::write(&path, sensitivity.write()) {
+            fail(&format!("{e}"));
+        }
     }
     // The non-zero tool then draws its chart through R. The chart is a rendering of the file
     // just written and is not ported; the metrics are the tool's answer.

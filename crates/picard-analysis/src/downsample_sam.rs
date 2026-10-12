@@ -15,8 +15,8 @@
 //! `doWork` adds a `@PG` provenance record whose `CL:` is the command line (temp paths, every option);
 //! that record is **canonicalized away** in comparison, exactly as the metrics tools' command-line
 //! header is, so this port does not reproduce it and the claim is over the surviving records and the
-//! rest of the header. `ConstantMemory` is the default `STRATEGY`; `HighAccuracy` and `Chained`
-//! (which buffer and use a second pass) are separate surfaces.
+//! rest of the header. `ConstantMemory` is the default `STRATEGY`; [`keep_flags`] answers all three,
+//! `HighAccuracy` and `Chained` included.
 
 use htsjdk_bam::murmur3::Murmur3;
 use htsjdk_bam::record::BamRecord;
@@ -60,6 +60,221 @@ pub fn downsample_sam(input_sam: &str, probability: f64, seed: i32) -> Result<St
         .collect();
 
     Ok(write_sam(&header, &kept).expect("records that parsed re-encode as SAM text"))
+}
+
+/// `DownsamplingIteratorFactory.Strategy`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Strategy {
+    ConstantMemory,
+    HighAccuracy,
+    Chained,
+}
+
+/// `Math.min(a, b)` for doubles, which returns NaN when either side is NaN (Rust's `f64::min`
+/// returns the other side).
+fn java_min(a: f64, b: f64) -> f64 {
+    if a.is_nan() || b.is_nan() {
+        f64::NAN
+    } else {
+        a.min(b)
+    }
+}
+
+/// `Math.max(a, b)` for doubles, NaN-propagating as [`java_min`] is.
+fn java_max(a: f64, b: f64) -> f64 {
+    if a.is_nan() || b.is_nan() {
+        f64::NAN
+    } else {
+        a.max(b)
+    }
+}
+
+/// `String.hashCode`, over UTF-16 code units.
+fn java_string_hash(s: &str) -> i32 {
+    s.encode_utf16()
+        .fold(0i32, |h, c| h.wrapping_mul(31).wrapping_add(c as i32))
+}
+
+/// The iteration order of a `new HashSet<String>()` the names were added to in this order:
+/// buckets by `(h ^ h >>> 16) & (n - 1)` at the table size the inserts grew it to, insertion order
+/// within a bucket (a resize splits a bucket without reordering it). A bucket that reaches the
+/// treeification threshold is reordered (or the table resized early, below 64), which this does
+/// not model and refuses rather than answer wrongly.
+fn hash_set_order(names: &[String]) -> Result<Vec<String>, String> {
+    let mut capacity = 16usize;
+    let mut buckets: Vec<Vec<(i32, usize)>> = vec![Vec::new(); capacity];
+    let spread = |h: i32| {
+        let h = h as u32;
+        (h ^ (h >> 16)) as usize
+    };
+    for (index, name) in names.iter().enumerate() {
+        let hash = java_string_hash(name);
+        let bucket = &mut buckets[spread(hash) & (capacity - 1)];
+        bucket.push((hash, index));
+        if bucket.len() > 8 {
+            return Err("a HashSet bucket reached the treeification threshold".to_string());
+        }
+        if index + 1 > capacity * 3 / 4 {
+            capacity *= 2;
+            let mut grown: Vec<Vec<(i32, usize)>> = vec![Vec::new(); capacity];
+            for entry in buckets.into_iter().flatten() {
+                grown[spread(entry.0) & (capacity - 1)].push(entry);
+            }
+            buckets = grown;
+        }
+    }
+    Ok(buckets
+        .into_iter()
+        .flatten()
+        .map(|(_, index)| names[index].clone())
+        .collect())
+}
+
+/// `ConstantMemoryDownsamplingIterator` as `ChainedDownsamplingIterator` drives it: a peeking
+/// iterator over the records whose name hashes at or below the threshold, which skips the rest as
+/// soon as it is built and after every `next`, counting both into statistics `reset` clears.
+struct ConstantMemory {
+    keep: Vec<bool>,
+    position: usize,
+    seen: i64,
+    accepted: i64,
+}
+
+impl ConstantMemory {
+    fn new(keep: Vec<bool>) -> Self {
+        let mut it = ConstantMemory {
+            keep,
+            position: 0,
+            seen: 0,
+            accepted: 0,
+        };
+        it.advance();
+        it
+    }
+
+    fn advance(&mut self) {
+        while self.position < self.keep.len() && !self.keep[self.position] {
+            self.position += 1;
+            self.seen += 1;
+        }
+    }
+
+    fn has_next(&self) -> bool {
+        self.position < self.keep.len()
+    }
+
+    fn next(&mut self) -> usize {
+        let index = self.position;
+        self.position += 1;
+        self.seen += 1;
+        self.accepted += 1;
+        self.advance();
+        index
+    }
+}
+
+/// Which records `DownsamplingIteratorFactory.make(strategy, proportion, accuracy, seed)` returns,
+/// by index into `names` (the records' read names, in input order).
+///
+/// `HighAccuracyDownsamplingIterator` reads `ceil(1 / accuracy)` new templates at a time, keeps
+/// `ceil` or `floor` of `proportion` of them depending on whether it is behind or ahead so far, and
+/// picks the discards by shuffling the chunk's `HashSet` of names with `java.util.Random(seed)`;
+/// a name decided in one chunk keeps its decision in every later one. `Chained` runs the same over
+/// a `ConstantMemory` pass at a proportion widened by a 99.9% interval, and asks of each chunk only
+/// what is left to reach the target given what that pass let through.
+pub fn keep_flags(
+    names: &[String],
+    strategy: Strategy,
+    proportion: f64,
+    accuracy: f64,
+    seed: i32,
+) -> Result<Vec<bool>, String> {
+    let hashed = |p: f64| {
+        let hasher = Murmur3::new(seed);
+        let max_hash = max_hash_value(p);
+        names
+            .iter()
+            .map(|n| hasher.hash_unencoded_chars(n) <= max_hash)
+            .collect::<Vec<bool>>()
+    };
+    if strategy == Strategy::ConstantMemory {
+        return Ok(hashed(proportion));
+    }
+    if accuracy >= 1.0 || accuracy <= 1.0 / i32::MAX as f64 {
+        return Err(
+            "java.lang.IllegalArgumentException: Illegal value. Must be 1/MAX_INT < accuracy < 1"
+                .to_string(),
+        );
+    }
+    let mut underlying = match strategy {
+        Strategy::Chained => {
+            let widened = java_min(1.0, proportion + 3.3 * (proportion / 50000.0).sqrt());
+            ConstantMemory::new(hashed(widened))
+        }
+        _ => ConstantMemory::new(vec![true; names.len()]),
+    };
+    let chained = strategy == Strategy::Chained;
+    let templates_to_read = (1.0 / accuracy).ceil() as i32 as usize;
+    let mut random = crate::theoretical_sensitivity::JavaRandom::new(seed as i64);
+    let mut decisions: std::collections::HashMap<&str, bool> = std::collections::HashMap::new();
+    let (mut total_templates, mut kept_templates) = (0i64, 0i64);
+    let mut keep = vec![false; names.len()];
+    loop {
+        if chained {
+            underlying.seen = 0;
+            underlying.accepted = 0;
+        }
+        let mut records = Vec::new();
+        let mut chunk: Vec<String> = Vec::new();
+        let mut in_chunk = std::collections::HashSet::new();
+        while underlying.has_next() && chunk.len() < templates_to_read {
+            let index = underlying.next();
+            records.push(index);
+            let name = names[index].as_str();
+            if decisions.contains_key(name) {
+                continue;
+            }
+            if in_chunk.insert(name) {
+                chunk.push(name.to_string());
+            }
+        }
+        if records.is_empty() {
+            break;
+        }
+        let read = chunk.len() as i64;
+        let p = if chained {
+            let prior = underlying.accepted as f64 / underlying.seen as f64;
+            java_max(0.0, java_min(1.0, proportion / prior))
+        } else {
+            proportion
+        };
+        let raw = read as f64 * p;
+        let to_keep = if (kept_templates as f64 / total_templates as f64) < p {
+            raw.ceil() as i32 as i64
+        } else {
+            raw.floor() as i32 as i64
+        };
+        let mut shuffled = hash_set_order(&chunk)?;
+        for i in (1..shuffled.len()).rev() {
+            let j = random.next_int(i as i32 + 1) as usize;
+            shuffled.swap(i, j);
+        }
+        let discarded: std::collections::HashSet<&str> = shuffled
+            .iter()
+            .take((read - to_keep).max(0) as usize)
+            .map(String::as_str)
+            .collect();
+        total_templates += read;
+        kept_templates += read - discarded.len() as i64;
+        for index in records {
+            let name = names[index].as_str();
+            let decision = *decisions
+                .entry(name)
+                .or_insert_with(|| in_chunk.contains(name) && !discarded.contains(name));
+            keep[index] = decision;
+        }
+    }
+    Ok(keep)
 }
 
 #[cfg(test)]

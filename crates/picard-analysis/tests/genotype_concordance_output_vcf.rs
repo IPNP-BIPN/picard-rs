@@ -90,7 +90,9 @@ fn one_record_per_site_with_both_genotypes_and_the_contingency() {
         records(&text),
         [
             "chr1\t100\t.\tA\tG\t50\t.\tCONC_ST=TN,FN\tGT:DP:GQ\t0/0:5:20\t0/1:10:30",
-            "chr1\t200\t.\tC\tT\t.\t.\tCONC_ST=.\tGT:DP:GQ\t./.\t1/1:12:40",
+            // A no-call against a call is the scheme's EMPTY, a one-state array, written as its
+            // name; the oracle's covering array shows the same word.
+            "chr1\t200\t.\tC\tT\t.\t.\tCONC_ST=EMPTY\tGT:DP:GQ\t./.\t1/1:12:40",
             "chr1\t400\t.\tTCA\tT\t12.50\t.\tCONC_ST=TP,TN\tGT:DP:GQ\t0/1:20:50\t0/1:3:9",
         ]
     );

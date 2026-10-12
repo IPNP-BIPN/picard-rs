@@ -34,6 +34,16 @@ fn tag_of(name: &str) -> Tag {
 }
 
 fn main() {
+    // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
+    let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
+        std::env::args()
+            .find_map(|a| a.strip_prefix("READ_NAME_REGEX=").map(str::to_string))
+            .as_deref(),
+    )
+    .unwrap_or_else(|thrown| {
+        eprintln!("Exception in thread \"main\" {thrown}");
+        std::process::exit(1);
+    });
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),
@@ -61,7 +71,14 @@ fn main() {
     let base = Options {
         scoring,
         remove_duplicates: args.bool("REMOVE_DUPLICATES", false),
-        parse_read_names: true,
+        parse_read_names: !read_name_regex.is_off(),
+        read_name_regex,
+        max_optical_duplicate_set_size: std::env::args()
+            .find_map(|a| {
+                a.strip_prefix("MAX_OPTICAL_DUPLICATE_SET_SIZE=")
+                    .and_then(|v| v.parse().ok())
+            })
+            .unwrap_or(300_000),
         assume_mate_cigar: true,
         ..Options::default()
     };
@@ -77,7 +94,11 @@ fn main() {
     let (mut header, records) = read_input(&input);
     // ASSUME_SORT_ORDER is written into the header by `openInputs`, so it decides the check below
     // as surely as the file does.
-    if let Some(order) = args.get("ASSUME_SORT_ORDER") {
+    // `ASSUME_SORTED=true` stands for `ASSUME_SORT_ORDER=coordinate`.
+    if let Some(order) = args
+        .get("ASSUME_SORT_ORDER")
+        .or_else(|| (args.get("ASSUME_SORTED") == Some("true")).then_some("coordinate"))
+    {
         header.set_sort_order(order);
     }
     if header.attributes.get("SO") != Some("coordinate") {
@@ -166,6 +187,10 @@ fn main() {
 
     let add_pg_tag = args.bool("ADD_PG_TAG_TO_READS", true);
     let molecular_identifier_tag = args.get("MOLECULAR_IDENTIFIER_TAG").map(tag_of);
+    // `COMMENT.forEach(outputHeader::addComment)`, inherited from SimpleMarkDuplicatesWithMateCigar.
+    for comment in std::env::args().filter_map(|a| a.strip_prefix("COMMENT=").map(str::to_string)) {
+        header.comments.push(format!("@CO\t{comment}"));
+    }
     let mut writer =
         BamWriter::new(Vec::new(), &header).unwrap_or_else(|e| fail(&format!("{e:?}")));
     for (index, record) in records.iter().enumerate() {

@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 22,
-  "arguments_in_array": 4,
-  "arguments_excluded": 18,
+  "arguments_in_array": 8,
+  "arguments_excluded": 14,
   "excluded": [
     {
       "argument": "--ALT_NAMES",
@@ -64,13 +64,6 @@
       "source": "none"
     },
     {
-      "argument": "--REFERENCE",
-      "type": "PicardHtsPath",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/ref.fasta",
-      "source": "fixture"
-    },
-    {
       "argument": "--showHidden",
       "type": "boolean",
       "reason": "excluded by the repository: changes the usage text only",
@@ -78,31 +71,10 @@
       "source": "none"
     },
     {
-      "argument": "--SPECIES",
-      "type": "String",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "Homo_sapiens",
-      "source": "fixture"
-    },
-    {
       "argument": "--TMP_DIR",
       "type": "List[File]",
       "reason": "only one value available (fixture[0])",
       "held_at": "/work/tmp",
-      "source": "fixture"
-    },
-    {
-      "argument": "--TRUNCATE_NAMES_AT_WHITESPACE",
-      "type": "boolean",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "true",
-      "source": "fixture"
-    },
-    {
-      "argument": "--URI",
-      "type": "String",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "file:/work/fixtures/ref.fasta",
       "source": "fixture"
     },
     {
@@ -134,9 +106,9 @@
       "source": "none"
     }
   ],
-  "rows": 7,
-  "tuples_total": 30,
-  "tuples_covered": 30,
+  "rows": 10,
+  "tuples_total": 126,
+  "tuples_covered": 126,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -149,12 +121,20 @@
         "--CREATE_INDEX": "true",
         "--GENOME_ASSEMBLY": "fixture[0]",
         "--NUM_SEQUENCES": "fixture[0]",
+        "--REFERENCE": "fixture[0]",
+        "--SPECIES": "fixture[0]",
+        "--TRUNCATE_NAMES_AT_WHITESPACE": "fixture[0]",
+        "--URI": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--GENOME_ASSEMBLY=GRCh38",
         "--NUM_SEQUENCES=2147483647",
+        "--REFERENCE=/work/fixtures/ref.fasta",
+        "--SPECIES=Homo_sapiens",
+        "--TRUNCATE_NAMES_AT_WHITESPACE=true",
+        "--URI=file:/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -164,12 +144,20 @@
         "--CREATE_INDEX": "true",
         "--GENOME_ASSEMBLY": "fixture[1]",
         "--NUM_SEQUENCES": "fixture[1]",
+        "--REFERENCE": "fixture[1]",
+        "--SPECIES": "fixture[1]",
+        "--TRUNCATE_NAMES_AT_WHITESPACE": "fixture[1]",
+        "--URI": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--GENOME_ASSEMBLY=hg19",
         "--NUM_SEQUENCES=1",
+        "--REFERENCE=/work/fixtures/described.fasta",
+        "--SPECIES=Mus_musculus",
+        "--TRUNCATE_NAMES_AT_WHITESPACE=false",
+        "--URI=http://example.org/other.fasta",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -179,12 +167,20 @@
         "--CREATE_INDEX": "false",
         "--GENOME_ASSEMBLY": "fixture[0]",
         "--NUM_SEQUENCES": "fixture[1]",
+        "--REFERENCE": "fixture[0]",
+        "--SPECIES": "fixture[1]",
+        "--TRUNCATE_NAMES_AT_WHITESPACE": "fixture[0]",
+        "--URI": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--GENOME_ASSEMBLY=GRCh38",
         "--NUM_SEQUENCES=1",
+        "--REFERENCE=/work/fixtures/ref.fasta",
+        "--SPECIES=Mus_musculus",
+        "--TRUNCATE_NAMES_AT_WHITESPACE=true",
+        "--URI=http://example.org/other.fasta",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -194,43 +190,67 @@
         "--CREATE_INDEX": "false",
         "--GENOME_ASSEMBLY": "fixture[1]",
         "--NUM_SEQUENCES": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--REFERENCE": "fixture[1]",
+        "--SPECIES": "fixture[0]",
+        "--TRUNCATE_NAMES_AT_WHITESPACE": "fixture[1]",
+        "--URI": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--GENOME_ASSEMBLY=hg19",
         "--NUM_SEQUENCES=2147483647",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--REFERENCE=/work/fixtures/described.fasta",
+        "--SPECIES=Homo_sapiens",
+        "--TRUNCATE_NAMES_AT_WHITESPACE=false",
+        "--URI=file:/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 4,
       "labels": {
-        "--CREATE_INDEX": "true",
-        "--GENOME_ASSEMBLY": "fixture[1]",
-        "--NUM_SEQUENCES": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--CREATE_INDEX": "false",
+        "--GENOME_ASSEMBLY": "fixture[0]",
+        "--NUM_SEQUENCES": "fixture[1]",
+        "--REFERENCE": "fixture[1]",
+        "--SPECIES": "fixture[0]",
+        "--TRUNCATE_NAMES_AT_WHITESPACE": "fixture[0]",
+        "--URI": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
-        "--GENOME_ASSEMBLY=hg19",
-        "--NUM_SEQUENCES=2147483647",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--CREATE_INDEX=false",
+        "--GENOME_ASSEMBLY=GRCh38",
+        "--NUM_SEQUENCES=1",
+        "--REFERENCE=/work/fixtures/described.fasta",
+        "--SPECIES=Homo_sapiens",
+        "--TRUNCATE_NAMES_AT_WHITESPACE=true",
+        "--URI=file:/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 5,
       "labels": {
         "--CREATE_INDEX": "false",
-        "--GENOME_ASSEMBLY": "fixture[0]",
+        "--GENOME_ASSEMBLY": "fixture[1]",
         "--NUM_SEQUENCES": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--REFERENCE": "fixture[0]",
+        "--SPECIES": "fixture[0]",
+        "--TRUNCATE_NAMES_AT_WHITESPACE": "fixture[0]",
+        "--URI": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
-        "--GENOME_ASSEMBLY=GRCh38",
+        "--GENOME_ASSEMBLY=hg19",
         "--NUM_SEQUENCES=2147483647",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--REFERENCE=/work/fixtures/ref.fasta",
+        "--SPECIES=Homo_sapiens",
+        "--TRUNCATE_NAMES_AT_WHITESPACE=true",
+        "--URI=http://example.org/other.fasta",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -238,14 +258,91 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--GENOME_ASSEMBLY": "fixture[0]",
+        "--NUM_SEQUENCES": "fixture[0]",
+        "--REFERENCE": "fixture[1]",
+        "--SPECIES": "fixture[1]",
+        "--TRUNCATE_NAMES_AT_WHITESPACE": "fixture[0]",
+        "--URI": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--GENOME_ASSEMBLY=GRCh38",
+        "--NUM_SEQUENCES=2147483647",
+        "--REFERENCE=/work/fixtures/described.fasta",
+        "--SPECIES=Mus_musculus",
+        "--TRUNCATE_NAMES_AT_WHITESPACE=true",
+        "--URI=file:/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--GENOME_ASSEMBLY": "fixture[0]",
         "--NUM_SEQUENCES": "fixture[1]",
+        "--REFERENCE": "fixture[0]",
+        "--SPECIES": "fixture[0]",
+        "--TRUNCATE_NAMES_AT_WHITESPACE": "fixture[1]",
+        "--URI": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--GENOME_ASSEMBLY=GRCh38",
         "--NUM_SEQUENCES=1",
+        "--REFERENCE=/work/fixtures/ref.fasta",
+        "--SPECIES=Homo_sapiens",
+        "--TRUNCATE_NAMES_AT_WHITESPACE=false",
+        "--URI=file:/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--GENOME_ASSEMBLY": "fixture[0]",
+        "--NUM_SEQUENCES": "fixture[0]",
+        "--REFERENCE": "fixture[0]",
+        "--SPECIES": "fixture[0]",
+        "--TRUNCATE_NAMES_AT_WHITESPACE": "fixture[0]",
+        "--URI": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--GENOME_ASSEMBLY=GRCh38",
+        "--NUM_SEQUENCES=2147483647",
+        "--REFERENCE=/work/fixtures/ref.fasta",
+        "--SPECIES=Homo_sapiens",
+        "--TRUNCATE_NAMES_AT_WHITESPACE=true",
+        "--URI=file:/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--GENOME_ASSEMBLY": "fixture[0]",
+        "--NUM_SEQUENCES": "fixture[0]",
+        "--REFERENCE": "fixture[0]",
+        "--SPECIES": "fixture[0]",
+        "--TRUNCATE_NAMES_AT_WHITESPACE": "fixture[0]",
+        "--URI": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--GENOME_ASSEMBLY=GRCh38",
+        "--NUM_SEQUENCES=2147483647",
+        "--REFERENCE=/work/fixtures/ref.fasta",
+        "--SPECIES=Homo_sapiens",
+        "--TRUNCATE_NAMES_AT_WHITESPACE=true",
+        "--URI=file:/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     }
   ]

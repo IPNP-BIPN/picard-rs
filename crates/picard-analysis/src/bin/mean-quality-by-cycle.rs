@@ -40,6 +40,7 @@ fn drive(
     records: &[BamRecord],
     assume_sorted: bool,
     with_reference: bool,
+    stop_after: i64,
     mut accept: impl FnMut(&BamRecord),
 ) -> Result<(), Rejection> {
     let found = match header.attributes.get("SO") {
@@ -52,11 +53,17 @@ fn drive(
     check_sort_order(input, found, assume_sorted)?;
 
     let mut current: Option<i32> = None;
+    let mut count = 0i64;
     for record in records {
         if with_reference && record.reference_index != -1 {
             current = Some(walk_reference(current, record.reference_index)?);
         }
         accept(record);
+        // Counted after the record is handed over, as `makeItSo` counts it.
+        count += 1;
+        if stop_after > 0 && count >= stop_after {
+            break;
+        }
     }
     Ok(())
 }
@@ -102,6 +109,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut collector = MeanQualityByCycle::default();
     collector.pf_reads_only = flag("PF_READS_ONLY=");
     collector.aligned_reads_only = flag("ALIGNED_READS_ONLY=");
+    let stop_after: i64 = arg(&args, "STOP_AFTER=")
+        .map(|v| v.parse())
+        .transpose()?
+        .unwrap_or(0);
     let with_reference = arg(&args, "REFERENCE_SEQUENCE=").is_some() || arg(&args, "R=").is_some();
     // The reference throws rather than exiting, so its handler prints the class before the
     // message: a row that refuses is a row this has to refuse the same way, text included.
@@ -111,6 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &records,
         flag("ASSUME_SORTED="),
         with_reference,
+        stop_after,
         |record| collector.accept(record),
     ) {
         eprintln!("Exception in thread \"main\" {}", rejection.thrown());

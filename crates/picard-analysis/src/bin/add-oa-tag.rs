@@ -98,7 +98,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     t = phase("read_input", t);
 
     // The parallel per-record OA stamping; the whole point of the benchmark.
-    add_oa_records(&header, &mut records);
+    match arg(&args, "INTERVAL_LIST=").or_else(|| arg(&args, "L=")) {
+        Some(path) => {
+            let text = std::fs::read_to_string(&path)?;
+            let list = htsjdk_bam::interval::IntervalList::parse_body(Vec::new(), &text)
+                .map_err(|e| format!("{e:?}"))?;
+            picard_analysis::add_oa_tag::add_oa_records_overlapping(
+                &header,
+                &mut records,
+                &list.intervals,
+            );
+        }
+        None => add_oa_records(&header, &mut records),
+    }
     t = phase("add_oa", t);
 
     // The extension decides the format, and everything that is not `.sam` is a BAM.

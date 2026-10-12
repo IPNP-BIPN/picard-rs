@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 19,
-  "arguments_in_array": 4,
-  "arguments_excluded": 15,
+  "arguments_in_array": 6,
+  "arguments_excluded": 13,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -43,13 +43,6 @@
       "source": "none"
     },
     {
-      "argument": "--METRICS_FILE",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/out/metrics.txt",
-      "source": "fixture"
-    },
-    {
       "argument": "--QUIET",
       "type": "Boolean",
       "reason": "excluded by the repository: suppresses the log on stderr; the compared output is stdout and the output file",
@@ -69,13 +62,6 @@
       "reason": "excluded by the repository: changes the usage text only",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--STOP_AFTER",
-      "type": "long",
-      "reason": "only one value available (default)",
-      "held_at": "0",
-      "source": "default"
     },
     {
       "argument": "--TMP_DIR",
@@ -113,9 +99,9 @@
       "source": "none"
     }
   ],
-  "rows": 10,
-  "tuples_total": 37,
-  "tuples_covered": 37,
+  "rows": 9,
+  "tuples_total": 81,
+  "tuples_covered": 81,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -128,12 +114,16 @@
         "--ASSUME_SORTED": "true",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
+        "--METRICS_FILE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
+        "--METRICS_FILE=/work/out/metrics.txt",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -143,12 +133,16 @@
         "--ASSUME_SORTED": "true",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[1]",
+        "--METRICS_FILE": "fixture[1]",
+        "--STOP_AFTER": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.sam",
+        "--METRICS_FILE=/work/out/metrics_b.txt",
+        "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -158,12 +152,16 @@
         "--ASSUME_SORTED": "false",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
+        "--METRICS_FILE": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.sam",
+        "--METRICS_FILE=/work/out/metrics.txt",
+        "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -173,13 +171,17 @@
         "--ASSUME_SORTED": "false",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--METRICS_FILE": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.bam",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--METRICS_FILE=/work/out/metrics_b.txt",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -188,12 +190,16 @@
         "--ASSUME_SORTED": "true",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[2]",
+        "--METRICS_FILE": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/queryname.bam",
+        "--METRICS_FILE=/work/out/metrics_b.txt",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -203,43 +209,55 @@
         "--ASSUME_SORTED": "false",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[2]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--METRICS_FILE": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/queryname.bam",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--METRICS_FILE=/work/out/metrics.txt",
+        "--STOP_AFTER=5",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 6,
       "labels": {
-        "--ASSUME_SORTED": "true",
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
-      },
-      "arguments": [
-        "--ASSUME_SORTED=true",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.bam",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 7,
-      "labels": {
         "--ASSUME_SORTED": "false",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
+        "--METRICS_FILE": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
+        "--METRICS_FILE=/work/out/metrics.txt",
+        "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--ASSUME_SORTED": "true",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
+        "--METRICS_FILE": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--METRICS_FILE=/work/out/metrics_b.txt",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -247,29 +265,18 @@
       "labels": {
         "--ASSUME_SORTED": "true",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "STRICT"
-      },
-      "arguments": [
-        "--ASSUME_SORTED=true",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.sam",
-        "--VALIDATION_STRINGENCY=STRICT"
-      ]
-    },
-    {
-      "row": 9,
-      "labels": {
-        "--ASSUME_SORTED": "true",
-        "--CREATE_INDEX": "true",
         "--INPUT": "fixture[2]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--METRICS_FILE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/queryname.bam",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--METRICS_FILE=/work/out/metrics.txt",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     }
   ]

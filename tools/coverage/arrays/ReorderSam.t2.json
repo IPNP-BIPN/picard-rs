@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 20,
-  "arguments_in_array": 5,
-  "arguments_excluded": 15,
+  "arguments_in_array": 6,
+  "arguments_excluded": 14,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -64,13 +64,6 @@
       "source": "fixture"
     },
     {
-      "argument": "--SEQUENCE_DICTIONARY",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/ref.fasta",
-      "source": "fixture"
-    },
-    {
       "argument": "--showHidden",
       "type": "boolean",
       "reason": "excluded by the repository: changes the usage text only",
@@ -113,9 +106,9 @@
       "source": "none"
     }
   ],
-  "rows": 11,
-  "tuples_total": 57,
-  "tuples_covered": 57,
+  "rows": 10,
+  "tuples_total": 81,
+  "tuples_covered": 81,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -129,6 +122,7 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE": "true",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -136,6 +130,7 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE=true",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -146,6 +141,7 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE": "false",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
@@ -153,6 +149,7 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE=false",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.sam",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -163,6 +160,7 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE": "true",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[2]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -170,6 +168,7 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE=true",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/queryname.bam",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -180,14 +179,16 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE": "false",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ALLOW_CONTIG_LENGTH_DISCORDANCE=false",
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE=false",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -197,14 +198,16 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE": "false",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[2]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ALLOW_CONTIG_LENGTH_DISCORDANCE=true",
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE=false",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/queryname.bam",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -214,6 +217,7 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE": "true",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -221,6 +225,7 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE=true",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.sam",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -231,6 +236,7 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE": "false",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -238,6 +244,7 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE=false",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.bam",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -248,14 +255,16 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE": "true",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[2]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ALLOW_CONTIG_LENGTH_DISCORDANCE=true",
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE=true",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/queryname.bam",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -264,24 +273,8 @@
         "--ALLOW_CONTIG_LENGTH_DISCORDANCE": "true",
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE": "true",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
-      },
-      "arguments": [
-        "--ALLOW_CONTIG_LENGTH_DISCORDANCE=true",
-        "--ALLOW_INCOMPLETE_DICT_CONCORDANCE=true",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.bam",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 9,
-      "labels": {
-        "--ALLOW_CONTIG_LENGTH_DISCORDANCE": "true",
-        "--ALLOW_INCOMPLETE_DICT_CONCORDANCE": "true",
-        "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -289,24 +282,27 @@
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE=true",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.sam",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
-      "row": 10,
+      "row": 9,
       "labels": {
-        "--ALLOW_CONTIG_LENGTH_DISCORDANCE": "true",
+        "--ALLOW_CONTIG_LENGTH_DISCORDANCE": "false",
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE": "true",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--INPUT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--ALLOW_CONTIG_LENGTH_DISCORDANCE=true",
+        "--ALLOW_CONTIG_LENGTH_DISCORDANCE=false",
         "--ALLOW_INCOMPLETE_DICT_CONCORDANCE=true",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/queryname.bam",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--INPUT=/work/fixtures/small.bam",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     }
   ]

@@ -92,6 +92,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(value) = arg(&args, "MAX_INSERT_SIZE=") {
         options.max_insert_size = value.parse()?;
     }
+    // Appended to the default like every collection argument here; `null` empties it first.
+    for value in args_all(&args, "ADAPTER_SEQUENCE=") {
+        if value == "null" {
+            options.adapter_sequence.clear();
+        } else {
+            options.adapter_sequence.push(value);
+        }
+    }
+    let stop_after: i64 = arg(&args, "STOP_AFTER=")
+        .map(|v| v.parse())
+        .transpose()?
+        .unwrap_or(0);
     // A collection argument is APPENDED to rather than replaced, so asking for TANDEM asks for FR
     // and TANDEM, and a pair the default already expected stays expected. That is why naming an
     // orientation does not move the chimera rate the way a reader would expect it to.
@@ -240,7 +252,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|_| GroupCollector::new(options.clone()))
         .collect();
 
-    for rec in &records {
+    // `makeItSo` stops once `STOP_AFTER` records have been handed over; zero or less reads all.
+    let records = match usize::try_from(stop_after) {
+        Ok(n) if n > 0 => &records[..n.min(records.len())],
+        _ => &records[..],
+    };
+    for rec in records {
         // The record's own contig. The benchmark corpus has one and the covering array's fixture
         // has two, and handing every record the first contig's bases makes every mismatch on the
         // second one imaginary.

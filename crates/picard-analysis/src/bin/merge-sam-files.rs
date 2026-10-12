@@ -335,8 +335,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let (header, records) = merge_parsed(parsed, &sort_order, merge_dictionaries, sort_with)
+    let (mut header, records) = merge_parsed(parsed, &sort_order, merge_dictionaries, sort_with)
         .map_err(|e| format!("{e:?}"))?;
+    // `header.addComment(comment)` for every COMMENT, after the inputs' own comments.
+    for comment in args
+        .iter()
+        .filter_map(|a| a.strip_prefix("COMMENT=").or_else(|| a.strip_prefix("CO=")))
+    {
+        header.comments.push(format!("@CO\t{comment}"));
+    }
 
     if output.ends_with(".sam") {
         let sam = write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?;

@@ -129,6 +129,23 @@ fn main() {
         ("IGNORE_RG", "IGNORE_READ_GROUPS"),
         ("R", "REFERENCE_SEQUENCE"),
     ]);
+    // Barclay's required-argument pass, in declaration order: OUTPUT may be left out when either
+    // file it stands for is given, and each of those when OUTPUT is.
+    for (name, partners) in [
+        ("OUTPUT", &["SUMMARY_OUTPUT", "DETAIL_OUTPUT"][..]),
+        ("SUMMARY_OUTPUT", &["OUTPUT"][..]),
+        ("DETAIL_OUTPUT", &["OUTPUT"][..]),
+    ] {
+        if args.get(name).is_none() && !partners.iter().any(|p| args.get(p).is_some()) {
+            refuse_validation(
+                TOOL,
+                &[format!(
+                    "Argument {name} was missing: Argument '{name}' is required unless one of {{[{}]}} are provided",
+                    partners.join(", ")
+                )],
+            );
+        }
+    }
     let input = args.required("INPUT");
     let genotypes = args.required("GENOTYPES");
     let map_path = args.required("HAPLOTYPE_MAP");

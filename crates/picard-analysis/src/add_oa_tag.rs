@@ -78,6 +78,32 @@ pub fn add_oa_records(header: &htsjdk_bam::header::SamHeader, records: &mut [Bam
         .for_each(|rec| set_oa_tag(rec, &seq_names));
 }
 
+/// `AddOATag.doWork` with `INTERVAL_LIST`: only a record the `OverlapDetector` says overlaps an
+/// interval is tagged. A record is located by `SAMRecord.getContig`, which is null for an unmapped
+/// read, so an unmapped read placed beside its mate overlaps nothing; a mapped one spans its
+/// alignment start to its alignment end.
+pub fn add_oa_records_overlapping(
+    header: &htsjdk_bam::header::SamHeader,
+    records: &mut [BamRecord],
+    intervals: &[htsjdk_bam::interval::Interval],
+) {
+    let seq_names: Vec<String> = header.sequences.iter().map(|s| s.name.clone()).collect();
+    records.par_iter_mut().for_each(|rec| {
+        if rec.flags & READ_UNMAPPED != 0 || rec.reference_index < 0 {
+            return;
+        }
+        let contig = &seq_names[rec.reference_index as usize];
+        let start = rec.alignment_start;
+        let end = start + rec.cigar.reference_length() as i32 - 1;
+        if intervals
+            .iter()
+            .any(|i| i.contig == *contig && i.start <= end && i.end >= start)
+        {
+            set_oa_tag(rec, &seq_names);
+        }
+    });
+}
+
 /// `AddOATag.doWork` for SAM I/O, default path: tag every record and rewrite.
 pub fn add_oa_tag(input_sam: &str) -> Result<String, ParseError> {
     let (header, mut records) = read_sam(input_sam)?;

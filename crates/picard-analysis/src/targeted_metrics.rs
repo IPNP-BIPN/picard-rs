@@ -670,6 +670,20 @@ pub struct Outcome {
     pub rows: Vec<TargetMetrics>,
     pub high_quality_depth: Vec<(i64, f64)>,
     pub uncapped_base_q: Vec<(i64, f64)>,
+    /// The collector's own `getDepthHistogram` and `getBaseQualityHistogram`, as every unit left
+    /// them, which `THEORETICAL_SENSITIVITY_OUTPUT` is computed from.
+    pub unfiltered_depth: Vec<(f64, f64)>,
+    pub unfiltered_base_q: Vec<(f64, f64)>,
+    /// Each unit's high-quality coverage per target, in the order the units finished: what the
+    /// per-target and per-base files are written from.
+    pub units: Vec<UnitCoverage>,
+}
+
+/// One unit's `highQualityCoverageByTarget`, and the mean the per-target file normalises by.
+pub struct UnitCoverage {
+    pub depths: Vec<Vec<i32>>,
+    pub read_counts: Vec<i64>,
+    pub mean_target_coverage: f64,
 }
 
 struct Distributor {
@@ -785,15 +799,29 @@ pub fn collect(
             unit.finish(panel, options, &mut shared)?;
         }
     }
+    let units = distributors
+        .iter()
+        .flat_map(|d| {
+            d.units.iter().map(|u| UnitCoverage {
+                depths: u.high_quality.iter().map(|c| c.depths.clone()).collect(),
+                read_counts: u.high_quality.iter().map(|c| c.read_count).collect(),
+                mean_target_coverage: u.metrics.mean_target_coverage,
+            })
+        })
+        .collect();
     let rows = distributors
         .into_iter()
         .flat_map(|d| d.units.into_iter().map(|u| u.metrics))
         .collect();
     let bins = |h: &Histogram| h.bins().map(|(k, v)| (k as i64, v)).collect::<Vec<_>>();
+    let raw = |h: &Histogram| h.bins().collect::<Vec<(f64, f64)>>();
     Ok(Outcome {
         rows,
         high_quality_depth: bins(&shared.high_quality_depth),
         uncapped_base_q: bins(&shared.uncapped_base_q),
+        unfiltered_depth: raw(&shared.unfiltered_depth),
+        unfiltered_base_q: raw(&shared.unfiltered_base_q),
+        units,
     })
 }
 
