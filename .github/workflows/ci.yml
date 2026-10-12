@@ -785,61 +785,6 @@ jobs:
             --log /tmp/ExtractIlluminaBarcodes.log \
             --log /tmp/IlluminaBasecallsToFastq.log \
             --log /tmp/IlluminaBasecallsToSam.log \
-            --pending AddOATag \
-            --pending CollectAlignmentSummaryMetrics \
-            --pending CollectQualityYieldMetrics \
-            --pending BedToIntervalList \
-            --pending IntervalListToBed \
-            --pending NormalizeFasta \
-            --pending AddOrReplaceReadGroups \
-            --pending MergeSamFiles \
-            --pending ScatterIntervalsByNs \
-            --pending ViewSam \
-            --pending ReorderSam \
-            --pending CreateSequenceDictionary \
-            --pending DownsampleSam \
-            --pending MeanQualityByCycle \
-            --pending CollectBaseDistributionByCycle \
-            --pending QualityScoreDistribution \
-            --pending IntervalListTools \
-            --pending PositionBasedDownsampleSam \
-            --pending ValidateSamFile \
-            --pending MarkDuplicates \
-            --pending FastqToSam \
-            --pending SplitSamByNumberOfReads \
-            --pending SamToFastq \
-            --pending CollectDuplicateMetrics \
-            --pending MarkDuplicatesWithMateCigar \
-            --pending SimpleMarkDuplicatesWithMateCigar \
-            --pending GenotypeConcordance \
-            --pending EstimateLibraryComplexity \
-            --pending CollectUmiPrevalenceMetrics \
-            --pending RevertOriginalBaseQualitiesAndAddMateCigar \
-            --pending CollectVariantCallingMetrics \
-            --pending CollectJumpingLibraryMetrics \
-            --pending MarkIlluminaAdapters \
-            --pending SamToFastqWithTags \
-            --pending FindMendelianViolations \
-            --pending LiftOverIntervalList \
-            --pending CollectInsertSizeMetrics \
-            --pending LiftOverHaplotypeMap \
-            --pending SplitVcfs \
-            --pending CollectWgsMetrics \
-            --pending CollectRawWgsMetrics \
-            --pending CollectWgsMetricsWithNonZeroCoverage \
-            --pending CollectHsMetrics \
-            --pending CollectTargetedPcrMetrics \
-            --pending CollectGcBiasMetrics \
-            --pending CollectRrbsMetrics \
-            --pending CollectRnaSeqMetrics \
-            --pending CollectIndependentReplicateMetrics \
-            --pending LiftoverVcf \
-            --pending CollectMultipleMetrics \
-            --pending UmiAwareMarkDuplicatesWithMateCigar \
-            --pending CheckFingerprint \
-            --pending VcfToAdpc \
-            --pending CollectHiSeqXPfFailMetrics \
-            --pending CollectIlluminaBasecallingMetrics \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -853,26 +798,64 @@ jobs:
         # suite's golden does.
         run: |
           dirty=$(git status --porcelain tools/coverage/measured.json \
+            tools/coverage/corpus/AddOATag.t2.txt \
+            tools/coverage/corpus/CollectAlignmentSummaryMetrics.t2.txt \
+            tools/coverage/corpus/CollectQualityYieldMetrics.t2.txt \
             tools/coverage/corpus/SortSam.t2.txt \
             tools/coverage/corpus/CleanSam.t2.txt \
             tools/coverage/corpus/SamFormatConverter.t2.txt \
+            tools/coverage/corpus/BedToIntervalList.t2.txt \
+            tools/coverage/corpus/IntervalListToBed.t2.txt \
+            tools/coverage/corpus/NormalizeFasta.t2.txt \
+            tools/coverage/corpus/AddOrReplaceReadGroups.t2.txt \
+            tools/coverage/corpus/MergeSamFiles.t2.txt \
             tools/coverage/corpus/ReplaceSamHeader.t2.txt \
             tools/coverage/corpus/CalculateReadGroupChecksum.t2.txt \
             tools/coverage/corpus/NonNFastaSize.t2.txt \
+            tools/coverage/corpus/ScatterIntervalsByNs.t2.txt \
+            tools/coverage/corpus/ViewSam.t2.txt \
             tools/coverage/corpus/BamIndexStats.t2.txt \
+            tools/coverage/corpus/ReorderSam.t2.txt \
+            tools/coverage/corpus/CreateSequenceDictionary.t2.txt \
+            tools/coverage/corpus/DownsampleSam.t2.txt \
             tools/coverage/corpus/FixMateInformation.t2.txt \
+            tools/coverage/corpus/MeanQualityByCycle.t2.txt \
+            tools/coverage/corpus/CollectBaseDistributionByCycle.t2.txt \
+            tools/coverage/corpus/QualityScoreDistribution.t2.txt \
             tools/coverage/corpus/SetNmMdAndUqTags.t2.txt \
             tools/coverage/corpus/RevertSam.t2.txt \
             tools/coverage/corpus/ExtractSequences.t2.txt \
+            tools/coverage/corpus/IntervalListTools.t2.txt \
+            tools/coverage/corpus/PositionBasedDownsampleSam.t2.txt \
+            tools/coverage/corpus/ValidateSamFile.t2.txt \
             tools/coverage/corpus/FilterSamReads.t2.txt \
+            tools/coverage/corpus/MarkDuplicates.t2.txt \
+            tools/coverage/corpus/FastqToSam.t2.txt \
+            tools/coverage/corpus/SplitSamByNumberOfReads.t2.txt \
             tools/coverage/corpus/SplitSamByLibrary.t2.txt \
             tools/coverage/corpus/MakeVcfSampleNameMap.t2.txt \
+            tools/coverage/corpus/SamToFastq.t2.txt \
+            tools/coverage/corpus/CollectDuplicateMetrics.t2.txt \
+            tools/coverage/corpus/MarkDuplicatesWithMateCigar.t2.txt \
+            tools/coverage/corpus/SimpleMarkDuplicatesWithMateCigar.t2.txt \
             tools/coverage/corpus/CheckDuplicateMarking.t2.txt \
             tools/coverage/corpus/AccumulateQualityYieldMetrics.t2.txt \
+            tools/coverage/corpus/GenotypeConcordance.t2.txt \
+            tools/coverage/corpus/EstimateLibraryComplexity.t2.txt \
+            tools/coverage/corpus/CollectUmiPrevalenceMetrics.t2.txt \
+            tools/coverage/corpus/RevertOriginalBaseQualitiesAndAddMateCigar.t2.txt \
+            tools/coverage/corpus/CollectVariantCallingMetrics.t2.txt \
+            tools/coverage/corpus/CollectJumpingLibraryMetrics.t2.txt \
+            tools/coverage/corpus/MarkIlluminaAdapters.t2.txt \
+            tools/coverage/corpus/SamToFastqWithTags.t2.txt \
+            tools/coverage/corpus/FindMendelianViolations.t2.txt \
+            tools/coverage/corpus/LiftOverIntervalList.t2.txt \
             tools/coverage/corpus/CompareSAMs.t2.txt \
+            tools/coverage/corpus/CollectInsertSizeMetrics.t2.txt \
             tools/coverage/corpus/BuildBamIndex.t2.txt \
             tools/coverage/corpus/AddCommentsToBam.t2.txt \
             tools/coverage/corpus/GatherBamFiles.t2.txt \
+            tools/coverage/corpus/LiftOverHaplotypeMap.t2.txt \
             tools/coverage/corpus/MakeSitesOnlyVcf.t2.txt \
             tools/coverage/corpus/RenameSampleInVcf.t2.txt \
             tools/coverage/corpus/VcfToIntervalList.t2.txt \
@@ -880,11 +863,23 @@ jobs:
             tools/coverage/corpus/UpdateVcfSequenceDictionary.t2.txt \
             tools/coverage/corpus/MergeVcfs.t2.txt \
             tools/coverage/corpus/GatherVcfs.t2.txt \
+            tools/coverage/corpus/SplitVcfs.t2.txt \
             tools/coverage/corpus/VcfFormatConverter.t2.txt \
             tools/coverage/corpus/FixVcfHeader.t2.txt \
+            tools/coverage/corpus/CollectWgsMetrics.t2.txt \
+            tools/coverage/corpus/CollectRawWgsMetrics.t2.txt \
+            tools/coverage/corpus/CollectWgsMetricsWithNonZeroCoverage.t2.txt \
+            tools/coverage/corpus/CollectHsMetrics.t2.txt \
+            tools/coverage/corpus/CollectTargetedPcrMetrics.t2.txt \
             tools/coverage/corpus/CollectSequencingArtifactMetrics.t2.txt \
             tools/coverage/corpus/ConvertSequencingArtifactToOxoG.t2.txt \
             tools/coverage/corpus/CollectOxoGMetrics.t2.txt \
+            tools/coverage/corpus/CollectGcBiasMetrics.t2.txt \
+            tools/coverage/corpus/CollectRrbsMetrics.t2.txt \
+            tools/coverage/corpus/CollectRnaSeqMetrics.t2.txt \
+            tools/coverage/corpus/CollectIndependentReplicateMetrics.t2.txt \
+            tools/coverage/corpus/LiftoverVcf.t2.txt \
+            tools/coverage/corpus/CollectMultipleMetrics.t2.txt \
             tools/coverage/corpus/SortGff.t2.txt \
             tools/coverage/corpus/MergePedIntoVcf.t2.txt \
             tools/coverage/corpus/BamToBfq.t2.txt \
@@ -896,11 +891,13 @@ jobs:
             tools/coverage/corpus/CollectQualityYieldMetricsFlow.t2.txt \
             tools/coverage/corpus/CollectQualityYieldMetricsSNVQ.t2.txt \
             tools/coverage/corpus/FifoBuffer.t2.txt \
+            tools/coverage/corpus/UmiAwareMarkDuplicatesWithMateCigar.t2.txt \
             tools/coverage/corpus/ConvertHaplotypeDatabaseToVcf.t2.txt \
             tools/coverage/corpus/ClusterCrosscheckMetrics.t2.txt \
             tools/coverage/corpus/SetNmAndUqTags.t2.txt \
             tools/coverage/corpus/CheckTerminatorBlock.t2.txt \
             tools/coverage/corpus/FilterVcf.t2.txt \
+            tools/coverage/corpus/CheckFingerprint.t2.txt \
             tools/coverage/corpus/CrosscheckFingerprints.t2.txt \
             tools/coverage/corpus/CrosscheckReadGroupFingerprints.t2.txt \
             tools/coverage/corpus/CalculateFingerprintMetrics.t2.txt \
@@ -911,11 +908,14 @@ jobs:
             tools/coverage/corpus/BpmToNormalizationManifestCsv.t2.txt \
             tools/coverage/corpus/CompareGtcFiles.t2.txt \
             tools/coverage/corpus/GtcToVcf.t2.txt \
+            tools/coverage/corpus/VcfToAdpc.t2.txt \
             tools/coverage/corpus/CombineGenotypingArrayVcfs.t2.txt \
             tools/coverage/corpus/CollectArraysVariantCallingMetrics.t2.txt \
             tools/coverage/corpus/CreateExtendedIlluminaManifest.t2.txt \
             tools/coverage/corpus/CheckIlluminaDirectory.t2.txt \
             tools/coverage/corpus/CollectIlluminaLaneMetrics.t2.txt \
+            tools/coverage/corpus/CollectHiSeqXPfFailMetrics.t2.txt \
+            tools/coverage/corpus/CollectIlluminaBasecallingMetrics.t2.txt \
             tools/coverage/corpus/ExtractIlluminaBarcodes.t2.txt \
             tools/coverage/corpus/IlluminaBasecallsToFastq.t2.txt \
             tools/coverage/corpus/IlluminaBasecallsToSam.t2.txt)
