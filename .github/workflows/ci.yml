@@ -802,6 +802,7 @@ jobs:
             --pending CollectRnaSeqMetrics \
             --pending CollectMultipleMetrics \
             --pending BamToBfq \
+            --pending MergeBamAlignment \
             --pending CollectSamErrorMetrics \
             --pending BaitDesigner \
             --pending UmiAwareMarkDuplicatesWithMateCigar \
@@ -897,7 +898,6 @@ jobs:
             tools/coverage/corpus/SortGff.t2.txt \
             tools/coverage/corpus/MergePedIntoVcf.t2.txt \
             tools/coverage/corpus/CompareMetrics.t2.txt \
-            tools/coverage/corpus/MergeBamAlignment.t2.txt \
             tools/coverage/corpus/AccumulateVariantCallingMetrics.t2.txt \
             tools/coverage/corpus/CollectQualityYieldMetricsFlow.t2.txt \
             tools/coverage/corpus/CollectQualityYieldMetricsSNVQ.t2.txt \
