@@ -204,7 +204,7 @@
         "tool": "RevertSam",
         "port": "revert-sam",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt,rg1.bam,rg2.bam,rg1.sam,rg2.sam,rg1.cram,rg2.cram,mapped_rg1.bam,mapped_rg2.sam"
       },
       {
@@ -217,7 +217,7 @@
         "tool": "IntervalListTools",
         "port": "interval-list-tools",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "@all"
       },
@@ -389,7 +389,7 @@
         "tool": "CompareSAMs",
         "port": "compare-sams",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "exit_code_is_a_result": true
       },
       {
@@ -628,7 +628,7 @@
         "tool": "CollectSamErrorMetrics",
         "port": "collect-sam-error-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
@@ -718,7 +718,7 @@
         "tool": "CrosscheckFingerprints",
         "port": "crosscheck-fingerprints",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all",
         "exit_code_is_a_result": true
       },
@@ -726,7 +726,7 @@
         "tool": "CrosscheckReadGroupFingerprints",
         "port": "crosscheck-read-group-fingerprints",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all",
         "exit_code_is_a_result": true
       },
@@ -790,7 +790,7 @@
         "tool": "GtcToVcf",
         "port": "gtc-to-vcf",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.vcf",
         "strip_line_prefixes": [
           "##fileDate="
@@ -823,7 +823,7 @@
         "tool": "CreateExtendedIlluminaManifest",
         "port": "create-extended-illumina-manifest",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all",
         "strip_line_prefixes": [
           "Generated on:"
@@ -862,21 +862,21 @@
         "tool": "ExtractIlluminaBarcodes",
         "port": "extract-illumina-barcodes",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "IlluminaBasecallsToFastq",
         "port": "illumina-basecalls-to-fastq",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "IlluminaBasecallsToSam",
         "port": "illumina-basecalls-to-sam",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       }
     ]

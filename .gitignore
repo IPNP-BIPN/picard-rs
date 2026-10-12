@@ -40,7 +40,9 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/CollectBaseDistributionByCycle.t2.txt
 !tools/coverage/corpus/QualityScoreDistribution.t2.txt
 !tools/coverage/corpus/SetNmMdAndUqTags.t2.txt
+!tools/coverage/corpus/RevertSam.t2.txt
 !tools/coverage/corpus/ExtractSequences.t2.txt
+!tools/coverage/corpus/IntervalListTools.t2.txt
 !tools/coverage/corpus/PositionBasedDownsampleSam.t2.txt
 !tools/coverage/corpus/ValidateSamFile.t2.txt
 !tools/coverage/corpus/FilterSamReads.t2.txt
@@ -65,6 +67,7 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/SamToFastqWithTags.t2.txt
 !tools/coverage/corpus/FindMendelianViolations.t2.txt
 !tools/coverage/corpus/LiftOverIntervalList.t2.txt
+!tools/coverage/corpus/CompareSAMs.t2.txt
 !tools/coverage/corpus/CollectInsertSizeMetrics.t2.txt
 !tools/coverage/corpus/BuildBamIndex.t2.txt
 !tools/coverage/corpus/AddCommentsToBam.t2.txt
@@ -99,6 +102,7 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/BamToBfq.t2.txt
 !tools/coverage/corpus/CompareMetrics.t2.txt
 !tools/coverage/corpus/MergeBamAlignment.t2.txt
+!tools/coverage/corpus/CollectSamErrorMetrics.t2.txt
 !tools/coverage/corpus/AccumulateVariantCallingMetrics.t2.txt
 !tools/coverage/corpus/BaitDesigner.t2.txt
 !tools/coverage/corpus/CollectQualityYieldMetricsFlow.t2.txt
@@ -111,6 +115,8 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/CheckTerminatorBlock.t2.txt
 !tools/coverage/corpus/FilterVcf.t2.txt
 !tools/coverage/corpus/CheckFingerprint.t2.txt
+!tools/coverage/corpus/CrosscheckFingerprints.t2.txt
+!tools/coverage/corpus/CrosscheckReadGroupFingerprints.t2.txt
 !tools/coverage/corpus/CalculateFingerprintMetrics.t2.txt
 !tools/coverage/corpus/ExtractFingerprint.t2.txt
 !tools/coverage/corpus/IdentifyContaminant.t2.txt
@@ -118,13 +124,18 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/CreateVerifyIDIntensityContaminationMetricsFile.t2.txt
 !tools/coverage/corpus/BpmToNormalizationManifestCsv.t2.txt
 !tools/coverage/corpus/CompareGtcFiles.t2.txt
+!tools/coverage/corpus/GtcToVcf.t2.txt
 !tools/coverage/corpus/VcfToAdpc.t2.txt
 !tools/coverage/corpus/CombineGenotypingArrayVcfs.t2.txt
 !tools/coverage/corpus/CollectArraysVariantCallingMetrics.t2.txt
+!tools/coverage/corpus/CreateExtendedIlluminaManifest.t2.txt
 !tools/coverage/corpus/CheckIlluminaDirectory.t2.txt
 !tools/coverage/corpus/CollectIlluminaLaneMetrics.t2.txt
 !tools/coverage/corpus/CollectHiSeqXPfFailMetrics.t2.txt
 !tools/coverage/corpus/CollectIlluminaBasecallingMetrics.t2.txt
+!tools/coverage/corpus/ExtractIlluminaBarcodes.t2.txt
+!tools/coverage/corpus/IlluminaBasecallsToFastq.t2.txt
+!tools/coverage/corpus/IlluminaBasecallsToSam.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real
