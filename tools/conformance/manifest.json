@@ -110,13 +110,13 @@
         "tool": "MergeSamFiles",
         "port": "merge-sam-files",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "ReplaceSamHeader",
         "port": "replace-sam-header",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CalculateReadGroupChecksum",
@@ -160,7 +160,7 @@
         "tool": "CreateSequenceDictionary",
         "port": "create-sequence-dictionary",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "DownsampleSam",
@@ -204,7 +204,7 @@
         "tool": "RevertSam",
         "port": "revert-sam",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt,rg1.bam,rg2.bam,rg1.sam,rg2.sam,rg1.cram,rg2.cram,mapped_rg1.bam,mapped_rg2.sam"
       },
       {
@@ -217,7 +217,7 @@
         "tool": "IntervalListTools",
         "port": "interval-list-tools",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "@all"
       },
@@ -239,13 +239,13 @@
         "tool": "FilterSamReads",
         "port": "filter-sam-reads",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "MarkDuplicates",
         "port": "mark-duplicates",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "output.txt,metrics.txt,metrics_b.txt"
       },
@@ -259,7 +259,7 @@
         "tool": "SplitSamByNumberOfReads",
         "port": "split-sam-by-number-of-reads",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "shard_0001.bam,shard_0002.bam,shard_0003.bam,shard_0004.bam,shard_0005.bam,shard_0001.sam,shard_0002.sam,shard_0003.sam,shard_0004.sam,shard_0005.sam,part_0001.bam,part_0002.bam,part_0003.bam,part_0004.bam,part_0005.bam,part_0001.sam,part_0002.sam,part_0003.sam,part_0004.sam,part_0005.sam"
       },
       {
@@ -293,7 +293,7 @@
         "tool": "MarkDuplicatesWithMateCigar",
         "port": "mark-duplicates-with-mate-cigar",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "output.txt,metrics.txt,metrics_b.txt"
       },
@@ -301,7 +301,7 @@
         "tool": "SimpleMarkDuplicatesWithMateCigar",
         "port": "simple-mark-duplicates-with-mate-cigar",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "output.txt,metrics.txt,metrics_b.txt"
       },
@@ -322,7 +322,7 @@
         "tool": "GenotypeConcordance",
         "port": "genotype-concordance",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt.genotype_concordance_summary_metrics,output.txt.genotype_concordance.vcf.gz"
       },
       {
@@ -347,7 +347,7 @@
         "tool": "CollectVariantCallingMetrics",
         "port": "collect-variant-calling-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt.variant_calling_summary_metrics"
       },
       {
@@ -374,7 +374,7 @@
         "tool": "FindMendelianViolations",
         "port": "find-mendelian-violations",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
@@ -389,7 +389,7 @@
         "tool": "CompareSAMs",
         "port": "compare-sams",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "exit_code_is_a_result": true
       },
       {
@@ -565,7 +565,7 @@
         "tool": "CollectRnaSeqMetrics",
         "port": "collect-rna-seq-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectIndependentReplicateMetrics",
@@ -585,7 +585,7 @@
         "tool": "CollectMultipleMetrics",
         "port": "collect-multiple-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.alignment_summary_metrics,output.base_distribution_by_cycle_metrics,output.insert_size_metrics,output.quality_by_cycle_metrics,output.quality_distribution_metrics,output.gc_bias.detail_metrics,output.gc_bias.summary_metrics,output.rna_metrics,output.quality_yield_metrics,output.pre_adapter_summary_metrics,output.pre_adapter_detail_metrics,output.bait_bias_summary_metrics,output.bait_bias_detail_metrics,output.error_summary_metrics,output.alignment_summary_metrics.txt,output.base_distribution_by_cycle_metrics.txt,output.insert_size_metrics.txt,output.quality_by_cycle_metrics.txt,output.quality_distribution_metrics.txt,output.gc_bias.detail_metrics.txt,output.gc_bias.summary_metrics.txt,output.rna_metrics.txt,output.quality_yield_metrics.txt,output.pre_adapter_summary_metrics.txt,output.pre_adapter_detail_metrics.txt,output.bait_bias_summary_metrics.txt,output.bait_bias_detail_metrics.txt,output.error_summary_metrics.txt"
       },
       {
@@ -606,7 +606,7 @@
         "tool": "BamToBfq",
         "port": "bam-to-bfq",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
@@ -628,7 +628,7 @@
         "tool": "CollectSamErrorMetrics",
         "port": "collect-sam-error-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
@@ -642,7 +642,7 @@
         "tool": "BaitDesigner",
         "port": "bait-designer",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
@@ -668,7 +668,7 @@
         "tool": "UmiAwareMarkDuplicatesWithMateCigar",
         "port": "umi-aware-mark-duplicates-with-mate-cigar",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "output.txt,umi_metrics.txt,umi_metrics_b.txt,metrics.txt,metrics_b.txt"
       },
@@ -718,7 +718,7 @@
         "tool": "CrosscheckFingerprints",
         "port": "crosscheck-fingerprints",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all",
         "exit_code_is_a_result": true
       },
@@ -726,7 +726,7 @@
         "tool": "CrosscheckReadGroupFingerprints",
         "port": "crosscheck-read-group-fingerprints",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all",
         "exit_code_is_a_result": true
       },
@@ -790,7 +790,7 @@
         "tool": "GtcToVcf",
         "port": "gtc-to-vcf",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.vcf",
         "strip_line_prefixes": [
           "##fileDate="
@@ -816,14 +816,14 @@
         "tool": "CollectArraysVariantCallingMetrics",
         "port": "collect-arrays-variant-calling-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CreateExtendedIlluminaManifest",
         "port": "create-extended-illumina-manifest",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all",
         "strip_line_prefixes": [
           "Generated on:"
@@ -833,7 +833,7 @@
         "tool": "CheckIlluminaDirectory",
         "port": "check-illumina-directory",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output": "stderr",
         "exit_code_is_a_result": true
       },
@@ -841,7 +841,7 @@
         "tool": "CollectIlluminaLaneMetrics",
         "port": "collect-illumina-lane-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
@@ -862,21 +862,21 @@
         "tool": "ExtractIlluminaBarcodes",
         "port": "extract-illumina-barcodes",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "IlluminaBasecallsToFastq",
         "port": "illumina-basecalls-to-fastq",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "IlluminaBasecallsToSam",
         "port": "illumina-basecalls-to-sam",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       }
     ]
