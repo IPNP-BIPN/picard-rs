@@ -703,7 +703,7 @@
         "tool": "FilterVcf",
         "port": "filter-vcf",
         "t": 2,
-        "status": "measured",
+        "status": "pending",
         "output_name": "output.vcf"
       },
       {
