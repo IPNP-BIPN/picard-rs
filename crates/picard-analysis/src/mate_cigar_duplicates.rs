@@ -200,12 +200,16 @@ pub fn mark_with_mate_cigar(
     // sets. The two disagree wherever three ends share a position and arrival order is not score
     // order (picard-rs #307).
     let decisions = crate::mate_cigar_iterator::mark_with_queue(records, &base, &skipped);
-    Ok(crate::mark_duplicates::marking_from(
+    let mut marking = crate::mark_duplicates::marking_from(
         records,
         &base,
         &decisions.duplicate,
         &decisions.optical,
-    ))
+    );
+    marking.all_sets = decisions.all_sets;
+    marking.optical_sets = decisions.optical_sets;
+    marking.non_optical_sets = decisions.non_optical_sets;
+    Ok(marking)
 }
 
 /// `SimpleMarkDuplicatesWithMateCigar.doWork`, over records already in memory.
@@ -251,9 +255,11 @@ pub fn simple_mark_with_mate_cigar(
         assume_mate_cigar: true,
         ..options.clone()
     };
-    let duplicate = crate::duplicate_set::mark_duplicate_sets(records, &base);
-    let optical = vec![false; records.len()];
-    Ok(crate::mark_duplicates::marking_from(
-        records, &base, &duplicate, &optical,
-    ))
+    let sets = crate::duplicate_set::mark_duplicate_sets_tracked(records, &base);
+    let mut marking =
+        crate::mark_duplicates::marking_from(records, &base, &sets.duplicate, &sets.optical);
+    marking.all_sets = sets.all_sets;
+    marking.optical_sets = sets.optical_sets;
+    marking.non_optical_sets = sets.non_optical_sets;
+    Ok(marking)
 }

@@ -306,7 +306,7 @@ jobs:
             | tee /tmp/FilterSamReads.log
           python3 tools/coverage/run_array.py --tool MarkDuplicates --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/mark-duplicates --strip-program-records \
+            --port target/release/mark-duplicates --strip-program-records --output-name output.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/MarkDuplicates.log
           python3 tools/coverage/run_array.py --tool FastqToSam --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -314,7 +314,7 @@ jobs:
             | tee /tmp/FastqToSam.log
           python3 tools/coverage/run_array.py --tool SplitSamByNumberOfReads --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/split-sam-by-number-of-reads --output-name shard_0001.bam \
+            --port target/release/split-sam-by-number-of-reads --output-name shard_0001.bam,shard_0002.bam,shard_0003.bam,shard_0004.bam,shard_0005.bam,shard_0001.sam,shard_0002.sam,shard_0003.sam,shard_0004.sam,shard_0005.sam,part_0001.bam,part_0002.bam,part_0003.bam,part_0004.bam,part_0005.bam,part_0001.sam,part_0002.sam,part_0003.sam,part_0004.sam,part_0005.sam \
             | tee /tmp/SplitSamByNumberOfReads.log
           python3 tools/coverage/run_array.py --tool SplitSamByLibrary --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -334,11 +334,11 @@ jobs:
             | tee /tmp/CollectDuplicateMetrics.log
           python3 tools/coverage/run_array.py --tool MarkDuplicatesWithMateCigar --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/mark-duplicates-with-mate-cigar --strip-program-records \
+            --port target/release/mark-duplicates-with-mate-cigar --strip-program-records --output-name output.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/MarkDuplicatesWithMateCigar.log
           python3 tools/coverage/run_array.py --tool SimpleMarkDuplicatesWithMateCigar --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/simple-mark-duplicates-with-mate-cigar --strip-program-records \
+            --port target/release/simple-mark-duplicates-with-mate-cigar --strip-program-records --output-name output.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/SimpleMarkDuplicatesWithMateCigar.log
           python3 tools/coverage/run_array.py --tool CheckDuplicateMarking --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -382,7 +382,7 @@ jobs:
             | tee /tmp/SamToFastqWithTags.log
           python3 tools/coverage/run_array.py --tool FindMendelianViolations --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/find-mendelian-violations \
+            --port target/release/find-mendelian-violations --output-name @all \
             | tee /tmp/FindMendelianViolations.log
           python3 tools/coverage/run_array.py --tool LiftOverIntervalList --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -518,7 +518,7 @@ jobs:
             | tee /tmp/MergePedIntoVcf.log
           python3 tools/coverage/run_array.py --tool BamToBfq --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/bam-to-bfq --output-name FC1.3.0.1.bfq,FC1.3.0.2.bfq,FC1.3.1.1.bfq,FC1.3.1.2.bfq,FC1.3.2.1.bfq,FC1.3.2.2.bfq,FC1.3.3.1.bfq,FC1.3.3.2.bfq,FC1.null.0.1.bfq,FC1.null.0.2.bfq,FC1.null.1.1.bfq,FC1.null.1.2.bfq,FC1.null.2.1.bfq,FC1.null.2.2.bfq,FC1.null.3.1.bfq,FC1.null.3.2.bfq \
+            --port target/release/bam-to-bfq --output-name @all \
             | tee /tmp/BamToBfq.log
           python3 tools/coverage/run_array.py --tool CompareMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -554,7 +554,7 @@ jobs:
             | tee /tmp/FifoBuffer.log
           python3 tools/coverage/run_array.py --tool UmiAwareMarkDuplicatesWithMateCigar --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/umi-aware-mark-duplicates-with-mate-cigar --strip-program-records --output-name output.txt,umi_metrics.txt \
+            --port target/release/umi-aware-mark-duplicates-with-mate-cigar --strip-program-records --output-name output.txt,umi_metrics.txt,umi_metrics_b.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/UmiAwareMarkDuplicatesWithMateCigar.log
           python3 tools/coverage/run_array.py --tool ConvertHaplotypeDatabaseToVcf --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -793,6 +793,7 @@ jobs:
             --pending NormalizeFasta \
             --pending AddOrReplaceReadGroups \
             --pending MergeSamFiles \
+            --pending ReplaceSamHeader \
             --pending ScatterIntervalsByNs \
             --pending ViewSam \
             --pending ReorderSam \
@@ -804,6 +805,7 @@ jobs:
             --pending IntervalListTools \
             --pending PositionBasedDownsampleSam \
             --pending ValidateSamFile \
+            --pending FilterSamReads \
             --pending MarkDuplicates \
             --pending FastqToSam \
             --pending SplitSamByNumberOfReads \
@@ -835,9 +837,15 @@ jobs:
             --pending CollectIndependentReplicateMetrics \
             --pending LiftoverVcf \
             --pending CollectMultipleMetrics \
+            --pending BamToBfq \
+            --pending BaitDesigner \
             --pending UmiAwareMarkDuplicatesWithMateCigar \
             --pending CheckFingerprint \
+            --pending GtcToVcf \
             --pending VcfToAdpc \
+            --pending CollectArraysVariantCallingMetrics \
+            --pending CheckIlluminaDirectory \
+            --pending CollectIlluminaLaneMetrics \
             --pending CollectHiSeqXPfFailMetrics \
             --pending CollectIlluminaBasecallingMetrics \
             --out tools/coverage/measured.json \
@@ -856,7 +864,6 @@ jobs:
             tools/coverage/corpus/SortSam.t2.txt \
             tools/coverage/corpus/CleanSam.t2.txt \
             tools/coverage/corpus/SamFormatConverter.t2.txt \
-            tools/coverage/corpus/ReplaceSamHeader.t2.txt \
             tools/coverage/corpus/CalculateReadGroupChecksum.t2.txt \
             tools/coverage/corpus/NonNFastaSize.t2.txt \
             tools/coverage/corpus/BamIndexStats.t2.txt \
@@ -864,7 +871,6 @@ jobs:
             tools/coverage/corpus/SetNmMdAndUqTags.t2.txt \
             tools/coverage/corpus/RevertSam.t2.txt \
             tools/coverage/corpus/ExtractSequences.t2.txt \
-            tools/coverage/corpus/FilterSamReads.t2.txt \
             tools/coverage/corpus/SplitSamByLibrary.t2.txt \
             tools/coverage/corpus/MakeVcfSampleNameMap.t2.txt \
             tools/coverage/corpus/CheckDuplicateMarking.t2.txt \
@@ -887,12 +893,10 @@ jobs:
             tools/coverage/corpus/CollectOxoGMetrics.t2.txt \
             tools/coverage/corpus/SortGff.t2.txt \
             tools/coverage/corpus/MergePedIntoVcf.t2.txt \
-            tools/coverage/corpus/BamToBfq.t2.txt \
             tools/coverage/corpus/CompareMetrics.t2.txt \
             tools/coverage/corpus/MergeBamAlignment.t2.txt \
             tools/coverage/corpus/CollectSamErrorMetrics.t2.txt \
             tools/coverage/corpus/AccumulateVariantCallingMetrics.t2.txt \
-            tools/coverage/corpus/BaitDesigner.t2.txt \
             tools/coverage/corpus/CollectQualityYieldMetricsFlow.t2.txt \
             tools/coverage/corpus/CollectQualityYieldMetricsSNVQ.t2.txt \
             tools/coverage/corpus/FifoBuffer.t2.txt \
@@ -910,12 +914,8 @@ jobs:
             tools/coverage/corpus/CreateVerifyIDIntensityContaminationMetricsFile.t2.txt \
             tools/coverage/corpus/BpmToNormalizationManifestCsv.t2.txt \
             tools/coverage/corpus/CompareGtcFiles.t2.txt \
-            tools/coverage/corpus/GtcToVcf.t2.txt \
             tools/coverage/corpus/CombineGenotypingArrayVcfs.t2.txt \
-            tools/coverage/corpus/CollectArraysVariantCallingMetrics.t2.txt \
             tools/coverage/corpus/CreateExtendedIlluminaManifest.t2.txt \
-            tools/coverage/corpus/CheckIlluminaDirectory.t2.txt \
-            tools/coverage/corpus/CollectIlluminaLaneMetrics.t2.txt \
             tools/coverage/corpus/ExtractIlluminaBarcodes.t2.txt \
             tools/coverage/corpus/IlluminaBasecallsToFastq.t2.txt \
             tools/coverage/corpus/IlluminaBasecallsToSam.t2.txt)

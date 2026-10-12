@@ -421,7 +421,12 @@ pub fn accumulate(site: &Site, trio: &Trio, options: &Options, metrics: &mut Met
 }
 
 /// Every site of one file, for one trio.
-pub fn collect(sites: &[Site], trio: &Trio, options: &Options) -> (Metrics, Vec<Violation>) {
+/// The violations come with the index of the site each was found at.
+pub fn collect(
+    sites: &[Site],
+    trio: &Trio,
+    options: &Options,
+) -> (Metrics, Vec<(usize, Violation)>) {
     let mut metrics = Metrics {
         family_id: trio.family_id.clone(),
         mother: trio.mother.clone(),
@@ -431,9 +436,9 @@ pub fn collect(sites: &[Site], trio: &Trio, options: &Options) -> (Metrics, Vec<
         ..Metrics::default()
     };
     let mut violations = Vec::new();
-    for site in sites {
+    for (index, site) in sites.iter().enumerate() {
         if let Outcome::Violated(violation) = accumulate(site, trio, options, &mut metrics) {
-            violations.push(violation);
+            violations.push((index, violation));
         }
     }
     metrics.calculate_derived_fields();

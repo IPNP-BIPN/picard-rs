@@ -255,30 +255,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     std::fs::write(&output, writer.finish().map_err(|e| format!("{e:?}"))?)?;
 
-    // The metrics file is written because the tool requires the argument, and its content is not
-    // what this array compares: the OUTPUT is.
+    // `finalizeAndWriteMetrics`, shared with `MarkDuplicates`.
     if let Some(path) = metrics_file {
-        let mut text = String::from("## METRICS CLASS\tpicard.sam.DuplicationMetrics\n");
-        text.push_str(
-            "LIBRARY\tUNPAIRED_READS_EXAMINED\tREAD_PAIRS_EXAMINED\tSECONDARY_OR_SUPPLEMENTARY_RDS\t\
-             UNMAPPED_READS\tUNPAIRED_READ_DUPLICATES\tREAD_PAIR_DUPLICATES\t\
-             READ_PAIR_OPTICAL_DUPLICATES\tPERCENT_DUPLICATION\tESTIMATED_LIBRARY_SIZE\n",
+        let text = picard_analysis::mark_duplicates::duplication_metrics_text(
+            "SimpleMarkDuplicatesWithMateCigar",
+            &marking.metrics,
+            &header
+                .read_groups
+                .iter()
+                .map(|group| {
+                    group
+                        .attributes
+                        .get("LB")
+                        .unwrap_or("Unknown Library")
+                        .to_string()
+                })
+                .collect::<Vec<_>>(),
+            &marking.all_sets,
+            &marking.optical_sets,
+            &marking.non_optical_sets,
         );
-        for m in &marking.metrics {
-            text.push_str(&format!(
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                m.library,
-                m.unpaired_reads_examined,
-                m.read_pairs_examined,
-                m.secondary_or_supplementary,
-                m.unmapped_reads,
-                m.unpaired_read_duplicates,
-                m.read_pair_duplicates,
-                m.read_pair_optical_duplicates,
-                m.percent_duplication,
-                m.estimated_library_size.unwrap_or(0),
-            ));
-        }
         std::fs::write(path, text)?;
     }
     Ok(())

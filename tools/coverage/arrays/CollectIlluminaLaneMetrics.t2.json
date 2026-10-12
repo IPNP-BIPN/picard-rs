@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 20,
-  "arguments_in_array": 6,
-  "arguments_excluded": 14,
+  "arguments_in_array": 7,
+  "arguments_excluded": 13,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -41,13 +41,6 @@
       "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--OUTPUT_DIRECTORY",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/out",
-      "source": "fixture"
     },
     {
       "argument": "--QUIET",
@@ -106,9 +99,9 @@
       "source": "none"
     }
   ],
-  "rows": 12,
-  "tuples_total": 93,
-  "tuples_covered": 93,
+  "rows": 14,
+  "tuples_total": 123,
+  "tuples_covered": 123,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -120,6 +113,7 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--FILE_EXTENSION": "fixture[0]",
+        "--OUTPUT_DIRECTORY": "fixture[0]",
         "--OUTPUT_PREFIX": "fixture[0]",
         "--READ_STRUCTURE": "fixture[0]",
         "--RUN_DIRECTORY": "fixture[0]",
@@ -128,6 +122,7 @@
       "arguments": [
         "--CREATE_INDEX=true",
         "--FILE_EXTENSION=null",
+        "--OUTPUT_DIRECTORY=/work/out",
         "--OUTPUT_PREFIX=run",
         "--READ_STRUCTURE=4T",
         "--RUN_DIRECTORY=/work/fixtures/ill_lanes_a",
@@ -139,6 +134,7 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--FILE_EXTENSION": "fixture[1]",
+        "--OUTPUT_DIRECTORY": "fixture[1]",
         "--OUTPUT_PREFIX": "fixture[1]",
         "--READ_STRUCTURE": "fixture[1]",
         "--RUN_DIRECTORY": "fixture[1]",
@@ -147,6 +143,7 @@
       "arguments": [
         "--CREATE_INDEX=true",
         "--FILE_EXTENSION=.txt",
+        "--OUTPUT_DIRECTORY=/work/out/lanes",
         "--OUTPUT_PREFIX=flowcell17",
         "--READ_STRUCTURE=4T8B4T",
         "--RUN_DIRECTORY=/work/fixtures/ill_lanes_b",
@@ -158,7 +155,8 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--FILE_EXTENSION": "fixture[0]",
-        "--OUTPUT_PREFIX": "fixture[1]",
+        "--OUTPUT_DIRECTORY": "fixture[1]",
+        "--OUTPUT_PREFIX": "fixture[0]",
         "--READ_STRUCTURE": "fixture[2]",
         "--RUN_DIRECTORY": "fixture[2]",
         "--VALIDATION_STRINGENCY": "SILENT"
@@ -166,7 +164,8 @@
       "arguments": [
         "--CREATE_INDEX=false",
         "--FILE_EXTENSION=null",
-        "--OUTPUT_PREFIX=flowcell17",
+        "--OUTPUT_DIRECTORY=/work/out/lanes",
+        "--OUTPUT_PREFIX=run",
         "--READ_STRUCTURE=null",
         "--RUN_DIRECTORY=/work/fixtures/ill_lanes_bare",
         "--VALIDATION_STRINGENCY=SILENT"
@@ -177,45 +176,29 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--FILE_EXTENSION": "fixture[1]",
-        "--OUTPUT_PREFIX": "fixture[0]",
+        "--OUTPUT_DIRECTORY": "fixture[0]",
+        "--OUTPUT_PREFIX": "fixture[1]",
         "--READ_STRUCTURE": "fixture[0]",
-        "--RUN_DIRECTORY": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "SILENT"
-      },
-      "arguments": [
-        "--CREATE_INDEX=false",
-        "--FILE_EXTENSION=.txt",
-        "--OUTPUT_PREFIX=run",
-        "--READ_STRUCTURE=4T",
-        "--RUN_DIRECTORY=/work/fixtures/ill_lanes_b",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 4,
-      "labels": {
-        "--CREATE_INDEX": "true",
-        "--FILE_EXTENSION": "fixture[1]",
-        "--OUTPUT_PREFIX": "fixture[0]",
-        "--READ_STRUCTURE": "fixture[2]",
         "--RUN_DIRECTORY": "fixture[2]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
+        "--CREATE_INDEX=false",
         "--FILE_EXTENSION=.txt",
-        "--OUTPUT_PREFIX=run",
-        "--READ_STRUCTURE=null",
+        "--OUTPUT_DIRECTORY=/work/out",
+        "--OUTPUT_PREFIX=flowcell17",
+        "--READ_STRUCTURE=4T",
         "--RUN_DIRECTORY=/work/fixtures/ill_lanes_bare",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
-      "row": 5,
+      "row": 4,
       "labels": {
         "--CREATE_INDEX": "false",
         "--FILE_EXTENSION": "fixture[0]",
-        "--OUTPUT_PREFIX": "fixture[0]",
+        "--OUTPUT_DIRECTORY": "fixture[0]",
+        "--OUTPUT_PREFIX": "fixture[1]",
         "--READ_STRUCTURE": "fixture[1]",
         "--RUN_DIRECTORY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
@@ -223,29 +206,53 @@
       "arguments": [
         "--CREATE_INDEX=false",
         "--FILE_EXTENSION=null",
-        "--OUTPUT_PREFIX=run",
+        "--OUTPUT_DIRECTORY=/work/out",
+        "--OUTPUT_PREFIX=flowcell17",
         "--READ_STRUCTURE=4T8B4T",
         "--RUN_DIRECTORY=/work/fixtures/ill_lanes_a",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
-      "row": 6,
+      "row": 5,
       "labels": {
-        "--CREATE_INDEX": "false",
+        "--CREATE_INDEX": "true",
         "--FILE_EXTENSION": "fixture[1]",
-        "--OUTPUT_PREFIX": "fixture[1]",
-        "--READ_STRUCTURE": "fixture[0]",
+        "--OUTPUT_DIRECTORY": "fixture[0]",
+        "--OUTPUT_PREFIX": "fixture[0]",
+        "--READ_STRUCTURE": "fixture[1]",
         "--RUN_DIRECTORY": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--CREATE_INDEX=false",
+        "--CREATE_INDEX=true",
         "--FILE_EXTENSION=.txt",
-        "--OUTPUT_PREFIX=flowcell17",
-        "--READ_STRUCTURE=4T",
+        "--OUTPUT_DIRECTORY=/work/out",
+        "--OUTPUT_PREFIX=run",
+        "--READ_STRUCTURE=4T8B4T",
         "--RUN_DIRECTORY=/work/fixtures/ill_lanes_a",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILE_EXTENSION": "fixture[1]",
+        "--OUTPUT_DIRECTORY": "fixture[0]",
+        "--OUTPUT_PREFIX": "fixture[1]",
+        "--READ_STRUCTURE": "fixture[2]",
+        "--RUN_DIRECTORY": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILE_EXTENSION=.txt",
+        "--OUTPUT_DIRECTORY=/work/out",
+        "--OUTPUT_PREFIX=flowcell17",
+        "--READ_STRUCTURE=null",
+        "--RUN_DIRECTORY=/work/fixtures/ill_lanes_b",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -253,17 +260,19 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--FILE_EXTENSION": "fixture[0]",
+        "--OUTPUT_DIRECTORY": "fixture[1]",
         "--OUTPUT_PREFIX": "fixture[0]",
-        "--READ_STRUCTURE": "fixture[2]",
-        "--RUN_DIRECTORY": "fixture[1]",
+        "--READ_STRUCTURE": "fixture[0]",
+        "--RUN_DIRECTORY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--FILE_EXTENSION=null",
+        "--OUTPUT_DIRECTORY=/work/out/lanes",
         "--OUTPUT_PREFIX=run",
-        "--READ_STRUCTURE=null",
-        "--RUN_DIRECTORY=/work/fixtures/ill_lanes_b",
+        "--READ_STRUCTURE=4T",
+        "--RUN_DIRECTORY=/work/fixtures/ill_lanes_a",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -272,25 +281,7 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--FILE_EXTENSION": "fixture[0]",
-        "--OUTPUT_PREFIX": "fixture[0]",
-        "--READ_STRUCTURE": "fixture[0]",
-        "--RUN_DIRECTORY": "fixture[2]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
-      },
-      "arguments": [
-        "--CREATE_INDEX=true",
-        "--FILE_EXTENSION=null",
-        "--OUTPUT_PREFIX=run",
-        "--READ_STRUCTURE=4T",
-        "--RUN_DIRECTORY=/work/fixtures/ill_lanes_bare",
-        "--VALIDATION_STRINGENCY=LENIENT"
-      ]
-    },
-    {
-      "row": 9,
-      "labels": {
-        "--CREATE_INDEX": "true",
-        "--FILE_EXTENSION": "fixture[0]",
+        "--OUTPUT_DIRECTORY": "fixture[0]",
         "--OUTPUT_PREFIX": "fixture[0]",
         "--READ_STRUCTURE": "fixture[1]",
         "--RUN_DIRECTORY": "fixture[2]",
@@ -299,6 +290,7 @@
       "arguments": [
         "--CREATE_INDEX=true",
         "--FILE_EXTENSION=null",
+        "--OUTPUT_DIRECTORY=/work/out",
         "--OUTPUT_PREFIX=run",
         "--READ_STRUCTURE=4T8B4T",
         "--RUN_DIRECTORY=/work/fixtures/ill_lanes_bare",
@@ -306,22 +298,45 @@
       ]
     },
     {
+      "row": 9,
+      "labels": {
+        "--CREATE_INDEX": "false",
+        "--FILE_EXTENSION": "fixture[0]",
+        "--OUTPUT_DIRECTORY": "fixture[0]",
+        "--OUTPUT_PREFIX": "fixture[0]",
+        "--READ_STRUCTURE": "fixture[0]",
+        "--RUN_DIRECTORY": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=false",
+        "--FILE_EXTENSION=null",
+        "--OUTPUT_DIRECTORY=/work/out",
+        "--OUTPUT_PREFIX=run",
+        "--READ_STRUCTURE=4T",
+        "--RUN_DIRECTORY=/work/fixtures/ill_lanes_b",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
       "row": 10,
       "labels": {
         "--CREATE_INDEX": "true",
         "--FILE_EXTENSION": "fixture[0]",
+        "--OUTPUT_DIRECTORY": "fixture[0]",
         "--OUTPUT_PREFIX": "fixture[0]",
         "--READ_STRUCTURE": "fixture[2]",
         "--RUN_DIRECTORY": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--FILE_EXTENSION=null",
+        "--OUTPUT_DIRECTORY=/work/out",
         "--OUTPUT_PREFIX=run",
         "--READ_STRUCTURE=null",
         "--RUN_DIRECTORY=/work/fixtures/ill_lanes_a",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -329,18 +344,62 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--FILE_EXTENSION": "fixture[0]",
+        "--OUTPUT_DIRECTORY": "fixture[0]",
         "--OUTPUT_PREFIX": "fixture[0]",
-        "--READ_STRUCTURE": "fixture[1]",
+        "--READ_STRUCTURE": "fixture[0]",
         "--RUN_DIRECTORY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--FILE_EXTENSION=null",
+        "--OUTPUT_DIRECTORY=/work/out",
         "--OUTPUT_PREFIX=run",
-        "--READ_STRUCTURE=4T8B4T",
+        "--READ_STRUCTURE=4T",
         "--RUN_DIRECTORY=/work/fixtures/ill_lanes_a",
         "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILE_EXTENSION": "fixture[0]",
+        "--OUTPUT_DIRECTORY": "fixture[0]",
+        "--OUTPUT_PREFIX": "fixture[0]",
+        "--READ_STRUCTURE": "fixture[2]",
+        "--RUN_DIRECTORY": "fixture[2]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILE_EXTENSION=null",
+        "--OUTPUT_DIRECTORY=/work/out",
+        "--OUTPUT_PREFIX=run",
+        "--READ_STRUCTURE=null",
+        "--RUN_DIRECTORY=/work/fixtures/ill_lanes_bare",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 13,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILE_EXTENSION": "fixture[0]",
+        "--OUTPUT_DIRECTORY": "fixture[0]",
+        "--OUTPUT_PREFIX": "fixture[0]",
+        "--READ_STRUCTURE": "fixture[0]",
+        "--RUN_DIRECTORY": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILE_EXTENSION=null",
+        "--OUTPUT_DIRECTORY=/work/out",
+        "--OUTPUT_PREFIX=run",
+        "--READ_STRUCTURE=4T",
+        "--RUN_DIRECTORY=/work/fixtures/ill_lanes_b",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     }
   ]

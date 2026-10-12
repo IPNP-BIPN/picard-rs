@@ -802,6 +802,20 @@ public class MakeFixtures {
             out.print("fam1\tfather\t0\t0\t1\t1\n");
             out.print("fam1\tmother\t0\t0\t2\t1\n");
         }
+        // The same trio with a daughter, under a family id with a space in it: a female child
+        // takes the sex-chromosome rules the other way round, and the id names the violation VCF
+        // through IOUtil.makeFileNameSafe.
+        // Alternative contig names for CreateSequenceDictionary's ALT_NAMES: two for chr1 (a set,
+        // so the AN attribute lists them in hash order), one for chr2, a blank line and a name
+        // that is its own alias, both of which the reader skips.
+        try (PrintWriter out = new PrintWriter(new File(dir, "alt_names.txt"), "UTF-8")) {
+            out.print("chr1\t1\nchr1\tCHR_ONE\n\nchr2\tchr2_alt\nchr1\tchr1\n");
+        }
+        try (PrintWriter out = new PrintWriter(new File(dir, "trio_daughter.ped"), "UTF-8")) {
+            out.print("fam two\tchild\tfather\tmother\t2\t2\n");
+            out.print("fam two\tfather\t0\t0\t1\t1\n");
+            out.print("fam two\tmother\t0\t0\t2\t1\n");
+        }
 
         // A UCSC chain, for the tools that lift coordinates from one build to another. It maps the
         // first thousand bases of chr1 five hundred bases to the right and the first five hundred
@@ -987,6 +1001,12 @@ public class MakeFixtures {
             out.print("GENE_C\ttxC1\tchr1\t+\t1250\t1500\t1500\t1500\t1\t1250,\t1500,\n");
             out.print("GENE_D\ttxD1\tchr2\t-\t100\t900\t150\t850\t2\t100,400,\t300,900,\n");
             out.print("GENE_E\ttxE1\tchr9\t+\t0\t100\t0\t100\t1\t0,\t100,\n");
+        }
+        // A second annotation for REF_FLAT to choose: one long gene per contig, the chr1 one on
+        // the minus strand, so the coding, intronic and strand counts all move.
+        try (PrintWriter out = new PrintWriter(new File(dir, "refflat_long.txt"), "UTF-8")) {
+            out.print("GENE_L\ttxL1\tchr1\t-\t10\t1990\t100\t1900\t2\t10,1000,\t800,1990,\n");
+            out.print("GENE_M\ttxM1\tchr2\t+\t20\t980\t50\t950\t1\t20,\t980,\n");
         }
 
         // Duplicate sets over heterozygous sites, for `CollectIndependentReplicateMetrics`; see

@@ -18,7 +18,6 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/SortSam.t2.txt
 !tools/coverage/corpus/CleanSam.t2.txt
 !tools/coverage/corpus/SamFormatConverter.t2.txt
-!tools/coverage/corpus/ReplaceSamHeader.t2.txt
 !tools/coverage/corpus/CalculateReadGroupChecksum.t2.txt
 !tools/coverage/corpus/NonNFastaSize.t2.txt
 !tools/coverage/corpus/BamIndexStats.t2.txt
@@ -26,7 +25,6 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/SetNmMdAndUqTags.t2.txt
 !tools/coverage/corpus/RevertSam.t2.txt
 !tools/coverage/corpus/ExtractSequences.t2.txt
-!tools/coverage/corpus/FilterSamReads.t2.txt
 !tools/coverage/corpus/SplitSamByLibrary.t2.txt
 !tools/coverage/corpus/MakeVcfSampleNameMap.t2.txt
 !tools/coverage/corpus/CheckDuplicateMarking.t2.txt
@@ -49,12 +47,10 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/CollectOxoGMetrics.t2.txt
 !tools/coverage/corpus/SortGff.t2.txt
 !tools/coverage/corpus/MergePedIntoVcf.t2.txt
-!tools/coverage/corpus/BamToBfq.t2.txt
 !tools/coverage/corpus/CompareMetrics.t2.txt
 !tools/coverage/corpus/MergeBamAlignment.t2.txt
 !tools/coverage/corpus/CollectSamErrorMetrics.t2.txt
 !tools/coverage/corpus/AccumulateVariantCallingMetrics.t2.txt
-!tools/coverage/corpus/BaitDesigner.t2.txt
 !tools/coverage/corpus/CollectQualityYieldMetricsFlow.t2.txt
 !tools/coverage/corpus/CollectQualityYieldMetricsSNVQ.t2.txt
 !tools/coverage/corpus/FifoBuffer.t2.txt
@@ -72,12 +68,8 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/CreateVerifyIDIntensityContaminationMetricsFile.t2.txt
 !tools/coverage/corpus/BpmToNormalizationManifestCsv.t2.txt
 !tools/coverage/corpus/CompareGtcFiles.t2.txt
-!tools/coverage/corpus/GtcToVcf.t2.txt
 !tools/coverage/corpus/CombineGenotypingArrayVcfs.t2.txt
-!tools/coverage/corpus/CollectArraysVariantCallingMetrics.t2.txt
 !tools/coverage/corpus/CreateExtendedIlluminaManifest.t2.txt
-!tools/coverage/corpus/CheckIlluminaDirectory.t2.txt
-!tools/coverage/corpus/CollectIlluminaLaneMetrics.t2.txt
 !tools/coverage/corpus/ExtractIlluminaBarcodes.t2.txt
 !tools/coverage/corpus/IlluminaBasecallsToFastq.t2.txt
 !tools/coverage/corpus/IlluminaBasecallsToSam.t2.txt

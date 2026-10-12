@@ -187,10 +187,62 @@ impl SortedEnds {
     }
 }
 
+/// `PhysicalLocationForMateCigarSet`: the ends tracked for optical duplicates at one position,
+/// at most one per physical location. Two ends whose read names did not parse share the location
+/// `(-1, -1, -1)`, so only the first of them is kept.
+#[derive(Default)]
+struct LocationSet {
+    ends: Vec<End>,
+    locations: Vec<(i32, i32, i16, i32, i32)>,
+}
+
+impl LocationSet {
+    fn location(end: &End) -> (i32, i32, i16, i32, i32) {
+        let (tile, x, y) = if end.location.known {
+            (end.location.tile, end.location.x, end.location.y)
+        } else {
+            (-1, -1, -1)
+        };
+        (end.library_id, end.read_group, tile, y, x)
+    }
+
+    fn add(&mut self, end: &End) {
+        let location = Self::location(end);
+        if !self.locations.contains(&location) {
+            self.ends.push(end.clone());
+            self.locations.push(location);
+        }
+    }
+
+    /// The location goes whether or not this very end was the one kept for it.
+    fn remove(&mut self, end: &End) {
+        let location = Self::location(end);
+        if self.locations.contains(&location) {
+            self.ends.retain(|entry| entry.index != end.index);
+            self.locations.retain(|other| *other != location);
+        }
+    }
+}
+
 /// What one pass decided: the duplicate flag and the optical flag of every record.
 pub struct Decisions {
     pub duplicate: Vec<bool>,
     pub optical: Vec<bool>,
+    /// `trackDuplicateCounts`: the set-size histograms, as `(size, count)` bins.
+    pub all_sets: Vec<(f64, f64)>,
+    pub optical_sets: Vec<(f64, f64)>,
+    pub non_optical_sets: Vec<(f64, f64)>,
+}
+
+/// The all, optical and non-optical set-size histograms, in that order.
+type SetHistograms = (Vec<(f64, f64)>, Vec<(f64, f64)>, Vec<(f64, f64)>);
+
+/// `Histogram.increment(key)`.
+fn increment(bins: &mut Vec<(f64, f64)>, key: f64) {
+    match bins.iter_mut().find(|bin| bin.0 == key) {
+        Some(bin) => bin.1 += 1.0,
+        None => bins.push((key, 1.0)),
+    }
 }
 
 /// The whole of `MarkDuplicatesWithMateCigar`'s marking, over a coordinate-sorted file.
@@ -200,6 +252,7 @@ pub struct Decisions {
 pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize]) -> Decisions {
     let mut duplicate = vec![false; records.len()];
     let mut optical = vec![false; records.len()];
+    let mut histograms: SetHistograms = Default::default();
 
     // `LibraryIdGenerator`: an id per library, in the order the libraries are first seen.
     let mut libraries: Vec<String> = Vec::new();
@@ -220,7 +273,7 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
     let mut non_duplicate = SortedEnds::new();
     let mut other_end = SortedEnds::new();
     // Every location set ever made, so that an end can point at one by index.
-    let mut location_sets: Vec<Vec<End>> = Vec::new();
+    let mut location_sets: Vec<LocationSet> = Vec::new();
     let mut minimum_distance: i32 = -1;
     let mut reference_index: i32 = -1;
 
@@ -254,8 +307,8 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
             &mut location_sets,
             &mut duplicate,
             &mut optical,
+            &mut histograms,
             options,
-            records,
             false,
             Some(&current),
             minimum_distance,
@@ -280,15 +333,22 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
         &mut location_sets,
         &mut duplicate,
         &mut optical,
+        &mut histograms,
         options,
-        records,
         true,
         None,
         minimum_distance,
         reference_index,
     );
 
-    Decisions { duplicate, optical }
+    let (all_sets, optical_sets, non_optical_sets) = histograms;
+    Decisions {
+        duplicate,
+        optical,
+        all_sets,
+        optical_sets,
+        non_optical_sets,
+    }
 }
 
 /// `new ReadEndsForMateCigar(...)`.
@@ -380,7 +440,7 @@ fn should_be_in_locations(end: &End) -> bool {
 fn add(
     non_duplicate: &mut SortedEnds,
     other_end: &mut SortedEnds,
-    location_sets: &mut Vec<Vec<End>>,
+    location_sets: &mut Vec<LocationSet>,
     duplicate: &mut [bool],
     better: &dyn Fn(&End, &End) -> Ordering,
     mut other: End,
@@ -402,8 +462,8 @@ fn add(
                     if let Some(set) = current.location_set {
                         // `replace`: the set stays, its identifier changes.
                         if let Some(entries) = location_sets.get_mut(set) {
-                            entries.retain(|entry| entry.index != current.index);
-                            entries.push(other.clone());
+                            entries.remove(&current);
+                            entries.add(&other);
                         }
                         location_set = Some(set);
                         other.location_set = Some(set);
@@ -422,11 +482,11 @@ fn add(
             let set = if should_be_in_locations(&current) {
                 current.location_set
             } else {
-                location_sets.push(Vec::new());
+                location_sets.push(LocationSet::default());
                 Some(location_sets.len() - 1)
             };
             let set = set.unwrap_or_else(|| {
-                location_sets.push(Vec::new());
+                location_sets.push(LocationSet::default());
                 location_sets.len() - 1
             });
             other.location_set = Some(set);
@@ -450,7 +510,7 @@ fn add(
     } else {
         // The first end at this position.
         if should_be_in_locations(&other) {
-            location_sets.push(Vec::new());
+            location_sets.push(LocationSet::default());
             let set = location_sets.len() - 1;
             other.location_set = Some(set);
             location_set = Some(set);
@@ -460,7 +520,7 @@ fn add(
 
     if other.paired && other.has_unmapped == 0 && add_to_location_set {
         if let Some(set) = location_set {
-            location_sets[set].push(other.clone());
+            location_sets[set].add(&other);
         }
     }
 
@@ -476,11 +536,11 @@ fn add(
 fn drain(
     non_duplicate: &mut SortedEnds,
     other_end: &mut SortedEnds,
-    location_sets: &mut [Vec<End>],
+    location_sets: &mut [LocationSet],
     duplicate: &mut [bool],
     optical: &mut [bool],
+    histograms: &mut SetHistograms,
     options: &Options,
-    records: &[Record],
     flush: bool,
     current: Option<&End>,
     minimum_distance: i32,
@@ -524,11 +584,25 @@ fn drain(
         }
 
         // `trackOpticalDuplicates` over this end's location set, for the first end of each pair.
-        if should_be_in_locations(&polled) && polled.first_of_pair && options.parse_read_names {
+        // It runs whatever READ_NAME_REGEX says: without one no end is optical, but the set is
+        // still counted.
+        if should_be_in_locations(&polled) && polled.first_of_pair {
             if let Some(set) = polled.location_set {
-                let entries = &location_sets[set];
+                let entries = &location_sets[set].ends;
                 if !entries.is_empty() {
-                    track_optical(entries, options, records, optical);
+                    let optical_count = if options.parse_read_names {
+                        track_optical(entries, options, optical)
+                    } else {
+                        0
+                    };
+                    let size = entries.len();
+                    increment(&mut histograms.0, size as f64);
+                    if size > optical_count {
+                        increment(&mut histograms.2, (size - optical_count) as f64);
+                    }
+                    if optical_count > 0 {
+                        increment(&mut histograms.1, optical_count as f64 + 1.0);
+                    }
                 }
             }
         }
@@ -537,15 +611,17 @@ fn drain(
 
 /// `AbstractMarkDuplicatesCommandLineProgram.trackOpticalDuplicates` over one location set: the
 /// ends within the pixel distance of the best-scoring one are optical duplicates of it.
-fn track_optical(entries: &[End], options: &Options, records: &[Record], optical: &mut [bool]) {
+/// It answers how many ends it found optical.
+fn track_optical(entries: &[End], options: &Options, optical: &mut [bool]) -> usize {
     // `findOpticalDuplicates` returns nothing for a set longer than MAX_OPTICAL_DUPLICATE_SET_SIZE.
     if entries.len() as i64 > options.max_optical_duplicate_set_size {
-        return;
+        return 0;
     }
     let known: Vec<&End> = entries.iter().filter(|end| end.location.known).collect();
     if known.len() < 2 {
-        return;
+        return 0;
     }
+    let mut count = 0;
     // The keeper is the highest score, first one winning, as `MarkDuplicates` picks it.
     let mut keeper = 0;
     for (position, end) in known.iter().enumerate() {
@@ -564,7 +640,8 @@ fn track_optical(entries: &[End], options: &Options, records: &[Record], optical
             && (end.location.y - other.location.y).abs() <= options.optical_duplicate_pixel_distance
         {
             optical[end.index] = true;
-            let _ = records;
+            count += 1;
         }
     }
+    count
 }

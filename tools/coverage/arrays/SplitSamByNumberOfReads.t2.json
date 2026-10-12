@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 21,
-  "arguments_in_array": 5,
-  "arguments_excluded": 16,
+  "arguments_in_array": 7,
+  "arguments_excluded": 14,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -43,13 +43,6 @@
       "source": "none"
     },
     {
-      "argument": "--OUT_PREFIX",
-      "type": "String",
-      "reason": "only one value available (default)",
-      "held_at": "shard",
-      "source": "default"
-    },
-    {
       "argument": "--OUTPUT",
       "type": "File",
       "reason": "only one value available (fixture[0])",
@@ -74,13 +67,6 @@
       "argument": "--showHidden",
       "type": "boolean",
       "reason": "excluded by the repository: changes the usage text only",
-      "held_at": null,
-      "source": "none"
-    },
-    {
-      "argument": "--SPLIT_TO_N_FILES",
-      "type": "int",
-      "reason": "excluded by the repository: no value is declared for this tool",
       "held_at": null,
       "source": "none"
     },
@@ -120,10 +106,10 @@
       "source": "none"
     }
   ],
-  "rows": 11,
-  "tuples_total": 57,
-  "tuples_covered": 57,
-  "tuples_forbidden": 0,
+  "rows": 13,
+  "tuples_total": 121,
+  "tuples_covered": 121,
+  "tuples_forbidden": 2,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
   ],
@@ -134,6 +120,8 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
+        "--OUT_PREFIX": "fixture[0]",
+        "--SPLIT_TO_N_FILES": "fixture[0]",
         "--SPLIT_TO_N_READS": "fixture[0]",
         "--TOTAL_READS_IN_INPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
@@ -141,6 +129,8 @@
       "arguments": [
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
+        "--OUT_PREFIX=shard",
+        "--SPLIT_TO_N_FILES=<absent>",
         "--SPLIT_TO_N_READS=100",
         "--TOTAL_READS_IN_INPUT=0",
         "--VALIDATION_STRINGENCY=STRICT"
@@ -151,14 +141,18 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
-        "--SPLIT_TO_N_READS": "fixture[1]",
+        "--OUT_PREFIX": "fixture[1]",
+        "--SPLIT_TO_N_FILES": "fixture[1]",
+        "--SPLIT_TO_N_READS": "fixture[2]",
         "--TOTAL_READS_IN_INPUT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.sam",
-        "--SPLIT_TO_N_READS=300",
+        "--OUT_PREFIX=part",
+        "--SPLIT_TO_N_FILES=3",
+        "--SPLIT_TO_N_READS=<absent>",
         "--TOTAL_READS_IN_INPUT=400",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -168,15 +162,19 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[2]",
-        "--SPLIT_TO_N_READS": "fixture[0]",
-        "--TOTAL_READS_IN_INPUT": "fixture[1]",
+        "--OUT_PREFIX": "fixture[0]",
+        "--SPLIT_TO_N_FILES": "fixture[1]",
+        "--SPLIT_TO_N_READS": "fixture[2]",
+        "--TOTAL_READS_IN_INPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/queryname.bam",
-        "--SPLIT_TO_N_READS=100",
-        "--TOTAL_READS_IN_INPUT=400",
+        "--OUT_PREFIX=shard",
+        "--SPLIT_TO_N_FILES=3",
+        "--SPLIT_TO_N_READS=<absent>",
+        "--TOTAL_READS_IN_INPUT=0",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -185,15 +183,19 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
+        "--OUT_PREFIX": "fixture[1]",
+        "--SPLIT_TO_N_FILES": "fixture[0]",
         "--SPLIT_TO_N_READS": "fixture[1]",
-        "--TOTAL_READS_IN_INPUT": "fixture[0]",
+        "--TOTAL_READS_IN_INPUT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.bam",
+        "--OUT_PREFIX=part",
+        "--SPLIT_TO_N_FILES=<absent>",
         "--SPLIT_TO_N_READS=300",
-        "--TOTAL_READS_IN_INPUT=0",
+        "--TOTAL_READS_IN_INPUT=400",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -202,6 +204,8 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[1]",
+        "--OUT_PREFIX": "fixture[0]",
+        "--SPLIT_TO_N_FILES": "fixture[0]",
         "--SPLIT_TO_N_READS": "fixture[0]",
         "--TOTAL_READS_IN_INPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
@@ -209,6 +213,8 @@
       "arguments": [
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.sam",
+        "--OUT_PREFIX=shard",
+        "--SPLIT_TO_N_FILES=<absent>",
         "--SPLIT_TO_N_READS=100",
         "--TOTAL_READS_IN_INPUT=0",
         "--VALIDATION_STRINGENCY=LENIENT"
@@ -219,15 +225,19 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[2]",
-        "--SPLIT_TO_N_READS": "fixture[1]",
-        "--TOTAL_READS_IN_INPUT": "fixture[0]",
+        "--OUT_PREFIX": "fixture[1]",
+        "--SPLIT_TO_N_FILES": "fixture[0]",
+        "--SPLIT_TO_N_READS": "fixture[0]",
+        "--TOTAL_READS_IN_INPUT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/queryname.bam",
-        "--SPLIT_TO_N_READS=300",
-        "--TOTAL_READS_IN_INPUT=0",
+        "--OUT_PREFIX=part",
+        "--SPLIT_TO_N_FILES=<absent>",
+        "--SPLIT_TO_N_READS=100",
+        "--TOTAL_READS_IN_INPUT=400",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -236,15 +246,19 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
-        "--SPLIT_TO_N_READS": "fixture[0]",
-        "--TOTAL_READS_IN_INPUT": "fixture[1]",
+        "--OUT_PREFIX": "fixture[1]",
+        "--SPLIT_TO_N_FILES": "fixture[1]",
+        "--SPLIT_TO_N_READS": "fixture[2]",
+        "--TOTAL_READS_IN_INPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.bam",
-        "--SPLIT_TO_N_READS=100",
-        "--TOTAL_READS_IN_INPUT=400",
+        "--OUT_PREFIX=part",
+        "--SPLIT_TO_N_FILES=3",
+        "--SPLIT_TO_N_READS=<absent>",
+        "--TOTAL_READS_IN_INPUT=0",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -252,7 +266,93 @@
       "row": 7,
       "labels": {
         "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
+        "--OUT_PREFIX": "fixture[0]",
+        "--SPLIT_TO_N_FILES": "fixture[0]",
+        "--SPLIT_TO_N_READS": "fixture[1]",
+        "--TOTAL_READS_IN_INPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--OUT_PREFIX=shard",
+        "--SPLIT_TO_N_FILES=<absent>",
+        "--SPLIT_TO_N_READS=300",
+        "--TOTAL_READS_IN_INPUT=0",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[2]",
+        "--OUT_PREFIX": "fixture[0]",
+        "--SPLIT_TO_N_FILES": "fixture[0]",
+        "--SPLIT_TO_N_READS": "fixture[1]",
+        "--TOTAL_READS_IN_INPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--OUT_PREFIX=shard",
+        "--SPLIT_TO_N_FILES=<absent>",
+        "--SPLIT_TO_N_READS=300",
+        "--TOTAL_READS_IN_INPUT=0",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
+        "--OUT_PREFIX": "fixture[0]",
+        "--SPLIT_TO_N_FILES": "fixture[0]",
+        "--SPLIT_TO_N_READS": "fixture[2]",
+        "--TOTAL_READS_IN_INPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--OUT_PREFIX=shard",
+        "--SPLIT_TO_N_FILES=<absent>",
+        "--SPLIT_TO_N_READS=<absent>",
+        "--TOTAL_READS_IN_INPUT=0",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--OUT_PREFIX": "fixture[0]",
+        "--SPLIT_TO_N_FILES": "fixture[0]",
+        "--SPLIT_TO_N_READS": "fixture[0]",
+        "--TOTAL_READS_IN_INPUT": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--OUT_PREFIX=shard",
+        "--SPLIT_TO_N_FILES=<absent>",
+        "--SPLIT_TO_N_READS=100",
+        "--TOTAL_READS_IN_INPUT=400",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 11,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--OUT_PREFIX": "fixture[0]",
+        "--SPLIT_TO_N_FILES": "fixture[0]",
         "--SPLIT_TO_N_READS": "fixture[0]",
         "--TOTAL_READS_IN_INPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
@@ -260,33 +360,20 @@
       "arguments": [
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
+        "--OUT_PREFIX=shard",
+        "--SPLIT_TO_N_FILES=<absent>",
         "--SPLIT_TO_N_READS=100",
         "--TOTAL_READS_IN_INPUT=0",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
-      "row": 8,
+      "row": 12,
       "labels": {
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
-        "--SPLIT_TO_N_READS": "fixture[0]",
-        "--TOTAL_READS_IN_INPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
-      },
-      "arguments": [
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.sam",
-        "--SPLIT_TO_N_READS=100",
-        "--TOTAL_READS_IN_INPUT=0",
-        "--VALIDATION_STRINGENCY=STRICT"
-      ]
-    },
-    {
-      "row": 9,
-      "labels": {
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
+        "--OUT_PREFIX": "fixture[0]",
+        "--SPLIT_TO_N_FILES": "fixture[0]",
         "--SPLIT_TO_N_READS": "fixture[0]",
         "--TOTAL_READS_IN_INPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
@@ -294,26 +381,11 @@
       "arguments": [
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.sam",
+        "--OUT_PREFIX=shard",
+        "--SPLIT_TO_N_FILES=<absent>",
         "--SPLIT_TO_N_READS=100",
         "--TOTAL_READS_IN_INPUT=0",
         "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 10,
-      "labels": {
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
-        "--SPLIT_TO_N_READS": "fixture[0]",
-        "--TOTAL_READS_IN_INPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
-      },
-      "arguments": [
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/queryname.bam",
-        "--SPLIT_TO_N_READS=100",
-        "--TOTAL_READS_IN_INPUT=0",
-        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     }
   ]

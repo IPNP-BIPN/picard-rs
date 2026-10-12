@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 28,
-  "arguments_in_array": 7,
-  "arguments_excluded": 21,
+  "arguments_in_array": 13,
+  "arguments_excluded": 15,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -29,13 +29,6 @@
       "source": "none"
     },
     {
-      "argument": "--FEMALE_CHROMS",
-      "type": "Set[String]",
-      "reason": "unmodelled type Set[String]",
-      "held_at": null,
-      "source": "none"
-    },
-    {
       "argument": "--help",
       "type": "boolean",
       "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
@@ -50,13 +43,6 @@
       "source": "fixture"
     },
     {
-      "argument": "--MALE_CHROMS",
-      "type": "Set[String]",
-      "reason": "unmodelled type Set[String]",
-      "held_at": null,
-      "source": "none"
-    },
-    {
       "argument": "--MAX_RECORDS_IN_RAM",
       "type": "Integer",
       "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
@@ -69,13 +55,6 @@
       "reason": "only one value available (fixture[0])",
       "held_at": "/work/out/output.txt",
       "source": "fixture"
-    },
-    {
-      "argument": "--PSEUDO_AUTOSOMAL_REGIONS",
-      "type": "Set[String]",
-      "reason": "unmodelled type Set[String]",
-      "held_at": null,
-      "source": "none"
     },
     {
       "argument": "--QUIET",
@@ -99,24 +78,10 @@
       "source": "none"
     },
     {
-      "argument": "--SKIP_CHROMS",
-      "type": "Set[String]",
-      "reason": "unmodelled type Set[String]",
-      "held_at": null,
-      "source": "none"
-    },
-    {
       "argument": "--TMP_DIR",
       "type": "List[File]",
       "reason": "only one value available (fixture[0])",
       "held_at": "/work/tmp",
-      "source": "fixture"
-    },
-    {
-      "argument": "--TRIOS",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/trio.ped",
       "source": "fixture"
     },
     {
@@ -130,13 +95,6 @@
       "argument": "--USE_JDK_INFLATER",
       "type": "Boolean",
       "reason": "excluded by the repository: pinned true by the oracle contract, same reason",
-      "held_at": null,
-      "source": "none"
-    },
-    {
-      "argument": "--VCF_DIR",
-      "type": "File",
-      "reason": "File needs a fixture; declare one in the repository's fixtures file",
       "held_at": null,
       "source": "none"
     },
@@ -155,9 +113,9 @@
       "source": "none"
     }
   ],
-  "rows": 10,
-  "tuples_total": 96,
-  "tuples_covered": 96,
+  "rows": 13,
+  "tuples_total": 336,
+  "tuples_covered": 336,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -168,210 +126,429 @@
       "row": 0,
       "labels": {
         "--CREATE_INDEX": "true",
+        "--FEMALE_CHROMS": "fixture[0]",
+        "--MALE_CHROMS": "fixture[0]",
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_HET_FRACTION": "fixture[0]",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[0]",
+        "--SKIP_CHROMS": "fixture[0]",
         "--TAB_MODE": "true",
         "--THREAD_COUNT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--TRIOS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--VCF_DIR": "fixture[0]"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--FEMALE_CHROMS=<absent>",
+        "--MALE_CHROMS=<absent>",
         "--MIN_DP=0",
         "--MIN_GQ=30",
         "--MIN_HET_FRACTION=0.3",
+        "--PSEUDO_AUTOSOMAL_REGIONS=<absent>",
+        "--SKIP_CHROMS=<absent>",
         "--TAB_MODE=true",
         "--THREAD_COUNT=1",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--TRIOS=/work/fixtures/trio.ped",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--VCF_DIR=<absent>"
       ]
     },
     {
       "row": 1,
       "labels": {
         "--CREATE_INDEX": "true",
+        "--FEMALE_CHROMS": "fixture[1]",
+        "--MALE_CHROMS": "fixture[1]",
         "--MIN_DP": "fixture[1]",
         "--MIN_GQ": "fixture[1]",
         "--MIN_HET_FRACTION": "fixture[1]",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[1]",
+        "--SKIP_CHROMS": "fixture[1]",
         "--TAB_MODE": "false",
         "--THREAD_COUNT": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--TRIOS": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--VCF_DIR": "fixture[1]"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--FEMALE_CHROMS=null chr1",
+        "--MALE_CHROMS=null chr1",
         "--MIN_DP=10",
         "--MIN_GQ=10",
         "--MIN_HET_FRACTION=0.0",
+        "--PSEUDO_AUTOSOMAL_REGIONS=null chr1:1-500",
+        "--SKIP_CHROMS=null chr2",
         "--TAB_MODE=false",
         "--THREAD_COUNT=2",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--TRIOS=/work/fixtures/trio_daughter.ped",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--VCF_DIR=/work/out"
       ]
     },
     {
       "row": 2,
       "labels": {
         "--CREATE_INDEX": "false",
+        "--FEMALE_CHROMS": "fixture[0]",
+        "--MALE_CHROMS": "fixture[1]",
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[1]",
         "--MIN_HET_FRACTION": "fixture[0]",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[1]",
+        "--SKIP_CHROMS": "fixture[0]",
         "--TAB_MODE": "false",
         "--THREAD_COUNT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--TRIOS": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--VCF_DIR": "fixture[0]"
       },
       "arguments": [
         "--CREATE_INDEX=false",
+        "--FEMALE_CHROMS=<absent>",
+        "--MALE_CHROMS=null chr1",
         "--MIN_DP=0",
         "--MIN_GQ=10",
         "--MIN_HET_FRACTION=0.3",
+        "--PSEUDO_AUTOSOMAL_REGIONS=null chr1:1-500",
+        "--SKIP_CHROMS=<absent>",
         "--TAB_MODE=false",
         "--THREAD_COUNT=1",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--TRIOS=/work/fixtures/trio_daughter.ped",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--VCF_DIR=<absent>"
       ]
     },
     {
       "row": 3,
       "labels": {
         "--CREATE_INDEX": "false",
+        "--FEMALE_CHROMS": "fixture[1]",
+        "--MALE_CHROMS": "fixture[0]",
         "--MIN_DP": "fixture[1]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_HET_FRACTION": "fixture[1]",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[0]",
+        "--SKIP_CHROMS": "fixture[1]",
         "--TAB_MODE": "true",
         "--THREAD_COUNT": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--TRIOS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--VCF_DIR": "fixture[1]"
       },
       "arguments": [
         "--CREATE_INDEX=false",
+        "--FEMALE_CHROMS=null chr1",
+        "--MALE_CHROMS=<absent>",
         "--MIN_DP=10",
         "--MIN_GQ=30",
         "--MIN_HET_FRACTION=0.0",
+        "--PSEUDO_AUTOSOMAL_REGIONS=<absent>",
+        "--SKIP_CHROMS=null chr2",
         "--TAB_MODE=true",
         "--THREAD_COUNT=2",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--TRIOS=/work/fixtures/trio.ped",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--VCF_DIR=/work/out"
       ]
     },
     {
       "row": 4,
       "labels": {
         "--CREATE_INDEX": "false",
-        "--MIN_DP": "fixture[0]",
-        "--MIN_GQ": "fixture[1]",
-        "--MIN_HET_FRACTION": "fixture[1]",
-        "--TAB_MODE": "true",
+        "--FEMALE_CHROMS": "fixture[0]",
+        "--MALE_CHROMS": "fixture[1]",
+        "--MIN_DP": "fixture[1]",
+        "--MIN_GQ": "fixture[0]",
+        "--MIN_HET_FRACTION": "fixture[0]",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[0]",
+        "--SKIP_CHROMS": "fixture[1]",
+        "--TAB_MODE": "false",
         "--THREAD_COUNT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--TRIOS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--VCF_DIR": "fixture[0]"
       },
       "arguments": [
         "--CREATE_INDEX=false",
-        "--MIN_DP=0",
-        "--MIN_GQ=10",
-        "--MIN_HET_FRACTION=0.0",
-        "--TAB_MODE=true",
+        "--FEMALE_CHROMS=<absent>",
+        "--MALE_CHROMS=null chr1",
+        "--MIN_DP=10",
+        "--MIN_GQ=30",
+        "--MIN_HET_FRACTION=0.3",
+        "--PSEUDO_AUTOSOMAL_REGIONS=<absent>",
+        "--SKIP_CHROMS=null chr2",
+        "--TAB_MODE=false",
         "--THREAD_COUNT=1",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--TRIOS=/work/fixtures/trio.ped",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--VCF_DIR=<absent>"
       ]
     },
     {
       "row": 5,
       "labels": {
         "--CREATE_INDEX": "false",
-        "--MIN_DP": "fixture[1]",
-        "--MIN_GQ": "fixture[1]",
+        "--FEMALE_CHROMS": "fixture[1]",
+        "--MALE_CHROMS": "fixture[0]",
+        "--MIN_DP": "fixture[0]",
+        "--MIN_GQ": "fixture[0]",
         "--MIN_HET_FRACTION": "fixture[0]",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[1]",
+        "--SKIP_CHROMS": "fixture[0]",
         "--TAB_MODE": "true",
-        "--THREAD_COUNT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--THREAD_COUNT": "fixture[1]",
+        "--TRIOS": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--VCF_DIR": "fixture[1]"
       },
       "arguments": [
         "--CREATE_INDEX=false",
-        "--MIN_DP=10",
-        "--MIN_GQ=10",
+        "--FEMALE_CHROMS=null chr1",
+        "--MALE_CHROMS=<absent>",
+        "--MIN_DP=0",
+        "--MIN_GQ=30",
         "--MIN_HET_FRACTION=0.3",
+        "--PSEUDO_AUTOSOMAL_REGIONS=null chr1:1-500",
+        "--SKIP_CHROMS=<absent>",
         "--TAB_MODE=true",
-        "--THREAD_COUNT=1",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--THREAD_COUNT=2",
+        "--TRIOS=/work/fixtures/trio_daughter.ped",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--VCF_DIR=/work/out"
       ]
     },
     {
       "row": 6,
       "labels": {
         "--CREATE_INDEX": "true",
-        "--MIN_DP": "fixture[0]",
-        "--MIN_GQ": "fixture[0]",
-        "--MIN_HET_FRACTION": "fixture[1]",
-        "--TAB_MODE": "false",
+        "--FEMALE_CHROMS": "fixture[1]",
+        "--MALE_CHROMS": "fixture[0]",
+        "--MIN_DP": "fixture[1]",
+        "--MIN_GQ": "fixture[1]",
+        "--MIN_HET_FRACTION": "fixture[0]",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[0]",
+        "--SKIP_CHROMS": "fixture[0]",
+        "--TAB_MODE": "true",
         "--THREAD_COUNT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--TRIOS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--VCF_DIR": "fixture[0]"
       },
       "arguments": [
         "--CREATE_INDEX=true",
-        "--MIN_DP=0",
-        "--MIN_GQ=30",
-        "--MIN_HET_FRACTION=0.0",
-        "--TAB_MODE=false",
+        "--FEMALE_CHROMS=null chr1",
+        "--MALE_CHROMS=<absent>",
+        "--MIN_DP=10",
+        "--MIN_GQ=10",
+        "--MIN_HET_FRACTION=0.3",
+        "--PSEUDO_AUTOSOMAL_REGIONS=<absent>",
+        "--SKIP_CHROMS=<absent>",
+        "--TAB_MODE=true",
         "--THREAD_COUNT=1",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--TRIOS=/work/fixtures/trio.ped",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--VCF_DIR=<absent>"
       ]
     },
     {
       "row": 7,
       "labels": {
         "--CREATE_INDEX": "true",
+        "--FEMALE_CHROMS": "fixture[0]",
+        "--MALE_CHROMS": "fixture[1]",
         "--MIN_DP": "fixture[0]",
-        "--MIN_GQ": "fixture[0]",
-        "--MIN_HET_FRACTION": "fixture[0]",
+        "--MIN_GQ": "fixture[1]",
+        "--MIN_HET_FRACTION": "fixture[1]",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[0]",
+        "--SKIP_CHROMS": "fixture[0]",
         "--TAB_MODE": "true",
-        "--THREAD_COUNT": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--THREAD_COUNT": "fixture[0]",
+        "--TRIOS": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--VCF_DIR": "fixture[1]"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--FEMALE_CHROMS=<absent>",
+        "--MALE_CHROMS=null chr1",
         "--MIN_DP=0",
-        "--MIN_GQ=30",
-        "--MIN_HET_FRACTION=0.3",
+        "--MIN_GQ=10",
+        "--MIN_HET_FRACTION=0.0",
+        "--PSEUDO_AUTOSOMAL_REGIONS=<absent>",
+        "--SKIP_CHROMS=<absent>",
         "--TAB_MODE=true",
-        "--THREAD_COUNT=2",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--THREAD_COUNT=1",
+        "--TRIOS=/work/fixtures/trio_daughter.ped",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--VCF_DIR=/work/out"
       ]
     },
     {
       "row": 8,
       "labels": {
         "--CREATE_INDEX": "true",
+        "--FEMALE_CHROMS": "fixture[0]",
+        "--MALE_CHROMS": "fixture[0]",
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[0]",
-        "--MIN_HET_FRACTION": "fixture[0]",
+        "--MIN_HET_FRACTION": "fixture[1]",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[1]",
+        "--SKIP_CHROMS": "fixture[1]",
         "--TAB_MODE": "true",
         "--THREAD_COUNT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--TRIOS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--VCF_DIR": "fixture[0]"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--FEMALE_CHROMS=<absent>",
+        "--MALE_CHROMS=<absent>",
         "--MIN_DP=0",
         "--MIN_GQ=30",
-        "--MIN_HET_FRACTION=0.3",
+        "--MIN_HET_FRACTION=0.0",
+        "--PSEUDO_AUTOSOMAL_REGIONS=null chr1:1-500",
+        "--SKIP_CHROMS=null chr2",
         "--TAB_MODE=true",
         "--THREAD_COUNT=1",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--TRIOS=/work/fixtures/trio.ped",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--VCF_DIR=<absent>"
       ]
     },
     {
       "row": 9,
       "labels": {
         "--CREATE_INDEX": "true",
-        "--MIN_DP": "fixture[0]",
+        "--FEMALE_CHROMS": "fixture[0]",
+        "--MALE_CHROMS": "fixture[0]",
+        "--MIN_DP": "fixture[1]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_HET_FRACTION": "fixture[0]",
-        "--TAB_MODE": "true",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[0]",
+        "--SKIP_CHROMS": "fixture[0]",
+        "--TAB_MODE": "false",
         "--THREAD_COUNT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--TRIOS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--VCF_DIR": "fixture[0]"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--FEMALE_CHROMS=<absent>",
+        "--MALE_CHROMS=<absent>",
+        "--MIN_DP=10",
+        "--MIN_GQ=30",
+        "--MIN_HET_FRACTION=0.3",
+        "--PSEUDO_AUTOSOMAL_REGIONS=<absent>",
+        "--SKIP_CHROMS=<absent>",
+        "--TAB_MODE=false",
+        "--THREAD_COUNT=1",
+        "--TRIOS=/work/fixtures/trio.ped",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--VCF_DIR=<absent>"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FEMALE_CHROMS": "fixture[0]",
+        "--MALE_CHROMS": "fixture[0]",
+        "--MIN_DP": "fixture[0]",
+        "--MIN_GQ": "fixture[0]",
+        "--MIN_HET_FRACTION": "fixture[0]",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[0]",
+        "--SKIP_CHROMS": "fixture[0]",
+        "--TAB_MODE": "true",
+        "--THREAD_COUNT": "fixture[1]",
+        "--TRIOS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--VCF_DIR": "fixture[0]"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FEMALE_CHROMS=<absent>",
+        "--MALE_CHROMS=<absent>",
         "--MIN_DP=0",
         "--MIN_GQ=30",
         "--MIN_HET_FRACTION=0.3",
+        "--PSEUDO_AUTOSOMAL_REGIONS=<absent>",
+        "--SKIP_CHROMS=<absent>",
+        "--TAB_MODE=true",
+        "--THREAD_COUNT=2",
+        "--TRIOS=/work/fixtures/trio.ped",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--VCF_DIR=<absent>"
+      ]
+    },
+    {
+      "row": 11,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FEMALE_CHROMS": "fixture[0]",
+        "--MALE_CHROMS": "fixture[0]",
+        "--MIN_DP": "fixture[0]",
+        "--MIN_GQ": "fixture[0]",
+        "--MIN_HET_FRACTION": "fixture[0]",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[0]",
+        "--SKIP_CHROMS": "fixture[0]",
+        "--TAB_MODE": "true",
+        "--THREAD_COUNT": "fixture[0]",
+        "--TRIOS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--VCF_DIR": "fixture[0]"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FEMALE_CHROMS=<absent>",
+        "--MALE_CHROMS=<absent>",
+        "--MIN_DP=0",
+        "--MIN_GQ=30",
+        "--MIN_HET_FRACTION=0.3",
+        "--PSEUDO_AUTOSOMAL_REGIONS=<absent>",
+        "--SKIP_CHROMS=<absent>",
         "--TAB_MODE=true",
         "--THREAD_COUNT=1",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--TRIOS=/work/fixtures/trio.ped",
+        "--VALIDATION_STRINGENCY=SILENT",
+        "--VCF_DIR=<absent>"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FEMALE_CHROMS": "fixture[0]",
+        "--MALE_CHROMS": "fixture[0]",
+        "--MIN_DP": "fixture[0]",
+        "--MIN_GQ": "fixture[0]",
+        "--MIN_HET_FRACTION": "fixture[0]",
+        "--PSEUDO_AUTOSOMAL_REGIONS": "fixture[0]",
+        "--SKIP_CHROMS": "fixture[0]",
+        "--TAB_MODE": "true",
+        "--THREAD_COUNT": "fixture[0]",
+        "--TRIOS": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--VCF_DIR": "fixture[0]"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FEMALE_CHROMS=<absent>",
+        "--MALE_CHROMS=<absent>",
+        "--MIN_DP=0",
+        "--MIN_GQ=30",
+        "--MIN_HET_FRACTION=0.3",
+        "--PSEUDO_AUTOSOMAL_REGIONS=<absent>",
+        "--SKIP_CHROMS=<absent>",
+        "--TAB_MODE=true",
+        "--THREAD_COUNT=1",
+        "--TRIOS=/work/fixtures/trio.ped",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--VCF_DIR=<absent>"
       ]
     }
   ]

@@ -241,34 +241,35 @@ fn main() {
         fail(&format!("{e}"));
     }
 
-    // The duplication metrics, in the plain form the other duplicate markers write them in.
-    let marking = picard_analysis::mark_duplicates::marking_from(
+    // The duplication metrics, through `finalizeAndWriteMetrics` as every duplicate marker writes them.
+    let tracked = picard_analysis::duplicate_set::track_sets(&result.sets, &marked_records, &base);
+    let mut marking = picard_analysis::mark_duplicates::marking_from(
         &marked_records,
         &base,
         &result.duplicate,
-        &vec![false; marked_records.len()],
+        &tracked.optical,
     );
-    let mut text = String::from("## METRICS CLASS\tpicard.sam.DuplicationMetrics\n");
-    text.push_str(
-        "LIBRARY\tUNPAIRED_READS_EXAMINED\tREAD_PAIRS_EXAMINED\tSECONDARY_OR_SUPPLEMENTARY_RDS\t\
-         UNMAPPED_READS\tUNPAIRED_READ_DUPLICATES\tREAD_PAIR_DUPLICATES\t\
-         READ_PAIR_OPTICAL_DUPLICATES\tPERCENT_DUPLICATION\tESTIMATED_LIBRARY_SIZE\n",
+    marking.all_sets = tracked.all_sets;
+    marking.optical_sets = tracked.optical_sets;
+    marking.non_optical_sets = tracked.non_optical_sets;
+    let text = picard_analysis::mark_duplicates::duplication_metrics_text(
+        "UmiAwareMarkDuplicatesWithMateCigar",
+        &marking.metrics,
+        &header
+            .read_groups
+            .iter()
+            .map(|group| {
+                group
+                    .attributes
+                    .get("LB")
+                    .unwrap_or("Unknown Library")
+                    .to_string()
+            })
+            .collect::<Vec<_>>(),
+        &marking.all_sets,
+        &marking.optical_sets,
+        &marking.non_optical_sets,
     );
-    for m in &marking.metrics {
-        text.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-            m.library,
-            m.unpaired_reads_examined,
-            m.read_pairs_examined,
-            m.secondary_or_supplementary,
-            m.unmapped_reads,
-            m.unpaired_read_duplicates,
-            m.read_pair_duplicates,
-            m.read_pair_optical_duplicates,
-            m.percent_duplication,
-            m.estimated_library_size.unwrap_or(0),
-        ));
-    }
     if let Err(e) = std::fs::write(&metrics_path, text) {
         fail(&format!("{e}"));
     }

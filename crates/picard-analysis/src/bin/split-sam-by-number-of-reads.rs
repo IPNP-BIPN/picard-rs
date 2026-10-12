@@ -45,6 +45,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         total_reads_in_input: number("TOTAL_READS_IN_INPUT=")?,
     };
 
+    // `customCommandLineValidation`.
+    if options.split_to_n_files <= 1 && options.split_to_n_reads <= 1 {
+        eprintln!(
+            "One of SPLIT_TO_N_FILES or SPLIT_TO_N_READS must be greater than 0. Found SPLIT_TO_N_FILES is {} and SPLIT_TO_N_READS is {}.",
+            options.split_to_n_files, options.split_to_n_reads
+        );
+        std::process::exit(1);
+    }
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
@@ -78,9 +86,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if bam_input {
         let shards =
             split_sam_by_number_of_reads_to_bam(&text, &options).map_err(|e| format!("{e:?}"))?;
+        // `CREATE_INDEX` gives each BAM shard its `.bai`, which htsjdk writes only for a
+        // coordinate-sorted file. Its virtual offsets point into this writer's blocks, so the
+        // index is this BAM's and not byte for byte the reference's, as the BAM is not.
+        let create_index = arg(&args, "CREATE_INDEX=").as_deref() == Some("true")
+            && text
+                .lines()
+                .next()
+                .is_some_and(|hd| hd.starts_with("@HD") && hd.contains("\tSO:coordinate"));
         for (index, bytes) in shards.iter().enumerate() {
             let name = format!("{prefix}_{:04}.bam", index + 1);
             std::fs::write(std::path::Path::new(&output).join(name), bytes)?;
+            if create_index {
+                let bai = htsjdk_bam::build_index::build_bam_index(bytes)
+                    .map_err(|e| format!("{e:?}"))?;
+                let name = format!("{prefix}_{:04}.bai", index + 1);
+                std::fs::write(std::path::Path::new(&output).join(name), bai)?;
+            }
         }
     } else {
         let shards = split_sam_by_number_of_reads(&text, &options).map_err(|e| format!("{e:?}"))?;

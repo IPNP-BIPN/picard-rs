@@ -116,7 +116,7 @@
         "tool": "ReplaceSamHeader",
         "port": "replace-sam-header",
         "t": 2,
-        "status": "measured"
+        "status": "pending"
       },
       {
         "tool": "CalculateReadGroupChecksum",
@@ -238,14 +238,15 @@
         "tool": "FilterSamReads",
         "port": "filter-sam-reads",
         "t": 2,
-        "status": "measured"
+        "status": "pending"
       },
       {
         "tool": "MarkDuplicates",
         "port": "mark-duplicates",
         "t": 2,
         "status": "pending",
-        "strip_program_records": true
+        "strip_program_records": true,
+        "output_name": "output.txt,metrics.txt,metrics_b.txt"
       },
       {
         "tool": "FastqToSam",
@@ -258,7 +259,7 @@
         "port": "split-sam-by-number-of-reads",
         "t": 2,
         "status": "pending",
-        "output_name": "shard_0001.bam"
+        "output_name": "shard_0001.bam,shard_0002.bam,shard_0003.bam,shard_0004.bam,shard_0005.bam,shard_0001.sam,shard_0002.sam,shard_0003.sam,shard_0004.sam,shard_0005.sam,part_0001.bam,part_0002.bam,part_0003.bam,part_0004.bam,part_0005.bam,part_0001.sam,part_0002.sam,part_0003.sam,part_0004.sam,part_0005.sam"
       },
       {
         "tool": "SplitSamByLibrary",
@@ -292,14 +293,16 @@
         "port": "mark-duplicates-with-mate-cigar",
         "t": 2,
         "status": "pending",
-        "strip_program_records": true
+        "strip_program_records": true,
+        "output_name": "output.txt,metrics.txt,metrics_b.txt"
       },
       {
         "tool": "SimpleMarkDuplicatesWithMateCigar",
         "port": "simple-mark-duplicates-with-mate-cigar",
         "t": 2,
         "status": "pending",
-        "strip_program_records": true
+        "strip_program_records": true,
+        "output_name": "output.txt,metrics.txt,metrics_b.txt"
       },
       {
         "tool": "CheckDuplicateMarking",
@@ -370,7 +373,8 @@
         "tool": "FindMendelianViolations",
         "port": "find-mendelian-violations",
         "t": 2,
-        "status": "pending"
+        "status": "pending",
+        "output_name": "@all"
       },
       {
         "tool": "LiftOverIntervalList",
@@ -601,8 +605,8 @@
         "tool": "BamToBfq",
         "port": "bam-to-bfq",
         "t": 2,
-        "status": "measured",
-        "output_name": "FC1.3.0.1.bfq,FC1.3.0.2.bfq,FC1.3.1.1.bfq,FC1.3.1.2.bfq,FC1.3.2.1.bfq,FC1.3.2.2.bfq,FC1.3.3.1.bfq,FC1.3.3.2.bfq,FC1.null.0.1.bfq,FC1.null.0.2.bfq,FC1.null.1.1.bfq,FC1.null.1.2.bfq,FC1.null.2.1.bfq,FC1.null.2.2.bfq,FC1.null.3.1.bfq,FC1.null.3.2.bfq"
+        "status": "pending",
+        "output_name": "@all"
       },
       {
         "tool": "CompareMetrics",
@@ -637,7 +641,7 @@
         "tool": "BaitDesigner",
         "port": "bait-designer",
         "t": 2,
-        "status": "measured",
+        "status": "pending",
         "output_name": "@all"
       },
       {
@@ -665,7 +669,7 @@
         "t": 2,
         "status": "pending",
         "strip_program_records": true,
-        "output_name": "output.txt,umi_metrics.txt"
+        "output_name": "output.txt,umi_metrics.txt,umi_metrics_b.txt,metrics.txt,metrics_b.txt"
       },
       {
         "tool": "ConvertHaplotypeDatabaseToVcf",
@@ -785,7 +789,7 @@
         "tool": "GtcToVcf",
         "port": "gtc-to-vcf",
         "t": 2,
-        "status": "measured",
+        "status": "pending",
         "output_name": "output.vcf",
         "strip_line_prefixes": [
           "##fileDate="
@@ -811,7 +815,7 @@
         "tool": "CollectArraysVariantCallingMetrics",
         "port": "collect-arrays-variant-calling-metrics",
         "t": 2,
-        "status": "measured",
+        "status": "pending",
         "output_name": "@all"
       },
       {
@@ -828,7 +832,7 @@
         "tool": "CheckIlluminaDirectory",
         "port": "check-illumina-directory",
         "t": 2,
-        "status": "measured",
+        "status": "pending",
         "output": "stderr",
         "exit_code_is_a_result": true
       },
@@ -836,7 +840,7 @@
         "tool": "CollectIlluminaLaneMetrics",
         "port": "collect-illumina-lane-metrics",
         "t": 2,
-        "status": "measured",
+        "status": "pending",
         "output_name": "@all"
       },
       {

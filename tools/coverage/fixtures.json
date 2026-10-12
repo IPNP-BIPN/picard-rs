@@ -263,6 +263,10 @@
       "--THREAD_COUNT": [
         "1",
         "2"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/ref.dict"
       ]
     },
     "BedToIntervalList": {
@@ -283,7 +287,8 @@
         "rather than a mismatch."
       ],
       "--HEADER": [
-        "/work/fixtures/small.sam"
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam"
       ]
     },
     "CalculateReadGroupChecksum": {
@@ -454,6 +459,10 @@
       "--URI": [
         "file:/work/fixtures/ref.fasta",
         "http://example.org/other.fasta"
+      ],
+      "--ALT_NAMES": [
+        "<absent>",
+        "/work/fixtures/alt_names.txt"
       ]
     },
     "DownsampleSam": {
@@ -531,6 +540,10 @@
       "--BLOCK_SIZE": [
         "100000",
         "10"
+      ],
+      "--METRICS_FILE": [
+        "/work/out/metrics.txt",
+        "/work/out/metrics_b.txt"
       ]
     },
     "SimpleMarkDuplicatesWithMateCigar": {
@@ -632,6 +645,10 @@
       "--MOLECULAR_IDENTIFIER_TAG": [
         "<absent>",
         "MI"
+      ],
+      "--METRICS_FILE": [
+        "/work/out/metrics.txt",
+        "/work/out/metrics_b.txt"
       ]
     },
     "GenotypeConcordance": {
@@ -645,7 +662,8 @@
         "It is listed second so the rows the first value fills keep their answers."
       ],
       "--TRUTH_VCF": [
-        "/work/fixtures/variants.vcf"
+        "/work/fixtures/variants.vcf",
+        "/work/fixtures/call_partial.vcf"
       ],
       "--CALL_VCF": [
         "/work/fixtures/variants.vcf",
@@ -656,7 +674,8 @@
         "sample2"
       ],
       "--CALL_SAMPLE": [
-        "sample1"
+        "sample1",
+        "sample2"
       ],
       "--MIN_DP": [
         "0",
@@ -665,6 +684,10 @@
       "--MIN_GQ": [
         "0",
         "30"
+      ],
+      "--INTERVALS": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
       ]
     },
     "MarkIlluminaAdapters": {
@@ -725,12 +748,20 @@
       ],
       "--SPLIT_TO_N_READS": [
         "100",
-        "300"
+        "300",
+        "<absent>"
       ],
-      "--SPLIT_TO_N_FILES": [],
+      "--SPLIT_TO_N_FILES": [
+        "<absent>",
+        "3"
+      ],
       "--TOTAL_READS_IN_INPUT": [
         "0",
         "400"
+      ],
+      "--OUT_PREFIX": [
+        "shard",
+        "part"
       ]
     },
     "SplitSamByLibrary": {
@@ -833,15 +864,30 @@
       "--MOLECULAR_IDENTIFIER_TAG": [
         "<absent>",
         "MI"
+      ],
+      "--METRICS_FILE": [
+        "/work/out/metrics.txt",
+        "/work/out/metrics_b.txt"
       ]
     },
     "FilterSamReads": {
       "--READ_LIST_FILE": [
+        "<absent>",
         "/work/fixtures/read_names.txt"
       ],
-      "--INTERVAL_LIST": [],
-      "--TAG": [],
-      "--JAVASCRIPT_FILE": []
+      "--INTERVAL_LIST": [
+        "<absent>",
+        "/work/fixtures/targets.interval_list"
+      ],
+      "--TAG": [
+        "<absent>",
+        "RG"
+      ],
+      "--JAVASCRIPT_FILE": [],
+      "--TAG_VALUE": [
+        "<absent>",
+        "rg1"
+      ]
     },
     "ValidateSamFile": {
       "--IGNORE": [
@@ -1081,7 +1127,8 @@
         "/work/fixtures/trio.vcf"
       ],
       "--TRIOS": [
-        "/work/fixtures/trio.ped"
+        "/work/fixtures/trio.ped",
+        "/work/fixtures/trio_daughter.ped"
       ],
       "--MIN_GQ": [
         "30",
@@ -1098,6 +1145,32 @@
       "--THREAD_COUNT": [
         "1",
         "2"
+      ],
+      "$lists": [
+        "--FEMALE_CHROMS",
+        "--MALE_CHROMS",
+        "--PSEUDO_AUTOSOMAL_REGIONS",
+        "--SKIP_CHROMS"
+      ],
+      "--SKIP_CHROMS": [
+        "<absent>",
+        "null chr2"
+      ],
+      "--MALE_CHROMS": [
+        "<absent>",
+        "null chr1"
+      ],
+      "--FEMALE_CHROMS": [
+        "<absent>",
+        "null chr1"
+      ],
+      "--PSEUDO_AUTOSOMAL_REGIONS": [
+        "<absent>",
+        "null chr1:1-500"
+      ],
+      "--VCF_DIR": [
+        "<absent>",
+        "/work/out"
       ]
     },
     "LiftOverHaplotypeMap": {
@@ -2302,7 +2375,8 @@
         "/work/fixtures/unmapped.bam"
       ],
       "--REF_FLAT": [
-        "/work/fixtures/refflat.txt"
+        "/work/fixtures/refflat.txt",
+        "/work/fixtures/refflat_long.txt"
       ],
       "--REFERENCE_SEQUENCE": [
         "/work/fixtures/ref.fasta",
@@ -2518,6 +2592,10 @@
       "--STOP_AFTER": [
         "0",
         "5"
+      ],
+      "--EXTRA_ARGUMENT": [
+        "<absent>",
+        "CollectAlignmentSummaryMetrics::MAX_INSERT_SIZE=50"
       ]
     },
     "SortGff": {
@@ -2616,18 +2694,22 @@
         "/work/fixtures/bfq_odd.bam"
       ],
       "--ANALYSIS_DIR": [
-        "/work/out"
+        "/work/out",
+        "/work/out/analysis"
       ],
       "--FLOWCELL_BARCODE": [
-        "FC1"
+        "FC1",
+        "<absent>"
       ],
       "--LANE": [
         "3",
-        "null"
+        "null",
+        "<absent>"
       ],
       "--RUN_BARCODE": [
         "null",
-        "RUN1"
+        "RUN1",
+        "<absent>"
       ],
       "--READS_TO_ALIGN": [
         "null",
@@ -2647,6 +2729,14 @@
       ],
       "--CREATE_INDEX": [
         "false"
+      ],
+      "--OUTPUT_FILE_PREFIX": [
+        "<absent>",
+        "PFX"
+      ],
+      "--READ_NAME_PREFIX": [
+        "<absent>",
+        "RUN1:"
       ]
     },
     "CompareMetrics": {
@@ -2960,7 +3050,8 @@
         "probes_for_the_panel"
       ],
       "--OUTPUT_DIRECTORY": [
-        "/work/out"
+        "/work/out",
+        "/work/out/designs"
       ],
       "--BAIT_SIZE": [
         "120",
@@ -3018,7 +3109,8 @@
         "/work/fixtures/umi_partial.bam"
       ],
       "--UMI_METRICS_FILE": [
-        "/work/out/umi_metrics.txt"
+        "/work/out/umi_metrics.txt",
+        "/work/out/umi_metrics_b.txt"
       ],
       "--ASSUME_SORT_ORDER": [
         "coordinate",
@@ -3123,6 +3215,10 @@
       "--OPTICAL_DUPLICATE_PIXEL_DISTANCE": [
         "100",
         "2500"
+      ],
+      "--METRICS_FILE": [
+        "/work/out/metrics.txt",
+        "/work/out/metrics_b.txt"
       ]
     },
     "ConvertHaplotypeDatabaseToVcf": {
@@ -3762,7 +3858,8 @@
         "/work/fixtures/arr_extended.csv"
       ],
       "--CLUSTER_FILE": [
-        "/work/fixtures/arr.egt"
+        "/work/fixtures/arr.egt",
+        "/work/fixtures/arr_flags.egt"
       ],
       "--ILLUMINA_BEAD_POOL_MANIFEST_FILE": [
         "/work/fixtures/arr.bpm",
@@ -3864,7 +3961,8 @@
         "/work/fixtures/arr_short.vcf"
       ],
       "--DBSNP": [
-        "/work/fixtures/arr_dbsnp.vcf"
+        "/work/fixtures/arr_dbsnp.vcf",
+        "/work/fixtures/dbsnp.vcf"
       ],
       "--OUTPUT": [
         "/work/out/output"
@@ -3971,10 +4069,12 @@
         "BaseCalls QualityScores PF"
       ],
       "--FAKE_FILES": [
-        "false"
+        "false",
+        "true"
       ],
       "--LINK_LOCS": [
-        "false"
+        "false",
+        "true"
       ]
     },
     "CollectIlluminaLaneMetrics": {
@@ -3991,7 +4091,8 @@
         "/work/fixtures/ill_lanes_bare"
       ],
       "--OUTPUT_DIRECTORY": [
-        "/work/out"
+        "/work/out",
+        "/work/out/lanes"
       ],
       "--OUTPUT_PREFIX": [
         "run",
@@ -4644,6 +4745,10 @@
         "coordinate",
         "duplicate",
         "unknown"
+      ],
+      "--INTERVALS": [
+        "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
       ]
     },
     "ReorderSam": {
@@ -6503,6 +6608,76 @@
         "--INPUT": "/work/fixtures/ill_barcodes_one.txt"
       },
       "why": "same as the clause above"
+    },
+    {
+      "tools": [
+        "SplitSamByNumberOfReads"
+      ],
+      "forbid": {
+        "--SPLIT_TO_N_FILES": "3",
+        "--SPLIT_TO_N_READS": "100"
+      },
+      "why": "SPLIT_TO_N_READS and SPLIT_TO_N_FILES are mutually exclusive, and Barclay refuses the pair before the tool runs; each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SplitSamByNumberOfReads"
+      ],
+      "forbid": {
+        "--SPLIT_TO_N_FILES": "3",
+        "--SPLIT_TO_N_READS": "300"
+      },
+      "why": "SPLIT_TO_N_READS and SPLIT_TO_N_FILES are mutually exclusive, and Barclay refuses the pair before the tool runs; each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "BamToBfq"
+      ],
+      "forbid": {
+        "--FLOWCELL_BARCODE": "FC1",
+        "--OUTPUT_FILE_PREFIX": "PFX"
+      },
+      "why": "FLOWCELL_BARCODE and OUTPUT_FILE_PREFIX are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair (an argument given as null counts as set) before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "BamToBfq"
+      ],
+      "forbid": {
+        "--LANE": "3",
+        "--OUTPUT_FILE_PREFIX": "PFX"
+      },
+      "why": "LANE and OUTPUT_FILE_PREFIX are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair (an argument given as null counts as set) before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "BamToBfq"
+      ],
+      "forbid": {
+        "--LANE": "null",
+        "--OUTPUT_FILE_PREFIX": "PFX"
+      },
+      "why": "LANE and OUTPUT_FILE_PREFIX are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair (an argument given as null counts as set) before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "BamToBfq"
+      ],
+      "forbid": {
+        "--RUN_BARCODE": "null",
+        "--READ_NAME_PREFIX": "RUN1:"
+      },
+      "why": "RUN_BARCODE and READ_NAME_PREFIX are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair (an argument given as null counts as set) before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "BamToBfq"
+      ],
+      "forbid": {
+        "--RUN_BARCODE": "RUN1",
+        "--READ_NAME_PREFIX": "RUN1:"
+      },
+      "why": "RUN_BARCODE and READ_NAME_PREFIX are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair (an argument given as null counts as set) before the tool runs; each side is varied against the other's absence"
     }
   ],
   "exclude": {

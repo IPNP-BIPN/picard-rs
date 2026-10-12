@@ -85,6 +85,55 @@ pub fn keep_by_alignment(records: &[BamRecord], filter: AlignedFilter) -> Vec<Ba
     kept
 }
 
+/// `FilteringSamIterator` with `filterReadPairs` and an `AlignedFilter`, record by record as
+/// htsjdk runs it: a first-of-pair is judged with the record after it, which must be its mate
+/// (`SamPairUtil.assertMate`), and a second-of-pair is passed through on the assumption that its
+/// first was. The error is the assertion's, for a file whose mates do not follow each other.
+pub fn keep_by_alignment_pairwise(
+    records: &[BamRecord],
+    filter: AlignedFilter,
+) -> Result<Vec<BamRecord>, String> {
+    const PAIRED: u16 = 0x1;
+    const FIRST: u16 = 0x40;
+    const SECOND: u16 = 0x80;
+    let include = matches!(filter, AlignedFilter::IncludeAligned);
+    let unmapped = |rec: &BamRecord| !is_aligned(rec);
+    let mut kept = Vec::new();
+    let mut index = 0;
+    while index < records.len() {
+        let record = &records[index];
+        index += 1;
+        let paired = record.flags & PAIRED != 0;
+        if paired && record.flags & FIRST != 0 && index < records.len() {
+            let mate = &records[index];
+            if mate.flags & PAIRED == 0 {
+                return Err("Second record is not marked as paired".to_string());
+            }
+            if mate.flags & SECOND == 0 {
+                return Err("Second record is not marked as second of pair".to_string());
+            }
+            if mate.read_name != record.read_name {
+                return Err("readnames do not match".to_string());
+            }
+            let filtered_out = if include {
+                unmapped(record) || unmapped(mate)
+            } else {
+                !(unmapped(record) || unmapped(mate))
+            };
+            if filtered_out {
+                index += 1;
+            } else {
+                kept.push(record.clone());
+            }
+        } else if (paired && record.flags & SECOND != 0) || unmapped(record) != include {
+            // A second-of-pair passes on the assumption that its first did; anything else is
+            // judged alone.
+            kept.push(record.clone());
+        }
+    }
+    Ok(kept)
+}
+
 /// `FilterSamReads` with a read-list filter, for SAM input and output. `read_list_text` is the
 /// `READ_LIST_FILE` contents.
 pub fn filter_sam_reads(

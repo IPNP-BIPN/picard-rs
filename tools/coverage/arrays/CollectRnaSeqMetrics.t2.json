@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 28,
-  "arguments_in_array": 14,
-  "arguments_excluded": 14,
+  "arguments_in_array": 15,
+  "arguments_excluded": 13,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -57,13 +57,6 @@
       "source": "none"
     },
     {
-      "argument": "--REF_FLAT",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/refflat.txt",
-      "source": "fixture"
-    },
-    {
       "argument": "--showHidden",
       "type": "boolean",
       "reason": "excluded by the repository: changes the usage text only",
@@ -107,8 +100,8 @@
     }
   ],
   "rows": 26,
-  "tuples_total": 662,
-  "tuples_covered": 662,
+  "tuples_total": 738,
+  "tuples_covered": 738,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -127,6 +120,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[0]",
         "--RIBOSOMAL_INTERVALS": "fixture[0]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
@@ -143,6 +137,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
         "--RIBOSOMAL_INTERVALS=null",
         "--RRNA_FRAGMENT_PERCENTAGE=0.8",
         "--STOP_AFTER=0",
@@ -162,6 +157,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--MINIMUM_LENGTH": "fixture[1]",
         "--REFERENCE_SEQUENCE": "fixture[1]",
+        "--REF_FLAT": "fixture[1]",
         "--RIBOSOMAL_INTERVALS": "fixture[1]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[1]",
         "--STOP_AFTER": "fixture[1]",
@@ -178,6 +174,7 @@
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--MINIMUM_LENGTH=100",
         "--REFERENCE_SEQUENCE=null",
+        "--REF_FLAT=/work/fixtures/refflat_long.txt",
         "--RIBOSOMAL_INTERVALS=/work/fixtures/targets.interval_list",
         "--RRNA_FRAGMENT_PERCENTAGE=0.3",
         "--STOP_AFTER=150",
@@ -197,9 +194,10 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[2]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[1]",
+        "--REF_FLAT": "fixture[0]",
         "--RIBOSOMAL_INTERVALS": "fixture[2]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[2]",
-        "--STOP_AFTER": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
         "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
@@ -213,9 +211,10 @@
         "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=null",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
         "--RIBOSOMAL_INTERVALS=/work/fixtures/targets_mixed.interval_list",
         "--RRNA_FRAGMENT_PERCENTAGE=0.0",
-        "--STOP_AFTER=0",
+        "--STOP_AFTER=150",
         "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
@@ -232,11 +231,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
         "--MINIMUM_LENGTH": "fixture[1]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[1]",
         "--RIBOSOMAL_INTERVALS": "fixture[2]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[2]",
-        "--STOP_AFTER": "fixture[1]",
-        "--STRAND_SPECIFICITY": "NONE",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--STOP_AFTER": "fixture[0]",
+        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
@@ -248,11 +248,12 @@
         "--METRIC_ACCUMULATION_LEVEL=null",
         "--MINIMUM_LENGTH=100",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat_long.txt",
         "--RIBOSOMAL_INTERVALS=/work/fixtures/targets_mixed.interval_list",
         "--RRNA_FRAGMENT_PERCENTAGE=0.0",
-        "--STOP_AFTER=150",
-        "--STRAND_SPECIFICITY=NONE",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--STOP_AFTER=0",
+        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -267,11 +268,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[2]",
         "--MINIMUM_LENGTH": "fixture[1]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
-        "--RIBOSOMAL_INTERVALS": "fixture[0]",
-        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[1]",
+        "--REF_FLAT": "fixture[0]",
+        "--RIBOSOMAL_INTERVALS": "fixture[1]",
+        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--STRAND_SPECIFICITY": "FIRST_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
@@ -283,11 +285,12 @@
         "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
         "--MINIMUM_LENGTH=100",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
-        "--RIBOSOMAL_INTERVALS=null",
-        "--RRNA_FRAGMENT_PERCENTAGE=0.3",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--RIBOSOMAL_INTERVALS=/work/fixtures/targets.interval_list",
+        "--RRNA_FRAGMENT_PERCENTAGE=0.8",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--STRAND_SPECIFICITY=FIRST_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -302,11 +305,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[1]",
-        "--RIBOSOMAL_INTERVALS": "fixture[1]",
-        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
+        "--REF_FLAT": "fixture[0]",
+        "--RIBOSOMAL_INTERVALS": "fixture[0]",
+        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[1]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--STRAND_SPECIFICITY": "NONE",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
@@ -318,11 +322,12 @@
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=null",
-        "--RIBOSOMAL_INTERVALS=/work/fixtures/targets.interval_list",
-        "--RRNA_FRAGMENT_PERCENTAGE=0.8",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--RIBOSOMAL_INTERVALS=null",
+        "--RRNA_FRAGMENT_PERCENTAGE=0.3",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--STRAND_SPECIFICITY=NONE",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -337,11 +342,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--MINIMUM_LENGTH": "fixture[1]",
         "--REFERENCE_SEQUENCE": "fixture[1]",
+        "--REF_FLAT": "fixture[1]",
         "--RIBOSOMAL_INTERVALS": "fixture[0]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
         "--STOP_AFTER": "fixture[1]",
-        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--STRAND_SPECIFICITY": "NONE",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
@@ -353,11 +359,12 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--MINIMUM_LENGTH=100",
         "--REFERENCE_SEQUENCE=null",
+        "--REF_FLAT=/work/fixtures/refflat_long.txt",
         "--RIBOSOMAL_INTERVALS=null",
         "--RRNA_FRAGMENT_PERCENTAGE=0.8",
         "--STOP_AFTER=150",
-        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--STRAND_SPECIFICITY=NONE",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -372,11 +379,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[1]",
         "--RIBOSOMAL_INTERVALS": "fixture[1]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[1]",
         "--STOP_AFTER": "fixture[1]",
-        "--STRAND_SPECIFICITY": "NONE",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--STRAND_SPECIFICITY": "FIRST_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
@@ -388,11 +396,12 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat_long.txt",
         "--RIBOSOMAL_INTERVALS=/work/fixtures/targets.interval_list",
         "--RRNA_FRAGMENT_PERCENTAGE=0.3",
         "--STOP_AFTER=150",
-        "--STRAND_SPECIFICITY=NONE",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--STRAND_SPECIFICITY=FIRST_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -407,11 +416,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[1]",
-        "--RIBOSOMAL_INTERVALS": "fixture[1]",
-        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
-        "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "NONE",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--REF_FLAT": "fixture[0]",
+        "--RIBOSOMAL_INTERVALS": "fixture[0]",
+        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[1]",
+        "--STOP_AFTER": "fixture[1]",
+        "--STRAND_SPECIFICITY": "FIRST_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
@@ -423,11 +433,12 @@
         "--METRIC_ACCUMULATION_LEVEL=null",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=null",
-        "--RIBOSOMAL_INTERVALS=/work/fixtures/targets.interval_list",
-        "--RRNA_FRAGMENT_PERCENTAGE=0.8",
-        "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=NONE",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--RIBOSOMAL_INTERVALS=null",
+        "--RRNA_FRAGMENT_PERCENTAGE=0.3",
+        "--STOP_AFTER=150",
+        "--STRAND_SPECIFICITY=FIRST_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -442,11 +453,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--MINIMUM_LENGTH": "fixture[1]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[1]",
         "--RIBOSOMAL_INTERVALS": "fixture[1]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[2]",
-        "--STOP_AFTER": "fixture[1]",
-        "--STRAND_SPECIFICITY": "FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--STOP_AFTER": "fixture[0]",
+        "--STRAND_SPECIFICITY": "NONE",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
@@ -458,11 +470,12 @@
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--MINIMUM_LENGTH=100",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat_long.txt",
         "--RIBOSOMAL_INTERVALS=/work/fixtures/targets.interval_list",
         "--RRNA_FRAGMENT_PERCENTAGE=0.0",
-        "--STOP_AFTER=150",
-        "--STRAND_SPECIFICITY=FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--STOP_AFTER=0",
+        "--STRAND_SPECIFICITY=NONE",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -477,11 +490,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[2]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[1]",
         "--RIBOSOMAL_INTERVALS": "fixture[0]",
-        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
-        "--STOP_AFTER": "fixture[1]",
-        "--STRAND_SPECIFICITY": "FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
+        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
@@ -493,11 +507,12 @@
         "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat_long.txt",
         "--RIBOSOMAL_INTERVALS=null",
-        "--RRNA_FRAGMENT_PERCENTAGE=0.8",
-        "--STOP_AFTER=150",
-        "--STRAND_SPECIFICITY=FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--RRNA_FRAGMENT_PERCENTAGE=0.3",
+        "--STOP_AFTER=0",
+        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -512,11 +527,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--MINIMUM_LENGTH": "fixture[1]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[1]",
         "--RIBOSOMAL_INTERVALS": "fixture[2]",
-        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[1]",
+        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
         "--STOP_AFTER": "fixture[1]",
         "--STRAND_SPECIFICITY": "FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
@@ -528,11 +544,12 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--MINIMUM_LENGTH=100",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat_long.txt",
         "--RIBOSOMAL_INTERVALS=/work/fixtures/targets_mixed.interval_list",
-        "--RRNA_FRAGMENT_PERCENTAGE=0.3",
+        "--RRNA_FRAGMENT_PERCENTAGE=0.8",
         "--STOP_AFTER=150",
         "--STRAND_SPECIFICITY=FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -547,10 +564,11 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--MINIMUM_LENGTH": "fixture[1]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[0]",
         "--RIBOSOMAL_INTERVALS": "fixture[0]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "NONE",
+        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -563,10 +581,11 @@
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--MINIMUM_LENGTH=100",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
         "--RIBOSOMAL_INTERVALS=null",
         "--RRNA_FRAGMENT_PERCENTAGE=0.8",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=NONE",
+        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -582,11 +601,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[2]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[1]",
-        "--RIBOSOMAL_INTERVALS": "fixture[1]",
+        "--REF_FLAT": "fixture[0]",
+        "--RIBOSOMAL_INTERVALS": "fixture[2]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[1]",
-        "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--STOP_AFTER": "fixture[1]",
+        "--STRAND_SPECIFICITY": "NONE",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
@@ -598,11 +618,12 @@
         "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=null",
-        "--RIBOSOMAL_INTERVALS=/work/fixtures/targets.interval_list",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--RIBOSOMAL_INTERVALS=/work/fixtures/targets_mixed.interval_list",
         "--RRNA_FRAGMENT_PERCENTAGE=0.3",
-        "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--STOP_AFTER=150",
+        "--STRAND_SPECIFICITY=NONE",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -617,11 +638,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
-        "--RIBOSOMAL_INTERVALS": "fixture[0]",
-        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[1]",
+        "--REF_FLAT": "fixture[0]",
+        "--RIBOSOMAL_INTERVALS": "fixture[1]",
+        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
@@ -633,11 +655,12 @@
         "--METRIC_ACCUMULATION_LEVEL=null",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
-        "--RIBOSOMAL_INTERVALS=null",
-        "--RRNA_FRAGMENT_PERCENTAGE=0.3",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--RIBOSOMAL_INTERVALS=/work/fixtures/targets.interval_list",
+        "--RRNA_FRAGMENT_PERCENTAGE=0.8",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -652,10 +675,11 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[0]",
         "--RIBOSOMAL_INTERVALS": "fixture[2]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[2]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "NONE",
+        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -668,17 +692,18 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
         "--RIBOSOMAL_INTERVALS=/work/fixtures/targets_mixed.interval_list",
         "--RRNA_FRAGMENT_PERCENTAGE=0.0",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=NONE",
+        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 16,
       "labels": {
-        "--ASSUME_SORTED": "false",
+        "--ASSUME_SORTED": "true",
         "--CHART_OUTPUT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--END_BIAS_BASES": "fixture[0]",
@@ -687,14 +712,15 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[0]",
         "--RIBOSOMAL_INTERVALS": "fixture[0]",
-        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[2]",
+        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--STRAND_SPECIFICITY": "NONE",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--ASSUME_SORTED=false",
+        "--ASSUME_SORTED=true",
         "--CHART_OUTPUT=/work/out/chart.pdf",
         "--CREATE_INDEX=true",
         "--END_BIAS_BASES=100",
@@ -703,11 +729,12 @@
         "--METRIC_ACCUMULATION_LEVEL=null",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
         "--RIBOSOMAL_INTERVALS=null",
-        "--RRNA_FRAGMENT_PERCENTAGE=0.0",
+        "--RRNA_FRAGMENT_PERCENTAGE=0.8",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--STRAND_SPECIFICITY=NONE",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -722,11 +749,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[0]",
         "--RIBOSOMAL_INTERVALS": "fixture[0]",
-        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
+        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[2]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--STRAND_SPECIFICITY": "NONE",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
@@ -738,11 +766,12 @@
         "--METRIC_ACCUMULATION_LEVEL=null",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
         "--RIBOSOMAL_INTERVALS=null",
-        "--RRNA_FRAGMENT_PERCENTAGE=0.8",
+        "--RRNA_FRAGMENT_PERCENTAGE=0.0",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--STRAND_SPECIFICITY=NONE",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -757,11 +786,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
-        "--RIBOSOMAL_INTERVALS": "fixture[0]",
-        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[1]",
+        "--REF_FLAT": "fixture[0]",
+        "--RIBOSOMAL_INTERVALS": "fixture[1]",
+        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--STRAND_SPECIFICITY": "NONE",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
@@ -773,11 +803,12 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
-        "--RIBOSOMAL_INTERVALS=null",
-        "--RRNA_FRAGMENT_PERCENTAGE=0.3",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--RIBOSOMAL_INTERVALS=/work/fixtures/targets.interval_list",
+        "--RRNA_FRAGMENT_PERCENTAGE=0.8",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=FIRST_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--STRAND_SPECIFICITY=NONE",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -792,11 +823,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[0]",
         "--RIBOSOMAL_INTERVALS": "fixture[2]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--STRAND_SPECIFICITY": "NONE",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
@@ -808,11 +840,12 @@
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
         "--RIBOSOMAL_INTERVALS=/work/fixtures/targets_mixed.interval_list",
         "--RRNA_FRAGMENT_PERCENTAGE=0.8",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--STRAND_SPECIFICITY=NONE",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -827,6 +860,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[2]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[0]",
         "--RIBOSOMAL_INTERVALS": "fixture[0]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
@@ -843,6 +877,7 @@
         "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
         "--RIBOSOMAL_INTERVALS=null",
         "--RRNA_FRAGMENT_PERCENTAGE=0.8",
         "--STOP_AFTER=0",
@@ -862,11 +897,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
-        "--RIBOSOMAL_INTERVALS": "fixture[1]",
-        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[2]",
+        "--REF_FLAT": "fixture[0]",
+        "--RIBOSOMAL_INTERVALS": "fixture[2]",
+        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[1]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "NONE",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
@@ -878,11 +914,12 @@
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
-        "--RIBOSOMAL_INTERVALS=/work/fixtures/targets.interval_list",
-        "--RRNA_FRAGMENT_PERCENTAGE=0.0",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--RIBOSOMAL_INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--RRNA_FRAGMENT_PERCENTAGE=0.3",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=NONE",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -897,8 +934,9 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
-        "--RIBOSOMAL_INTERVALS": "fixture[2]",
-        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
+        "--REF_FLAT": "fixture[0]",
+        "--RIBOSOMAL_INTERVALS": "fixture[0]",
+        "--RRNA_FRAGMENT_PERCENTAGE": "fixture[2]",
         "--STOP_AFTER": "fixture[0]",
         "--STRAND_SPECIFICITY": "FIRST_READ_TRANSCRIPTION_STRAND",
         "--VALIDATION_STRINGENCY": "LENIENT"
@@ -913,8 +951,9 @@
         "--METRIC_ACCUMULATION_LEVEL=null",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
-        "--RIBOSOMAL_INTERVALS=/work/fixtures/targets_mixed.interval_list",
-        "--RRNA_FRAGMENT_PERCENTAGE=0.8",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--RIBOSOMAL_INTERVALS=null",
+        "--RRNA_FRAGMENT_PERCENTAGE=0.0",
         "--STOP_AFTER=0",
         "--STRAND_SPECIFICITY=FIRST_READ_TRANSCRIPTION_STRAND",
         "--VALIDATION_STRINGENCY=LENIENT"
@@ -932,11 +971,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[2]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
-        "--RIBOSOMAL_INTERVALS": "fixture[0]",
+        "--REF_FLAT": "fixture[0]",
+        "--RIBOSOMAL_INTERVALS": "fixture[1]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[2]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "NONE",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
@@ -948,11 +988,12 @@
         "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
-        "--RIBOSOMAL_INTERVALS=null",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--RIBOSOMAL_INTERVALS=/work/fixtures/targets.interval_list",
         "--RRNA_FRAGMENT_PERCENTAGE=0.0",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=NONE",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -967,10 +1008,11 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
+        "--REF_FLAT": "fixture[0]",
         "--RIBOSOMAL_INTERVALS": "fixture[0]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "SECOND_READ_TRANSCRIPTION_STRAND",
+        "--STRAND_SPECIFICITY": "NONE",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -983,10 +1025,11 @@
         "--METRIC_ACCUMULATION_LEVEL=null",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
         "--RIBOSOMAL_INTERVALS=null",
         "--RRNA_FRAGMENT_PERCENTAGE=0.8",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=SECOND_READ_TRANSCRIPTION_STRAND",
+        "--STRAND_SPECIFICITY=NONE",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -1002,11 +1045,12 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--MINIMUM_LENGTH": "fixture[0]",
         "--REFERENCE_SEQUENCE": "fixture[0]",
-        "--RIBOSOMAL_INTERVALS": "fixture[2]",
+        "--REF_FLAT": "fixture[0]",
+        "--RIBOSOMAL_INTERVALS": "fixture[0]",
         "--RRNA_FRAGMENT_PERCENTAGE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
-        "--STRAND_SPECIFICITY": "NONE",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--STRAND_SPECIFICITY": "FIRST_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
@@ -1018,11 +1062,12 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--MINIMUM_LENGTH=500",
         "--REFERENCE_SEQUENCE=/work/fixtures/ref.fasta",
-        "--RIBOSOMAL_INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--RIBOSOMAL_INTERVALS=null",
         "--RRNA_FRAGMENT_PERCENTAGE=0.8",
         "--STOP_AFTER=0",
-        "--STRAND_SPECIFICITY=NONE",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--STRAND_SPECIFICITY=FIRST_READ_TRANSCRIPTION_STRAND",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     }
   ]
