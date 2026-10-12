@@ -50,19 +50,19 @@
         "tool": "AddOATag",
         "port": "add-oa-tag",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectAlignmentSummaryMetrics",
         "port": "collect-alignment-summary-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectQualityYieldMetrics",
         "port": "collect-quality-yield-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "SortSam",
@@ -86,25 +86,25 @@
         "tool": "BedToIntervalList",
         "port": "bed-to-interval-list",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "IntervalListToBed",
         "port": "interval-list-to-bed",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "NormalizeFasta",
         "port": "normalize-fasta",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "AddOrReplaceReadGroups",
         "port": "add-or-replace-read-groups",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "MergeSamFiles",
@@ -134,13 +134,13 @@
         "tool": "ScatterIntervalsByNs",
         "port": "scatter-intervals-by-ns",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "ViewSam",
         "port": "view-sam",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output": "stdout"
       },
       {
@@ -154,7 +154,7 @@
         "tool": "ReorderSam",
         "port": "reorder-sam",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CreateSequenceDictionary",
@@ -166,7 +166,7 @@
         "tool": "DownsampleSam",
         "port": "downsample-sam",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "output.txt,metrics.txt"
       },
@@ -180,19 +180,19 @@
         "tool": "MeanQualityByCycle",
         "port": "mean-quality-by-cycle",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectBaseDistributionByCycle",
         "port": "collect-base-distribution-by-cycle",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "QualityScoreDistribution",
         "port": "quality-score-distribution",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "SetNmMdAndUqTags",
@@ -225,14 +225,14 @@
         "tool": "PositionBasedDownsampleSam",
         "port": "position-based-downsample-sam",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true
       },
       {
         "tool": "ValidateSamFile",
         "port": "validate-sam-file",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "exit_code_is_a_result": true
       },
       {
@@ -253,7 +253,7 @@
         "tool": "FastqToSam",
         "port": "fastq-to-sam",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "SplitSamByNumberOfReads",
@@ -279,14 +279,14 @@
         "tool": "SamToFastq",
         "port": "sam-to-fastq",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CollectDuplicateMetrics",
         "port": "collect-duplicate-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "metrics.txt,metrics_b.txt"
       },
       {
@@ -329,19 +329,19 @@
         "tool": "EstimateLibraryComplexity",
         "port": "estimate-library-complexity",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectUmiPrevalenceMetrics",
         "port": "collect-umi-prevalence-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "RevertOriginalBaseQualitiesAndAddMateCigar",
         "port": "revert-original-base-qualities-and-add-mate-cigar",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "CollectVariantCallingMetrics",
@@ -354,20 +354,20 @@
         "tool": "CollectJumpingLibraryMetrics",
         "port": "collect-jumping-library-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "MarkIlluminaAdapters",
         "port": "mark-illumina-adapters",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt,metrics.txt,metrics_b.txt"
       },
       {
         "tool": "SamToFastqWithTags",
         "port": "sam-to-fastq-with-tags",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
@@ -381,7 +381,7 @@
         "tool": "LiftOverIntervalList",
         "port": "lift-over-interval-list",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "exit_code_is_a_result": true,
         "output_name": "output.txt,reject.interval_list"
       },
@@ -396,7 +396,7 @@
         "tool": "CollectInsertSizeMetrics",
         "port": "collect-insert-size-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "BuildBamIndex",
@@ -420,7 +420,7 @@
         "tool": "LiftOverHaplotypeMap",
         "port": "lift-over-haplotype-map",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "exit_code_is_a_result": true
       },
       {
@@ -475,7 +475,7 @@
         "tool": "SplitVcfs",
         "port": "split-vcfs",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf"
       },
       {
@@ -496,35 +496,35 @@
         "tool": "CollectWgsMetrics",
         "port": "collect-wgs-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt,theoretical.txt"
       },
       {
         "tool": "CollectRawWgsMetrics",
         "port": "collect-raw-wgs-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt,theoretical.txt"
       },
       {
         "tool": "CollectWgsMetricsWithNonZeroCoverage",
         "port": "collect-wgs-metrics-with-non-zero-coverage",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt,theoretical.txt"
       },
       {
         "tool": "CollectHsMetrics",
         "port": "collect-hs-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt,per_target.txt,per_base.txt,theoretical.txt"
       },
       {
         "tool": "CollectTargetedPcrMetrics",
         "port": "collect-targeted-pcr-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt,per_target.txt,per_base.txt,theoretical.txt"
       },
       {
@@ -551,14 +551,14 @@
         "tool": "CollectGcBiasMetrics",
         "port": "collect-gc-bias-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt,summary.txt,summary_b.txt"
       },
       {
         "tool": "CollectRrbsMetrics",
         "port": "collect-rrbs-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.rrbs_summary_metrics,output.rrbs_detail_metrics"
       },
       {
@@ -571,14 +571,14 @@
         "tool": "CollectIndependentReplicateMetrics",
         "port": "collect-independent-replicate-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.txt,matrix.txt"
       },
       {
         "tool": "LiftoverVcf",
         "port": "liftover-vcf",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.vcf,reject.vcf,reject_b.vcf"
       },
       {
@@ -710,7 +710,7 @@
         "tool": "CheckFingerprint",
         "port": "check-fingerprint",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all",
         "exit_code_is_a_result": true
       },
@@ -800,7 +800,7 @@
         "tool": "VcfToAdpc",
         "port": "vcf-to-adpc",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all",
         "exit_code_is_a_result": true
       },
@@ -848,14 +848,14 @@
         "tool": "CollectHiSeqXPfFailMetrics",
         "port": "collect-hi-seq-x-pf-fail-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CollectIlluminaBasecallingMetrics",
         "port": "collect-illumina-basecalling-metrics",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
