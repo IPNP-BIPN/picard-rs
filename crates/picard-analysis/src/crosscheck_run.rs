@@ -74,6 +74,14 @@ pub struct Options {
     pub max_effect_of_each_haplotype_block: f64,
     pub require_index_files: bool,
     pub strict: bool,
+    /// `INPUT_INDEX_MAP` and `SECOND_INPUT_INDEX_MAP`: input path to index path.
+    pub input_index_map: Option<String>,
+    pub second_input_index_map: Option<String>,
+    /// `INPUT_SAMPLE_MAP` and `SECOND_INPUT_SAMPLE_MAP`: sample to the sample it is compared as.
+    pub input_sample_map: Option<String>,
+    pub second_input_sample_map: Option<String>,
+    /// `INPUT_SAMPLE_FILE_MAP`: the sample to compare a file's one sample as, by file.
+    pub input_sample_file_map: Option<String>,
 }
 
 /// `ConcurrentHashMap(initialCapacity)` filled in this order, then iterated: the table starts at
@@ -211,6 +219,19 @@ pub fn fingerprint_files_concurrent(
     require_index_files: bool,
     random: &mut SharedRandom,
 ) -> Result<Vec<(IdDetails, Fingerprint)>, String> {
+    fingerprint_files_indexed(files, map, sam_options, require_index_files, &[], random)
+}
+
+/// The same, with the index map's explicit indexes: a file it names is read through that index,
+/// which satisfies `REQUIRE_INDEX_FILES` whether or not one lies beside the file.
+fn fingerprint_files_indexed(
+    files: &[String],
+    map: &HaplotypeMap,
+    sam_options: &SamOptions,
+    require_index_files: bool,
+    index_map: &[(String, String)],
+    random: &mut SharedRandom,
+) -> Result<Vec<(IdDetails, Fingerprint)>, String> {
     let mut collected: Vec<(i32, (IdDetails, Fingerprint))> = Vec::new();
     for file in files {
         let reads = file.ends_with(".bam") || file.ends_with(".sam") || file.ends_with(".cram");
@@ -224,7 +245,11 @@ pub fn fingerprint_files_concurrent(
                 &|p, snp, base, qual| p.add_base(snp, base, qual),
             )?
         } else {
+            let explicit = index_map
+                .iter()
+                .any(|(input, _)| *input == crate::fingerprint::reference_path(file));
             if require_index_files
+                && !explicit
                 && !std::path::Path::new(&format!("{file}.idx")).exists()
                 && !std::path::Path::new(&format!("{file}.tbi")).exists()
             {
@@ -258,11 +283,13 @@ pub fn fingerprint_files_concurrent(
     Ok(concurrent_hash_order(collected, files.len()))
 }
 
-/// `fingerprintFiles` followed by `capFingerprints`, which copies into a `HashMap`.
-fn fingerprint_files(
+/// `fingerprintFiles` followed by `capFingerprints`, which copies into a `HashMap`, in that map's
+/// insertion order (the concurrent map's iteration order) rather than its own.
+fn fingerprint_files_inserted(
     files: &[String],
     map: &HaplotypeMap,
     options: &Options,
+    index_map: &[(String, String)],
     random: &mut SharedRandom,
 ) -> Result<Vec<(IdDetails, Fingerprint)>, String> {
     let sam_options = SamOptions {
@@ -270,27 +297,156 @@ fn fingerprint_files(
         strict: options.strict,
         ..SamOptions::default()
     };
-    let concurrent = fingerprint_files_concurrent(
+    let concurrent = fingerprint_files_indexed(
         files,
         map,
         &sam_options,
         options.require_index_files,
+        index_map,
         random,
     )?;
     let cap = -options.max_effect_of_each_haplotype_block;
-    Ok(java_hash_order(
-        concurrent
+    Ok(concurrent
+        .into_iter()
+        .map(|(details, fp)| {
+            let mut capped =
+                Fingerprint::new(fp.sample.clone(), fp.source.clone(), fp.info.clone());
+            for (key, probs) in &fp.blocks {
+                capped.blocks.insert(key.clone(), probs.capped(cap));
+            }
+            (details, capped)
+        })
+        .collect())
+}
+
+/// The capped map in its own iteration order.
+fn hashed(inserted: Vec<(IdDetails, Fingerprint)>) -> Vec<(IdDetails, Fingerprint)> {
+    java_hash_order(
+        inserted
             .into_iter()
-            .map(|(details, fp)| {
-                let mut capped =
-                    Fingerprint::new(fp.sample.clone(), fp.source.clone(), fp.info.clone());
-                for (key, probs) in &fp.blocks {
-                    capped.blocks.insert(key.clone(), probs.capped(cap));
-                }
-                (details.hash_code(), (details, capped))
-            })
+            .map(|(details, fp)| (details.hash_code(), (details, fp)))
             .collect(),
-    ))
+    )
+}
+
+/// `remapFingerprints` and `remapFingerprintsFromFiles`: every fingerprint the map names is taken
+/// out of the `HashMap` and put back under its new sample, in the map's iteration order. The ones
+/// left alone keep their place in their buckets and the moved ones join the end of theirs, so the
+/// map's new order is the old insertion order of the untouched entries, then the moved ones.
+fn remap(
+    inserted: Vec<(IdDetails, Fingerprint)>,
+    renamed: &dyn Fn(&IdDetails) -> Option<String>,
+) -> Vec<(IdDetails, Fingerprint)> {
+    let order = hashed(inserted.clone());
+    let mut kept: Vec<(IdDetails, Fingerprint)> = inserted
+        .into_iter()
+        .filter(|(details, _)| renamed(details).is_none())
+        .collect();
+    for (mut details, fp) in order {
+        if let Some(sample) = renamed(&details) {
+            details.sample = Some(sample);
+            kept.push((details, fp));
+        }
+    }
+    hashed(kept)
+}
+
+/// `remapFingerprints` over one map file: the uniqueness check, then the remap.
+fn remap_samples(
+    inserted: Vec<(IdDetails, Fingerprint)>,
+    path: &str,
+    field: &str,
+) -> Result<Vec<(IdDetails, Fingerprint)>, String> {
+    let pairs = read_two_columns(path, field)?;
+    // `resultingSamples`: the samples present, in their `HashSet`'s order, each mapped one moved
+    // to the end under its new name.
+    let mut present: Vec<String> = Vec::new();
+    for (details, _) in &inserted {
+        if let Some(sample) = &details.sample {
+            if !present.contains(sample) {
+                present.push(sample.clone());
+            }
+        }
+    }
+    let mut resulting: Vec<String> = java_hash_order(
+        present
+            .into_iter()
+            .map(|s| (string_hash_code(&s), s))
+            .collect(),
+    );
+    for (from, to) in &pairs {
+        if let Some(at) = resulting.iter().position(|s| s == from) {
+            resulting.remove(at);
+            resulting.push(to.clone());
+        }
+    }
+    let mut unique: Vec<&String> = Vec::new();
+    for s in &resulting {
+        if !unique.contains(&s) {
+            unique.push(s);
+        }
+    }
+    if unique.len() != resulting.len() {
+        let listed: Vec<&str> = unique.iter().map(|s| s.as_str()).collect();
+        return Err(format!("java.lang.IllegalArgumentException: After applying the mapping found in the {field} the resulting sample names must be unique when taken together with the remaining unmapped samples. Duplicates are: [{}]", listed.join(", ")));
+    }
+    Ok(remap(inserted, &|details| {
+        let sample = details.sample.as_ref()?;
+        pairs
+            .iter()
+            .find(|(from, _)| from == sample)
+            .map(|(_, to)| to.clone())
+    }))
+}
+
+/// `remapFingerprintsFromFiles`: the new sample of each file the map names, by the file's URI.
+fn remap_files(
+    inserted: Vec<(IdDetails, Fingerprint)>,
+    path: &str,
+) -> Result<Vec<(IdDetails, Fingerprint)>, String> {
+    let pairs = read_two_columns(path, "INPUT_SAMPLE_FILE_MAP")?;
+    let by_uri: Vec<(String, String)> = pairs
+        .iter()
+        .map(|(sample, file)| (format!("file://{file}"), sample.clone()))
+        .collect();
+    // A file the map names must hold one sample.
+    let mut files: Vec<&str> = Vec::new();
+    for (details, _) in &inserted {
+        if let Some(file) = details.file.as_deref() {
+            if !files.contains(&file) {
+                files.push(file);
+            }
+        }
+    }
+    for file in files {
+        let mut samples: Vec<String> = Vec::new();
+        for (details, _) in inserted
+            .iter()
+            .filter(|(d, _)| d.file.as_deref() == Some(file))
+        {
+            if let Some(sample) = &details.sample {
+                if !samples.contains(sample) {
+                    samples.push(sample.clone());
+                }
+            }
+        }
+        if samples.len() > 1 {
+            let ordered: Vec<String> = java_hash_order(
+                samples
+                    .into_iter()
+                    .map(|s| (string_hash_code(&s), s))
+                    .collect(),
+            );
+            return Err(format!("java.lang.IllegalArgumentException: fingerprinting file ({file}in INPUT_SAMPLE_FILE_MAP contains multiple samples: {}", ordered.concat()));
+        }
+    }
+    Ok(remap(inserted, &|details| {
+        let file = details.file.as_ref()?;
+        by_uri
+            .iter()
+            .find(|(uri, _)| uri == file)
+            .map(|(_, sample)| sample.clone())
+    }))
 }
 
 /// `CrosscheckMetric.FingerprintResult`.
@@ -395,7 +551,24 @@ pub fn run(options: &Options) -> Result<Outcome, String> {
         by = DataType::Sample;
     }
     let mut random = SharedRandom(crate::theoretical_sensitivity::JavaRandom::new(42));
-    let first = fingerprint_files(&options.inputs, &map, options, &mut random)?;
+    let index_map = |path: &Option<String>, field: &str| -> Result<Vec<(String, String)>, String> {
+        match path {
+            Some(path) => read_two_columns(path, field),
+            None => Ok(Vec::new()),
+        }
+    };
+    let first_index = index_map(&options.input_index_map, "INPUT_INDEX_MAP")?;
+    let second_index = index_map(&options.second_input_index_map, "SECOND_INPUT_INDEX_MAP")?;
+    let mut first =
+        fingerprint_files_inserted(&options.inputs, &map, options, &first_index, &mut random)?;
+    if let Some(path) = &options.input_sample_map {
+        first = remap_samples(first, path, "INPUT_SAMPLE_MAP")?;
+    }
+    if let Some(path) = &options.input_sample_file_map {
+        first = remap_files(first, path)?;
+    }
+    // `java_hash_order` is idempotent, so a remapped list, already in its map's order, is unmoved.
+    let first = hashed(first);
     let individuals = match &options.sample_individual_map {
         Some(path) => Some(read_two_columns(path, "SAMPLE_INDIVIDUAL_MAP")?),
         None => None,
@@ -468,7 +641,17 @@ pub fn run(options: &Options) -> Result<Outcome, String> {
         let rhs = merge_by(&first, by);
         unexpected += cross(lhs, rhs, &mut metrics);
     } else {
-        let second = fingerprint_files(&options.second_inputs, &map, options, &mut random)?;
+        let mut second = fingerprint_files_inserted(
+            &options.second_inputs,
+            &map,
+            options,
+            &second_index,
+            &mut random,
+        )?;
+        if let Some(path) = &options.second_input_sample_map {
+            second = remap_samples(second, path, "SECOND_INPUT_SAMPLE_MAP")?;
+        }
+        let second = hashed(second);
         if options.check_all_others {
             let lhs = merge_by(&first, by);
             let rhs = merge_by(&second, by);

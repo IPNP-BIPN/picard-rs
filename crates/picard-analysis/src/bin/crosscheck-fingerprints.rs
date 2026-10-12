@@ -41,6 +41,11 @@ fn main() {
             args.get("VALIDATION_STRINGENCY"),
             Some("LENIENT") | Some("SILENT")
         ),
+        input_index_map: args.get("INPUT_INDEX_MAP").map(str::to_string),
+        second_input_index_map: args.get("SECOND_INPUT_INDEX_MAP").map(str::to_string),
+        input_sample_map: args.get("INPUT_SAMPLE_MAP").map(str::to_string),
+        second_input_sample_map: args.get("SECOND_INPUT_SAMPLE_MAP").map(str::to_string),
+        input_sample_file_map: args.get("INPUT_SAMPLE_FILE_MAP").map(str::to_string),
     };
     let outcome = run(&options).unwrap_or_else(|e| thrown(&e));
     std::process::exit(write_outcome(&options, &outcome));

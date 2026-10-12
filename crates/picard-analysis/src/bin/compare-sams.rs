@@ -5,8 +5,6 @@
 //! BAM is read as the records it holds, `OUTPUT` is the one-row metrics file with the
 //! mapping-quality histogram under `COMPARE_MQ`, and the exit code is the verdict: nought when the
 //! files match, one when they differ, with the file written either way.
-//!
-//! `LENIENT_HEADER` and `LENIENT_DUP` are the port's limitation.
 
 use std::io::Read;
 
@@ -47,9 +45,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|v| v.eq_ignore_ascii_case("true"))
             .unwrap_or(false)
     };
-    if flag("LENIENT_HEADER=") || flag("LENIENT_DUP=") {
-        return Err("LENIENT_HEADER and LENIENT_DUP are not ported".into());
-    }
     let options = CompareOptions {
         lenient_low_mq_alignment: flag("LENIENT_LOW_MQ_ALIGNMENT="),
         lenient_unknown_mq_alignment: flag("LENIENT_UNKNOWN_MQ_ALIGNMENT="),
@@ -57,6 +52,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|v| v.parse().ok())
             .unwrap_or(3),
         compare_mq: flag("COMPARE_MQ="),
+        lenient_header: flag("LENIENT_HEADER="),
+        lenient_dup: flag("LENIENT_DUP="),
     };
     let absolute = |path: &str| {
         if std::path::Path::new(path).is_absolute() {

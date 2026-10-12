@@ -10,17 +10,17 @@
 //! queryname, or (any other value) unsorted comparison path. Each path matches reads by
 //! `PrimaryAlignmentKey` rather than by position, so order within a coordinate (and, in the unsorted
 //! path, order at all) does not matter; the per-type counts are commutative, so the port reproduces
-//! htsjdk's totals without reproducing its exact `LinkedHashMap` iteration order. Header comparison
-//! is a structural equality of the two headers, which is correct for equal headers.
+//! htsjdk's totals without reproducing its exact `LinkedHashMap` iteration order. The headers are
+//! compared field by field as `compareHeaders` does; the differences it prints are not reproduced,
+//! only its verdict.
 //!
 //! Comparison options are carried in [`CompareOptions`], covering the mapping-quality features:
 //! `LENIENT_LOW_MQ_ALIGNMENT` (count reads whose mapping quality is `<= LOW_MQ_THRESHOLD`, default 3,
 //! in both files but mapped to different locations as matches), `LENIENT_UNKNOWN_MQ_ALIGNMENT` (the
 //! same for the sentinel mapping quality 255), and `COMPARE_MQ` (emit a `## HISTOGRAM` of `mq1,mq2`
-//! concordance counts for every matched pair). [`compare_sams`] runs the strict defaults;
-//! [`compare_sams_with_options`] takes an explicit [`CompareOptions`]. htsjdk's finer field-by-field
-//! `compareHeaders` (and thus header-difference reporting), mismatched sort orders, `LENIENT_HEADER`,
-//! and `LENIENT_DUP` (duplicate-set swap logic) are deferred.
+//! concordance counts for every matched pair), `LENIENT_HEADER` and `LENIENT_DUP` (the duplicate-set
+//! swap logic). [`compare_sams`] runs the strict defaults; [`compare_sams_with_options`] takes an
+//! explicit [`CompareOptions`]. Mismatched sort orders are deferred.
 //!
 //! Two Picard behaviours are reproduced deliberately. `alignmentsMatch` compares
 //! `s1.getReadNegativeStrandFlag() == s1.getReadNegativeStrandFlag()` (the left record against
@@ -60,6 +60,12 @@ pub struct CompareOptions {
     pub low_mq_threshold: i32,
     /// `COMPARE_MQ`: emit a `## HISTOGRAM` of `mq1,mq2` concordance counts for every matched pair.
     pub compare_mq: bool,
+    /// `LENIENT_HEADER`: leave the program records and the sequences' species, assembly, MD5 and
+    /// URI out of the header comparison.
+    pub lenient_header: bool,
+    /// `LENIENT_DUP`: a duplicate mark that differs only because the two files chose different
+    /// representatives of one duplicate set is not counted.
+    pub lenient_dup: bool,
 }
 
 impl Default for CompareOptions {
@@ -69,6 +75,8 @@ impl Default for CompareOptions {
             lenient_unknown_mq_alignment: false,
             low_mq_threshold: 3,
             compare_mq: false,
+            lenient_header: false,
+            lenient_dup: false,
         }
     }
 }
@@ -88,7 +96,7 @@ impl From<ParseError> for CompareError {
 }
 
 /// `picard.sam.SamComparisonMetric`, the one-row comparison result.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct SamComparisonMetric {
     pub left_file: String,
     pub right_file: String,
@@ -106,6 +114,9 @@ pub struct SamComparisonMetric {
     /// [`write_report`] can emit it. Keyed in a `BTreeMap` so the bins come out in the same natural
     /// `String` order htsjdk's `TreeSet` comparator produces.
     pub mq_histogram: BTreeMap<String, i64>,
+    /// Under `LENIENT_DUP`, the pairs whose duplicate marks differ, left record then right, kept
+    /// for the duplicate-set pass instead of being counted. Not a metric column.
+    pub differing_duplicates: Vec<(BamRecord, BamRecord)>,
 }
 
 impl SamComparisonMetric {
@@ -213,8 +224,13 @@ fn tally(
     opts: &CompareOptions,
     m: &mut SamComparisonMetric,
 ) {
+    // `catalogDuplicateDifferences`: counted now, or kept for the lenient pass.
     if (s1.flags & DUPLICATE) != (s2.flags & DUPLICATE) {
-        m.duplicate_markings_differ += 1;
+        if opts.lenient_dup {
+            m.differing_duplicates.push((s1.clone(), s2.clone()));
+        } else {
+            m.duplicate_markings_differ += 1;
+        }
     }
     let s1_unmapped = s1.flags & READ_UNMAPPED != 0;
     let s2_unmapped = s2.flags & READ_UNMAPPED != 0;
@@ -287,15 +303,182 @@ pub fn compare_sams_with_options(
         .filter(|r| !is_secondary_or_supplementary(r))
         .collect();
 
-    match so1 {
-        "queryname" => compare_queryname(&left, &right, &h1, &h2, opts, &mut m),
-        "coordinate" => compare_coordinate(&left, &right, &h1, &h2, opts, &mut m),
-        _ => compare_unsorted(&left, &right, &h1, &h2, opts, &mut m),
+    let (headers_equal, dictionaries_differ) = compare_headers(&h1, &h2, opts.lenient_header);
+    // A coordinate comparison needs one dictionary; with two it compares nothing and fails.
+    let alignments_equal = match so1 {
+        "queryname" => {
+            compare_queryname(&left, &right, &h1, &h2, opts, &mut m);
+            m.all_visited_equal()
+        }
+        "coordinate" if dictionaries_differ => false,
+        "coordinate" => {
+            compare_coordinate(&left, &right, &h1, &h2, opts, &mut m);
+            m.all_visited_equal()
+        }
+        _ => {
+            compare_unsorted(&left, &right, &h1, &h2, opts, &mut m);
+            m.all_visited_equal()
+        }
+    };
+    if opts.lenient_dup {
+        let pairs = std::mem::take(&mut m.differing_duplicates);
+        m.duplicate_markings_differ += lenient_duplicate_differences(&h1, &h2, &pairs);
+    }
+    m.are_equal = headers_equal && alignments_equal && m.duplicate_markings_differ == 0;
+    Ok(m)
+}
+
+/// `compareHeaders`: whether the two headers agree, and whether their sequence dictionaries differ
+/// (which stops a coordinate comparison). Each check reports and goes on, as the reference does.
+fn compare_headers(h1: &SamHeader, h2: &SamHeader, lenient: bool) -> (bool, bool) {
+    let hd = |h: &SamHeader, key: &str| h.attributes.get(key).map(str::to_string);
+    let mut equal = hd(h1, "VN") == hd(h2, "VN");
+    equal &= hd(h1, "CR") == hd(h2, "CR");
+    equal &= hd(h1, "SO") == hd(h2, "SO");
+
+    // `compareSequenceDictionaries`.
+    let dictionaries_equal = if h1.sequences.len() != h2.sequences.len() {
+        false
+    } else {
+        let mut all = true;
+        for (s1, s2) in h1.sequences.iter().zip(&h2.sequences) {
+            if s1.name != s2.name {
+                all = false;
+                continue;
+            }
+            all &= s1.length == s2.length;
+            if !lenient {
+                for key in ["SP", "AS", "M5", "UR"] {
+                    all &= s1.attributes.get(key) == s2.attributes.get(key);
+                }
+            }
+        }
+        all
+    };
+    equal &= dictionaries_equal;
+
+    // `compareReadGroups`.
+    if h1.read_groups.len() != h2.read_groups.len() {
+        equal = false;
+    } else {
+        for (g1, g2) in h1.read_groups.iter().zip(&h2.read_groups) {
+            equal &= g1.id == g2.id;
+            for key in ["SM", "LB", "DS", "PU", "PI", "CN", "DT", "PL"] {
+                equal &= g1.attributes.get(key) == g2.attributes.get(key);
+            }
+        }
     }
 
-    let headers_equal = h1 == h2;
-    m.are_equal = headers_equal && m.all_visited_equal() && m.duplicate_markings_differ == 0;
-    Ok(m)
+    // `compareProgramRecords`, which LENIENT_HEADER skips.
+    if !lenient {
+        if h1.programs.len() != h2.programs.len() {
+            equal = false;
+        } else {
+            for (p1, p2) in h1.programs.iter().zip(&h2.programs) {
+                equal &= p1.id == p2.id;
+                for key in ["VN", "CL"] {
+                    equal &= p1.attributes.get(key) == p2.attributes.get(key);
+                }
+            }
+        }
+    }
+    (equal, !dictionaries_equal)
+}
+
+/// A record as the duplicate comparator reads it.
+fn duplicate_record(header: &SamHeader, rec: &BamRecord) -> crate::mark_duplicates::Record {
+    use htsjdk_bam::tag::{Tag, TagValue};
+    let group = match rec.tags.get(Tag::new(b"RG")) {
+        Some(TagValue::Str(id)) => header.read_groups.iter().position(|g| &g.id == id),
+        _ => None,
+    };
+    let library = group
+        .and_then(|index| header.read_groups[index].attributes.get("LB"))
+        .unwrap_or("Unknown Library")
+        .to_string();
+    crate::mark_duplicates::Record {
+        name: rec.read_name.clone(),
+        flags: rec.flags,
+        reference_index: rec.reference_index,
+        alignment_start: rec.alignment_start,
+        cigar: rec.cigar.clone(),
+        qualities: rec.base_qualities.clone(),
+        mate_reference_index: rec.mate_reference_index,
+        library,
+        read_group: group.map_or(-1, |index| index as i32),
+        barcode: None,
+        existing_dt: None,
+        mate_cigar: match rec.tags.get(Tag::new(b"MC")) {
+            Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text).ok(),
+            _ => None,
+        },
+        mate_alignment_start: rec.mate_alignment_start,
+    }
+}
+
+/// `countLenientDuplicateMarkingDifferences`: the records whose marks differ are cut into duplicate
+/// sets on each side. A left set's unmarked reads may swap with its marked ones; a right set's
+/// unmarked read that finds such a partner, marked on the right, is matched with it, and neither
+/// is counted. Every unmatched record is.
+fn lenient_duplicate_differences(
+    h1: &SamHeader,
+    h2: &SamHeader,
+    pairs: &[(BamRecord, BamRecord)],
+) -> i64 {
+    use crate::mark_duplicates::{Options, ScoringStrategy};
+    use std::collections::{HashMap, HashSet};
+    // `SAMRecordDuplicateComparator`'s own default strategy, over the mate's CIGAR.
+    let options = Options {
+        scoring: ScoringStrategy::TotalMappedReferenceLength,
+        assume_mate_cigar: true,
+        ..Options::default()
+    };
+    let left: Vec<_> = pairs.iter().map(|(l, _)| duplicate_record(h1, l)).collect();
+    let right: Vec<_> = pairs.iter().map(|(_, r)| duplicate_record(h2, r)).collect();
+
+    let mut swap_targets: HashMap<String, HashSet<String>> = HashMap::new();
+    for set in crate::duplicate_set::duplicate_sets(&left, &options) {
+        if set.len() > 1 {
+            let marked: HashSet<String> = set
+                .iter()
+                .filter(|i| left[**i].flags & DUPLICATE != 0)
+                .map(|i| left[*i].name.clone())
+                .collect();
+            for i in set.iter().filter(|i| left[**i].flags & DUPLICATE == 0) {
+                swap_targets.insert(left[*i].name.clone(), marked.clone());
+            }
+        }
+    }
+    let mut matched: HashSet<String> = HashSet::new();
+    let mut count = 0i64;
+    for set in crate::duplicate_set::duplicate_sets(&right, &options) {
+        if set.len() > 1 {
+            let candidates: Vec<&str> = set
+                .iter()
+                .filter(|i| right[**i].flags & DUPLICATE != 0)
+                .map(|i| right[*i].name.as_str())
+                .filter(|name| swap_targets.contains_key(*name))
+                .collect();
+            for i in set.iter().filter(|i| right[**i].flags & DUPLICATE == 0) {
+                let representative = right[*i].name.as_str();
+                if matched.contains(representative) {
+                    continue;
+                }
+                if let Some(partner) = candidates.iter().find(|candidate| {
+                    !matched.contains(**candidate)
+                        && swap_targets[**candidate].contains(representative)
+                }) {
+                    matched.insert((*partner).to_string());
+                    matched.insert(representative.to_string());
+                }
+            }
+        }
+        count += set
+            .iter()
+            .filter(|i| !matched.contains(right[**i].name.as_str()))
+            .count() as i64;
+    }
+    count
 }
 
 /// `compareQueryNameSortedAlignments`: a merge of the two name-ordered streams by `PrimaryAlignmentKey`.

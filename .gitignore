@@ -23,13 +23,11 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/BamIndexStats.t2.txt
 !tools/coverage/corpus/FixMateInformation.t2.txt
 !tools/coverage/corpus/SetNmMdAndUqTags.t2.txt
-!tools/coverage/corpus/RevertSam.t2.txt
 !tools/coverage/corpus/ExtractSequences.t2.txt
 !tools/coverage/corpus/SplitSamByLibrary.t2.txt
 !tools/coverage/corpus/MakeVcfSampleNameMap.t2.txt
 !tools/coverage/corpus/CheckDuplicateMarking.t2.txt
 !tools/coverage/corpus/AccumulateQualityYieldMetrics.t2.txt
-!tools/coverage/corpus/CompareSAMs.t2.txt
 !tools/coverage/corpus/BuildBamIndex.t2.txt
 !tools/coverage/corpus/AddCommentsToBam.t2.txt
 !tools/coverage/corpus/GatherBamFiles.t2.txt
@@ -49,7 +47,6 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/MergePedIntoVcf.t2.txt
 !tools/coverage/corpus/CompareMetrics.t2.txt
 !tools/coverage/corpus/MergeBamAlignment.t2.txt
-!tools/coverage/corpus/CollectSamErrorMetrics.t2.txt
 !tools/coverage/corpus/AccumulateVariantCallingMetrics.t2.txt
 !tools/coverage/corpus/CollectQualityYieldMetricsFlow.t2.txt
 !tools/coverage/corpus/CollectQualityYieldMetricsSNVQ.t2.txt
@@ -59,8 +56,6 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/SetNmAndUqTags.t2.txt
 !tools/coverage/corpus/CheckTerminatorBlock.t2.txt
 !tools/coverage/corpus/FilterVcf.t2.txt
-!tools/coverage/corpus/CrosscheckFingerprints.t2.txt
-!tools/coverage/corpus/CrosscheckReadGroupFingerprints.t2.txt
 !tools/coverage/corpus/CalculateFingerprintMetrics.t2.txt
 !tools/coverage/corpus/ExtractFingerprint.t2.txt
 !tools/coverage/corpus/IdentifyContaminant.t2.txt
@@ -69,10 +64,6 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/BpmToNormalizationManifestCsv.t2.txt
 !tools/coverage/corpus/CompareGtcFiles.t2.txt
 !tools/coverage/corpus/CombineGenotypingArrayVcfs.t2.txt
-!tools/coverage/corpus/CreateExtendedIlluminaManifest.t2.txt
-!tools/coverage/corpus/ExtractIlluminaBarcodes.t2.txt
-!tools/coverage/corpus/IlluminaBasecallsToFastq.t2.txt
-!tools/coverage/corpus/IlluminaBasecallsToSam.t2.txt
 # {{END coverage corpora}}
 
 # Candidate goldens for golden-pending suites. CI publishes them as an artefact from a real

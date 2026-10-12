@@ -927,6 +927,14 @@
       "--SECOND_INPUT": [
         "<absent>",
         "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--SCATTER_COUNT": [
+        "1",
+        "3"
+      ],
+      "--SCATTER_CONTENT": [
+        "<absent>",
+        "300"
       ]
     },
     "PositionBasedDownsampleSam": {
@@ -1019,8 +1027,68 @@
     },
     "RevertSam": {
       "--MAX_DISCARD_FRACTION": [
-        "0.01",
-        "1.0"
+        "1.0",
+        "0.01"
+      ],
+      "$why": [
+        "revert.bam has two read groups that share a sample and a library (SAMPLE_ALIAS and LIBRARY_NAME refuse a",
+        "file whose groups differ, as every other input's do), XR and XV string tags the default lists leave alone, and",
+        "NM and MD, which the default ATTRIBUTE_TO_CLEAR removes and a null keeps. OUTPUT_BY_READGROUP needs OUTPUT to be a",
+        "directory, or OUTPUT absent and an OUTPUT_MAP, which sends rg1 to a BAM and rg2 to a SAM; the pairs every row",
+        "would refuse (a directory without it, a file or nothing with it, a map without it) are forbidden, so the rows",
+        "measure the files. The answer is the single output and every per-read-group file a row can name.",
+        "OUTPUT_BY_READGROUP_FILE_FORMAT=cram is left out: the port writes no CRAM."
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/revert.bam"
+      ],
+      "--OUTPUT": [
+        "/work/out/output.txt",
+        "/work/out",
+        "<absent>"
+      ],
+      "--OUTPUT_MAP": [
+        "<absent>",
+        "/work/fixtures/revert_output_map.tsv"
+      ],
+      "--ATTRIBUTE_TO_CLEAR": [
+        "<absent>",
+        "XV",
+        "null"
+      ],
+      "--ATTRIBUTE_TO_REVERSE": [
+        "<absent>",
+        "XV",
+        "null"
+      ],
+      "--ATTRIBUTE_TO_REVERSE_COMPLEMENT": [
+        "<absent>",
+        "XR",
+        "null"
+      ],
+      "--SAMPLE_ALIAS": [
+        "<absent>",
+        "sampleX"
+      ],
+      "--LIBRARY_NAME": [
+        "<absent>",
+        "libX"
+      ],
+      "--OUTPUT_BY_READGROUP_FILE_FORMAT": [
+        "dynamic",
+        "bam",
+        "sam"
+      ],
+      "--SORT_ORDER": [
+        "queryname",
+        "coordinate"
+      ],
+      "--SANITIZE": [
+        "false",
+        "true"
       ]
     },
     "SamToFastq": {
@@ -1333,19 +1401,19 @@
         "bases apart, which LENIENT_UNKNOWN_MQ_ALIGNMENT (listed true first, so it is the filler) forgives.",
         "The right file also re-draws the mapping quality of every fifth read, which COMPARE_MQ shows as",
         "histogram rows. The pair used to be small.bam against inconsistent_duplicates.bam, which differ on",
-        "sixty-three duplicate marks, so every row was exit one and none was accepted. LENIENT_HEADER and",
-        "LENIENT_DUP are held at false: they are the port's limitation. The OUTPUT is optional and named, so",
-        "the rows compare the file."
-      ],
-      "$positional": [
-        "/work/fixtures/compare_left.bam",
-        "/work/fixtures/compare_right.bam"
+        "sixty-three duplicate marks, so every row was exit one and none was accepted. The positional pair is",
+        "itself an argument: the second alternative compares compare_left.bam with compare_swap.bam, a copy",
+        "whose planted duplicate set has its representative swapped, which LENIENT_DUP forgives, and whose",
+        "header carries one more program record, which LENIENT_HEADER ignores. The OUTPUT is optional and",
+        "named, so the rows compare the file."
       ],
       "--LENIENT_HEADER": [
-        "false"
+        "false",
+        "true"
       ],
       "--LENIENT_DUP": [
-        "false"
+        "false",
+        "true"
       ],
       "--LOW_MQ_THRESHOLD": [
         "3",
@@ -1354,6 +1422,10 @@
       "--LENIENT_UNKNOWN_MQ_ALIGNMENT": [
         "true",
         "false"
+      ],
+      "[NA - Positional]": [
+        "/work/fixtures/compare_left.bam /work/fixtures/compare_right.bam",
+        "/work/fixtures/compare_left.bam /work/fixtures/compare_swap.bam"
       ]
     },
     "MakeSitesOnlyVcf": {
@@ -1796,7 +1868,8 @@
         "the constraints below say. LONG_HOMOPOLYMER, LOCATION_BIN_SIZE and PROGRESS_STEP_INTERVAL belong to",
         "stratifiers the port does not bin or to the log, and take a second value so that their being inert",
         "is observed rather than assumed. ERROR_VALUE and STRATIFIER_VALUE are fake arguments that the tool",
-        "refuses whenever they are set."
+        "refuses whenever they are set.",
+        "ERROR_VALUE and STRATIFIER_VALUE are documentation arguments that the validation refuses whenever they are given."
       ],
       "$lists": [
         "--ERROR_METRICS",
@@ -1864,8 +1937,14 @@
         ".txt",
         ".tsv"
       ],
-      "--ERROR_VALUE": [],
-      "--STRATIFIER_VALUE": []
+      "--ERROR_VALUE": [
+        "<absent>",
+        "ERROR"
+      ],
+      "--STRATIFIER_VALUE": [
+        "<absent>",
+        "ALL"
+      ]
     },
     "CollectWgsMetricsWithNonZeroCoverage": {
       "$why": [
@@ -3518,12 +3597,12 @@
       "$why": [
         "INPUT and SECOND_INPUT are lists ($lists). fp_a.bam and fp_b.bam are two samples, fp_multi.bam is A twice and B",
         "once (so CROSSCHECK_BY gives three different tables), and fp_genotypes.vcf is a VCF with A, B and C, which is a",
-        "second input that is not a BAM. MATRIX_OUTPUT is mutually exclusive with SECOND_INPUT (Barclay refuses on the",
-        "argument being set, so even null is fatal) and each has one partner, so the side that changes which pairs are compared",
-        "is kept and the matrix is held absent; the matrix is measured through CrosscheckReadGroupFingerprints, whose roll-up",
-        "writes it to OUTPUT. The files of file names (INPUT_SAMPLE_MAP, INPUT_INDEX_MAP and their kin) hold paths, which the",
-        "container and the host spell differently, so they have no fixture. The tool's exit code is part of the answer, with the",
-        "table written either way."
+        "second input that is not a BAM. MATRIX_OUTPUT is mutually exclusive with SECOND_INPUT, and INPUT_SAMPLE_MAP with",
+        "INPUT_SAMPLE_FILE_MAP (Barclay refuses on the argument being set, so even null is fatal): each is varied against",
+        "the other's absence. The files of names hold the paths the reference is given (the port maps them back to the",
+        "host): sampleB is compared as sampleC, the second input's sampleC as sampleD, fp_a.bam's sample as sampleZ, and",
+        "the index map names the VCF's and fp_a.bam's indexes. The tool's exit code is part of the answer, with the table",
+        "written either way."
       ],
       "$lists": [
         "--INPUT",
@@ -3535,7 +3614,7 @@
         "/work/fixtures/fp_a.bam /work/fixtures/fp_genotypes.vcf"
       ],
       "--SECOND_INPUT": [
-        "null",
+        "<absent>",
         "/work/fixtures/fp_genotypes.vcf",
         "/work/fixtures/fp_b.bam"
       ],
@@ -3545,7 +3624,10 @@
         "LIBRARY",
         "FILE"
       ],
-      "--MATRIX_OUTPUT": [],
+      "--MATRIX_OUTPUT": [
+        "<absent>",
+        "/work/out/matrix.txt"
+      ],
       "--SAMPLE_INDIVIDUAL_MAP": [
         "null",
         "/work/fixtures/fp_individuals.txt"
@@ -3617,24 +3699,62 @@
       "--CREATE_INDEX": [
         "false",
         "true"
+      ],
+      "--NUM_THREADS": [
+        "1",
+        "2"
+      ],
+      "--INPUT_INDEX_MAP": [
+        "<absent>",
+        "/work/fixtures/fp_index_map.txt"
+      ],
+      "--SECOND_INPUT_INDEX_MAP": [
+        "<absent>",
+        "/work/fixtures/fp_index_map.txt"
+      ],
+      "--INPUT_SAMPLE_MAP": [
+        "<absent>",
+        "/work/fixtures/fp_sample_map.txt"
+      ],
+      "--INPUT_SAMPLE_FILE_MAP": [
+        "<absent>",
+        "/work/fixtures/fp_sample_file_map.txt"
+      ],
+      "--SECOND_INPUT_SAMPLE_MAP": [
+        "<absent>",
+        "/work/fixtures/fp_second_sample_map.txt"
       ]
     },
     "CrosscheckReadGroupFingerprints": {
       "$why": [
         "The wrapper of CrosscheckFingerprints (see its $why) that rolls up through two booleans of its own. It refuses",
-        "CROSSCHECK_BY, MATRIX_OUTPUT and SECOND_INPUT whenever they are given, whatever their value, so each is held absent;",
-        "its EXPECT_ALL_READ_GROUPS_TO_MATCH is mutually exclusive with the parent's EXPECT_ALL_GROUPS_TO_MATCH, which is held",
-        "absent too. A roll-up sends the table to /dev/null and writes the matrix to OUTPUT."
+        "CROSSCHECK_BY other than READGROUP, MATRIX_OUTPUT and SECOND_INPUT whenever they are given, which the rows",
+        "measure; its EXPECT_ALL_READ_GROUPS_TO_MATCH is mutually exclusive with the parent's EXPECT_ALL_GROUPS_TO_MATCH,",
+        "so each is varied against the other's absence. A roll-up sends the table to /dev/null and writes the matrix to",
+        "OUTPUT."
       ],
       "--INPUT": [
         "/work/fixtures/fp_multi.bam",
         "/work/fixtures/fp_a.bam",
         "/work/fixtures/fp_b.bam"
       ],
-      "--CROSSCHECK_BY": [],
-      "--MATRIX_OUTPUT": [],
-      "--SECOND_INPUT": [],
-      "--EXPECT_ALL_GROUPS_TO_MATCH": [],
+      "--CROSSCHECK_BY": [
+        "<absent>",
+        "READGROUP",
+        "SAMPLE"
+      ],
+      "--MATRIX_OUTPUT": [
+        "<absent>",
+        "/work/out/matrix.txt"
+      ],
+      "--SECOND_INPUT": [
+        "<absent>",
+        "/work/fixtures/fp_b.bam"
+      ],
+      "--EXPECT_ALL_GROUPS_TO_MATCH": [
+        "<absent>",
+        "true"
+      ],
       "--CROSSCHECK_SAMPLES": [
         "false",
         "true"
@@ -3644,6 +3764,7 @@
         "true"
       ],
       "--EXPECT_ALL_READ_GROUPS_TO_MATCH": [
+        "<absent>",
         "false",
         "true"
       ],
@@ -3714,6 +3835,30 @@
       "--CREATE_INDEX": [
         "false",
         "true"
+      ],
+      "--NUM_THREADS": [
+        "1",
+        "2"
+      ],
+      "--INPUT_INDEX_MAP": [
+        "<absent>",
+        "/work/fixtures/fp_index_map.txt"
+      ],
+      "--SECOND_INPUT_INDEX_MAP": [
+        "<absent>",
+        "/work/fixtures/fp_index_map.txt"
+      ],
+      "--INPUT_SAMPLE_MAP": [
+        "<absent>",
+        "/work/fixtures/fp_sample_map.txt"
+      ],
+      "--INPUT_SAMPLE_FILE_MAP": [
+        "<absent>",
+        "/work/fixtures/fp_sample_file_map.txt"
+      ],
+      "--SECOND_INPUT_SAMPLE_MAP": [
+        "<absent>",
+        "/work/fixtures/fp_second_sample_map.txt"
       ]
     },
     "CheckTerminatorBlock": {
@@ -3855,7 +4000,8 @@
         "/work/out/output.vcf"
       ],
       "--EXTENDED_ILLUMINA_MANIFEST": [
-        "/work/fixtures/arr_extended.csv"
+        "/work/fixtures/arr_extended.csv",
+        "/work/fixtures/arr_extended_flags.csv"
       ],
       "--CLUSTER_FILE": [
         "/work/fixtures/arr.egt",
@@ -3985,9 +4131,9 @@
         "arr_manifest.csv is the plain manifest of MakeArraysFixtures' four loci, on arr_ref.fasta (GRCh37);",
         "arr_manifest_flags.csv adds a second assay at rs1's position (a locus off the reference makes the tool throw",
         "instead of flagging it). arr_flags.egt scores all five, which FLAG_DUPLICATES needs to pick the survivor, and",
-        "arr_dbsnp.vcf knows two loci. Build 37 is the only target the tool supports; 36 is refused. No chain",
-        "file exists for a supported build, so SUPPORTED_* stay empty. The report's 'Generated on:' line is the",
-        "clock's."
+        "arr_dbsnp.vcf knows two loci. Build 37 is the only target the tool supports; 36 is refused. The SUPPORTED_* triple names build 36 with",
+        "a chain file: every assay is on build 37, so it reaches the header and the validation, not the liftover.",
+        "The report's 'Generated on:' line is the clock's."
       ],
       "--INPUT": [
         "/work/fixtures/arr_manifest.csv",
@@ -3997,7 +4143,8 @@
         "/work/out/output.csv"
       ],
       "--REPORT_FILE": [
-        "/work/out/report.txt"
+        "/work/out/report.txt",
+        "/work/out/report_b.txt"
       ],
       "--BAD_ASSAYS_FILE": [
         "/work/out/bad.txt",
@@ -4023,13 +4170,16 @@
         "/work/fixtures/arr_ref.fasta"
       ],
       "--SUPPORTED_BUILD": [
-        "null"
+        "null",
+        "36"
       ],
       "--SUPPORTED_CHAIN_FILE": [
-        "null"
+        "null",
+        "/work/fixtures/lift.chain"
       ],
       "--SUPPORTED_REFERENCE_FILE": [
-        "null"
+        "null",
+        "/work/fixtures/arr_ref.fasta"
       ]
     },
     "CheckIlluminaDirectory": {
@@ -4176,20 +4326,22 @@
     "ExtractIlluminaBarcodes": {
       "$why": [
         "ill_run reads AG, AG, CT, CT at cycles three and four and AA, CC, GG, TT at one and two; ill_run_n",
-        "has a no-call and a quality of ten among its barcode bases. The barcode files declare the two, one,",
-        "a tie (AC and GG, each one mismatch from AG), a duplicate (refused) and a two-read set for 2B2B, which",
-        "a one-read structure refuses by column count. BARCODE is mutually exclusive with BARCODE_FILE, so it",
-        "is held absent; INPUT_PARAMS_FILE is overwritten by BARCODE_FILE before it is read, and MINIMUM_QUALITY",
-        "is read in a field initialiser before the parser runs, so both change nothing. COMPRESS_OUTPUTS is",
-        "held false: the gzip stream is the JDK's deflater, not the tool's logic. The answer is every file in",
-        "OUTPUT_DIR: the per-tile barcode file and the metrics."
+        "has a no-call and a quality of ten among its barcode bases, and ill_run_2l has two lanes. The barcode",
+        "files declare the two, one, a tie (AC and GG, each one mismatch from AG), a duplicate (refused) and a",
+        "two-read set for 2B2B, which a one-read structure refuses by column count. BARCODE is mutually exclusive",
+        "with BARCODE_FILE, so each is varied against the other's absence; INPUT_PARAMS_FILE is overwritten by",
+        "BARCODE_FILE before it is read, and MINIMUM_QUALITY is read in a field initialiser before the parser",
+        "runs, so both change nothing. COMPRESS_OUTPUTS gzips the barcode files, whose content is compared. The",
+        "second OUTPUT_DIR does not exist. The answer is every file the run writes: the per-tile barcode files",
+        "and the metrics."
       ],
       "$lists": [
         "--LANE"
       ],
       "--BASECALLS_DIR": [
         "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
-        "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+        "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run_2l/Data/Intensities/BaseCalls"
       ],
       "--READ_STRUCTURE": [
         "2T2B",
@@ -4202,19 +4354,25 @@
         "/work/fixtures/ill_barcodes_one.txt",
         "/work/fixtures/ill_barcodes_tie.txt",
         "/work/fixtures/ill_barcodes_dup.txt",
-        "/work/fixtures/ill_barcodes_two.txt"
+        "/work/fixtures/ill_barcodes_two.txt",
+        "<absent>"
       ],
       "--BARCODE": [
-        "null"
+        "<absent>",
+        "AG"
       ],
       "--LANE": [
-        "1"
+        "1",
+        "2",
+        "1 2"
       ],
       "--OUTPUT_DIR": [
-        "/work/out"
+        "/work/out",
+        "/work/out/missing"
       ],
       "--METRICS_FILE": [
-        "/work/out/metrics.txt"
+        "/work/out/metrics.txt",
+        "/work/out/metrics_b.txt"
       ],
       "--MAX_MISMATCHES": [
         "1",
@@ -4252,19 +4410,22 @@
         "4"
       ],
       "--COMPRESS_OUTPUTS": [
-        "false"
+        "false",
+        "true"
       ]
     },
     "IlluminaBasecallsToFastq": {
       "$why": [
-        "ill_run's four clusters (three PF) read AG, AG, CT, CT at cycles three and four; ill_run_n has a no-call",
-        "and a quality of ten among them, which the EAMSS filter masks. MULTIPLEX_PARAMS writes /work/out/<prefix>",
-        "files per barcode (ill_multiplex.txt: AG, CT and the unmatched N row; _partial.txt: AG and N, so CT is",
-        "unexpected; _one.txt: no barcode column, for 4T). OUTPUT_PREFIX is mutually exclusive with it and held",
-        "absent. Barcodes come from ill_bcdir's per-tile file or, with MATCH_BARCODES_INLINE, are matched against",
-        "the MULTIPLEX_PARAMS barcodes, and only then is METRICS_FILE written. TRIMMING_QUALITY and the adapters",
-        "cut a template read, and a cut shorter than MIN_TRIMMED_LENGTH is padded back to it with zero bytes.",
-        "COMPRESS_OUTPUTS writes BGZF, compared decompressed. The answer is every file in /work/out."
+        "ill_run's four clusters (three PF) read AG, AG, CT, CT at cycles three and four; ill_run_n has a no-call and a",
+        "quality of ten among them, which the EAMSS filter masks. MULTIPLEX_PARAMS writes /work/out/<prefix> files per",
+        "barcode (ill_multiplex.txt: AG, CT and the unmatched N row; _partial.txt: AG and N, so CT is unexpected;",
+        "_one.txt: no barcode column, for 4T). Barcodes come from ill_bcdir's per-tile file or, with",
+        "MATCH_BARCODES_INLINE, are matched against the MULTIPLEX_PARAMS barcodes, and only then is METRICS_FILE",
+        "written. TRIMMING_QUALITY and the adapters cut a template read, and a cut shorter than MIN_TRIMMED_LENGTH is",
+        "padded back to it with zero bytes. COMPRESS_OUTPUTS writes BGZF, compared decompressed. The answer is every",
+        "file in /work/out. FLOWCELL_BARCODE, LANE (ill_run_2l has two), METRICS_FILE, MINIMUM_QUALITY,",
+        "MAX_READS_IN_RAM_PER_TILE and INPUT_PARAMS_FILE vary; OUTPUT_PREFIX is varied against MULTIPLEX_PARAMS's",
+        "absence."
       ],
       "$lists": [
         "--LANE",
@@ -4272,14 +4433,16 @@
       ],
       "--BASECALLS_DIR": [
         "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
-        "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+        "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run_2l/Data/Intensities/BaseCalls"
       ],
       "--BARCODES_DIR": [
         "/work/fixtures/ill_bcdir",
         "null"
       ],
       "--LANE": [
-        "1"
+        "1",
+        "1 2"
       ],
       "--READ_STRUCTURE": [
         "2T2B",
@@ -4290,10 +4453,12 @@
       "--MULTIPLEX_PARAMS": [
         "/work/fixtures/ill_multiplex.txt",
         "/work/fixtures/ill_multiplex_partial.txt",
-        "/work/fixtures/ill_multiplex_one.txt"
+        "/work/fixtures/ill_multiplex_one.txt",
+        "<absent>"
       ],
       "--OUTPUT_PREFIX": [
-        "null"
+        "<absent>",
+        "/work/out/pfx"
       ],
       "--RUN_BARCODE": [
         "R1",
@@ -4304,7 +4469,8 @@
         "null"
       ],
       "--FLOWCELL_BARCODE": [
-        "FC1"
+        "FC1",
+        "FC2"
       ],
       "--READ_NAME_FORMAT": [
         "CASAVA_1_8",
@@ -4315,7 +4481,8 @@
         "true"
       ],
       "--METRICS_FILE": [
-        "/work/out/metrics.txt"
+        "/work/out/metrics.txt",
+        "/work/out/metrics_b.txt"
       ],
       "--INCLUDE_NON_PF_READS": [
         "true",
@@ -4394,29 +4561,32 @@
         "FREE"
       ],
       "--MINIMUM_QUALITY": [
-        "2"
+        "2",
+        "40"
       ],
       "--FORCE_GC": [
         "true",
         "false"
       ],
       "--INPUT_PARAMS_FILE": [
-        "null"
+        "null",
+        "/work/fixtures/ill_multiplex_partial.txt"
       ],
       "--MAX_READS_IN_RAM_PER_TILE": [
-        "-1"
+        "-1",
+        "2"
       ]
     },
     "IlluminaBasecallsToSam": {
       "$why": [
-        "ill_run's four clusters (three PF) read AG, AG, CT, CT at cycles three and four; ill_run_n has a no-call",
-        "and a quality of ten among them. LIBRARY_PARAMS names one output per barcode: ill_library.txt (AG, CT and",
-        "the N row, BAM), _partial.txt (AG and N, so CT is unexpected), _tags.txt (a BARCODE column, a DS read",
-        "group column, SAM outputs) and _one.txt (no barcode column, for 4T). OUTPUT, SAMPLE_ALIAS and LIBRARY_NAME",
-        "are mutually exclusive with it and held absent, as is BARCODE_PARAMS (its alias) and PROCESS_SINGLE_TILE",
-        "(exclusive with FIRST_TILE and TILE_LIMIT). The read group, the barcode population strategy, the",
-        "molecular index tags and inline matching vary; a BAM is compared decompressed. The answer is every file",
-        "in /work/out."
+        "ill_run's four clusters (three PF) read AG, AG, CT, CT at cycles three and four; ill_run_n has a no-call and a",
+        "quality of ten among them. LIBRARY_PARAMS names one output per barcode: ill_library.txt (AG, CT and the N row,",
+        "BAM), _partial.txt (AG and N, so CT is unexpected), _tags.txt (a BARCODE column, a DS read group column, SAM",
+        "outputs) and _one.txt (no barcode column, for 4T). The read group, the barcode population strategy, the",
+        "molecular index tags and inline matching vary; a BAM is compared decompressed. The answer is every file in",
+        "/work/out. OUTPUT, SAMPLE_ALIAS, LIBRARY_NAME and BARCODE_PARAMS are each varied against LIBRARY_PARAMS's",
+        "absence, and PROCESS_SINGLE_TILE against FIRST_TILE's and TILE_LIMIT's; LANE (ill_run_2l has two),",
+        "METRICS_FILE, MINIMUM_QUALITY, MAX_READS_IN_RAM_PER_TILE, INPUT_PARAMS_FILE and COMPRESS_OUTPUTS vary."
       ],
       "$lists": [
         "--LANE",
@@ -4425,14 +4595,16 @@
       ],
       "--BASECALLS_DIR": [
         "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
-        "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+        "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run_2l/Data/Intensities/BaseCalls"
       ],
       "--BARCODES_DIR": [
         "/work/fixtures/ill_bcdir",
         "null"
       ],
       "--LANE": [
-        "1"
+        "1",
+        "1 2"
       ],
       "--READ_STRUCTURE": [
         "2T2B",
@@ -4444,22 +4616,28 @@
         "/work/fixtures/ill_library.txt",
         "/work/fixtures/ill_library_partial.txt",
         "/work/fixtures/ill_library_tags.txt",
-        "/work/fixtures/ill_library_one.txt"
+        "/work/fixtures/ill_library_one.txt",
+        "<absent>"
       ],
       "--BARCODE_PARAMS": [
-        "null"
+        "<absent>",
+        "/work/fixtures/ill_library.txt"
       ],
       "--OUTPUT": [
-        "null"
+        "<absent>",
+        "/work/out/single.bam"
       ],
       "--SAMPLE_ALIAS": [
-        "null"
+        "<absent>",
+        "sampleS"
       ],
       "--LIBRARY_NAME": [
-        "null"
+        "<absent>",
+        "libS"
       ],
       "--PROCESS_SINGLE_TILE": [
-        "null"
+        "<absent>",
+        "1101"
       ],
       "--RUN_BARCODE": [
         "R1",
@@ -4511,7 +4689,8 @@
         "true"
       ],
       "--METRICS_FILE": [
-        "/work/out/metrics.txt"
+        "/work/out/metrics.txt",
+        "/work/out/metrics_b.txt"
       ],
       "--INCLUDE_NON_PF_READS": [
         "true",
@@ -4543,12 +4722,12 @@
         "AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
       ],
       "--FIRST_TILE": [
-        "null",
+        "<absent>",
         "1101",
         "1102"
       ],
       "--TILE_LIMIT": [
-        "null",
+        "<absent>",
         "1",
         "0"
       ],
@@ -4577,16 +4756,20 @@
         "FREE"
       ],
       "--MINIMUM_QUALITY": [
-        "2"
+        "2",
+        "40"
       ],
       "--INPUT_PARAMS_FILE": [
-        "null"
+        "null",
+        "/work/fixtures/ill_library_partial.txt"
       ],
       "--MAX_READS_IN_RAM_PER_TILE": [
-        "-1"
+        "-1",
+        "2"
       ],
       "--COMPRESS_OUTPUTS": [
-        "false"
+        "false",
+        "true"
       ],
       "--CREATE_INDEX": [
         "false"
@@ -4771,15 +4954,6 @@
     }
   },
   "constraints": [
-    {
-      "tools": [
-        "RevertSam"
-      ],
-      "forbid": {
-        "--OUTPUT_BY_READGROUP": "true"
-      },
-      "why": "OUTPUT_BY_READGROUP=true requires OUTPUT to be a DIRECTORY, and this harness compares one output file, so the repository has no directory to give it: every row carrying it is refused with 'When OUTPUT_BY_READGROUP=true and OUTPUT is provided, it must be a directory'. Eight of the first sixteen rows were that one refusal, and they crowded out the arguments the tool actually varies. The refusal is behaviour and is kept, but as one case rather than half the array, exactly as the FLOW_MODE constraint below keeps its own."
-    },
     {
       "tools": [
         "CollectSamErrorMetrics"
@@ -6678,6 +6852,588 @@
         "--READ_NAME_PREFIX": "RUN1:"
       },
       "why": "RUN_BARCODE and READ_NAME_PREFIX are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair (an argument given as null counts as set) before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "CrosscheckFingerprints"
+      ],
+      "forbid": {
+        "--MATRIX_OUTPUT": "/work/out/matrix.txt",
+        "--SECOND_INPUT": "/work/fixtures/fp_genotypes.vcf"
+      },
+      "why": "MATRIX_OUTPUT and SECOND_INPUT are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "CrosscheckFingerprints",
+        "CrosscheckReadGroupFingerprints"
+      ],
+      "forbid": {
+        "--MATRIX_OUTPUT": "/work/out/matrix.txt",
+        "--SECOND_INPUT": "/work/fixtures/fp_b.bam"
+      },
+      "why": "MATRIX_OUTPUT and SECOND_INPUT are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "CrosscheckFingerprints",
+        "CrosscheckReadGroupFingerprints"
+      ],
+      "forbid": {
+        "--INPUT_SAMPLE_MAP": "/work/fixtures/fp_sample_map.txt",
+        "--INPUT_SAMPLE_FILE_MAP": "/work/fixtures/fp_sample_file_map.txt"
+      },
+      "why": "INPUT_SAMPLE_MAP and INPUT_SAMPLE_FILE_MAP are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs"
+    },
+    {
+      "tools": [
+        "CrosscheckReadGroupFingerprints"
+      ],
+      "forbid": {
+        "--EXPECT_ALL_GROUPS_TO_MATCH": "true",
+        "--EXPECT_ALL_READ_GROUPS_TO_MATCH": "false"
+      },
+      "why": "EXPECT_ALL_GROUPS_TO_MATCH and EXPECT_ALL_READ_GROUPS_TO_MATCH are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs"
+    },
+    {
+      "tools": [
+        "CrosscheckReadGroupFingerprints"
+      ],
+      "forbid": {
+        "--EXPECT_ALL_GROUPS_TO_MATCH": "true",
+        "--EXPECT_ALL_READ_GROUPS_TO_MATCH": "true"
+      },
+      "why": "EXPECT_ALL_GROUPS_TO_MATCH and EXPECT_ALL_READ_GROUPS_TO_MATCH are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs"
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--BARCODE": "AG",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes.txt"
+      },
+      "why": "BARCODE and BARCODE_FILE are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--BARCODE": "AG",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_one.txt"
+      },
+      "why": "BARCODE and BARCODE_FILE are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--BARCODE": "AG",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_tie.txt"
+      },
+      "why": "BARCODE and BARCODE_FILE are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--BARCODE": "AG",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_dup.txt"
+      },
+      "why": "BARCODE and BARCODE_FILE are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--BARCODE": "AG",
+        "--BARCODE_FILE": "/work/fixtures/ill_barcodes_two.txt"
+      },
+      "why": "BARCODE and BARCODE_FILE are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--LANE": "2",
+        "--BASECALLS_DIR": "/work/fixtures/ill_run/Data/Intensities/BaseCalls"
+      },
+      "why": "a lane the run does not have: the reference's message lists the missing data types in the order of a HashSet of enum constants, which is identity-hashed and changes from one JVM to the next, so the refusal cannot be compared"
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--LANE": "2",
+        "--BASECALLS_DIR": "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+      },
+      "why": "a lane the run does not have: the reference's message lists the missing data types in the order of a HashSet of enum constants, which is identity-hashed and changes from one JVM to the next, so the refusal cannot be compared"
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--LANE": "1 2",
+        "--BASECALLS_DIR": "/work/fixtures/ill_run/Data/Intensities/BaseCalls"
+      },
+      "why": "a lane the run does not have: the reference's message lists the missing data types in the order of a HashSet of enum constants, which is identity-hashed and changes from one JVM to the next, so the refusal cannot be compared"
+    },
+    {
+      "tools": [
+        "ExtractIlluminaBarcodes"
+      ],
+      "forbid": {
+        "--LANE": "1 2",
+        "--BASECALLS_DIR": "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+      },
+      "why": "a lane the run does not have: the reference's message lists the missing data types in the order of a HashSet of enum constants, which is identity-hashed and changes from one JVM to the next, so the refusal cannot be compared"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--OUTPUT_BY_READGROUP": "false",
+        "--OUTPUT": "<absent>"
+      },
+      "why": "OUTPUT_BY_READGROUP decides what OUTPUT and OUTPUT_MAP must be, and every row pairing it with the wrong one is refused in validation before the tool runs; the refusals are kept once each through the other pairs rather than as most of the array"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--OUTPUT_BY_READGROUP": "false",
+        "--OUTPUT_MAP": "/work/fixtures/revert_output_map.tsv"
+      },
+      "why": "OUTPUT_BY_READGROUP decides what OUTPUT and OUTPUT_MAP must be, and every row pairing it with the wrong one is refused in validation before the tool runs; the refusals are kept once each through the other pairs rather than as most of the array"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--OUTPUT": "/work/out/output.txt",
+        "--OUTPUT_MAP": "/work/fixtures/revert_output_map.tsv"
+      },
+      "why": "OUTPUT and OUTPUT_MAP are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--OUTPUT": "/work/out",
+        "--OUTPUT_MAP": "/work/fixtures/revert_output_map.tsv"
+      },
+      "why": "OUTPUT and OUTPUT_MAP are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--SANITIZE": "false",
+        "--KEEP_FIRST_DUPLICATE": "true"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves the array's rows to the files, which every row refused before"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--RESTORE_HARDCLIPS": "true",
+        "--REMOVE_ALIGNMENT_INFORMATION": "false"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves the array's rows to the files, which every row refused before"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--OUTPUT_BY_READGROUP": "false",
+        "--OUTPUT": "/work/out"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves the array's rows to the files, which every row refused before"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--SAMPLE_ALIAS": "sampleX",
+        "--INPUT": "/work/fixtures/small.bam"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves the array's rows to the files, which every row refused before"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--LIBRARY_NAME": "libX",
+        "--INPUT": "/work/fixtures/small.bam"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves the array's rows to the files, which every row refused before"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--SAMPLE_ALIAS": "sampleX",
+        "--INPUT": "/work/fixtures/small.sam"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves the array's rows to the files, which every row refused before"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--LIBRARY_NAME": "libX",
+        "--INPUT": "/work/fixtures/small.sam"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves the array's rows to the files, which every row refused before"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--SAMPLE_ALIAS": "sampleX",
+        "--INPUT": "/work/fixtures/queryname.bam"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves the array's rows to the files, which every row refused before"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--LIBRARY_NAME": "libX",
+        "--INPUT": "/work/fixtures/queryname.bam"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves the array's rows to the files, which every row refused before"
+    },
+    {
+      "tools": [
+        "RevertSam"
+      ],
+      "forbid": {
+        "--OUTPUT_BY_READGROUP": "true",
+        "--OUTPUT": "/work/out/output.txt"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves the array's rows to the files, which every row refused before"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--OUTPUT_PREFIX": "/work/out/pfx",
+        "--MULTIPLEX_PARAMS": "/work/fixtures/ill_multiplex.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--OUTPUT_PREFIX": "/work/out/pfx",
+        "--MULTIPLEX_PARAMS": "/work/fixtures/ill_multiplex_partial.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--OUTPUT_PREFIX": "/work/out/pfx",
+        "--MULTIPLEX_PARAMS": "/work/fixtures/ill_multiplex_one.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--OUTPUT": "/work/out/single.bam",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--SAMPLE_ALIAS": "sampleS",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--LIBRARY_NAME": "libS",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--BARCODE_PARAMS": "/work/fixtures/ill_library.txt",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--OUTPUT": "/work/out/single.bam",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_partial.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--SAMPLE_ALIAS": "sampleS",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_partial.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--LIBRARY_NAME": "libS",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_partial.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--BARCODE_PARAMS": "/work/fixtures/ill_library.txt",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_partial.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--OUTPUT": "/work/out/single.bam",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_tags.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--SAMPLE_ALIAS": "sampleS",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_tags.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--LIBRARY_NAME": "libS",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_tags.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--BARCODE_PARAMS": "/work/fixtures/ill_library.txt",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_tags.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--OUTPUT": "/work/out/single.bam",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_one.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--SAMPLE_ALIAS": "sampleS",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_one.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--LIBRARY_NAME": "libS",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_one.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--BARCODE_PARAMS": "/work/fixtures/ill_library.txt",
+        "--LIBRARY_PARAMS": "/work/fixtures/ill_library_one.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--OUTPUT": "/work/out/single.bam",
+        "--BARCODE_PARAMS": "/work/fixtures/ill_library.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--SAMPLE_ALIAS": "sampleS",
+        "--BARCODE_PARAMS": "/work/fixtures/ill_library.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--LIBRARY_NAME": "libS",
+        "--BARCODE_PARAMS": "/work/fixtures/ill_library.txt"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--PROCESS_SINGLE_TILE": "1101",
+        "--FIRST_TILE": "1101"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--PROCESS_SINGLE_TILE": "1101",
+        "--FIRST_TILE": "1102"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--PROCESS_SINGLE_TILE": "1101",
+        "--TILE_LIMIT": "1"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--PROCESS_SINGLE_TILE": "1101",
+        "--TILE_LIMIT": "0"
+      },
+      "why": "the pair is mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--LANE": "1 2",
+        "--BASECALLS_DIR": "/work/fixtures/ill_run/Data/Intensities/BaseCalls"
+      },
+      "why": "a lane the run does not have: the reference's refusal lists the missing data types in a HashSet's identity-hashed order, which changes from one JVM to the next"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
+        "--LANE": "1 2",
+        "--BASECALLS_DIR": "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+      },
+      "why": "a lane the run does not have: the reference's refusal lists the missing data types in a HashSet's identity-hashed order, which changes from one JVM to the next"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--LANE": "1 2",
+        "--BASECALLS_DIR": "/work/fixtures/ill_run/Data/Intensities/BaseCalls"
+      },
+      "why": "a lane the run does not have: the reference's refusal lists the missing data types in a HashSet's identity-hashed order, which changes from one JVM to the next"
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToSam"
+      ],
+      "forbid": {
+        "--LANE": "1 2",
+        "--BASECALLS_DIR": "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
+      },
+      "why": "a lane the run does not have: the reference's refusal lists the missing data types in a HashSet's identity-hashed order, which changes from one JVM to the next"
     }
   ],
   "exclude": {

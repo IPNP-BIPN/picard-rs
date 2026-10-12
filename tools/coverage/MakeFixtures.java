@@ -432,8 +432,84 @@ public class MakeFixtures {
                     || r.getMappingQuality() == 255) continue;
             if (redrawn++ % 5 == 0) r.setMappingQuality(1 + (r.getMappingQuality() * 7) % 59);
         }
+        // A third file for the lenient arguments, written beside the pair from the left one:
+        //   - two mapped pairs, A and B, are placed at the same positions in all three files, so
+        //     they are one duplicate set, with B the duplicate; compare_swap.bam swaps the marks,
+        //     which LENIENT_DUP forgives as a choice of representative and the strict count does
+        //     not. Every pair carries its mate's CIGAR, which the duplicate comparator reads;
+        //   - its header carries one more program record, which only LENIENT_HEADER ignores.
+        java.util.List<SAMRecord> compareSwap = reads(compareHeader, false);
+        for (SAMRecord r : compareSwap) {
+            if (r.getReadName().equals("read0004") && r.getFirstOfPairFlag()) r.setMappingQuality(255);
+        }
+        java.util.List<String> swapPair = new java.util.ArrayList<>();
+        for (java.util.List<SAMRecord> side : java.util.Arrays.asList(compareLeft, compareRight, compareSwap)) {
+            java.util.Map<String, SAMRecord[]> pairs = new java.util.LinkedHashMap<>();
+            for (SAMRecord r : side) {
+                if (r.isSecondaryOrSupplementary()) continue;
+                SAMRecord[] pair = pairs.computeIfAbsent(r.getReadName(), k -> new SAMRecord[2]);
+                pair[r.getFirstOfPairFlag() ? 0 : 1] = r;
+            }
+            if (swapPair.isEmpty()) {
+                for (java.util.Map.Entry<String, SAMRecord[]> e : pairs.entrySet()) {
+                    SAMRecord[] pair = e.getValue();
+                    if (pair[0] == null || pair[1] == null || pair[0].getReadUnmappedFlag()
+                            || pair[1].getReadUnmappedFlag() || pair[0].getDuplicateReadFlag()
+                            || e.getKey().equals("read0004")) continue;
+                    swapPair.add(e.getKey());
+                    if (swapPair.size() == 2) break;
+                }
+            }
+            SAMRecord[] a = pairs.get(swapPair.get(0));
+            SAMRecord[] b = pairs.get(swapPair.get(1));
+            for (int end = 0; end < 2; end++) {
+                b[end].setReferenceIndex(a[end].getReferenceIndex());
+                b[end].setAlignmentStart(a[end].getAlignmentStart());
+                b[end].setCigarString(a[end].getCigarString());
+                b[end].setReadNegativeStrandFlag(a[end].getReadNegativeStrandFlag());
+                b[end].setAttribute("RG", a[end].getAttribute("RG"));
+                b[end].setDuplicateReadFlag(side != compareSwap);
+                a[end].setDuplicateReadFlag(side == compareSwap);
+            }
+            for (SAMRecord[] pair : pairs.values()) {
+                if (pair[0] != null && pair[1] != null) SamPairUtil.setMateInfo(pair[0], pair[1], true);
+            }
+        }
         writeBam(new File(dir, "compare_left.bam"), compareHeader, compareLeft, false);
         writeBam(new File(dir, "compare_right.bam"), compareHeader, compareRight, false);
+        SAMFileHeader swapHeader = compareHeader.clone();
+        SAMProgramRecord extraProgram = new SAMProgramRecord("other");
+        extraProgram.setProgramName("other");
+        swapHeader.addProgramRecord(extraProgram);
+        writeBam(new File(dir, "compare_swap.bam"), swapHeader, compareSwap, false);
+
+        // RevertSam's header overrides and tag lists: two read groups that share a sample and a
+        // library (SAMPLE_ALIAS and LIBRARY_NAME refuse a file whose groups differ, which every
+        // other input does), and two string tags that are neither cleared nor reversed by
+        // default: XR, a base string that ATTRIBUTE_TO_REVERSE_COMPLEMENT can name, and XV,
+        // which ATTRIBUTE_TO_REVERSE and ATTRIBUTE_TO_CLEAR can name. Every mapped read also
+        // carries NM and MD, which the default ATTRIBUTE_TO_CLEAR removes and a null keeps.
+        SAMFileHeader revertHeader = header(SAMFileHeader.SortOrder.coordinate);
+        for (SAMReadGroupRecord group : revertHeader.getReadGroups()) {
+            group.setLibrary("lib1");
+            group.setSample("sample1");
+        }
+        java.util.List<SAMRecord> revertReads = reads(revertHeader, false);
+        int tagged = 0;
+        for (SAMRecord r : revertReads) {
+            if (r.getReadUnmappedFlag()) continue;
+            String bases = r.getReadString();
+            r.setAttribute("XR", bases.substring(0, Math.min(6, bases.length())));
+            r.setAttribute("XV", "v" + (tagged++ % 7) + "xyz");
+            r.setAttribute("NM", 0);
+            r.setAttribute("MD", Integer.toString(r.getReadLength()));
+        }
+        revertReads.sort(new SAMRecordCoordinateComparator());
+        writeBam(new File(dir, "revert.bam"), revertHeader, revertReads, false);
+        // OUTPUT_MAP for OUTPUT_BY_READGROUP: one read group to a BAM, the other to a SAM.
+        try (PrintWriter out = new PrintWriter(new File(dir, "revert_output_map.tsv"), "UTF-8")) {
+            out.print("READ_GROUP_ID\tOUTPUT\nrg1\t/work/out/mapped_rg1.bam\nrg2\t/work/out/mapped_rg2.sam\n");
+        }
 
         // Reads whose ends really are Illumina adapters, for `MarkIlluminaAdapters`. On the random
         // bases of the other fixtures no adapter is ever found, so every accepted row produces the
@@ -1453,6 +1529,22 @@ public class MakeFixtures {
         // Which individual each sample belongs to, for the tools that group by individual.
         try (PrintWriter out = new PrintWriter(new File(dir, "fp_individuals.txt"), "UTF-8")) {
             out.print("sampleA\tindividual1\nsampleB\tindividual2\nsampleC\tindividual1\n");
+        }
+        // The files of names CrosscheckFingerprints reads: sampleB compared as sampleC (a clash
+        // whenever sampleC is also an input), the second input's sampleC as sampleD, fp_a.bam's
+        // sample as sampleZ, and explicit indexes, by the paths the reference is given.
+        try (PrintWriter out = new PrintWriter(new File(dir, "fp_sample_map.txt"), "UTF-8")) {
+            out.print("sampleB\tsampleC\n");
+        }
+        try (PrintWriter out = new PrintWriter(new File(dir, "fp_second_sample_map.txt"), "UTF-8")) {
+            out.print("sampleC\tsampleD\n");
+        }
+        try (PrintWriter out = new PrintWriter(new File(dir, "fp_sample_file_map.txt"), "UTF-8")) {
+            out.print("sampleZ\t/work/fixtures/fp_a.bam\n");
+        }
+        try (PrintWriter out = new PrintWriter(new File(dir, "fp_index_map.txt"), "UTF-8")) {
+            out.print("/work/fixtures/fp_genotypes.vcf\t/work/fixtures/fp_genotypes.vcf.idx\n"
+                    + "/work/fixtures/fp_a.bam\t/work/fixtures/fp_a.bai\n");
         }
     }
 

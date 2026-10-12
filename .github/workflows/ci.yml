@@ -282,7 +282,7 @@ jobs:
             | tee /tmp/SetNmMdAndUqTags.log
           python3 tools/coverage/run_array.py --tool RevertSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/revert-sam \
+            --port target/release/revert-sam --output-name output.txt,rg1.bam,rg2.bam,rg1.sam,rg2.sam,rg1.cram,rg2.cram,mapped_rg1.bam,mapped_rg2.sam \
             | tee /tmp/RevertSam.log
           python3 tools/coverage/run_array.py --tool ExtractSequences --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -290,7 +290,7 @@ jobs:
             | tee /tmp/ExtractSequences.log
           python3 tools/coverage/run_array.py --tool IntervalListTools --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/interval-list-tools --strip-program-records --output-name output.txt,count.txt \
+            --port target/release/interval-list-tools --strip-program-records --output-name @all \
             | tee /tmp/IntervalListTools.log
           python3 tools/coverage/run_array.py --tool PositionBasedDownsampleSam --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -802,6 +802,7 @@ jobs:
             --pending MeanQualityByCycle \
             --pending CollectBaseDistributionByCycle \
             --pending QualityScoreDistribution \
+            --pending RevertSam \
             --pending IntervalListTools \
             --pending PositionBasedDownsampleSam \
             --pending ValidateSamFile \
@@ -823,6 +824,7 @@ jobs:
             --pending SamToFastqWithTags \
             --pending FindMendelianViolations \
             --pending LiftOverIntervalList \
+            --pending CompareSAMs \
             --pending CollectInsertSizeMetrics \
             --pending LiftOverHaplotypeMap \
             --pending SplitVcfs \
@@ -838,16 +840,23 @@ jobs:
             --pending LiftoverVcf \
             --pending CollectMultipleMetrics \
             --pending BamToBfq \
+            --pending CollectSamErrorMetrics \
             --pending BaitDesigner \
             --pending UmiAwareMarkDuplicatesWithMateCigar \
             --pending CheckFingerprint \
+            --pending CrosscheckFingerprints \
+            --pending CrosscheckReadGroupFingerprints \
             --pending GtcToVcf \
             --pending VcfToAdpc \
             --pending CollectArraysVariantCallingMetrics \
+            --pending CreateExtendedIlluminaManifest \
             --pending CheckIlluminaDirectory \
             --pending CollectIlluminaLaneMetrics \
             --pending CollectHiSeqXPfFailMetrics \
             --pending CollectIlluminaBasecallingMetrics \
+            --pending ExtractIlluminaBarcodes \
+            --pending IlluminaBasecallsToFastq \
+            --pending IlluminaBasecallsToSam \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -869,13 +878,11 @@ jobs:
             tools/coverage/corpus/BamIndexStats.t2.txt \
             tools/coverage/corpus/FixMateInformation.t2.txt \
             tools/coverage/corpus/SetNmMdAndUqTags.t2.txt \
-            tools/coverage/corpus/RevertSam.t2.txt \
             tools/coverage/corpus/ExtractSequences.t2.txt \
             tools/coverage/corpus/SplitSamByLibrary.t2.txt \
             tools/coverage/corpus/MakeVcfSampleNameMap.t2.txt \
             tools/coverage/corpus/CheckDuplicateMarking.t2.txt \
             tools/coverage/corpus/AccumulateQualityYieldMetrics.t2.txt \
-            tools/coverage/corpus/CompareSAMs.t2.txt \
             tools/coverage/corpus/BuildBamIndex.t2.txt \
             tools/coverage/corpus/AddCommentsToBam.t2.txt \
             tools/coverage/corpus/GatherBamFiles.t2.txt \
@@ -895,7 +902,6 @@ jobs:
             tools/coverage/corpus/MergePedIntoVcf.t2.txt \
             tools/coverage/corpus/CompareMetrics.t2.txt \
             tools/coverage/corpus/MergeBamAlignment.t2.txt \
-            tools/coverage/corpus/CollectSamErrorMetrics.t2.txt \
             tools/coverage/corpus/AccumulateVariantCallingMetrics.t2.txt \
             tools/coverage/corpus/CollectQualityYieldMetricsFlow.t2.txt \
             tools/coverage/corpus/CollectQualityYieldMetricsSNVQ.t2.txt \
@@ -905,8 +911,6 @@ jobs:
             tools/coverage/corpus/SetNmAndUqTags.t2.txt \
             tools/coverage/corpus/CheckTerminatorBlock.t2.txt \
             tools/coverage/corpus/FilterVcf.t2.txt \
-            tools/coverage/corpus/CrosscheckFingerprints.t2.txt \
-            tools/coverage/corpus/CrosscheckReadGroupFingerprints.t2.txt \
             tools/coverage/corpus/CalculateFingerprintMetrics.t2.txt \
             tools/coverage/corpus/ExtractFingerprint.t2.txt \
             tools/coverage/corpus/IdentifyContaminant.t2.txt \
@@ -914,11 +918,7 @@ jobs:
             tools/coverage/corpus/CreateVerifyIDIntensityContaminationMetricsFile.t2.txt \
             tools/coverage/corpus/BpmToNormalizationManifestCsv.t2.txt \
             tools/coverage/corpus/CompareGtcFiles.t2.txt \
-            tools/coverage/corpus/CombineGenotypingArrayVcfs.t2.txt \
-            tools/coverage/corpus/CreateExtendedIlluminaManifest.t2.txt \
-            tools/coverage/corpus/ExtractIlluminaBarcodes.t2.txt \
-            tools/coverage/corpus/IlluminaBasecallsToFastq.t2.txt \
-            tools/coverage/corpus/IlluminaBasecallsToSam.t2.txt)
+            tools/coverage/corpus/CombineGenotypingArrayVcfs.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
             echo "$dirty"
