@@ -506,6 +506,19 @@ public class MakeFixtures {
         }
         revertReads.sort(new SAMRecordCoordinateComparator());
         writeBam(new File(dir, "revert.bam"), revertHeader, revertReads, false);
+        // JAVASCRIPT_FILE for FilterSamReads and FilterVcf. The reads script declares a variable
+        // and keeps well-mapped forward reads and every read of rg2; the variants script keeps
+        // single-base sites past position 1000; the third is not JavaScript at all.
+        try (PrintWriter out = new PrintWriter(new File(dir, "filter_reads.js"), "UTF-8")) {
+            out.print("var group = record.getAttribute(\"RG\");\n"
+                    + "(record.getMappingQuality() >= 30 && !record.getReadNegativeStrandFlag()) || group == \"rg2\";\n");
+        }
+        try (PrintWriter out = new PrintWriter(new File(dir, "filter_variants.js"), "UTF-8")) {
+            out.print("variant.isSNP() && variant.getStart() > 1000;\n");
+        }
+        try (PrintWriter out = new PrintWriter(new File(dir, "filter_broken.js"), "UTF-8")) {
+            out.print("record.getReadName( ;\n");
+        }
         // OUTPUT_MAP for OUTPUT_BY_READGROUP: one read group to a BAM, the other to a SAM.
         try (PrintWriter out = new PrintWriter(new File(dir, "revert_output_map.tsv"), "UTF-8")) {
             out.print("READ_GROUP_ID\tOUTPUT\nrg1\t/work/out/mapped_rg1.bam\nrg2\t/work/out/mapped_rg2.sam\n");

@@ -31,17 +31,149 @@ into `main` when the whole tool is byte-identical across its corpus.
 
 ## Status
 
-| Tool | Status |
-|---|---|
-| `CollectQualityYieldMetrics` | **byte-identical** |
-| `MeanQualityByCycle` | **byte-identical** |
-| `CollectBaseDistributionByCycle` | **byte-identical** |
-| `CollectInsertSizeMetrics` | **byte-identical**, first member of the calibration pair |
-| `CollectAlignmentSummaryMetrics` | **byte-identical**, 22 cases, decision 0003 |
+All 121 Picard tools this repository ports (120 binaries) are measured on two grounds:
 
-"Byte-identical" here means byte-identical **on the paths its conformance suite covers**, which is
-the default path plus the cases listed. Over the tool's whole argument surface it is measured
-separately and is much lower: see "Argument coverage" below and decision 0009.
+- the **conformance suites** compare the port with the pinned reference, byte for byte, on each
+  suite's cases (see "Conformance suites");
+- a **t=2 covering array** for each tool, regenerated and re-measured by CI on real x86-64, runs
+  every row against both sides. Every one of the 121 arrays matches on every row: share **1.000**
+  in [`tools/coverage/measured.json`](tools/coverage/measured.json).
+
+Every argument specific to a tool takes at least two values in its array, a refusal included, and
+`JAVASCRIPT_FILE` runs on an embedded JavaScript engine as Picard runs it on Nashorn. What still
+does not vary is common to the tools, each with its reason written in
+[`fixtures.json`](tools/coverage/fixtures.json) or the array: the ten arguments the repository
+excludes outright (`COMPRESSION_LEVEL`, `CREATE_MD5_FILE`, `MAX_RECORDS_IN_RAM`,
+`USE_JDK_DEFLATER`, `USE_JDK_INFLATER`, `VERBOSITY`, `QUIET`, `help`, `showHidden`, `version`),
+`TMP_DIR` and `arguments_file`, the output path, and `REFERENCE_SEQUENCE`, `CREATE_INDEX` or
+`VALIDATION_STRINGENCY` where a tool's corpus offers one value.
+
+"Byte-identical" means byte-identical on the paths measured: the suites' cases and the arrays'
+rows. A row is a pair of argument values, not every combination of all of them.
+
+| Tool | Conformance suite | Covering array (t=2) | Share |
+|---|---|---|---|
+| `AccumulateQualityYieldMetrics` | oracle-backed | 6 rows, 6 accepted, 2 distinct | **1.000** |
+| `AccumulateVariantCallingMetrics` | oracle-backed | 15 rows, 12 accepted, 4 distinct | **1.000** |
+| `AddCommentsToBam` | covering array only | 13 rows, 10 accepted, 6 distinct | **1.000** |
+| `AddOATag` | oracle-backed | 9 rows, 9 accepted, 4 distinct | **1.000** |
+| `AddOrReplaceReadGroups` | oracle-backed | 21 rows, 13 accepted, 13 distinct | **1.000** |
+| `BaitDesigner` | oracle-backed | 18 rows, 14 accepted, 14 distinct | **1.000** |
+| `BamIndexStats` | oracle-backed | 9 rows, 3 accepted, 1 distinct | **1.000** |
+| `BamToBfq` | oracle-backed | 17 rows, 7 accepted, 6 distinct | **1.000** |
+| `BedToIntervalList` | oracle-backed | 10 rows, 10 accepted, 4 distinct | **1.000** |
+| `BpmToNormalizationManifestCsv` | oracle-backed | 10 rows, 4 accepted, 2 distinct | **1.000** |
+| `BuildBamIndex` | covering array only | 18 rows, 9 accepted, 3 distinct | **1.000** |
+| `CalculateFingerprintMetrics` | oracle-backed | 19 rows, 19 accepted, 12 distinct | **1.000** |
+| `CalculateReadGroupChecksum` | oracle-backed | 6 rows, 6 accepted, 2 distinct | **1.000** |
+| `CheckDuplicateMarking` | oracle-backed | 13 rows, 4 accepted, 1 distinct | **1.000** |
+| `CheckFingerprint` | oracle-backed | 19 rows, 8 accepted, 8 distinct | **1.000** |
+| `CheckIlluminaDirectory` | oracle-backed | 17 rows, 6 accepted, 1 distinct | **1.000** |
+| `CheckTerminatorBlock` | covering array only | 12 rows, 6 accepted, 2 distinct | **1.000** |
+| `CleanSam` | oracle-backed | 9 rows, 9 accepted, 2 distinct | **1.000** |
+| `ClusterCrosscheckMetrics` | oracle-backed | 10 rows, 10 accepted, 5 distinct | **1.000** |
+| `CollectAlignmentSummaryMetrics` | oracle-backed | 18 rows, 18 accepted, 16 distinct | **1.000** |
+| `CollectArraysVariantCallingMetrics` | oracle-backed | 11 rows, 6 accepted, 3 distinct | **1.000** |
+| `CollectBaseDistributionByCycle` | oracle-backed | 12 rows, 9 accepted, 3 distinct | **1.000** |
+| `CollectDuplicateMetrics` | oracle-backed | 9 rows, 6 accepted, 4 distinct | **1.000** |
+| `CollectGcBiasMetrics` | oracle-backed | 23 rows, 18 accepted, 13 distinct | **1.000** |
+| `CollectHiSeqXPfFailMetrics` | oracle-backed | 12 rows, 8 accepted, 4 distinct | **1.000** |
+| `CollectHsMetrics` | oracle-backed | 17 rows, 10 accepted, 9 distinct | **1.000** |
+| `CollectIlluminaBasecallingMetrics` | oracle-backed | 14 rows, 10 accepted, 8 distinct | **1.000** |
+| `CollectIlluminaLaneMetrics` | oracle-backed | 14 rows, 8 accepted, 5 distinct | **1.000** |
+| `CollectIndependentReplicateMetrics` | oracle-backed | 14 rows, 13 accepted, 11 distinct | **1.000** |
+| `CollectInsertSizeMetrics` | oracle-backed | 23 rows, 13 accepted, 9 distinct | **1.000** |
+| `CollectJumpingLibraryMetrics` | oracle-backed | 9 rows, 6 accepted, 4 distinct | **1.000** |
+| `CollectMultipleMetrics` | oracle-backed | 19 rows, 13 accepted, 10 distinct | **1.000** |
+| `CollectOxoGMetrics` | oracle-backed | 18 rows, 9 accepted, 8 distinct | **1.000** |
+| `CollectQualityYieldMetrics` | oracle-backed | 10 rows, 10 accepted, 5 distinct | **1.000** |
+| `CollectQualityYieldMetricsFlow` | oracle-backed | 12 rows, 8 accepted, 8 distinct | **1.000** |
+| `CollectQualityYieldMetricsSNVQ` | oracle-backed | 12 rows, 8 accepted, 7 distinct | **1.000** |
+| `CollectRawWgsMetrics` | oracle-backed | 22 rows, 16 accepted, 14 distinct | **1.000** |
+| `CollectRnaSeqMetrics` | oracle-backed | 26 rows, 20 accepted, 16 distinct | **1.000** |
+| `CollectRrbsMetrics` | oracle-backed | 21 rows, 11 accepted, 9 distinct | **1.000** |
+| `CollectSamErrorMetrics` | oracle-backed | 28 rows, 12 accepted, 11 distinct | **1.000** |
+| `CollectSequencingArtifactMetrics` | oracle-backed | 19 rows, 10 accepted, 9 distinct | **1.000** |
+| `CollectTargetedPcrMetrics` | oracle-backed | 18 rows, 14 accepted, 10 distinct | **1.000** |
+| `CollectUmiPrevalenceMetrics` | oracle-backed | 10 rows, 10 accepted, 6 distinct | **1.000** |
+| `CollectVariantCallingMetrics` | oracle-backed | 10 rows, 2 accepted, 2 distinct | **1.000** |
+| `CollectWgsMetrics` | oracle-backed | 22 rows, 16 accepted, 14 distinct | **1.000** |
+| `CollectWgsMetricsWithNonZeroCoverage` | oracle-backed | 22 rows, 18 accepted, 16 distinct | **1.000** |
+| `CombineGenotypingArrayVcfs` | oracle-backed | 15 rows, 9 accepted, 3 distinct | **1.000** |
+| `CompareGtcFiles` | oracle-backed | 10 rows, 4 accepted, 1 distinct | **1.000** |
+| `CompareMetrics` | oracle-backed | 32 rows, 6 accepted, 3 distinct | **1.000** |
+| `CompareSAMs` | oracle-backed | 11 rows, 7 accepted, 3 distinct | **1.000** |
+| `ConvertHaplotypeDatabaseToVcf` | oracle-backed | 12 rows, 9 accepted, 3 distinct | **1.000** |
+| `ConvertSequencingArtifactToOxoG` | oracle-backed | 13 rows, 5 accepted, 3 distinct | **1.000** |
+| `CreateBafRegressMetricsFile` | oracle-backed | 9 rows, 6 accepted, 2 distinct | **1.000** |
+| `CreateExtendedIlluminaManifest` | oracle-backed | 13 rows, 4 accepted, 2 distinct | **1.000** |
+| `CreateSequenceDictionary` | oracle-backed | 10 rows, 8 accepted, 6 distinct | **1.000** |
+| `CreateVerifyIDIntensityContaminationMetricsFile` | oracle-backed | 9 rows, 6 accepted, 2 distinct | **1.000** |
+| `CrosscheckFingerprints` | oracle-backed | 24 rows, 8 accepted, 7 distinct | **1.000** |
+| `CrosscheckReadGroupFingerprints` | oracle-backed | 20 rows, 7 accepted, 6 distinct | **1.000** |
+| `DownsampleSam` | oracle-backed | 13 rows, 13 accepted, 8 distinct | **1.000** |
+| `EstimateLibraryComplexity` | oracle-backed | 14 rows, 14 accepted, 9 distinct | **1.000** |
+| `ExtractFingerprint` | oracle-backed | 15 rows, 15 accepted, 12 distinct | **1.000** |
+| `ExtractIlluminaBarcodes` | oracle-backed | 30 rows, 17 accepted, 16 distinct | **1.000** |
+| `ExtractSequences` | oracle-backed | 7 rows, 7 accepted, 4 distinct | **1.000** |
+| `FastqToSam` | oracle-backed | 21 rows, 7 accepted, 7 distinct | **1.000** |
+| `FifoBuffer` | oracle-backed | 10 rows, 10 accepted, 4 distinct | **1.000** |
+| `FilterSamReads` | oracle-backed | 26 rows, 5 accepted, 4 distinct | **1.000** |
+| `FilterVcf` | covering array only | 18 rows, 11 accepted, 10 distinct | **1.000** |
+| `FindMendelianViolations` | oracle-backed | 12 rows, 5 accepted, 2 distinct | **1.000** |
+| `FixMateInformation` | oracle-backed | 12 rows, 7 accepted, 4 distinct | **1.000** |
+| `FixVcfHeader` | covering array only | 20 rows, 8 accepted, 8 distinct | **1.000** |
+| `GatherBamFiles` | covering array only | 9 rows, 9 accepted, 2 distinct | **1.000** |
+| `GatherVcfs` | covering array only | 31 rows, 14 accepted, 4 distinct | **1.000** |
+| `GenotypeConcordance` | oracle-backed | 12 rows, 8 accepted, 6 distinct | **1.000** |
+| `GtcToVcf` | oracle-backed | 18 rows, 13 accepted, 9 distinct | **1.000** |
+| `IdentifyContaminant` | oracle-backed | 13 rows, 13 accepted, 11 distinct | **1.000** |
+| `IlluminaBasecallsToFastq` | oracle-backed | 30 rows, 13 accepted, 12 distinct | **1.000** |
+| `IlluminaBasecallsToSam` | oracle-backed | 31 rows, 14 accepted, 12 distinct | **1.000** |
+| `IntervalListToBed` | oracle-backed | 8 rows, 8 accepted, 5 distinct | **1.000** |
+| `IntervalListTools` | oracle-backed | 32 rows, 15 accepted, 5 distinct | **1.000** |
+| `LiftOverHaplotypeMap` | oracle-backed | 8 rows, 5 accepted, 3 distinct | **1.000** |
+| `LiftOverIntervalList` | oracle-backed | 10 rows, 6 accepted, 5 distinct | **1.000** |
+| `LiftoverVcf` | oracle-backed | 16 rows, 16 accepted, 14 distinct | **1.000** |
+| `MakeSitesOnlyVcf` | covering array only | 10 rows, 8 accepted, 5 distinct | **1.000** |
+| `MakeVcfSampleNameMap` | oracle-backed | 6 rows, 3 accepted, 1 distinct | **1.000** |
+| `MarkDuplicates` | oracle-backed | 31 rows, 16 accepted, 14 distinct | **1.000** |
+| `MarkDuplicatesWithMateCigar` | oracle-backed | 27 rows, 5 accepted, 3 distinct | **1.000** |
+| `MarkIlluminaAdapters` | oracle-backed | 28 rows, 16 accepted, 4 distinct | **1.000** |
+| `MeanQualityByCycle` | oracle-backed | 12 rows, 9 accepted, 3 distinct | **1.000** |
+| `MergeBamAlignment` | oracle-backed | 29 rows, 16 accepted, 16 distinct | **1.000** |
+| `MergePedIntoVcf` | oracle-backed | 19 rows, 19 accepted, 8 distinct | **1.000** |
+| `MergeSamFiles` | oracle-backed | 18 rows, 1 accepted, 1 distinct | **1.000** |
+| `MergeVcfs` | covering array only | 27 rows, 16 accepted, 11 distinct | **1.000** |
+| `NonNFastaSize` | oracle-backed | 7 rows, 7 accepted, 2 distinct | **1.000** |
+| `NormalizeFasta` | oracle-backed | 8 rows, 8 accepted, 5 distinct | **1.000** |
+| `PositionBasedDownsampleSam` | oracle-backed | 12 rows, 12 accepted, 4 distinct | **1.000** |
+| `QualityScoreDistribution` | oracle-backed | 15 rows, 11 accepted, 4 distinct | **1.000** |
+| `RenameSampleInVcf` | covering array only | 13 rows, 8 accepted, 5 distinct | **1.000** |
+| `ReorderSam` | oracle-backed | 10 rows, 10 accepted, 2 distinct | **1.000** |
+| `ReplaceSamHeader` | oracle-backed | 10 rows, 2 accepted, 1 distinct | **1.000** |
+| `RevertOriginalBaseQualitiesAndAddMateCigar` | oracle-backed | 15 rows, 13 accepted, 5 distinct | **1.000** |
+| `RevertSam` | oracle-backed | 21 rows, 16 accepted, 14 distinct | **1.000** |
+| `SamFormatConverter` | oracle-backed | 9 rows, 7 accepted, 2 distinct | **1.000** |
+| `SamToFastq` | oracle-backed | 19 rows, 3 accepted, 3 distinct | **1.000** |
+| `SamToFastqWithTags` | oracle-backed | 18 rows, 2 accepted, 2 distinct | **1.000** |
+| `ScatterIntervalsByNs` | oracle-backed | 10 rows, 10 accepted, 6 distinct | **1.000** |
+| `SetNmAndUqTags` | covering array only | 11 rows, 8 accepted, 4 distinct | **1.000** |
+| `SetNmMdAndUqTags` | oracle-backed | 11 rows, 8 accepted, 4 distinct | **1.000** |
+| `SimpleMarkDuplicatesWithMateCigar` | oracle-backed | 30 rows, 11 accepted, 7 distinct | **1.000** |
+| `SortGff` | oracle-backed | 14 rows, 5 accepted, 4 distinct | **1.000** |
+| `SortSam` | oracle-backed | 10 rows, 7 accepted, 2 distinct | **1.000** |
+| `SortVcf` | covering array only | 10 rows, 7 accepted, 4 distinct | **1.000** |
+| `SplitSamByLibrary` | oracle-backed | 9 rows, 9 accepted, 3 distinct | **1.000** |
+| `SplitSamByNumberOfReads` | oracle-backed | 13 rows, 12 accepted, 9 distinct | **1.000** |
+| `SplitVcfs` | covering array only | 22 rows, 12 accepted, 11 distinct | **1.000** |
+| `UmiAwareMarkDuplicatesWithMateCigar` | oracle-backed | 26 rows, 16 accepted, 13 distinct | **1.000** |
+| `UpdateVcfSequenceDictionary` | covering array only | 17 rows, 14 accepted, 4 distinct | **1.000** |
+| `ValidateSamFile` | oracle-backed | 15 rows, 8 accepted, 1 distinct | **1.000** |
+| `VcfFormatConverter` | covering array only | 16 rows, 7 accepted, 5 distinct | **1.000** |
+| `VcfToAdpc` | oracle-backed | 15 rows, 12 accepted, 7 distinct | **1.000** |
+| `VcfToIntervalList` | covering array only | 11 rows, 8 accepted, 6 distinct | **1.000** |
+| `ViewSam` | oracle-backed | 14 rows, 5 accepted, 4 distinct | **1.000** |
 
 ## Throughput
 
