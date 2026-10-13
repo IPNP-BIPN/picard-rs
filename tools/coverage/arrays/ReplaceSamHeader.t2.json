@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 18,
-  "arguments_in_array": 3,
-  "arguments_excluded": 15,
+  "arguments_in_array": 4,
+  "arguments_excluded": 14,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -27,13 +27,6 @@
       "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--HEADER",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/small.sam",
-      "source": "fixture"
     },
     {
       "argument": "--help",
@@ -113,9 +106,9 @@
       "source": "none"
     }
   ],
-  "rows": 9,
-  "tuples_total": 21,
-  "tuples_covered": 21,
+  "rows": 10,
+  "tuples_total": 37,
+  "tuples_covered": 37,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -126,11 +119,13 @@
       "row": 0,
       "labels": {
         "--CREATE_INDEX": "true",
+        "--HEADER": "fixture[0]",
         "--INPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--HEADER=/work/fixtures/small.sam",
         "--INPUT=/work/fixtures/small.bam",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -139,11 +134,13 @@
       "row": 1,
       "labels": {
         "--CREATE_INDEX": "true",
+        "--HEADER": "fixture[1]",
         "--INPUT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--HEADER=/work/fixtures/queryname.bam",
         "--INPUT=/work/fixtures/small.sam",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -151,13 +148,15 @@
     {
       "row": 2,
       "labels": {
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
+        "--CREATE_INDEX": "false",
+        "--HEADER": "fixture[0]",
+        "--INPUT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/queryname.bam",
+        "--CREATE_INDEX=false",
+        "--HEADER=/work/fixtures/small.sam",
+        "--INPUT=/work/fixtures/small.sam",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -165,50 +164,58 @@
       "row": 3,
       "labels": {
         "--CREATE_INDEX": "false",
+        "--HEADER": "fixture[1]",
         "--INPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
+        "--HEADER=/work/fixtures/queryname.bam",
         "--INPUT=/work/fixtures/small.bam",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 4,
       "labels": {
-        "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--CREATE_INDEX": "true",
+        "--HEADER": "fixture[0]",
+        "--INPUT": "fixture[2]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/small.sam",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--CREATE_INDEX=true",
+        "--HEADER=/work/fixtures/small.sam",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 5,
       "labels": {
         "--CREATE_INDEX": "false",
+        "--HEADER": "fixture[1]",
         "--INPUT": "fixture[2]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
+        "--HEADER=/work/fixtures/queryname.bam",
         "--INPUT=/work/fixtures/queryname.bam",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 6,
       "labels": {
-        "--CREATE_INDEX": "false",
+        "--CREATE_INDEX": "true",
+        "--HEADER": "fixture[0]",
         "--INPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--CREATE_INDEX=false",
+        "--CREATE_INDEX=true",
+        "--HEADER=/work/fixtures/small.sam",
         "--INPUT=/work/fixtures/small.bam",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
@@ -216,27 +223,46 @@
     {
       "row": 7,
       "labels": {
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--CREATE_INDEX": "false",
+        "--HEADER": "fixture[0]",
+        "--INPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.sam",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--CREATE_INDEX=false",
+        "--HEADER=/work/fixtures/small.sam",
+        "--INPUT=/work/fixtures/small.bam",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 8,
       "labels": {
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--HEADER": "fixture[0]",
+        "--INPUT": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
+        "--HEADER=/work/fixtures/small.sam",
+        "--INPUT=/work/fixtures/small.sam",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--HEADER": "fixture[0]",
+        "--INPUT": "fixture[2]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--HEADER=/work/fixtures/small.sam",
         "--INPUT=/work/fixtures/queryname.bam",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     }
   ]

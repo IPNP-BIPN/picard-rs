@@ -276,8 +276,13 @@ fn main() {
             &phasing_file,
         ),
     ] {
-        if let Err(e) = std::fs::write(output_dir.join(name), file.write()) {
-            thrown(&format!("htsjdk.samtools.SAMException: {e}"));
+        // `MetricsFile.write(File)` wraps the failure with the file it could not open.
+        let path = output_dir.join(name);
+        if std::fs::write(&path, file.write()).is_err() {
+            thrown(&format!(
+                "htsjdk.samtools.SAMException: Could not write metrics to file: {}",
+                picard_analysis::metrics_cli::absolute(&path.display().to_string())
+            ));
         }
     }
 }

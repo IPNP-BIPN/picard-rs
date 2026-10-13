@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 21,
-  "arguments_in_array": 6,
-  "arguments_excluded": 15,
+  "arguments_in_array": 7,
+  "arguments_excluded": 14,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -27,13 +27,6 @@
       "reason": "excluded by the repository: writes a side file whose content is a hash of the output already compared",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--DBSNP",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/arr_dbsnp.vcf",
-      "source": "fixture"
     },
     {
       "argument": "--help",
@@ -113,9 +106,9 @@
       "source": "none"
     }
   ],
-  "rows": 9,
-  "tuples_total": 81,
-  "tuples_covered": 81,
+  "rows": 11,
+  "tuples_total": 109,
+  "tuples_covered": 109,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -127,6 +120,7 @@
       "labels": {
         "--CALL_RATE_PF_THRESHOLD": "fixture[0]",
         "--CREATE_INDEX": "true",
+        "--DBSNP": "fixture[0]",
         "--INPUT": "fixture[0]",
         "--NUM_PROCESSORS": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
@@ -135,6 +129,7 @@
       "arguments": [
         "--CALL_RATE_PF_THRESHOLD=0.98",
         "--CREATE_INDEX=true",
+        "--DBSNP=/work/fixtures/arr_dbsnp.vcf",
         "--INPUT=/work/fixtures/arr_s1.vcf",
         "--NUM_PROCESSORS=1",
         "--SEQUENCE_DICTIONARY=null",
@@ -146,6 +141,7 @@
       "labels": {
         "--CALL_RATE_PF_THRESHOLD": "fixture[0]",
         "--CREATE_INDEX": "false",
+        "--DBSNP": "fixture[1]",
         "--INPUT": "fixture[1]",
         "--NUM_PROCESSORS": "fixture[1]",
         "--SEQUENCE_DICTIONARY": "fixture[1]",
@@ -154,6 +150,7 @@
       "arguments": [
         "--CALL_RATE_PF_THRESHOLD=0.98",
         "--CREATE_INDEX=false",
+        "--DBSNP=/work/fixtures/dbsnp.vcf",
         "--INPUT=/work/fixtures/arr_s2.vcf",
         "--NUM_PROCESSORS=2",
         "--SEQUENCE_DICTIONARY=/work/fixtures/arr_ref.dict",
@@ -165,7 +162,8 @@
       "labels": {
         "--CALL_RATE_PF_THRESHOLD": "fixture[1]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
+        "--DBSNP": "fixture[1]",
+        "--INPUT": "fixture[2]",
         "--NUM_PROCESSORS": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
@@ -173,7 +171,8 @@
       "arguments": [
         "--CALL_RATE_PF_THRESHOLD=0.5",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/arr_s2.vcf",
+        "--DBSNP=/work/fixtures/dbsnp.vcf",
+        "--INPUT=/work/fixtures/arr_short.vcf",
         "--NUM_PROCESSORS=1",
         "--SEQUENCE_DICTIONARY=/work/fixtures/arr_ref.dict",
         "--VALIDATION_STRINGENCY=SILENT"
@@ -184,6 +183,7 @@
       "labels": {
         "--CALL_RATE_PF_THRESHOLD": "fixture[1]",
         "--CREATE_INDEX": "false",
+        "--DBSNP": "fixture[0]",
         "--INPUT": "fixture[0]",
         "--NUM_PROCESSORS": "fixture[1]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
@@ -192,6 +192,7 @@
       "arguments": [
         "--CALL_RATE_PF_THRESHOLD=0.5",
         "--CREATE_INDEX=false",
+        "--DBSNP=/work/fixtures/arr_dbsnp.vcf",
         "--INPUT=/work/fixtures/arr_s1.vcf",
         "--NUM_PROCESSORS=2",
         "--SEQUENCE_DICTIONARY=null",
@@ -202,17 +203,19 @@
       "row": 4,
       "labels": {
         "--CALL_RATE_PF_THRESHOLD": "fixture[0]",
-        "--CREATE_INDEX": "true",
+        "--CREATE_INDEX": "false",
+        "--DBSNP": "fixture[0]",
         "--INPUT": "fixture[2]",
-        "--NUM_PROCESSORS": "fixture[1]",
+        "--NUM_PROCESSORS": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CALL_RATE_PF_THRESHOLD=0.98",
-        "--CREATE_INDEX=true",
+        "--CREATE_INDEX=false",
+        "--DBSNP=/work/fixtures/arr_dbsnp.vcf",
         "--INPUT=/work/fixtures/arr_short.vcf",
-        "--NUM_PROCESSORS=2",
+        "--NUM_PROCESSORS=1",
         "--SEQUENCE_DICTIONARY=null",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -221,38 +224,42 @@
       "row": 5,
       "labels": {
         "--CALL_RATE_PF_THRESHOLD": "fixture[1]",
-        "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[2]",
+        "--CREATE_INDEX": "true",
+        "--DBSNP": "fixture[0]",
+        "--INPUT": "fixture[1]",
         "--NUM_PROCESSORS": "fixture[0]",
-        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CALL_RATE_PF_THRESHOLD=0.5",
-        "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/arr_short.vcf",
+        "--CREATE_INDEX=true",
+        "--DBSNP=/work/fixtures/arr_dbsnp.vcf",
+        "--INPUT=/work/fixtures/arr_s2.vcf",
         "--NUM_PROCESSORS=1",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/arr_ref.dict",
+        "--SEQUENCE_DICTIONARY=null",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 6,
       "labels": {
-        "--CALL_RATE_PF_THRESHOLD": "fixture[1]",
-        "--CREATE_INDEX": "true",
+        "--CALL_RATE_PF_THRESHOLD": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--DBSNP": "fixture[1]",
         "--INPUT": "fixture[0]",
         "--NUM_PROCESSORS": "fixture[0]",
-        "--SEQUENCE_DICTIONARY": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--CALL_RATE_PF_THRESHOLD=0.5",
-        "--CREATE_INDEX=true",
+        "--CALL_RATE_PF_THRESHOLD=0.98",
+        "--CREATE_INDEX=false",
+        "--DBSNP=/work/fixtures/dbsnp.vcf",
         "--INPUT=/work/fixtures/arr_s1.vcf",
         "--NUM_PROCESSORS=1",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/arr_ref.dict",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--SEQUENCE_DICTIONARY=null",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -260,7 +267,8 @@
       "labels": {
         "--CALL_RATE_PF_THRESHOLD": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
+        "--DBSNP": "fixture[0]",
+        "--INPUT": "fixture[2]",
         "--NUM_PROCESSORS": "fixture[1]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
@@ -268,7 +276,8 @@
       "arguments": [
         "--CALL_RATE_PF_THRESHOLD=0.98",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/arr_s2.vcf",
+        "--DBSNP=/work/fixtures/arr_dbsnp.vcf",
+        "--INPUT=/work/fixtures/arr_short.vcf",
         "--NUM_PROCESSORS=2",
         "--SEQUENCE_DICTIONARY=null",
         "--VALIDATION_STRINGENCY=STRICT"
@@ -279,7 +288,29 @@
       "labels": {
         "--CALL_RATE_PF_THRESHOLD": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
+        "--DBSNP": "fixture[0]",
+        "--INPUT": "fixture[0]",
+        "--NUM_PROCESSORS": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CALL_RATE_PF_THRESHOLD=0.98",
+        "--CREATE_INDEX=true",
+        "--DBSNP=/work/fixtures/arr_dbsnp.vcf",
+        "--INPUT=/work/fixtures/arr_s1.vcf",
+        "--NUM_PROCESSORS=1",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/arr_ref.dict",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--CALL_RATE_PF_THRESHOLD": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--DBSNP": "fixture[0]",
+        "--INPUT": "fixture[1]",
         "--NUM_PROCESSORS": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
@@ -287,10 +318,32 @@
       "arguments": [
         "--CALL_RATE_PF_THRESHOLD=0.98",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/arr_short.vcf",
+        "--DBSNP=/work/fixtures/arr_dbsnp.vcf",
+        "--INPUT=/work/fixtures/arr_s2.vcf",
         "--NUM_PROCESSORS=1",
         "--SEQUENCE_DICTIONARY=null",
         "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--CALL_RATE_PF_THRESHOLD": "fixture[1]",
+        "--CREATE_INDEX": "true",
+        "--DBSNP": "fixture[0]",
+        "--INPUT": "fixture[0]",
+        "--NUM_PROCESSORS": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CALL_RATE_PF_THRESHOLD=0.5",
+        "--CREATE_INDEX=true",
+        "--DBSNP=/work/fixtures/arr_dbsnp.vcf",
+        "--INPUT=/work/fixtures/arr_s1.vcf",
+        "--NUM_PROCESSORS=1",
+        "--SEQUENCE_DICTIONARY=null",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     }
   ]

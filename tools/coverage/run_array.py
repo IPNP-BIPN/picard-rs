@@ -151,6 +151,26 @@ def tool_spec(tool):
     return list(spec.get("$positional", [])), tuple(spec.get("$lists", []))
 
 
+POSITIONAL = "[NA - Positional]"
+
+
+def take_positional(args, positional):
+    """A row that assigns the positional pseudo-argument: its value is the positional words.
+
+    A tool whose positional files vary declares `[NA - Positional]` as an ordinary fixture, one
+    value per alternative, the words of each separated by spaces, so the generator pairs the
+    alternatives with the other arguments. Such a row carries no `$positional`; the words go last.
+    """
+    rest, words = [], list(positional)
+    for pair in args:
+        name, _, value = pair.partition("=")
+        if name == POSITIONAL:
+            words = value.split()
+            continue
+        rest.append(pair)
+    return rest, words
+
+
 def tool_extras(tool):
     """A tool's `$writable` argument names and its `$stdin` fixture, from the fixtures file.
 
@@ -226,6 +246,7 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_
     fixtures = fixtures or workdir / "fixtures"
 
     positional, lists = tool_spec(tool)
+    row_args, positional = take_positional(row_args, positional)
     writable, stdin_spec = tool_extras(tool)
     stdin_name = stdin_file(stdin_spec, row) if stdin_spec else None
     copies = ""
@@ -442,6 +463,7 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_
     out_dir = fresh_directory(workdir, "port")
     fixtures = fixtures or workdir / "fixtures"
     positional, lists = tool_spec(tool) if tool else ([], ())
+    row_args, positional = take_positional(row_args, positional)
 
     def host(value):
         return value.replace("/work/fixtures", str(fixtures)).replace("/work/out", str(out_dir))

@@ -256,6 +256,11 @@ fn main() {
     let barcodes_dir = args.get("BARCODES_DIR").map(std::path::PathBuf::from);
     let multiplex = args.get("MULTIPLEX_PARAMS").map(str::to_string);
     let output_prefix = args.get("OUTPUT_PREFIX").map(str::to_string);
+    // Barclay: OUTPUT_PREFIX is required unless MULTIPLEX_PARAMS is given.
+    if !args.given("OUTPUT_PREFIX") && !args.given("MULTIPLEX_PARAMS") {
+        eprintln!("Argument OUTPUT_PREFIX was missing: Argument 'OUTPUT_PREFIX' is required unless one of {{[MULTIPLEX_PARAMS]}} are provided");
+        std::process::exit(1);
+    }
     let input_params = args
         .get("INPUT_PARAMS_FILE")
         .map(str::to_string)
@@ -324,6 +329,26 @@ fn main() {
     let compress = args.bool("COMPRESS_OUTPUTS", false);
     let suffix = if compress { "fastq.gz" } else { "fastq" };
     let count = |k: SegmentKind| structure.iter().filter(|s| s.kind == k).count();
+    // `buildWriter` pools each writer behind a queue of `(MAX_RECORDS_IN_RAM / 2) / samples`
+    // records, written in batches of half of it; `MAX_READS_IN_RAM_PER_TILE` replaces the RAM
+    // budget with itself times the processor count, and a budget too small for the samples leaves
+    // a queue of nothing, which the queue or the pool refuses.
+    let max_records: i64 = match args.int("MAX_READS_IN_RAM_PER_TILE", -1) {
+        -1 => args.int("MAX_RECORDS_IN_RAM", 500_000),
+        per_tile => per_tile * args.int("NUM_PROCESSORS", 1),
+    };
+    let check_queue = |samples: i64| {
+        let queue = (max_records / 2) / samples.max(1);
+        if queue <= 0 {
+            thrown("java.lang.IllegalArgumentException");
+        }
+        let threshold = (queue as f64 * 0.5) as i64;
+        if threshold <= 0 {
+            thrown(&format!(
+                "java.lang.IllegalArgumentException: writeThreshold must be >= 1: {threshold}"
+            ));
+        }
+    };
     let build_writer = |prefix: &str| -> FastqWriter {
         let host = std::path::PathBuf::from(host_path(prefix));
         let dir = std::path::absolute(&host)
@@ -357,7 +382,9 @@ fn main() {
     let mut writers: Vec<(Option<String>, FastqWriter)> = Vec::new();
     let demultiplex;
     if let Some(prefix) = &output_prefix {
-        writers.push((None, build_writer(prefix)));
+        let writer = build_writer(prefix);
+        check_queue(1);
+        writers.push((None, writer));
         demultiplex = false;
     } else {
         let path = multiplex.clone().unwrap_or_default();
@@ -415,6 +442,7 @@ fn main() {
             }
             seen.push(key.clone());
             let writer = build_writer(&field("OUTPUT_PREFIX"));
+            check_queue(rows.len() as i64);
             match writers.iter_mut().find(|(k, _)| *k == key) {
                 Some(slot) => slot.1 = writer,
                 None => writers.push((key, writer)),
@@ -511,7 +539,15 @@ fn main() {
         }
     }
     drop(writers);
-    if let (Some(path), true) = (args.get("METRICS_FILE"), inline) {
+    // `METRICS_FILE != null && MATCH_BARCODES_INLINE`, demultiplexing or not: the no-match metric is
+    // made with the barcode extractor, which only a demultiplexing run builds, so without one
+    // reading it is a NullPointerException.
+    let wants_metrics =
+        args.bool("MATCH_BARCODES_INLINE", false) && args.get("METRICS_FILE").is_some();
+    if wants_metrics && !inline {
+        thrown("java.lang.NullPointerException: Cannot read field \"READS\" because \"noMatchMetric\" is null");
+    }
+    if let (Some(path), true) = (args.get("METRICS_FILE"), wants_metrics) {
         let mut metrics = converter.metrics;
         finalize(&mut metrics, &mut no_match);
         let mut file = MetricsFile::new();

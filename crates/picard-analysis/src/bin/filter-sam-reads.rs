@@ -19,7 +19,7 @@ use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::writer::BamWriter;
 use htsjdk_bam::{coordinate, query_name};
 use picard_analysis::filter_sam_reads::{
-    keep_by_alignment, keep_by_read_list, read_name_set, AlignedFilter, Filter,
+    keep_by_alignment_pairwise, keep_by_read_list, read_name_set, AlignedFilter, Filter,
 };
 
 fn arg(args: &[String], key: &str) -> Option<String> {
@@ -136,14 +136,78 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             keep_by_read_list(&records, &names, which)
         }
-        "includeAligned" | "excludeAligned" => keep_by_alignment(
+        "includeAligned" | "excludeAligned" => match keep_by_alignment_pairwise(
             &records,
             if filter == "includeAligned" {
                 AlignedFilter::IncludeAligned
             } else {
                 AlignedFilter::ExcludeAligned
             },
-        ),
+        ) {
+            Ok(kept) => kept,
+            // `doWork` catches the assertion, logs it, deletes the output and returns 1.
+            Err(_) => {
+                let name = std::path::Path::new(&input)
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                eprintln!("ERROR\tFilterSamReads\tFailed to filter {name}");
+                let _ = std::fs::remove_file(&output);
+                std::process::exit(1);
+            }
+        },
+        // `TagFilter`, record by record: a read is kept when whether its tag's value is one of
+        // TAG_VALUE agrees with the filter's direction. The values are strings, so only a string
+        // tag can equal one.
+        "includeTagValues" | "excludeTagValues" => {
+            let include = filter == "includeTagValues";
+            let tag = arg(&args, "TAG=").unwrap_or_default();
+            let values: Vec<String> = args
+                .iter()
+                .filter_map(|a| a.strip_prefix("TAG_VALUE="))
+                .map(str::to_string)
+                .collect();
+            records
+                .iter()
+                .filter(|record| {
+                    let listed = <&[u8; 2]>::try_from(tag.as_bytes())
+                        .ok()
+                        .is_some_and(|name| {
+                            matches!(record.tags.get(htsjdk_bam::tag::Tag::new(name)),
+                            Some(htsjdk_bam::tag::TagValue::Str(value)) if values.contains(value))
+                        });
+                    listed == include
+                })
+                .cloned()
+                .collect()
+        }
+        // `JavascriptSamRecordFilter`, record by record: a read the script accepts is kept. Any
+        // failure, the script's included, is caught by `doWork` and logged as a failed filter.
+        "includeJavascript" => {
+            let fail = || -> ! {
+                let name = std::path::Path::new(&input)
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                eprintln!("ERROR\tFilterSamReads\tFailed to filter {name}");
+                let _ = std::fs::remove_file(&output);
+                std::process::exit(1);
+            };
+            let path = arg(&args, "JAVASCRIPT_FILE=").unwrap_or_default();
+            let text = std::fs::read_to_string(&path).unwrap_or_else(|_| fail());
+            let mut filter = picard_analysis::javascript::JavascriptFilter::new(&text)
+                .unwrap_or_else(|_| fail());
+            let mut kept = Vec::new();
+            for record in &records {
+                if filter
+                    .accept_read(record, &header)
+                    .unwrap_or_else(|_| fail())
+                {
+                    kept.push(record.clone());
+                }
+            }
+            kept
+        }
         other => return Err(format!("FILTER={other} is not ported").into()),
     };
 

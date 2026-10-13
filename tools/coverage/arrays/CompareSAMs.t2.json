@@ -4,16 +4,9 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 23,
-  "arguments_in_array": 6,
-  "arguments_excluded": 17,
+  "arguments_in_array": 9,
+  "arguments_excluded": 14,
   "excluded": [
-    {
-      "argument": "[NA - Positional]",
-      "type": "List[File]",
-      "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
-      "held_at": null,
-      "source": "none"
-    },
     {
       "argument": "--arguments_file",
       "type": "List[File]",
@@ -41,20 +34,6 @@
       "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--LENIENT_DUP",
-      "type": "boolean",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "false",
-      "source": "fixture"
-    },
-    {
-      "argument": "--LENIENT_HEADER",
-      "type": "boolean",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "false",
-      "source": "fixture"
     },
     {
       "argument": "--MAX_RECORDS_IN_RAM",
@@ -127,9 +106,9 @@
       "source": "none"
     }
   ],
-  "rows": 9,
-  "tuples_total": 70,
-  "tuples_covered": 70,
+  "rows": 11,
+  "tuples_total": 160,
+  "tuples_covered": 160,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -141,18 +120,24 @@
       "labels": {
         "--COMPARE_MQ": "true",
         "--CREATE_INDEX": "true",
+        "--LENIENT_DUP": "fixture[0]",
+        "--LENIENT_HEADER": "fixture[0]",
         "--LENIENT_LOW_MQ_ALIGNMENT": "true",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
         "--LOW_MQ_THRESHOLD": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "[NA - Positional]": "fixture[0]"
       },
       "arguments": [
         "--COMPARE_MQ=true",
         "--CREATE_INDEX=true",
+        "--LENIENT_DUP=false",
+        "--LENIENT_HEADER=false",
         "--LENIENT_LOW_MQ_ALIGNMENT=true",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
         "--LOW_MQ_THRESHOLD=3",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=STRICT",
+        "[NA - Positional]=/work/fixtures/compare_left.bam /work/fixtures/compare_right.bam"
       ]
     },
     {
@@ -160,18 +145,24 @@
       "labels": {
         "--COMPARE_MQ": "true",
         "--CREATE_INDEX": "false",
+        "--LENIENT_DUP": "fixture[1]",
+        "--LENIENT_HEADER": "fixture[1]",
         "--LENIENT_LOW_MQ_ALIGNMENT": "false",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
         "--LOW_MQ_THRESHOLD": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "[NA - Positional]": "fixture[1]"
       },
       "arguments": [
         "--COMPARE_MQ=true",
         "--CREATE_INDEX=false",
+        "--LENIENT_DUP=true",
+        "--LENIENT_HEADER=true",
         "--LENIENT_LOW_MQ_ALIGNMENT=false",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT=false",
         "--LOW_MQ_THRESHOLD=30",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "[NA - Positional]=/work/fixtures/compare_left.bam /work/fixtures/compare_swap.bam"
       ]
     },
     {
@@ -179,18 +170,24 @@
       "labels": {
         "--COMPARE_MQ": "false",
         "--CREATE_INDEX": "true",
+        "--LENIENT_DUP": "fixture[1]",
+        "--LENIENT_HEADER": "fixture[0]",
         "--LENIENT_LOW_MQ_ALIGNMENT": "false",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
         "--LOW_MQ_THRESHOLD": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "[NA - Positional]": "fixture[0]"
       },
       "arguments": [
         "--COMPARE_MQ=false",
         "--CREATE_INDEX=true",
+        "--LENIENT_DUP=true",
+        "--LENIENT_HEADER=false",
         "--LENIENT_LOW_MQ_ALIGNMENT=false",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
         "--LOW_MQ_THRESHOLD=30",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--VALIDATION_STRINGENCY=SILENT",
+        "[NA - Positional]=/work/fixtures/compare_left.bam /work/fixtures/compare_right.bam"
       ]
     },
     {
@@ -198,18 +195,24 @@
       "labels": {
         "--COMPARE_MQ": "false",
         "--CREATE_INDEX": "false",
+        "--LENIENT_DUP": "fixture[0]",
+        "--LENIENT_HEADER": "fixture[1]",
         "--LENIENT_LOW_MQ_ALIGNMENT": "true",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
         "--LOW_MQ_THRESHOLD": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "[NA - Positional]": "fixture[1]"
       },
       "arguments": [
         "--COMPARE_MQ=false",
         "--CREATE_INDEX=false",
+        "--LENIENT_DUP=false",
+        "--LENIENT_HEADER=true",
         "--LENIENT_LOW_MQ_ALIGNMENT=true",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT=false",
         "--LOW_MQ_THRESHOLD=3",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--VALIDATION_STRINGENCY=SILENT",
+        "[NA - Positional]=/work/fixtures/compare_left.bam /work/fixtures/compare_swap.bam"
       ]
     },
     {
@@ -217,18 +220,24 @@
       "labels": {
         "--COMPARE_MQ": "false",
         "--CREATE_INDEX": "true",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
+        "--LENIENT_DUP": "fixture[1]",
+        "--LENIENT_HEADER": "fixture[1]",
+        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
         "--LOW_MQ_THRESHOLD": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "[NA - Positional]": "fixture[0]"
       },
       "arguments": [
         "--COMPARE_MQ=false",
         "--CREATE_INDEX=true",
-        "--LENIENT_LOW_MQ_ALIGNMENT=false",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=false",
+        "--LENIENT_DUP=true",
+        "--LENIENT_HEADER=true",
+        "--LENIENT_LOW_MQ_ALIGNMENT=true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
         "--LOW_MQ_THRESHOLD=3",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "[NA - Positional]=/work/fixtures/compare_left.bam /work/fixtures/compare_right.bam"
       ]
     },
     {
@@ -236,18 +245,24 @@
       "labels": {
         "--COMPARE_MQ": "false",
         "--CREATE_INDEX": "false",
+        "--LENIENT_DUP": "fixture[0]",
+        "--LENIENT_HEADER": "fixture[0]",
         "--LENIENT_LOW_MQ_ALIGNMENT": "true",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--LOW_MQ_THRESHOLD": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "[NA - Positional]": "fixture[1]"
       },
       "arguments": [
         "--COMPARE_MQ=false",
         "--CREATE_INDEX=false",
+        "--LENIENT_DUP=false",
+        "--LENIENT_HEADER=false",
         "--LENIENT_LOW_MQ_ALIGNMENT=true",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=3",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--LOW_MQ_THRESHOLD=30",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "[NA - Positional]=/work/fixtures/compare_left.bam /work/fixtures/compare_swap.bam"
       ]
     },
     {
@@ -255,18 +270,24 @@
       "labels": {
         "--COMPARE_MQ": "true",
         "--CREATE_INDEX": "false",
-        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
+        "--LENIENT_DUP": "fixture[0]",
+        "--LENIENT_HEADER": "fixture[1]",
+        "--LENIENT_LOW_MQ_ALIGNMENT": "false",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
-        "--LOW_MQ_THRESHOLD": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--LOW_MQ_THRESHOLD": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "[NA - Positional]": "fixture[0]"
       },
       "arguments": [
         "--COMPARE_MQ=true",
         "--CREATE_INDEX=false",
-        "--LENIENT_LOW_MQ_ALIGNMENT=true",
+        "--LENIENT_DUP=false",
+        "--LENIENT_HEADER=true",
+        "--LENIENT_LOW_MQ_ALIGNMENT=false",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
-        "--LOW_MQ_THRESHOLD=30",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--LOW_MQ_THRESHOLD=3",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "[NA - Positional]=/work/fixtures/compare_left.bam /work/fixtures/compare_right.bam"
       ]
     },
     {
@@ -274,18 +295,24 @@
       "labels": {
         "--COMPARE_MQ": "true",
         "--CREATE_INDEX": "true",
+        "--LENIENT_DUP": "fixture[1]",
+        "--LENIENT_HEADER": "fixture[0]",
         "--LENIENT_LOW_MQ_ALIGNMENT": "true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[1]",
         "--LOW_MQ_THRESHOLD": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "[NA - Positional]": "fixture[0]"
       },
       "arguments": [
         "--COMPARE_MQ=true",
         "--CREATE_INDEX=true",
+        "--LENIENT_DUP=true",
+        "--LENIENT_HEADER=false",
         "--LENIENT_LOW_MQ_ALIGNMENT=true",
-        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=false",
         "--LOW_MQ_THRESHOLD=3",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--VALIDATION_STRINGENCY=STRICT",
+        "[NA - Positional]=/work/fixtures/compare_left.bam /work/fixtures/compare_right.bam"
       ]
     },
     {
@@ -293,18 +320,74 @@
       "labels": {
         "--COMPARE_MQ": "true",
         "--CREATE_INDEX": "true",
+        "--LENIENT_DUP": "fixture[0]",
+        "--LENIENT_HEADER": "fixture[0]",
         "--LENIENT_LOW_MQ_ALIGNMENT": "true",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
         "--LOW_MQ_THRESHOLD": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "[NA - Positional]": "fixture[0]"
       },
       "arguments": [
         "--COMPARE_MQ=true",
         "--CREATE_INDEX=true",
+        "--LENIENT_DUP=false",
+        "--LENIENT_HEADER=false",
         "--LENIENT_LOW_MQ_ALIGNMENT=true",
         "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
         "--LOW_MQ_THRESHOLD=3",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=SILENT",
+        "[NA - Positional]=/work/fixtures/compare_left.bam /work/fixtures/compare_right.bam"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--COMPARE_MQ": "true",
+        "--CREATE_INDEX": "true",
+        "--LENIENT_DUP": "fixture[0]",
+        "--LENIENT_HEADER": "fixture[0]",
+        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
+        "--LOW_MQ_THRESHOLD": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "[NA - Positional]": "fixture[0]"
+      },
+      "arguments": [
+        "--COMPARE_MQ=true",
+        "--CREATE_INDEX=true",
+        "--LENIENT_DUP=false",
+        "--LENIENT_HEADER=false",
+        "--LENIENT_LOW_MQ_ALIGNMENT=true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
+        "--LOW_MQ_THRESHOLD=3",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "[NA - Positional]=/work/fixtures/compare_left.bam /work/fixtures/compare_right.bam"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--COMPARE_MQ": "true",
+        "--CREATE_INDEX": "true",
+        "--LENIENT_DUP": "fixture[0]",
+        "--LENIENT_HEADER": "fixture[0]",
+        "--LENIENT_LOW_MQ_ALIGNMENT": "true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT": "fixture[0]",
+        "--LOW_MQ_THRESHOLD": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "[NA - Positional]": "fixture[1]"
+      },
+      "arguments": [
+        "--COMPARE_MQ=true",
+        "--CREATE_INDEX=true",
+        "--LENIENT_DUP=false",
+        "--LENIENT_HEADER=false",
+        "--LENIENT_LOW_MQ_ALIGNMENT=true",
+        "--LENIENT_UNKNOWN_MQ_ALIGNMENT=true",
+        "--LOW_MQ_THRESHOLD=3",
+        "--VALIDATION_STRINGENCY=STRICT",
+        "[NA - Positional]=/work/fixtures/compare_left.bam /work/fixtures/compare_swap.bam"
       ]
     }
   ]

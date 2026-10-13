@@ -6,7 +6,7 @@
 //!
 //! `BARCODE_FILE` replaces `INPUT_PARAMS_FILE` before it is read, and `MINIMUM_QUALITY` is read in
 //! a field initialiser before the parser assigns it, so neither changes anything. `COMPRESS_OUTPUTS`
-//! gzips through the JDK's deflater and is not ported.
+//! gzips each barcode file; the content is compared, not the deflater's bytes.
 
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::barcode_extractor::{finalize, parse_input_file, Distance, Extractor, Metric};
@@ -25,6 +25,11 @@ fn main() {
     ]);
     let basecalls = std::path::PathBuf::from(args.required("BASECALLS_DIR"));
     let metrics_file = args.required("METRICS_FILE");
+    // BARCODE_FILE is required unless BARCODE is given, which Barclay checks first of all.
+    if !args.given("BARCODE_FILE") && args.all("BARCODE").is_empty() {
+        eprintln!("Argument BARCODE_FILE was missing: Argument 'BARCODE_FILE' is required unless one of {{[BARCODE]}} are provided");
+        std::process::exit(1);
+    }
     let output_dir = args
         .get("OUTPUT_DIR")
         .map(std::path::PathBuf::from)
@@ -38,11 +43,9 @@ fn main() {
         .unwrap_or_else(|| thrown("picard.PicardException: Read structure could not be parsed"));
     let barcode_file = args.get("BARCODE_FILE").map(str::to_string);
     let barcode_args = args.collection("BARCODE", &[]);
-    if args.bool("COMPRESS_OUTPUTS", false) {
-        // The reference gzips through the JDK's deflater, whose bytes are not the tool's logic;
-        // the array holds the argument false.
-        thrown("java.lang.UnsupportedOperationException: COMPRESS_OUTPUTS is not ported");
-    }
+    // `COMPRESS_OUTPUTS` gzips each barcode file and names it `.gz`. The bytes are the deflater's;
+    // the content is the tool's, and that is what is compared.
+    let compress = args.bool("COMPRESS_OUTPUTS", false);
     let lengths: Vec<usize> = structure
         .iter()
         .filter(|s| s.kind == SegmentKind::Barcode)
@@ -94,6 +97,13 @@ fn main() {
         refuse_validation(TOOL, &messages);
     }
 
+    // `doWork` opens with `assertDirectoryIsWritable(OUTPUT_DIR)`.
+    if !output_dir.is_dir() {
+        thrown(&format!(
+            "htsjdk.samtools.SAMException: Directory does not exist: {}",
+            picard_analysis::fingerprint::file_uri(&output_dir.display().to_string())
+        ));
+    }
     let minimum = args.int("MINIMUM_BASE_QUALITY", 0) as i32;
     let mode = Distance::parse(args.get("DISTANCE_MODE"));
     let no_match_seqs: Vec<String> = lengths.iter().map(|l| "N".repeat(*l)).collect();
@@ -128,7 +138,11 @@ fn main() {
         reads.push(cycles);
     }
     let mut metrics = metrics_in_order;
-    for &lane in &lanes {
+    // `doWork` keeps one list of tile extractors across the lanes and submits the WHOLE list after
+    // each lane, so a lane's tiles run once for every lane from it to the last. Each run counts
+    // into the same extractor's metrics, and writes the same barcode file again.
+    for (k, &lane) in lanes.iter().enumerate() {
+        let times = (lanes.len() - k) as i64;
         let run = Run::new(&basecalls, lane);
         let tiles = run.available_tiles().unwrap_or_else(|e| thrown(&e));
         for tile in tiles {
@@ -160,20 +174,20 @@ fn main() {
                 } else {
                     &mut no_match
                 };
-                target.reads += 1;
+                target.reads += times;
                 if c.pf {
-                    target.pf_reads += 1;
+                    target.pf_reads += times;
                 }
                 if m.matched {
                     if m.mismatches == 0 {
-                        target.perfect += 1;
+                        target.perfect += times;
                         if c.pf {
-                            target.pf_perfect += 1;
+                            target.pf_perfect += times;
                         }
                     } else if m.mismatches == 1 {
-                        target.one += 1;
+                        target.one += times;
                         if c.pf {
-                            target.pf_one += 1;
+                            target.pf_one += times;
                         }
                     }
                 }
@@ -188,8 +202,18 @@ fn main() {
                     m.to_second
                 ));
             }
-            let path = output_dir.join(format!("s_{lane}_{tile:04}_barcode.txt"));
-            let written = std::fs::write(&path, text);
+            let suffix = if compress { ".gz" } else { "" };
+            let path = output_dir.join(format!("s_{lane}_{tile:04}_barcode.txt{suffix}"));
+            let written = if compress {
+                std::fs::File::create(&path).and_then(|file| {
+                    use std::io::Write;
+                    let mut writer = htsjdk_bgzf::BgzfWriter::new(file);
+                    writer.write_all(text.as_bytes())?;
+                    writer.finish().map(|_| ())
+                })
+            } else {
+                std::fs::write(&path, text)
+            };
             if let Err(e) = written {
                 thrown(&format!("htsjdk.samtools.SAMException: {e}"));
             }

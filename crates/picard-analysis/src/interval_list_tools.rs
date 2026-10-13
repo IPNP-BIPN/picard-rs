@@ -133,6 +133,11 @@ fn output_hd(first_input: &str, unsorted: bool) -> String {
     fields.join("\t")
 }
 
+/// The intervals of an interval list's text.
+pub fn parse_intervals(interval_list: &str) -> Result<Vec<Interval>, ParseError> {
+    parse(interval_list)
+}
+
 fn parse(interval_list: &str) -> Result<Vec<Interval>, ParseError> {
     Ok(IntervalList::parse_body(Vec::new(), interval_list)?.intervals)
 }
@@ -393,6 +398,231 @@ pub fn interval_list_tools(
         output.push('\n');
     }
     Ok(output)
+}
+
+/// `IntervalListScatterMode`: how `SCATTER_COUNT` divides the final list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScatterMode {
+    /// `INTERVAL_SUBDIVISION`: equal base counts, cutting intervals where it must.
+    IntervalSubdivision,
+    /// `BALANCING_WITHOUT_INTERVAL_SUBDIVISION`: whole intervals, a list closing before it would
+    /// pass the ideal size.
+    BalancingWithoutIntervalSubdivision,
+    /// `BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW`: the same, but a list may pass the
+    /// ideal size while the lists still to come would be larger than it.
+    BalancingWithoutIntervalSubdivisionWithOverflow,
+    /// `INTERVAL_COUNT`: equal interval counts, the remainder in the last list.
+    IntervalCount,
+    /// `INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER`: equal interval counts, the remainder spread.
+    IntervalCountWithDistributedRemainder,
+}
+
+impl ScatterMode {
+    pub fn parse(name: &str) -> Option<ScatterMode> {
+        Some(match name {
+            "INTERVAL_SUBDIVISION" => ScatterMode::IntervalSubdivision,
+            "BALANCING_WITHOUT_INTERVAL_SUBDIVISION" => {
+                ScatterMode::BalancingWithoutIntervalSubdivision
+            }
+            "BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW" => {
+                ScatterMode::BalancingWithoutIntervalSubdivisionWithOverflow
+            }
+            "INTERVAL_COUNT" => ScatterMode::IntervalCount,
+            "INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER" => {
+                ScatterMode::IntervalCountWithDistributedRemainder
+            }
+            _ => return None,
+        })
+    }
+
+    fn by_count(self) -> bool {
+        matches!(
+            self,
+            ScatterMode::IntervalCount | ScatterMode::IntervalCountWithDistributedRemainder
+        )
+    }
+
+    /// `listWeight`: the bases of a list, or its interval count.
+    pub fn list_weight(self, intervals: &[Interval]) -> i64 {
+        if self.by_count() {
+            intervals.len() as i64
+        } else {
+            intervals
+                .iter()
+                .map(|i| i64::from(i.end - i.start + 1))
+                .sum()
+        }
+    }
+}
+
+/// One list `IntervalListScatter` produced: the file's text, and what it holds.
+pub struct ScatteredList {
+    pub text: String,
+    pub bases: i64,
+    pub intervals: i64,
+}
+
+/// `IntervalListScatter` over an interval list's text: each produced list in order.
+///
+/// The lists carry the header of the preprocessed input: `sorted()` marks it coordinate-sorted, and
+/// `uniqued()` (the subdivision mode's) clones the input's header as it was.
+pub fn scatter(
+    text: &str,
+    count: i32,
+    mode: ScatterMode,
+) -> Result<Vec<ScatteredList>, ParseError> {
+    use std::collections::VecDeque;
+    let (sequences, _) = dictionary(text);
+    let names: Vec<String> = sequences.iter().map(|(n, _)| n.clone()).collect();
+    let list = IntervalList {
+        dictionary: names,
+        intervals: parse(text)?,
+    };
+    let length = |i: &Interval| i64::from(i.end - i.start + 1);
+    // `preprocessIntervalList`.
+    let processed: Vec<Interval> = if mode == ScatterMode::IntervalSubdivision {
+        uniqued(&list, true)
+    } else {
+        list.sorted().intervals
+    };
+    // `deduceIdealSplitWeight`.
+    let ideal: i64 = if mode.by_count() {
+        (processed.len() as i64 / i64::from(count)).max(1)
+    } else {
+        let unique: i64 = uniqued(
+            &IntervalList {
+                dictionary: list.dictionary.clone(),
+                intervals: processed.clone(),
+            },
+            true,
+        )
+        .iter()
+        .map(length)
+        .sum();
+        let split = (unique / i64::from(count)).max(1);
+        if mode == ScatterMode::IntervalSubdivision {
+            split
+        } else {
+            let widest = processed.iter().map(length).max().unwrap_or(1);
+            widest.max(split)
+        }
+    };
+    // `takeSome`: the part that goes into the current list, and the part put back.
+    let take_some = |interval: Interval,
+                     current: i64,
+                     remaining: f64|
+     -> (Option<Interval>, Option<Interval>) {
+        match mode {
+            ScatterMode::IntervalSubdivision => {
+                let amount = ideal - current;
+                if amount >= length(&interval) {
+                    (Some(interval), None)
+                } else if amount == 0 {
+                    (None, Some(interval))
+                } else {
+                    let cut = interval.start + amount as i32;
+                    let left = Interval {
+                        end: cut - 1,
+                        ..interval.clone()
+                    };
+                    let right = Interval {
+                        start: cut,
+                        ..interval
+                    };
+                    (Some(left), Some(right))
+                }
+            }
+            ScatterMode::BalancingWithoutIntervalSubdivision
+            | ScatterMode::BalancingWithoutIntervalSubdivisionWithOverflow => {
+                let projected = current + length(&interval);
+                let include = projected <= ideal
+                    || (mode == ScatterMode::BalancingWithoutIntervalSubdivisionWithOverflow
+                        && (ideal as f64) < remaining);
+                if include {
+                    (Some(interval), None)
+                } else {
+                    (None, Some(interval))
+                }
+            }
+            ScatterMode::IntervalCount => {
+                if ideal - current > 0 {
+                    (Some(interval), None)
+                } else {
+                    (None, Some(interval))
+                }
+            }
+            ScatterMode::IntervalCountWithDistributedRemainder => {
+                if remaining > current as f64 {
+                    (Some(interval), None)
+                } else {
+                    (None, Some(interval))
+                }
+            }
+        }
+    };
+
+    // The header the lists are written with.
+    let mut header = String::new();
+    for line in text.lines().take_while(|line| line.starts_with('@')) {
+        if line.starts_with("@HD") && mode != ScatterMode::IntervalSubdivision {
+            let mut fields: Vec<String> = line.split('\t').map(str::to_string).collect();
+            match fields.iter_mut().find(|f| f.starts_with("SO:")) {
+                Some(field) => *field = "SO:coordinate".to_string(),
+                None => fields.push("SO:coordinate".to_string()),
+            }
+            header.push_str(&fields.join("\t"));
+        } else {
+            header.push_str(line);
+        }
+        header.push('\n');
+    }
+
+    let mut weight_remaining = mode.list_weight(&processed);
+    let mut queue: VecDeque<Interval> = processed.into_iter().collect();
+    let mut returned: i64 = 0;
+    let mut lists: Vec<Vec<Interval>> = Vec::new();
+    while !queue.is_empty() {
+        returned += 1;
+        let mut running: Vec<Interval> = Vec::new();
+        let mut closed = false;
+        while !queue.is_empty() && returned < i64::from(count) {
+            let interval = queue.pop_front().expect("the queue is not empty");
+            let current = mode.list_weight(&running);
+            let remaining =
+                (weight_remaining - current) as f64 / (f64::from(count) - returned as f64);
+            let (first, second) = take_some(interval, current, remaining);
+            if let Some(second) = second {
+                queue.push_front(second);
+            }
+            match first {
+                Some(first) => running.push(first),
+                None => {
+                    weight_remaining -= current;
+                    closed = true;
+                    break;
+                }
+            }
+        }
+        if !closed {
+            running.extend(queue.drain(..));
+        }
+        lists.push(running);
+    }
+    Ok(lists
+        .into_iter()
+        .map(|intervals| {
+            let mut text = header.clone();
+            for interval in &intervals {
+                text.push_str(&interval.to_file_line());
+                text.push('\n');
+            }
+            ScatteredList {
+                bases: intervals.iter().map(length).sum(),
+                intervals: intervals.len() as i64,
+                text,
+            }
+        })
+        .collect())
 }
 
 #[cfg(test)]

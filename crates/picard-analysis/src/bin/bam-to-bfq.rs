@@ -173,6 +173,29 @@ fn first_of_pair(record: &BamRecord) -> bool {
     record.flags & 0x40 != 0
 }
 
+/// `IOUtil.assertFileIsWritable`, which `getOutputFile` runs before the file is opened.
+fn assert_file_is_writable(path: &str) {
+    let file = std::path::Path::new(path);
+    let absolute = std::path::absolute(file).unwrap_or_else(|_| file.to_path_buf());
+    let shown = absolute.display();
+    let refuse = |reason: &str| thrown(&format!("htsjdk.samtools.SAMException: {reason}"));
+    if !file.exists() {
+        match absolute.parent() {
+            Some(parent) if !parent.exists() => refuse(&format!(
+                "Cannot write file: {shown}. Neither file nor parent directory exist."
+            )),
+            Some(parent) if !parent.is_dir() => refuse(&format!(
+                "Cannot write file: {shown}. File does not exist and parent is not a directory."
+            )),
+            _ => {}
+        }
+    } else if file.is_dir() {
+        refuse(&format!(
+            "Cannot write file because it is a directory: {shown}"
+        ));
+    }
+}
+
 /// One `.bfq` being written: a gzip stream, which `BinaryCodec` writes little-endian into.
 struct Codec {
     writer: BgzfWriter<File>,
@@ -180,6 +203,7 @@ struct Codec {
 
 impl Codec {
     fn open(path: &str) -> Codec {
+        assert_file_is_writable(path);
         let file = File::create(path).unwrap_or_else(|e| {
             thrown(&format!(
                 "htsjdk.samtools.SAMException: Error opening file for writing: file://{path}: {e}"

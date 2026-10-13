@@ -282,7 +282,7 @@ jobs:
             | tee /tmp/SetNmMdAndUqTags.log
           python3 tools/coverage/run_array.py --tool RevertSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/revert-sam \
+            --port target/release/revert-sam --output-name output.txt,rg1.bam,rg2.bam,rg1.sam,rg2.sam,rg1.cram,rg2.cram,mapped_rg1.bam,mapped_rg2.sam \
             | tee /tmp/RevertSam.log
           python3 tools/coverage/run_array.py --tool ExtractSequences --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -290,7 +290,7 @@ jobs:
             | tee /tmp/ExtractSequences.log
           python3 tools/coverage/run_array.py --tool IntervalListTools --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/interval-list-tools --strip-program-records --output-name output.txt,count.txt \
+            --port target/release/interval-list-tools --strip-program-records --output-name @all \
             | tee /tmp/IntervalListTools.log
           python3 tools/coverage/run_array.py --tool PositionBasedDownsampleSam --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -306,7 +306,7 @@ jobs:
             | tee /tmp/FilterSamReads.log
           python3 tools/coverage/run_array.py --tool MarkDuplicates --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/mark-duplicates --strip-program-records \
+            --port target/release/mark-duplicates --strip-program-records --output-name output.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/MarkDuplicates.log
           python3 tools/coverage/run_array.py --tool FastqToSam --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -314,7 +314,7 @@ jobs:
             | tee /tmp/FastqToSam.log
           python3 tools/coverage/run_array.py --tool SplitSamByNumberOfReads --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/split-sam-by-number-of-reads --output-name shard_0001.bam \
+            --port target/release/split-sam-by-number-of-reads --output-name shard_0001.bam,shard_0002.bam,shard_0003.bam,shard_0004.bam,shard_0005.bam,shard_0001.sam,shard_0002.sam,shard_0003.sam,shard_0004.sam,shard_0005.sam,part_0001.bam,part_0002.bam,part_0003.bam,part_0004.bam,part_0005.bam,part_0001.sam,part_0002.sam,part_0003.sam,part_0004.sam,part_0005.sam \
             | tee /tmp/SplitSamByNumberOfReads.log
           python3 tools/coverage/run_array.py --tool SplitSamByLibrary --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -334,11 +334,11 @@ jobs:
             | tee /tmp/CollectDuplicateMetrics.log
           python3 tools/coverage/run_array.py --tool MarkDuplicatesWithMateCigar --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/mark-duplicates-with-mate-cigar --strip-program-records \
+            --port target/release/mark-duplicates-with-mate-cigar --strip-program-records --output-name output.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/MarkDuplicatesWithMateCigar.log
           python3 tools/coverage/run_array.py --tool SimpleMarkDuplicatesWithMateCigar --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/simple-mark-duplicates-with-mate-cigar --strip-program-records \
+            --port target/release/simple-mark-duplicates-with-mate-cigar --strip-program-records --output-name output.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/SimpleMarkDuplicatesWithMateCigar.log
           python3 tools/coverage/run_array.py --tool CheckDuplicateMarking --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -382,7 +382,7 @@ jobs:
             | tee /tmp/SamToFastqWithTags.log
           python3 tools/coverage/run_array.py --tool FindMendelianViolations --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/find-mendelian-violations \
+            --port target/release/find-mendelian-violations --output-name @all \
             | tee /tmp/FindMendelianViolations.log
           python3 tools/coverage/run_array.py --tool LiftOverIntervalList --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -518,7 +518,7 @@ jobs:
             | tee /tmp/MergePedIntoVcf.log
           python3 tools/coverage/run_array.py --tool BamToBfq --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/bam-to-bfq --output-name FC1.3.0.1.bfq,FC1.3.0.2.bfq,FC1.3.1.1.bfq,FC1.3.1.2.bfq,FC1.3.2.1.bfq,FC1.3.2.2.bfq,FC1.3.3.1.bfq,FC1.3.3.2.bfq,FC1.null.0.1.bfq,FC1.null.0.2.bfq,FC1.null.1.1.bfq,FC1.null.1.2.bfq,FC1.null.2.1.bfq,FC1.null.2.2.bfq,FC1.null.3.1.bfq,FC1.null.3.2.bfq \
+            --port target/release/bam-to-bfq --output-name @all \
             | tee /tmp/BamToBfq.log
           python3 tools/coverage/run_array.py --tool CompareMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -554,7 +554,7 @@ jobs:
             | tee /tmp/FifoBuffer.log
           python3 tools/coverage/run_array.py --tool UmiAwareMarkDuplicatesWithMateCigar --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/umi-aware-mark-duplicates-with-mate-cigar --strip-program-records --output-name output.txt,umi_metrics.txt \
+            --port target/release/umi-aware-mark-duplicates-with-mate-cigar --strip-program-records --output-name output.txt,umi_metrics.txt,umi_metrics_b.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/UmiAwareMarkDuplicatesWithMateCigar.log
           python3 tools/coverage/run_array.py --tool ConvertHaplotypeDatabaseToVcf --t 2 \
             --fixtures-dir /tmp/corpus \

@@ -129,6 +129,10 @@ fn a_violation_is_named_as_well_as_counted() {
         field(&text, "metrics", "a-violation").expect("the golden")
     );
     let (_, violations) = collect(&denovo, &trio(Sex::Male), &options);
+    let violations: Vec<Violation> = violations
+        .into_iter()
+        .map(|(_, violation)| violation)
+        .collect();
     assert_eq!(violations, vec![Violation::DiploidDenovo]);
     assert_eq!(violations[0].name(), "Diploid_Denovo");
 
@@ -144,6 +148,10 @@ fn a_violation_is_named_as_well_as_counted() {
         field(&text, "metrics", "a-violation-from-the-father").expect("the golden")
     );
     let (_, violations) = collect(&from_the_father, &trio(Sex::Male), &options);
+    let violations: Vec<Violation> = violations
+        .into_iter()
+        .map(|(_, violation)| violation)
+        .collect();
     assert_eq!(violations, vec![Violation::HomRefHomVarHom]);
 }
 
@@ -213,6 +221,10 @@ fn the_depth_is_a_separate_floor() {
     // The same call at the default floor of zero is a violation, so it is the depth that dropped
     // it and not the call.
     let (metrics, violations) = collect(&sites, &trio(Sex::Male), &Options::default());
+    let violations: Vec<Violation> = violations
+        .into_iter()
+        .map(|(_, violation)| violation)
+        .collect();
     assert_eq!(metrics.num_variant_sites, 1);
     assert_eq!(violations, vec![Violation::DiploidDenovo]);
 }
@@ -301,6 +313,10 @@ fn the_sex_chromosomes_are_counted_differently() {
         genotype("1/1"),
     )];
     let (_, violations) = collect(&haploid_denovo, &trio(Sex::Male), &options);
+    let violations: Vec<Violation> = violations
+        .into_iter()
+        .map(|(_, violation)| violation)
+        .collect();
     assert_eq!(violations, vec![Violation::HaploidDenovo]);
     assert_eq!(violations[0].name(), "Haploid_Denovo");
 }
