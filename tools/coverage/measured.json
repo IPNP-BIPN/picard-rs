@@ -430,6 +430,26 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectUmiPrevalenceMetrics": {
+      "rows": 10,
+      "accepted": 10,
+      "rejected": 0,
+      "distinct_outputs": 6,
+      "distinct_rejections": 0,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
+    "CollectVariantCallingMetrics": {
+      "rows": 10,
+      "accepted": 2,
+      "rejected": 8,
+      "distinct_outputs": 2,
+      "distinct_rejections": 2,
+      "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectWgsMetrics": {
       "rows": 22,
       "accepted": 16,
@@ -580,6 +600,16 @@
       "t": 2,
       "share": 1.0
     },
+    "EstimateLibraryComplexity": {
+      "rows": 14,
+      "accepted": 14,
+      "rejected": 0,
+      "distinct_outputs": 9,
+      "distinct_rejections": 0,
+      "matched": 14,
+      "t": 2,
+      "share": 1.0
+    },
     "ExtractFingerprint": {
       "rows": 15,
       "accepted": 15,
@@ -627,6 +657,36 @@
       "distinct_outputs": 4,
       "distinct_rejections": 0,
       "matched": 10,
+      "t": 2,
+      "share": 1.0
+    },
+    "FilterSamReads": {
+      "rows": 26,
+      "accepted": 5,
+      "rejected": 21,
+      "distinct_outputs": 4,
+      "distinct_rejections": 18,
+      "matched": 26,
+      "t": 2,
+      "share": 1.0
+    },
+    "FilterVcf": {
+      "rows": 18,
+      "accepted": 11,
+      "rejected": 7,
+      "distinct_outputs": 10,
+      "distinct_rejections": 2,
+      "matched": 18,
+      "t": 2,
+      "share": 1.0
+    },
+    "FindMendelianViolations": {
+      "rows": 12,
+      "accepted": 5,
+      "rejected": 7,
+      "distinct_outputs": 2,
+      "distinct_rejections": 3,
+      "matched": 12,
       "t": 2,
       "share": 1.0
     },
@@ -740,6 +800,16 @@
       "t": 2,
       "share": 1.0
     },
+    "LiftOverHaplotypeMap": {
+      "rows": 8,
+      "accepted": 5,
+      "rejected": 3,
+      "distinct_outputs": 3,
+      "distinct_rejections": 1,
+      "matched": 8,
+      "t": 2,
+      "share": 1.0
+    },
     "LiftOverIntervalList": {
       "rows": 10,
       "accepted": 6,
@@ -820,6 +890,16 @@
       "t": 2,
       "share": 1.0
     },
+    "MergeBamAlignment": {
+      "rows": 29,
+      "accepted": 16,
+      "rejected": 13,
+      "distinct_outputs": 16,
+      "distinct_rejections": 5,
+      "matched": 29,
+      "t": 2,
+      "share": 1.0
+    },
     "MergePedIntoVcf": {
       "rows": 19,
       "accepted": 19,
@@ -847,6 +927,16 @@
       "distinct_outputs": 11,
       "distinct_rejections": 5,
       "matched": 27,
+      "t": 2,
+      "share": 1.0
+    },
+    "NonNFastaSize": {
+      "rows": 7,
+      "accepted": 7,
+      "rejected": 0,
+      "distinct_outputs": 2,
+      "distinct_rejections": 0,
+      "matched": 7,
       "t": 2,
       "share": 1.0
     },
@@ -947,6 +1037,16 @@
       "distinct_outputs": 3,
       "distinct_rejections": 7,
       "matched": 19,
+      "t": 2,
+      "share": 1.0
+    },
+    "SamToFastqWithTags": {
+      "rows": 18,
+      "accepted": 2,
+      "rejected": 16,
+      "distinct_outputs": 2,
+      "distinct_rejections": 6,
+      "matched": 18,
       "t": 2,
       "share": 1.0
     },
