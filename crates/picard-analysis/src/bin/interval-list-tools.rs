@@ -9,12 +9,13 @@
 //! that require a `SECOND_INPUT` are refused for not having one. That refusal is the tool's, and
 //! its message names the action, so the three read differently and count as three.
 //!
-//! `INCLUDE_FILTERED`, `OUTPUT_VALUE` and `SUBDIVISION_MODE` are accepted and change nothing here,
-//! which is a statement about this corpus rather than about the tool: `INCLUDE_FILTERED` filters a
-//! VCF input, `OUTPUT_VALUE` decides what is COUNTED on standard output rather than what is
-//! written to `OUTPUT`, and `SUBDIVISION_MODE` only does anything under `SCATTER_COUNT`.
+//! `INCLUDE_FILTERED` is accepted and changes nothing here, which is a statement about this corpus
+//! rather than about the tool: it filters a VCF input. `SCATTER_COUNT` (or `SCATTER_CONTENT`) above
+//! one turns `OUTPUT` into a directory of scattered lists, cut as `SUBDIVISION_MODE` says.
 
-use picard_analysis::interval_list_tools::{interval_list_tools, Action, Options};
+use picard_analysis::interval_list_tools::{
+    interval_list_tools, scatter, Action, Options, ScatterMode,
+};
 
 fn arg(args: &[String], key: &str) -> Option<String> {
     args.iter()
@@ -53,6 +54,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `customCommandLineValidation`, in its own order: Barclay collects every message and prints
     // them after the usage block, so a row that breaks two rules prints both.
     let mut errors: Vec<String> = Vec::new();
+    let mut scatter_count: i32 = arg(&args, "SCATTER_COUNT=")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(1);
+    let scatter_content: Option<i64> = arg(&args, "SCATTER_CONTENT=")
+        .filter(|value| value != "null")
+        .and_then(|value| value.parse().ok());
+    let mode_name =
+        arg(&args, "SUBDIVISION_MODE=").unwrap_or_else(|| "INTERVAL_SUBDIVISION".to_string());
+    let mode = ScatterMode::parse(&mode_name)
+        .ok_or_else(|| format!("unknown SUBDIVISION_MODE: {mode_name}"))?;
+    if scatter_count < 1 {
+        errors.push("SCATTER_COUNT must be greater than 0.".to_string());
+    }
     if second_input.is_none() && takes_second_input {
         errors.push(format!(
             "SECOND_INPUT was not provided but action {action_name} requires a second input."
@@ -119,6 +133,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         comments.concat(),
         &text[header_end..]
     );
+    // `SCATTER_CONTENT` replaces the count with the list's weight over it, rounded.
+    if let Some(content) = scatter_content {
+        let intervals = picard_analysis::interval_list_tools::parse_intervals(&text)
+            .map_err(|e| format!("{e:?}"))?;
+        let weight = mode.list_weight(&intervals) as f64;
+        scatter_count = (weight / content as f64 + 0.5).floor() as i32;
+    }
+    if scatter_count > 1 {
+        // `writeScatterIntervals`: OUTPUT is a directory of `temp_NNNN_of_N/scattered.interval_list`.
+        let lists = scatter(&text, scatter_count, mode).map_err(|e| format!("{e:?}"))?;
+        let (mut bases, mut intervals) = (0i64, 0i64);
+        for (index, list) in lists.iter().enumerate() {
+            let directory = std::path::Path::new(&output)
+                .join(format!("temp_{:04}_of_{scatter_count}", index + 1));
+            std::fs::create_dir_all(&directory)?;
+            std::fs::write(directory.join("scattered.interval_list"), &list.text)?;
+            bases += list.bases;
+            intervals += list.intervals;
+        }
+        if let Some(path) = &count_output {
+            let value = if output_value == "BASES" {
+                bases
+            } else {
+                intervals
+            };
+            std::fs::write(path, format!("{value}\n"))?;
+        }
+        return Ok(());
+    }
     std::fs::write(&output, &text)?;
     // `OUTPUT_VALUE.output`: the bases or the intervals of what was written, one line.
     if let Some(path) = &count_output {

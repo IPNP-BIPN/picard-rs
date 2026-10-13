@@ -76,15 +76,33 @@ impl MetricBean for Row {
 }
 
 /// `PedFile.fromFile`: six whitespace-separated columns, the fifth being the sex.
-fn read_pedigree(text: &str) -> Vec<Trio> {
-    text.lines()
-        .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
-        .filter_map(|line| {
-            let fields: Vec<&str> = line.split_whitespace().collect();
-            if fields.len() < 5 {
-                return None;
+/// `PedFile.fromFile`: a line is split on tabs in `TAB_MODE` and on runs of whitespace otherwise,
+/// any line without exactly six fields is skipped, and the trios are a `TreeMap` keyed by the
+/// individual, so a later line replaces an earlier one and the order is the individuals' order.
+fn read_pedigree(text: &str, tab_mode: bool) -> Vec<Trio> {
+    let mut by_individual: std::collections::BTreeMap<String, Trio> =
+        std::collections::BTreeMap::new();
+    for line in text.lines() {
+        // `String.split` keeps a leading empty field and drops the trailing ones.
+        let mut fields: Vec<&str> = if tab_mode {
+            line.split('\t').collect()
+        } else {
+            let mut fields = Vec::new();
+            if line.starts_with(char::is_whitespace) {
+                fields.push("");
             }
-            Some(Trio {
+            fields.extend(line.split_whitespace());
+            fields
+        };
+        while fields.len() > 1 && fields.last() == Some(&"") {
+            fields.pop();
+        }
+        if fields.len() != 6 {
+            continue;
+        }
+        by_individual.insert(
+            fields[1].to_string(),
+            Trio {
                 family_id: fields[0].to_string(),
                 father: fields[2].to_string(),
                 mother: fields[3].to_string(),
@@ -94,9 +112,10 @@ fn read_pedigree(text: &str) -> Vec<Trio> {
                     "2" => Sex::Female,
                     _ => Sex::Unknown,
                 },
-            })
-        })
-        .collect()
+            },
+        );
+    }
+    by_individual.into_values().collect()
 }
 
 /// `X:60001-2699520` and the three others the default names.
@@ -108,6 +127,128 @@ fn parse_interval(text: &str) -> Option<Interval> {
         start: start.parse().ok()?,
         end: end.parse().ok()?,
     })
+}
+
+/// `FindMendelianViolations.writeAllViolations` for one family: the input's header lines and four
+/// INFO lines over the trio's three samples, and each violating record cut to those samples with
+/// its type and the input's AC, AF and AN beside it, in the dictionary's order with one record a
+/// position (a `TreeSet` on the `VariantContextComparator`).
+fn write_violations(
+    dir: &str,
+    vcf: &htsjdk_vcf::reader::VcfFile,
+    trio: &picard_analysis::find_mendelian_violations::Trio,
+    violations: &[(usize, &str)],
+) -> Result<(), Box<dyn std::error::Error>> {
+    use htsjdk_vcf::encoder::{MissingFields, VcfEncoder};
+    use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
+    let mut lines = vcf.header.lines.clone();
+    lines.push(HeaderLine::info(
+        "MV",
+        Cardinality::Fixed(1),
+        LineType::String,
+        "Type of mendelian violation.",
+    ));
+    lines.push(HeaderLine::info(
+        "AC_Orig",
+        Cardinality::A,
+        LineType::Integer,
+        "Original AC",
+    ));
+    lines.push(HeaderLine::info(
+        "AF_Orig",
+        Cardinality::A,
+        LineType::Float,
+        "Original AF",
+    ));
+    lines.push(HeaderLine::info(
+        "AN_Orig",
+        Cardinality::Fixed(1),
+        LineType::Integer,
+        "Original AN",
+    ));
+    let samples = vec![
+        trio.mother.clone(),
+        trio.father.clone(),
+        trio.offspring.clone(),
+    ];
+    let header = VcfHeader {
+        lines,
+        samples: samples.clone(),
+    };
+    let contigs: Vec<String> = vcf
+        .header
+        .lines
+        .iter()
+        .filter_map(|line| match line {
+            HeaderLine::Contig { fields, .. } => fields
+                .iter()
+                .find(|(k, _)| k == "ID")
+                .map(|(_, v)| v.clone()),
+            _ => None,
+        })
+        .collect();
+    let order = |contig: &str| {
+        contigs
+            .iter()
+            .position(|c| c == contig)
+            .unwrap_or(usize::MAX)
+    };
+    let mut ordered: Vec<(usize, &str)> = violations.to_vec();
+    ordered.sort_by_key(|(index, _)| {
+        let record = &vcf.records[*index];
+        (order(&record.contig), record.start)
+    });
+    ordered.dedup_by_key(|(index, _)| {
+        let record = &vcf.records[*index];
+        (record.contig.clone(), record.start)
+    });
+    let mut text = header.write();
+    let encoder = VcfEncoder::new(&header).with_missing_fields(MissingFields::Allow);
+    for (index, kind) in ordered {
+        let mut record = vcf.records[index].clone();
+        record.genotypes = record
+            .genotypes
+            .iter()
+            .filter(|g| samples.contains(&g.sample_name))
+            .cloned()
+            .collect();
+        let copy = |key: &str| {
+            record
+                .attributes
+                .iter()
+                .find(|(k, _)| k == key)
+                .map(|(_, v)| v.clone())
+        };
+        let originals = [
+            ("AC_Orig", copy("AC")),
+            ("AF_Orig", copy("AF")),
+            ("AN_Orig", copy("AN")),
+        ];
+        record.attributes.push((
+            "MV".to_string(),
+            htsjdk_vcf::variant::Value::Str(kind.to_string()),
+        ));
+        for (key, value) in originals {
+            if let Some(value) = value {
+                record.attributes.push((key.to_string(), value));
+            }
+        }
+        text.push_str(&encoder.encode(&record).map_err(|e| format!("{e:?}"))?);
+        text.push('\n');
+    }
+    let name: String = format!("{}.vcf", trio.family_id)
+        .trim()
+        .chars()
+        .map(|c| {
+            if c.is_whitespace() || "!\"#$%&'()*/:;<=>?@[]\\^`{|}~".contains(c) {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+    std::fs::write(std::path::Path::new(dir).join(name), text)?;
+    Ok(())
 }
 
 fn genotype_of(record: &htsjdk_vcf::variant::VariantContext, sample: &str) -> Option<Genotype> {
@@ -157,9 +298,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if given.is_empty() {
             default.iter().map(|value| (*value).to_string()).collect()
         } else {
-            // Picard's parser APPENDS to a list argument's default rather than replacing it.
+            // Picard's parser APPENDS to a list argument's default rather than replacing it, and
+            // a `null` clears what the list holds so far.
             let mut all: Vec<String> = default.iter().map(|value| (*value).to_string()).collect();
-            all.extend(given);
+            for value in given {
+                if value == "null" {
+                    all.clear();
+                } else {
+                    all.push(value);
+                }
+            }
             all
         }
     };
@@ -192,10 +340,52 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // `customCommandLineValidation`: a contig named as both sexes is refused before anything runs.
+    {
+        let mut both: Vec<&String> = options
+            .female_chroms
+            .iter()
+            .filter(|name| options.male_chroms.contains(name))
+            .collect();
+        both.dedup();
+        if !both.is_empty() {
+            let names: Vec<&str> = both.iter().map(|name| name.as_str()).collect();
+            eprintln!(
+                "The following chromosomes were listed as both male and female sex chromosomes: [{}]",
+                names.join(", ")
+            );
+            std::process::exit(1);
+        }
+    }
+    let vcf_dir = arg(&args, "VCF_DIR=");
+    // `IOUtil.assertDirectoryIsWritable(VCF_DIR)`, before anything is read.
+    if let Some(dir) = &vcf_dir {
+        if !std::path::Path::new(dir).is_dir() {
+            eprintln!(
+                "Exception in thread \"main\" htsjdk.samtools.SAMException: Directory does not exist: {}",
+                picard_analysis::metrics_cli::absolute(dir)
+            );
+            std::process::exit(1);
+        }
+    }
+    // `VariantProcessor` reads the input by interval, so it opens it requiring an index; a VCF
+    // without one is refused before a record is read.
+    if !std::path::Path::new(&format!("{input}.idx")).exists()
+        && !std::path::Path::new(&format!("{input}.tbi")).exists()
+    {
+        eprintln!(
+            "Exception in thread \"main\" htsjdk.tribble.TribbleException: An index is required, but none found with file ending .idx, for input source: {}",
+            picard_analysis::fingerprint::file_uri(&input)
+        );
+        std::process::exit(1);
+    }
     let vcf = read_vcf(&std::fs::read_to_string(&input)?).map_err(|e| format!("{e:?}"))?;
-    let pedigree = read_pedigree(&std::fs::read_to_string(&trios)?);
+    let tab_mode = arg(&args, "TAB_MODE=").is_some_and(|value| value == "true");
+    let pedigree = read_pedigree(&std::fs::read_to_string(&trios)?, tab_mode);
     let samples = &vcf.header.samples;
 
+    let mut by_family: std::collections::HashMap<String, Vec<(usize, &'static str)>> =
+        std::collections::HashMap::new();
     let mut file = MetricsFile::new();
     file.add_header("FindMendelianViolations <command line>");
     file.add_header("Started on: <timestamp>");
@@ -208,11 +398,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         {
             continue;
         }
+        let mut from_record: Vec<usize> = Vec::new();
         let sites: Vec<Site> = vcf
             .records
             .iter()
-            .filter_map(|record| {
-                Some(Site {
+            .enumerate()
+            .filter_map(|(index, record)| {
+                let site = Some(Site {
                     contig: record.contig.clone(),
                     position: record.start as i32,
                     filtered: record.filters.as_ref().is_some_and(|f| !f.is_empty()),
@@ -224,12 +416,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     father: genotype_of(record, &trio.father)?,
                     mother: genotype_of(record, &trio.mother)?,
                     child: genotype_of(record, &trio.offspring)?,
-                })
+                });
+                from_record.push(index);
+                site
             })
             .collect();
-        let (metrics, _violations) = collect(&sites, trio, &options);
+        let (metrics, violations) = collect(&sites, trio, &options);
         file.add_metric(&Row(metrics));
+        by_family.entry(trio.family_id.clone()).or_default().extend(
+            violations
+                .iter()
+                .map(|(site, violation)| (from_record[*site], violation.name())),
+        );
     }
     std::fs::write(&output, file.write())?;
+    // `writeAllViolations` walks the WHOLE pedigree, a `TreeMap` by individual, not the trios the
+    // metrics kept: a founder's row, whose parents are both `0`, builds a header with a duplicate
+    // sample and is refused there.
+    if let Some(dir) = &vcf_dir {
+        for trio in &pedigree {
+            let names = [&trio.mother, &trio.father, &trio.offspring];
+            if names[0] == names[1] || names[0] == names[2] || names[1] == names[2] {
+                eprintln!(
+                    "Exception in thread \"main\" htsjdk.tribble.TribbleException$InvalidHeader: Your input file has a malformed header: BUG: VCF header has duplicate sample names"
+                );
+                std::process::exit(1);
+            }
+            let records = by_family.get(&trio.family_id).cloned().unwrap_or_default();
+            write_violations(dir, &vcf, trio, &records)?;
+        }
+    }
     Ok(())
 }

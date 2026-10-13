@@ -17,6 +17,24 @@ fn main() {
         ("LOD", "LOD_THRESHOLD"),
         ("R", "REFERENCE_SEQUENCE"),
     ]);
+    // `customCommandLineValidation`: the parent's arguments this wrapper takes over are refused
+    // when given, each with the value it was given.
+    let mut errors: Vec<String> = Vec::new();
+    if let Some(by) = args.get("CROSSCHECK_BY") {
+        if by != "READGROUP" {
+            errors.push(format!("When calling CrosscheckReadGroupFingerprints, please refrain from supplying a CROSSCHECK_BY argument. (Found value {by}\nUse CrosscheckFingerprints if you would like to do that."));
+        }
+    }
+    if let Some(matrix) = args.get("MATRIX_OUTPUT") {
+        errors.push(format!("When calling CrosscheckReadGroupFingerprints, please refrain from supplying a MATRIX_OUTPUT argument.\n(Found value {matrix}\nUse CrosscheckFingerprints if you would like to do that."));
+    }
+    let second = args.all("SECOND_INPUT");
+    if !second.is_empty() {
+        errors.push(format!("When calling CrosscheckReadGroupFingerprints, please refrain from supplying a SECOND_INPUT argument.\n(Found value [{}]\nUse CrosscheckFingerprints if you would like to do that.", second.join(", ")));
+    }
+    if !errors.is_empty() {
+        picard_analysis::metrics_cli::refuse_validation("CrosscheckReadGroupFingerprints", &errors);
+    }
     let rollup = Rollup {
         crosscheck_samples: args.bool("CROSSCHECK_SAMPLES", false),
         crosscheck_libraries: args.bool("CROSSCHECK_LIBRARIES", false),
@@ -56,6 +74,11 @@ fn main() {
             args.get("VALIDATION_STRINGENCY"),
             Some("LENIENT") | Some("SILENT")
         ),
+        input_index_map: args.get("INPUT_INDEX_MAP").map(str::to_string),
+        second_input_index_map: args.get("SECOND_INPUT_INDEX_MAP").map(str::to_string),
+        input_sample_map: args.get("INPUT_SAMPLE_MAP").map(str::to_string),
+        second_input_sample_map: args.get("SECOND_INPUT_SAMPLE_MAP").map(str::to_string),
+        input_sample_file_map: args.get("INPUT_SAMPLE_FILE_MAP").map(str::to_string),
     };
     let outcome = run(&options).unwrap_or_else(|e| thrown(&e));
     std::process::exit(write_outcome(&options, &outcome));

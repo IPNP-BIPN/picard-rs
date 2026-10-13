@@ -93,6 +93,16 @@ fn main() {
         ("RG", "READ_GROUP_ID"),
         ("LIB", "LIBRARY_NAME"),
     ]);
+    // Barclay: OUTPUT and SAMPLE_ALIAS are each required unless a parameter file is given, and the
+    // first one missing is reported. LIBRARY_NAME is only exclusive with the files.
+    if !args.given("BARCODE_PARAMS") && !args.given("LIBRARY_PARAMS") {
+        for name in ["OUTPUT", "SAMPLE_ALIAS"] {
+            if !args.given(name) {
+                eprintln!("Argument {name} was missing: Argument '{name}' is required unless one of {{[BARCODE_PARAMS, LIBRARY_PARAMS]}} are provided");
+                std::process::exit(1);
+            }
+        }
+    }
     let basecalls = std::path::PathBuf::from(args.required("BASECALLS_DIR"));
     let barcodes_dir = args.get("BARCODES_DIR").map(std::path::PathBuf::from);
     let library_params = args

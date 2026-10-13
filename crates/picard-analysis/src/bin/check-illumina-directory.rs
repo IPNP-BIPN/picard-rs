@@ -7,8 +7,9 @@
 //! every failure is one log line.
 //!
 //! The reference also writes the failure count to `./errors.count` in its working directory, which
-//! is outside what a run is compared on; the port leaves that file unwritten. `FAKE_FILES` and
-//! `LINK_LOCS` write into the basecalls directory and are not ported.
+//! is outside what a run is compared on; the port leaves that file unwritten. `LINK_LOCS` links the
+//! run's `s.locs` into a lane directory, which a corpus mounted read-only refuses; `FAKE_FILES`
+//! only acts on a data type with no files at all.
 
 use picard_analysis::illumina_dir::{
     expected_tiles, log_info, long_lane, Layout, PerTile, PerTilePerCycle,
@@ -98,6 +99,38 @@ fn main() {
         let mut tiles = expected_tiles(&layout, lane).unwrap_or_else(|e| thrown(&e));
         if !tile_numbers.is_empty() {
             tiles.retain(|t| tile_numbers.contains(t));
+        }
+        // `createLocFileSymlinks`: the run's one `s.locs` linked into a lane directory beside the
+        // basecalls, which a corpus mounted read-only refuses at the directory.
+        if args.bool("LINK_LOCS", false) {
+            let intensities = basecalls
+                .parent()
+                .map(std::path::Path::to_path_buf)
+                .unwrap_or_default();
+            let base_file = intensities.join("s.locs");
+            let new_base = intensities.join(long_lane(lane));
+            if !base_file.exists() {
+                thrown(&format!(
+                    "picard.PicardException: Locations file {} does not exist.",
+                    absolute(&base_file)
+                ));
+            }
+            if !new_base.exists() && std::fs::create_dir_all(&new_base).is_err() {
+                thrown(&format!(
+                    "picard.PicardException: Could not create lane directory: {}.",
+                    absolute(&new_base)
+                ));
+            }
+            for tile in expected_tiles(&layout, lane).unwrap_or_else(|e| thrown(&e)) {
+                let link = new_base.join(format!("s_{lane}_{tile}.locs"));
+                let _ = std::fs::remove_file(&link);
+                if std::os::unix::fs::symlink(&base_file, &link).is_err() {
+                    thrown(&format!(
+                        "picard.PicardException: Could not create symlink: {}",
+                        absolute(&link)
+                    ));
+                }
+            }
         }
         log_info(CLASS, &format!("Checking lane {lane}"));
         log_info(CLASS, &format!("Expected tiles: {}", join(&tiles, ", ")));

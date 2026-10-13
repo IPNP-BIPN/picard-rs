@@ -31,15 +31,21 @@ fn arg(args: &[String], key: &str) -> Option<String> {
         .find_map(|a| a.strip_prefix(key).map(str::to_string))
 }
 
-/// One interval of a Picard interval list: 1-based, inclusive.
+/// One interval of a Picard interval list: 1-based, inclusive, on the contig at `index` in the
+/// list's own dictionary (`None` for a contig the dictionary lacks).
 struct Interval {
-    contig: String,
+    index: Option<usize>,
     start: usize,
     end: usize,
 }
 
 fn read_intervals(path: &str) -> Result<Vec<Interval>, String> {
     let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let dictionary: Vec<&str> = text
+        .lines()
+        .filter(|l| l.starts_with("@SQ"))
+        .filter_map(|l| l.split('\t').find_map(|f| f.strip_prefix("SN:")))
+        .collect();
     let mut intervals = Vec::new();
     for line in text.lines() {
         if line.starts_with('@') || line.is_empty() {
@@ -50,7 +56,7 @@ fn read_intervals(path: &str) -> Result<Vec<Interval>, String> {
             continue;
         }
         intervals.push(Interval {
-            contig: fields[0].to_string(),
+            index: dictionary.iter().position(|name| *name == fields[0]),
             start: fields[1].parse().map_err(|_| format!("start: {line}"))?,
             end: fields[2].parse().map_err(|_| format!("end: {line}"))?,
         });
@@ -75,14 +81,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sequences = read_fasta(fasta.as_bytes()).map_err(|e| format!("{e:?}"))?;
 
     let mut non_n: u64 = 0;
-    for sequence in &sequences {
+    for (contig_index, sequence) in sequences.iter().enumerate() {
         // The mask is a union of bits, so overlapping intervals count a position once. Building it
-        // per contig keeps that true without sorting or uniquing the list, which the tool does not
-        // do either.
+        // per contig keeps that true without sorting or uniquing the list. It is keyed by INDEX:
+        // `IntervalListReferenceSequenceMask` asks the list's own dictionary for an interval's
+        // contig index and compares it with the reference's, so a list on another dictionary
+        // masks the reference's contigs by their position, whatever their names.
         let mask: Option<Vec<bool>> = intervals.as_ref().map(|intervals| {
             let mut bits = vec![false; sequence.bases.len() + 1];
             for interval in intervals {
-                if interval.contig != sequence.name {
+                if interval.index != Some(contig_index) {
                     continue;
                 }
                 let last = interval.end.min(sequence.bases.len());

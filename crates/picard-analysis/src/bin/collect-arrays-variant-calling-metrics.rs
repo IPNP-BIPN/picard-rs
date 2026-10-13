@@ -331,6 +331,30 @@ fn main() {
     let vcf = read_path(&input).unwrap_or_else(|e| thrown(&e));
     let lines = &vcf.file.header.lines;
     let dbsnp = read_path(&dbsnp_path).unwrap_or_else(|e| thrown(&e));
+    // `DbSnpBitSetUtil.loadVcf` asserts the dbSNP's contigs are the dictionary's -- the
+    // SEQUENCE_DICTIONARY's when one is given, else the INPUT's -- and a VCF with no contig lines
+    // has no dictionary to disagree with.
+    let dictionary = match args.get("SEQUENCE_DICTIONARY").filter(|v| *v != "null") {
+        Some(path) => picard_analysis::vcf_io::extract_dictionary(path)
+            .unwrap_or_else(|e| thrown(&format!("{e}"))),
+        None => picard_analysis::vcf_io::header_dictionary(&vcf.file.header),
+    };
+    if let (Some(theirs), Some(ours)) = (
+        picard_analysis::vcf_io::header_dictionary(&dbsnp.file.header),
+        dictionary,
+    ) {
+        let same = theirs.len() == ours.len()
+            && theirs
+                .iter()
+                .zip(&ours)
+                .all(|(a, b)| picard_analysis::vcf_io::is_same_sequence(a, b));
+        if !same {
+            thrown(&format!(
+                "picard.PicardException: Sequence dictionary for (DBSNP: file:{}) does not match sequence dictionary for (INPUT)",
+                picard_analysis::fingerprint::reference_path(&dbsnp_path)
+            ));
+        }
+    }
     let known: Vec<(String, i64)> = dbsnp
         .records
         .iter()

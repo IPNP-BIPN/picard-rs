@@ -17,7 +17,7 @@
 //!   fails first;
 //! * the metrics files carry this tool's command line, not the program's: `setDefaultHeaders`.
 //!
-//! The charts are R's and are not drawn. `EXTRA_ARGUMENT` is not ported.
+//! The charts are R's and are not drawn. `EXTRA_ARGUMENT` hands a program arguments of its own.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -312,8 +312,30 @@ fn main() {
     let refflat = args.get("REF_FLAT").map(str::to_string);
     let ignore_sequence = args.all("IGNORE_SEQUENCE");
     let include_unpaired = args.bool("INCLUDE_UNPAIRED", false);
-    if !args.all("EXTRA_ARGUMENT").is_empty() {
-        fail("EXTRA_ARGUMENT is not ported");
+    // `processAdditionalArguments`: `<PROGRAM>::<ARGUMENT_AND_VALUE>`, the value optionally after
+    // a space, grouped by program in the order given.
+    let pattern = regex::Regex::new(r"^(?s)(.*)::(.+?)( +(.+))?$").expect("a valid pattern");
+    let mut extra: Vec<(Program, Vec<String>)> = Vec::new();
+    for value in args.all("EXTRA_ARGUMENT") {
+        let Some(groups) = pattern.captures(&value) else {
+            thrown(&format!(
+                "org.broadinstitute.barclay.argparser.CommandLineException: couldn't understand EXTRA_ARGUMENT {value} it doesn't conform to the form '<PROGRAM>::<ARGUMENT_AND_VALUE>'."
+            ));
+        };
+        let name = &groups[1];
+        let Some(program) = Program::parse(name) else {
+            thrown(&format!(
+                "org.broadinstitute.barclay.argparser.CommandLineException: Couldn't find program with value {name}"
+            ));
+        };
+        let mut words = vec![groups[2].to_string()];
+        if let Some(optional) = groups.get(4).filter(|m| !m.as_str().is_empty()) {
+            words.push(optional.as_str().to_string());
+        }
+        match extra.iter_mut().find(|(p, _)| *p == program) {
+            Some((_, list)) => list.extend(words),
+            None => extra.push((program, words)),
+        }
     }
 
     // customCommandLineValidation.
@@ -337,6 +359,22 @@ fn main() {
                 program.name()
             ));
         }
+    }
+
+    // Every program's extra arguments are taken by its instance; any left over named a program
+    // that was not asked for.
+    let leftover: Vec<&(Program, Vec<String>)> = extra
+        .iter()
+        .filter(|(p, _)| !programs.contains(p))
+        .collect();
+    if !leftover.is_empty() {
+        thrown(&format!(
+            "org.broadinstitute.barclay.argparser.CommandLineException: EXTRA_ARGUMENT values were provided, but corresponding PROGRAM wasn't requested:{}",
+            leftover
+                .iter()
+                .map(|(p, list)| format!("{}::[{}]", p.name(), list.join(", ")))
+                .collect::<String>()
+        ));
     }
 
     // makeItSo's shared refusals: the sort check, then the walker over the records the pass
@@ -380,7 +418,37 @@ fn main() {
     };
     for program in &programs {
         let (binary, tool) = program.port();
-        let (program_args, outputs) = instance(*program, &shared);
+        let (mut program_args, outputs) = instance(*program, &shared);
+        // The program's own parser takes its extra arguments over what this tool set, except the
+        // four `makeItSo` reads from this tool rather than from the program.
+        if let Some((_, words)) = extra.iter().find(|(p, _)| p == program) {
+            let mut given: Vec<String> = Vec::new();
+            let mut words = words.iter().peekable();
+            while let Some(word) = words.next() {
+                let pair = match word.strip_prefix("--") {
+                    Some(name) if !name.contains('=') => {
+                        format!("{name}={}", words.next().cloned().unwrap_or_default())
+                    }
+                    Some(name) => name.to_string(),
+                    None => word.clone(),
+                };
+                let name = pair.split('=').next().unwrap_or_default();
+                if !matches!(
+                    name,
+                    "INPUT"
+                        | "I"
+                        | "REFERENCE_SEQUENCE"
+                        | "R"
+                        | "ASSUME_SORTED"
+                        | "AS"
+                        | "STOP_AFTER"
+                ) {
+                    given.push(pair);
+                }
+            }
+            given.append(&mut program_args);
+            program_args = given;
+        }
         let result = Command::new(here.join(binary))
             .args(&program_args)
             .output()

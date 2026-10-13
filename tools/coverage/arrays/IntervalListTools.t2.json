@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 32,
-  "arguments_in_array": 16,
-  "arguments_excluded": 16,
+  "arguments_in_array": 18,
+  "arguments_excluded": 14,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -64,20 +64,6 @@
       "source": "fixture"
     },
     {
-      "argument": "--SCATTER_CONTENT",
-      "type": "Integer",
-      "reason": "numeric with no declared bounds and no default: any value would be invented, and an invented value covers nothing",
-      "held_at": null,
-      "source": "none"
-    },
-    {
-      "argument": "--SCATTER_COUNT",
-      "type": "int",
-      "reason": "only one value available (default)",
-      "held_at": "1",
-      "source": "default"
-    },
-    {
       "argument": "--showHidden",
       "type": "boolean",
       "reason": "excluded by the repository: changes the usage text only",
@@ -121,8 +107,8 @@
     }
   ],
   "rows": 32,
-  "tuples_total": 777,
-  "tuples_covered": 777,
+  "tuples_total": 945,
+  "tuples_covered": 945,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -143,6 +129,8 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "INTERVAL_SUBDIVISION",
@@ -161,6 +149,8 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=INTERVAL_SUBDIVISION",
@@ -182,6 +172,8 @@
         "--INVERT": "false",
         "--OUTPUT_VALUE": "BASES",
         "--PADDING": "fixture[1]",
+        "--SCATTER_CONTENT": "fixture[1]",
+        "--SCATTER_COUNT": "fixture[1]",
         "--SECOND_INPUT": "fixture[1]",
         "--SORT": "false",
         "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
@@ -200,6 +192,8 @@
         "--INVERT=false",
         "--OUTPUT_VALUE=BASES",
         "--PADDING=10",
+        "--SCATTER_CONTENT=300",
+        "--SCATTER_COUNT=3",
         "--SECOND_INPUT=/work/fixtures/targets_mixed.interval_list",
         "--SORT=false",
         "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
@@ -221,6 +215,8 @@
         "--INVERT": "false",
         "--OUTPUT_VALUE": "INTERVALS",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[1]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[1]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
@@ -239,6 +235,8 @@
         "--INVERT=false",
         "--OUTPUT_VALUE=INTERVALS",
         "--PADDING=0",
+        "--SCATTER_CONTENT=300",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=/work/fixtures/targets_mixed.interval_list",
         "--SORT=true",
         "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
@@ -260,6 +258,8 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "INTERVALS",
         "--PADDING": "fixture[1]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[1]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "false",
         "--SUBDIVISION_MODE": "INTERVAL_COUNT",
@@ -278,6 +278,8 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=INTERVALS",
         "--PADDING=10",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=3",
         "--SECOND_INPUT=<absent>",
         "--SORT=false",
         "--SUBDIVISION_MODE=INTERVAL_COUNT",
@@ -299,11 +301,13 @@
         "--INVERT": "false",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[1]",
-        "--SECOND_INPUT": "fixture[1]",
-        "--SORT": "true",
+        "--SCATTER_CONTENT": "fixture[1]",
+        "--SCATTER_COUNT": "fixture[0]",
+        "--SECOND_INPUT": "fixture[0]",
+        "--SORT": "false",
         "--SUBDIVISION_MODE": "INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
-        "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--UNIQUE": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ACTION=INTERSECT",
@@ -317,11 +321,13 @@
         "--INVERT=false",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=10",
-        "--SECOND_INPUT=/work/fixtures/targets_mixed.interval_list",
-        "--SORT=true",
+        "--SCATTER_CONTENT=300",
+        "--SCATTER_COUNT=1",
+        "--SECOND_INPUT=<absent>",
+        "--SORT=false",
         "--SUBDIVISION_MODE=INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
-        "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--UNIQUE=false",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -338,11 +344,13 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "BASES",
         "--PADDING": "fixture[0]",
-        "--SECOND_INPUT": "fixture[0]",
-        "--SORT": "false",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[1]",
+        "--SECOND_INPUT": "fixture[1]",
+        "--SORT": "true",
         "--SUBDIVISION_MODE": "INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
-        "--UNIQUE": "false",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--UNIQUE": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ACTION=INTERSECT",
@@ -356,11 +364,13 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=BASES",
         "--PADDING=0",
-        "--SECOND_INPUT=<absent>",
-        "--SORT=false",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=3",
+        "--SECOND_INPUT=/work/fixtures/targets_mixed.interval_list",
+        "--SORT=true",
         "--SUBDIVISION_MODE=INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
-        "--UNIQUE=false",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--UNIQUE=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -377,11 +387,13 @@
         "--INVERT": "false",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
-        "--SECOND_INPUT": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[1]",
+        "--SECOND_INPUT": "fixture[1]",
         "--SORT": "false",
-        "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
+        "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ACTION=SUBTRACT",
@@ -395,11 +407,13 @@
         "--INVERT=false",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
-        "--SECOND_INPUT=<absent>",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=3",
+        "--SECOND_INPUT=/work/fixtures/targets_mixed.interval_list",
         "--SORT=false",
-        "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
+        "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -416,11 +430,13 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "BASES",
         "--PADDING": "fixture[1]",
-        "--SECOND_INPUT": "fixture[1]",
+        "--SCATTER_CONTENT": "fixture[1]",
+        "--SCATTER_COUNT": "fixture[0]",
+        "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
-        "--SUBDIVISION_MODE": "INTERVAL_SUBDIVISION",
+        "--SUBDIVISION_MODE": "INTERVAL_COUNT",
         "--UNIQUE": "false",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ACTION=SUBTRACT",
@@ -434,11 +450,13 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=BASES",
         "--PADDING=10",
-        "--SECOND_INPUT=/work/fixtures/targets_mixed.interval_list",
+        "--SCATTER_CONTENT=300",
+        "--SCATTER_COUNT=1",
+        "--SECOND_INPUT=<absent>",
         "--SORT=true",
-        "--SUBDIVISION_MODE=INTERVAL_SUBDIVISION",
+        "--SUBDIVISION_MODE=INTERVAL_COUNT",
         "--UNIQUE=false",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -455,11 +473,13 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "BASES",
         "--PADDING": "fixture[1]",
+        "--SCATTER_CONTENT": "fixture[1]",
+        "--SCATTER_COUNT": "fixture[1]",
         "--SECOND_INPUT": "fixture[1]",
         "--SORT": "false",
-        "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
+        "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ACTION=SYMDIFF",
@@ -473,11 +493,13 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=BASES",
         "--PADDING=10",
+        "--SCATTER_CONTENT=300",
+        "--SCATTER_COUNT=3",
         "--SECOND_INPUT=/work/fixtures/targets_mixed.interval_list",
         "--SORT=false",
-        "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
+        "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -494,11 +516,13 @@
         "--INVERT": "false",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
-        "--SUBDIVISION_MODE": "INTERVAL_COUNT",
+        "--SUBDIVISION_MODE": "INTERVAL_SUBDIVISION",
         "--UNIQUE": "false",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ACTION=SYMDIFF",
@@ -512,11 +536,13 @@
         "--INVERT=false",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
-        "--SUBDIVISION_MODE=INTERVAL_COUNT",
+        "--SUBDIVISION_MODE=INTERVAL_SUBDIVISION",
         "--UNIQUE=false",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -533,11 +559,13 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
         "--UNIQUE": "false",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ACTION=OVERLAPS",
@@ -551,11 +579,13 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
         "--UNIQUE=false",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -572,11 +602,13 @@
         "--INVERT": "false",
         "--OUTPUT_VALUE": "BASES",
         "--PADDING": "fixture[1]",
+        "--SCATTER_CONTENT": "fixture[1]",
+        "--SCATTER_COUNT": "fixture[1]",
         "--SECOND_INPUT": "fixture[1]",
         "--SORT": "false",
         "--SUBDIVISION_MODE": "INTERVAL_SUBDIVISION",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ACTION=OVERLAPS",
@@ -590,11 +622,13 @@
         "--INVERT=false",
         "--OUTPUT_VALUE=BASES",
         "--PADDING=10",
+        "--SCATTER_CONTENT=300",
+        "--SCATTER_COUNT=3",
         "--SECOND_INPUT=/work/fixtures/targets_mixed.interval_list",
         "--SORT=false",
         "--SUBDIVISION_MODE=INTERVAL_SUBDIVISION",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -611,6 +645,8 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "INTERVALS",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
@@ -629,6 +665,8 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=INTERVALS",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
@@ -650,11 +688,13 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "INTERVAL_SUBDIVISION",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ACTION=UNION",
@@ -668,11 +708,13 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=INTERVAL_SUBDIVISION",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -689,11 +731,13 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "BASES",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ACTION=UNION",
@@ -707,11 +751,13 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=BASES",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -728,11 +774,13 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "INTERVALS",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "INTERVAL_SUBDIVISION",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ACTION=INTERSECT",
@@ -746,11 +794,13 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=INTERVALS",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=INTERVAL_SUBDIVISION",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -767,11 +817,13 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "INTERVALS",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ACTION=SUBTRACT",
@@ -785,17 +837,62 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=INTERVALS",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 17,
       "labels": {
         "--ACTION": "SYMDIFF",
+        "--BREAK_BANDS_AT_MULTIPLES_OF": "fixture[1]",
+        "--COMMENT": "fixture[0]",
+        "--COUNT_OUTPUT": "fixture[1]",
+        "--CREATE_INDEX": "true",
+        "--DONT_MERGE_ABUTTING": "true",
+        "--INCLUDE_FILTERED": "true",
+        "--INPUT": "fixture[0]",
+        "--INVERT": "true",
+        "--OUTPUT_VALUE": "INTERVALS",
+        "--PADDING": "fixture[1]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
+        "--SECOND_INPUT": "fixture[0]",
+        "--SORT": "true",
+        "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
+        "--UNIQUE": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ACTION=SYMDIFF",
+        "--BREAK_BANDS_AT_MULTIPLES_OF=100",
+        "--COMMENT=<absent>",
+        "--COUNT_OUTPUT=/work/out/count.txt",
+        "--CREATE_INDEX=true",
+        "--DONT_MERGE_ABUTTING=true",
+        "--INCLUDE_FILTERED=true",
+        "--INPUT=/work/fixtures/targets.interval_list",
+        "--INVERT=true",
+        "--OUTPUT_VALUE=INTERVALS",
+        "--PADDING=10",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
+        "--SECOND_INPUT=<absent>",
+        "--SORT=true",
+        "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
+        "--UNIQUE=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 18,
+      "labels": {
+        "--ACTION": "OVERLAPS",
         "--BREAK_BANDS_AT_MULTIPLES_OF": "fixture[0]",
         "--COMMENT": "fixture[0]",
         "--COUNT_OUTPUT": "fixture[0]",
@@ -806,14 +903,16 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "INTERVALS",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
-        "--SUBDIVISION_MODE": "INTERVAL_SUBDIVISION",
+        "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--ACTION=SYMDIFF",
+        "--ACTION=OVERLAPS",
         "--BREAK_BANDS_AT_MULTIPLES_OF=0",
         "--COMMENT=<absent>",
         "--COUNT_OUTPUT=<absent>",
@@ -824,50 +923,13 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=INTERVALS",
         "--PADDING=0",
-        "--SECOND_INPUT=<absent>",
-        "--SORT=true",
-        "--SUBDIVISION_MODE=INTERVAL_SUBDIVISION",
-        "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
-      ]
-    },
-    {
-      "row": 18,
-      "labels": {
-        "--ACTION": "OVERLAPS",
-        "--BREAK_BANDS_AT_MULTIPLES_OF": "fixture[1]",
-        "--COMMENT": "fixture[0]",
-        "--COUNT_OUTPUT": "fixture[1]",
-        "--CREATE_INDEX": "true",
-        "--DONT_MERGE_ABUTTING": "false",
-        "--INCLUDE_FILTERED": "true",
-        "--INPUT": "fixture[1]",
-        "--INVERT": "true",
-        "--OUTPUT_VALUE": "INTERVALS",
-        "--PADDING": "fixture[0]",
-        "--SECOND_INPUT": "fixture[0]",
-        "--SORT": "true",
-        "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
-        "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
-      },
-      "arguments": [
-        "--ACTION=OVERLAPS",
-        "--BREAK_BANDS_AT_MULTIPLES_OF=100",
-        "--COMMENT=<absent>",
-        "--COUNT_OUTPUT=/work/out/count.txt",
-        "--CREATE_INDEX=true",
-        "--DONT_MERGE_ABUTTING=false",
-        "--INCLUDE_FILTERED=true",
-        "--INPUT=/work/fixtures/targets_mixed.interval_list",
-        "--INVERT=true",
-        "--OUTPUT_VALUE=INTERVALS",
-        "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -882,8 +944,10 @@
         "--INCLUDE_FILTERED": "true",
         "--INPUT": "fixture[0]",
         "--INVERT": "true",
-        "--OUTPUT_VALUE": "NONE",
+        "--OUTPUT_VALUE": "BASES",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
@@ -900,8 +964,10 @@
         "--INCLUDE_FILTERED=true",
         "--INPUT=/work/fixtures/targets.interval_list",
         "--INVERT=true",
-        "--OUTPUT_VALUE=NONE",
+        "--OUTPUT_VALUE=BASES",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
@@ -918,16 +984,18 @@
         "--COUNT_OUTPUT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--DONT_MERGE_ABUTTING": "true",
-        "--INCLUDE_FILTERED": "true",
+        "--INCLUDE_FILTERED": "false",
         "--INPUT": "fixture[0]",
-        "--INVERT": "true",
-        "--OUTPUT_VALUE": "BASES",
+        "--INVERT": "false",
+        "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[1]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "INTERVAL_COUNT",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ACTION=CONCAT",
@@ -936,16 +1004,18 @@
         "--COUNT_OUTPUT=<absent>",
         "--CREATE_INDEX=true",
         "--DONT_MERGE_ABUTTING=true",
-        "--INCLUDE_FILTERED=true",
+        "--INCLUDE_FILTERED=false",
         "--INPUT=/work/fixtures/targets.interval_list",
-        "--INVERT=true",
-        "--OUTPUT_VALUE=BASES",
+        "--INVERT=false",
+        "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=/work/fixtures/targets_mixed.interval_list",
         "--SORT=true",
         "--SUBDIVISION_MODE=INTERVAL_COUNT",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -962,11 +1032,13 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ACTION=UNION",
@@ -980,11 +1052,13 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -1001,11 +1075,13 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ACTION=INTERSECT",
@@ -1019,11 +1095,13 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -1040,6 +1118,8 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
@@ -1058,6 +1138,8 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
@@ -1079,6 +1161,8 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "INTERVAL_COUNT",
@@ -1097,6 +1181,8 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=INTERVAL_COUNT",
@@ -1116,11 +1202,13 @@
         "--INCLUDE_FILTERED": "true",
         "--INPUT": "fixture[0]",
         "--INVERT": "true",
-        "--OUTPUT_VALUE": "BASES",
+        "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
-        "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
+        "--SUBDIVISION_MODE": "INTERVAL_SUBDIVISION",
         "--UNIQUE": "true",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
@@ -1134,11 +1222,13 @@
         "--INCLUDE_FILTERED=true",
         "--INPUT=/work/fixtures/targets.interval_list",
         "--INVERT=true",
-        "--OUTPUT_VALUE=BASES",
+        "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
-        "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION_WITH_OVERFLOW",
+        "--SUBDIVISION_MODE=INTERVAL_SUBDIVISION",
         "--UNIQUE=true",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
@@ -1157,45 +1247,8 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
-        "--SECOND_INPUT": "fixture[0]",
-        "--SORT": "true",
-        "--SUBDIVISION_MODE": "INTERVAL_COUNT",
-        "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
-      },
-      "arguments": [
-        "--ACTION=SUBTRACT",
-        "--BREAK_BANDS_AT_MULTIPLES_OF=0",
-        "--COMMENT=<absent>",
-        "--COUNT_OUTPUT=<absent>",
-        "--CREATE_INDEX=true",
-        "--DONT_MERGE_ABUTTING=true",
-        "--INCLUDE_FILTERED=true",
-        "--INPUT=/work/fixtures/targets.interval_list",
-        "--INVERT=true",
-        "--OUTPUT_VALUE=NONE",
-        "--PADDING=0",
-        "--SECOND_INPUT=<absent>",
-        "--SORT=true",
-        "--SUBDIVISION_MODE=INTERVAL_COUNT",
-        "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=STRICT"
-      ]
-    },
-    {
-      "row": 27,
-      "labels": {
-        "--ACTION": "SUBTRACT",
-        "--BREAK_BANDS_AT_MULTIPLES_OF": "fixture[0]",
-        "--COMMENT": "fixture[0]",
-        "--COUNT_OUTPUT": "fixture[0]",
-        "--CREATE_INDEX": "true",
-        "--DONT_MERGE_ABUTTING": "true",
-        "--INCLUDE_FILTERED": "true",
-        "--INPUT": "fixture[0]",
-        "--INVERT": "true",
-        "--OUTPUT_VALUE": "NONE",
-        "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
@@ -1214,11 +1267,56 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
         "--UNIQUE=true",
         "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 27,
+      "labels": {
+        "--ACTION": "SYMDIFF",
+        "--BREAK_BANDS_AT_MULTIPLES_OF": "fixture[0]",
+        "--COMMENT": "fixture[0]",
+        "--COUNT_OUTPUT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--DONT_MERGE_ABUTTING": "true",
+        "--INCLUDE_FILTERED": "true",
+        "--INPUT": "fixture[0]",
+        "--INVERT": "true",
+        "--OUTPUT_VALUE": "NONE",
+        "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
+        "--SECOND_INPUT": "fixture[0]",
+        "--SORT": "true",
+        "--SUBDIVISION_MODE": "INTERVAL_COUNT",
+        "--UNIQUE": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ACTION=SYMDIFF",
+        "--BREAK_BANDS_AT_MULTIPLES_OF=0",
+        "--COMMENT=<absent>",
+        "--COUNT_OUTPUT=<absent>",
+        "--CREATE_INDEX=true",
+        "--DONT_MERGE_ABUTTING=true",
+        "--INCLUDE_FILTERED=true",
+        "--INPUT=/work/fixtures/targets.interval_list",
+        "--INVERT=true",
+        "--OUTPUT_VALUE=NONE",
+        "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
+        "--SECOND_INPUT=<absent>",
+        "--SORT=true",
+        "--SUBDIVISION_MODE=INTERVAL_COUNT",
+        "--UNIQUE=true",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -1235,45 +1333,8 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
-        "--SECOND_INPUT": "fixture[0]",
-        "--SORT": "true",
-        "--SUBDIVISION_MODE": "BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
-        "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
-      },
-      "arguments": [
-        "--ACTION=SYMDIFF",
-        "--BREAK_BANDS_AT_MULTIPLES_OF=0",
-        "--COMMENT=<absent>",
-        "--COUNT_OUTPUT=<absent>",
-        "--CREATE_INDEX=true",
-        "--DONT_MERGE_ABUTTING=true",
-        "--INCLUDE_FILTERED=true",
-        "--INPUT=/work/fixtures/targets.interval_list",
-        "--INVERT=true",
-        "--OUTPUT_VALUE=NONE",
-        "--PADDING=0",
-        "--SECOND_INPUT=<absent>",
-        "--SORT=true",
-        "--SUBDIVISION_MODE=BALANCING_WITHOUT_INTERVAL_SUBDIVISION",
-        "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 29,
-      "labels": {
-        "--ACTION": "SYMDIFF",
-        "--BREAK_BANDS_AT_MULTIPLES_OF": "fixture[0]",
-        "--COMMENT": "fixture[0]",
-        "--COUNT_OUTPUT": "fixture[0]",
-        "--CREATE_INDEX": "true",
-        "--DONT_MERGE_ABUTTING": "true",
-        "--INCLUDE_FILTERED": "true",
-        "--INPUT": "fixture[0]",
-        "--INVERT": "true",
-        "--OUTPUT_VALUE": "NONE",
-        "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
@@ -1292,9 +1353,54 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
+        "--UNIQUE=true",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 29,
+      "labels": {
+        "--ACTION": "OVERLAPS",
+        "--BREAK_BANDS_AT_MULTIPLES_OF": "fixture[0]",
+        "--COMMENT": "fixture[0]",
+        "--COUNT_OUTPUT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--DONT_MERGE_ABUTTING": "true",
+        "--INCLUDE_FILTERED": "true",
+        "--INPUT": "fixture[0]",
+        "--INVERT": "true",
+        "--OUTPUT_VALUE": "NONE",
+        "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
+        "--SECOND_INPUT": "fixture[0]",
+        "--SORT": "true",
+        "--SUBDIVISION_MODE": "INTERVAL_COUNT",
+        "--UNIQUE": "true",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ACTION=OVERLAPS",
+        "--BREAK_BANDS_AT_MULTIPLES_OF=0",
+        "--COMMENT=<absent>",
+        "--COUNT_OUTPUT=<absent>",
+        "--CREATE_INDEX=true",
+        "--DONT_MERGE_ABUTTING=true",
+        "--INCLUDE_FILTERED=true",
+        "--INPUT=/work/fixtures/targets.interval_list",
+        "--INVERT=true",
+        "--OUTPUT_VALUE=NONE",
+        "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
+        "--SECOND_INPUT=<absent>",
+        "--SORT=true",
+        "--SUBDIVISION_MODE=INTERVAL_COUNT",
         "--UNIQUE=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -1313,45 +1419,8 @@
         "--INVERT": "true",
         "--OUTPUT_VALUE": "NONE",
         "--PADDING": "fixture[0]",
-        "--SECOND_INPUT": "fixture[0]",
-        "--SORT": "true",
-        "--SUBDIVISION_MODE": "INTERVAL_COUNT",
-        "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
-      },
-      "arguments": [
-        "--ACTION=OVERLAPS",
-        "--BREAK_BANDS_AT_MULTIPLES_OF=0",
-        "--COMMENT=<absent>",
-        "--COUNT_OUTPUT=<absent>",
-        "--CREATE_INDEX=true",
-        "--DONT_MERGE_ABUTTING=true",
-        "--INCLUDE_FILTERED=true",
-        "--INPUT=/work/fixtures/targets.interval_list",
-        "--INVERT=true",
-        "--OUTPUT_VALUE=NONE",
-        "--PADDING=0",
-        "--SECOND_INPUT=<absent>",
-        "--SORT=true",
-        "--SUBDIVISION_MODE=INTERVAL_COUNT",
-        "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=STRICT"
-      ]
-    },
-    {
-      "row": 31,
-      "labels": {
-        "--ACTION": "OVERLAPS",
-        "--BREAK_BANDS_AT_MULTIPLES_OF": "fixture[0]",
-        "--COMMENT": "fixture[0]",
-        "--COUNT_OUTPUT": "fixture[0]",
-        "--CREATE_INDEX": "true",
-        "--DONT_MERGE_ABUTTING": "true",
-        "--INCLUDE_FILTERED": "true",
-        "--INPUT": "fixture[0]",
-        "--INVERT": "true",
-        "--OUTPUT_VALUE": "NONE",
-        "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
         "--SECOND_INPUT": "fixture[0]",
         "--SORT": "true",
         "--SUBDIVISION_MODE": "INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
@@ -1370,11 +1439,56 @@
         "--INVERT=true",
         "--OUTPUT_VALUE=NONE",
         "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
         "--SECOND_INPUT=<absent>",
         "--SORT=true",
         "--SUBDIVISION_MODE=INTERVAL_COUNT_WITH_DISTRIBUTED_REMAINDER",
         "--UNIQUE=true",
         "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 31,
+      "labels": {
+        "--ACTION": "UNION",
+        "--BREAK_BANDS_AT_MULTIPLES_OF": "fixture[0]",
+        "--COMMENT": "fixture[0]",
+        "--COUNT_OUTPUT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--DONT_MERGE_ABUTTING": "true",
+        "--INCLUDE_FILTERED": "true",
+        "--INPUT": "fixture[0]",
+        "--INVERT": "true",
+        "--OUTPUT_VALUE": "NONE",
+        "--PADDING": "fixture[0]",
+        "--SCATTER_CONTENT": "fixture[0]",
+        "--SCATTER_COUNT": "fixture[0]",
+        "--SECOND_INPUT": "fixture[0]",
+        "--SORT": "true",
+        "--SUBDIVISION_MODE": "INTERVAL_SUBDIVISION",
+        "--UNIQUE": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ACTION=UNION",
+        "--BREAK_BANDS_AT_MULTIPLES_OF=0",
+        "--COMMENT=<absent>",
+        "--COUNT_OUTPUT=<absent>",
+        "--CREATE_INDEX=true",
+        "--DONT_MERGE_ABUTTING=true",
+        "--INCLUDE_FILTERED=true",
+        "--INPUT=/work/fixtures/targets.interval_list",
+        "--INVERT=true",
+        "--OUTPUT_VALUE=NONE",
+        "--PADDING=0",
+        "--SCATTER_CONTENT=<absent>",
+        "--SCATTER_COUNT=1",
+        "--SECOND_INPUT=<absent>",
+        "--SORT=true",
+        "--SUBDIVISION_MODE=INTERVAL_SUBDIVISION",
+        "--UNIQUE=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     }
   ]

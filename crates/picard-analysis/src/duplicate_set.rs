@@ -332,9 +332,126 @@ pub fn duplicate_sets(records: &[Record], options: &Options) -> Vec<Vec<usize>> 
     out
 }
 
+/// What `SimpleMarkDuplicatesWithMateCigar` decided: the duplicate flags, the records counted as
+/// optical duplicates (both ends of the pair, as the metrics halve them), and the set-size
+/// histograms `trackDuplicateCounts` filled.
+pub struct SetMarking {
+    pub duplicate: Vec<bool>,
+    pub optical: Vec<bool>,
+    pub all_sets: Vec<(f64, f64)>,
+    pub optical_sets: Vec<(f64, f64)>,
+    pub non_optical_sets: Vec<(f64, f64)>,
+}
+
 pub fn mark_duplicate_sets(records: &[Record], options: &Options) -> Vec<bool> {
-    let mut duplicate = vec![false; records.len()];
+    mark_duplicate_sets_tracked(records, options).duplicate
+}
+
+/// The optical tracking of one closed set, as `doWork` runs it: only when the read name regex is
+/// on and the representative is the first end of a mapped pair, over the first record seen of
+/// each mapped pair, the keeper being the first of them, and only for a set of more than one.
+fn track_set(
+    sorted: &[usize],
+    representative: usize,
+    records: &[Record],
+    options: &Options,
+    mates: &std::collections::HashMap<&str, Vec<usize>>,
+    marking: &mut SetMarking,
+) {
+    use crate::mark_duplicates::{build_read_ends, increment, optical_flags, orientation_byte};
+    let head = &records[representative];
+    if !options.parse_read_names || !paired_and_both_mapped(head) || !head.first_of_pair() {
+        return;
+    }
+    let mut seen: Vec<&str> = Vec::new();
+    let mut ends = Vec::new();
+    let mut indices = Vec::new();
+    for &index in sorted {
+        let record = &records[index];
+        if record.secondary_or_supplementary()
+            || !paired_and_both_mapped(record)
+            || seen.contains(&record.name.as_str())
+        {
+            continue;
+        }
+        let mut end = build_read_ends(record, index, options);
+        end.orientation_for_optical_duplicates = if record.first_of_pair() {
+            orientation_byte(record.reverse_strand(), record.mate_reverse_strand())
+        } else {
+            orientation_byte(record.mate_reverse_strand(), record.reverse_strand())
+        };
+        // This end's read group is never set, so every end shares the default one.
+        end.read_group = -1;
+        ends.push(end);
+        indices.push(index);
+        seen.push(record.name.as_str());
+    }
+    if ends.len() < 2 {
+        return;
+    }
+    let flags = optical_flags(&ends, 0, options);
+    let optical_count = flags.iter().filter(|flag| **flag).count();
+    for (position, flag) in flags.iter().enumerate() {
+        if !flag {
+            continue;
+        }
+        let index = indices[position];
+        marking.optical[index] = true;
+        // The pair's other record, so that the halving in the metrics leaves one per pair.
+        if let Some(mate) = mates.get(records[index].name.as_str()).and_then(|all| {
+            all.iter()
+                .copied()
+                .find(|other| *other != index && !records[*other].secondary_or_supplementary())
+        }) {
+            marking.optical[mate] = true;
+        }
+    }
+    increment(&mut marking.all_sets, ends.len() as f64, 1.0);
+    if ends.len() > optical_count {
+        increment(
+            &mut marking.non_optical_sets,
+            (ends.len() - optical_count) as f64,
+            1.0,
+        );
+    }
+    if optical_count > 0 {
+        increment(&mut marking.optical_sets, optical_count as f64 + 1.0, 1.0);
+    }
+}
+
+/// The same tracking over sets another iterator has already cut, such as the UMI-aware one: each
+/// set's records in the order it returns them, its representative first.
+pub fn track_sets(sets: &[Vec<usize>], records: &[Record], options: &Options) -> SetMarking {
+    let mut marking = SetMarking {
+        duplicate: vec![false; records.len()],
+        optical: vec![false; records.len()],
+        all_sets: Vec::new(),
+        optical_sets: Vec::new(),
+        non_optical_sets: Vec::new(),
+    };
+    let mut mates: std::collections::HashMap<&str, Vec<usize>> = std::collections::HashMap::new();
+    for (index, record) in records.iter().enumerate() {
+        mates.entry(record.name.as_str()).or_default().push(index);
+    }
+    for set in sets.iter().filter(|set| !set.is_empty()) {
+        track_set(set, set[0], records, options, &mates, &mut marking);
+    }
+    marking
+}
+
+pub fn mark_duplicate_sets_tracked(records: &[Record], options: &Options) -> SetMarking {
+    let mut marking = SetMarking {
+        duplicate: vec![false; records.len()],
+        optical: vec![false; records.len()],
+        all_sets: Vec::new(),
+        optical_sets: Vec::new(),
+        non_optical_sets: Vec::new(),
+    };
     let library_of = library_ids(records);
+    let mut mates: std::collections::HashMap<&str, Vec<usize>> = std::collections::HashMap::new();
+    for (index, record) in records.iter().enumerate() {
+        mates.entry(record.name.as_str()).or_default().push(index);
+    }
 
     // `new DuplicateSetIterator(..., preSorted = false, ...)`: the WHOLE file is re-sorted by the
     // duplicate comparator before a single set is cut. That is not the file's own order -- the
@@ -354,7 +471,7 @@ pub fn mark_duplicate_sets(records: &[Record], options: &Options) -> Vec<bool> {
     let mut set: Vec<usize> = Vec::new();
     let mut representative: usize = 0;
 
-    let close = |set: &mut Vec<usize>, representative: usize, duplicate: &mut Vec<bool>| {
+    let close = |set: &mut Vec<usize>, representative: usize, marking: &mut SetMarking| {
         if set.is_empty() {
             return;
         }
@@ -363,11 +480,12 @@ pub fn mark_duplicate_sets(records: &[Record], options: &Options) -> Vec<bool> {
         for index in &sorted {
             let record = &records[*index];
             if !record.unmapped() && !record.secondary_or_supplementary() && record.name != name {
-                duplicate[*index] = true;
+                marking.duplicate[*index] = true;
             }
         }
         // `records.get(0).setDuplicateReadFlag(false)`, after the sort.
-        duplicate[sorted[0]] = false;
+        marking.duplicate[sorted[0]] = false;
+        track_set(&sorted, representative, records, options, &mates, marking);
         set.clear();
     };
 
@@ -380,7 +498,7 @@ pub fn mark_duplicate_sets(records: &[Record], options: &Options) -> Vec<bool> {
         }
         let head = &records[representative];
         if head.unmapped() || head.secondary_or_supplementary() {
-            close(&mut set, representative, &mut duplicate);
+            close(&mut set, representative, &mut marking);
             set.push(index);
             representative = index;
             continue;
@@ -400,12 +518,12 @@ pub fn mark_duplicate_sets(records: &[Record], options: &Options) -> Vec<bool> {
             }
             set.push(index);
         } else {
-            close(&mut set, representative, &mut duplicate);
+            close(&mut set, representative, &mut marking);
             set.push(index);
             representative = index;
         }
     }
-    close(&mut set, representative, &mut duplicate);
+    close(&mut set, representative, &mut marking);
 
-    duplicate
+    marking
 }

@@ -60,6 +60,9 @@ fn main() {
     let flag_duplicates = args.bool("FLAG_DUPLICATES", true);
     let target_build = args.get("TARGET_BUILD").unwrap_or("37").to_string();
     let reference = args.required("REFERENCE_SEQUENCE");
+    let supported_builds = args.all("SUPPORTED_BUILD");
+    let supported_references = args.all("SUPPORTED_REFERENCE_FILE");
+    let supported_chains = args.all("SUPPORTED_CHAIN_FILE");
 
     let mut errors = Vec::new();
     if target_build != "37" {
@@ -67,6 +70,25 @@ fn main() {
     }
     if flag_duplicates && cluster.is_none() {
         errors.push("In order to flag duplicates, a CLUSTER_FILE must be supplied".to_string());
+    }
+    // The three supported-build lists go together, one entry each per build.
+    if !supported_builds.is_empty()
+        || !supported_references.is_empty()
+        || !supported_chains.is_empty()
+    {
+        if supported_builds.is_empty()
+            || supported_references.is_empty()
+            || supported_chains.is_empty()
+        {
+            errors.push("Parameters for 'SUPPORTED_BUILD', 'SUPPORTED_REFERENCE_FILE', and 'SUPPORTED_CHAIN_FILE' must ALL be specified or not at all.".to_string());
+        } else {
+            if supported_builds.len() != supported_references.len() {
+                errors.push("The number of inputs for 'SUPPORTED_BUILD' does not match the number of inputs for 'SUPPORTED_REFERENCE_FILE'".to_string());
+            }
+            if supported_builds.len() != supported_chains.len() {
+                errors.push("The number of inputs for 'SUPPORTED_BUILD' does not match the number of inputs for 'SUPPORTED_CHAIN_FILE'".to_string());
+            }
+        }
     }
     if !errors.is_empty() {
         refuse_validation(TOOL, &errors);
@@ -246,6 +268,28 @@ fn main() {
     ] {
         if let Some(v) = value {
             out.push_str(&header_line(width, &[key, &v]));
+            out.push('\n');
+        }
+    }
+    // A row each for the supported builds, their references and their chain files.
+    if !supported_builds.is_empty() {
+        for (label, values) in [
+            ("Supported Build", supported_builds.clone()),
+            (
+                "Supported Reference File",
+                supported_references
+                    .iter()
+                    .map(|path| absolute(path))
+                    .collect(),
+            ),
+            (
+                "Supported Chain File",
+                supported_chains.iter().map(|path| absolute(path)).collect(),
+            ),
+        ] {
+            let mut fields: Vec<&str> = vec![label];
+            fields.extend(values.iter().map(String::as_str));
+            out.push_str(&header_line(width, &fields));
             out.push('\n');
         }
     }

@@ -96,6 +96,17 @@ public class MakeArraysFixtures {
         // The first two loci alone, a manifest the same cluster file still covers.
         ArraysBpm.write(dir.resolve("arr_two.bpm"), "fixture.bpm", loci.subList(0, 2));
         final Path manifest = ArraysManifest.write(dir.resolve("arr_extended.csv"), rows);
+        // The same extended manifest with rs2 flagged a duplicate, which GtcToVcf writes with the
+        // DUPE filter, and rs4 flagged by Illumina, which it leaves out.
+        final List<ArraysManifest.Row> reflagged = new ArrayList<>();
+        for (final ArraysManifest.Row row : rows) {
+            final String flag = row.name().equals("rs2") ? "DUPE"
+                    : row.name().equals("rs4") ? "ILLUMINA_FLAGGED" : row.flag();
+            reflagged.add(new ArraysManifest.Row(row.name(), row.snp(), row.chrom(), row.position(),
+                    row.addressA(), row.addressB(), row.refStrand(), row.refAllele(), row.alleleA(),
+                    row.alleleB(), flag));
+        }
+        ArraysManifest.write(dir.resolve("arr_extended_flags.csv"), reflagged);
         ArraysManifest.writePlain(dir.resolve("arr_manifest.csv"), plain);
         // The same loci and a second assay at rs1's position, which CreateExtendedIlluminaManifest
         // flags as a duplicate unless the cluster file's GenTrain score keeps it. A contig the

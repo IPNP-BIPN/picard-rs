@@ -741,7 +741,7 @@ pub struct Marking {
 }
 
 /// `Histogram.increment`, which adds to the bin or creates it.
-fn increment(histogram: &mut Vec<(f64, f64)>, bin: f64, by: f64) {
+pub(crate) fn increment(histogram: &mut Vec<(f64, f64)>, bin: f64, by: f64) {
     match histogram.iter_mut().find(|(id, _)| *id == bin) {
         Some((_, count)) => *count += by,
         None => histogram.push((bin, by)),
@@ -995,7 +995,7 @@ fn chunks(list: &[ReadEnds], compare_read2: bool) -> Vec<Vec<ReadEnds>> {
 /// The split is the point: in PCR duplicate detection a set can hold both orientations once the
 /// ends are ordered by position, and in OPTICAL duplicate detection two reads whose first ends
 /// point opposite ways are not duplicates of one another.
-fn optical_flags(chunk: &[ReadEnds], keeper: usize, options: &Options) -> Vec<bool> {
+pub(crate) fn optical_flags(chunk: &[ReadEnds], keeper: usize, options: &Options) -> Vec<bool> {
     let has_fr = chunk
         .iter()
         .any(|ends| ends.orientation_for_optical_duplicates == FR);
@@ -1132,4 +1132,113 @@ fn write(records: &[Record], options: &Options, duplicate: &[bool], optical: &[b
         non_optical_sets: Vec::new(),
         duplicate_set: vec![None; records.len()],
     }
+}
+
+/// One `DuplicationMetrics` row, in its fields' declaration order.
+struct DuplicationRow<'a>(&'a Metrics);
+
+impl htsjdk_metrics::file::MetricBean for DuplicationRow<'_> {
+    fn class_name(&self) -> &str {
+        "picard.sam.DuplicationMetrics"
+    }
+    fn columns(&self) -> &[&'static str] {
+        &[
+            "LIBRARY",
+            "UNPAIRED_READS_EXAMINED",
+            "READ_PAIRS_EXAMINED",
+            "SECONDARY_OR_SUPPLEMENTARY_RDS",
+            "UNMAPPED_READS",
+            "UNPAIRED_READ_DUPLICATES",
+            "READ_PAIR_DUPLICATES",
+            "READ_PAIR_OPTICAL_DUPLICATES",
+            "PERCENT_DUPLICATION",
+            "ESTIMATED_LIBRARY_SIZE",
+        ]
+    }
+    fn values(&self) -> Vec<htsjdk_metrics::file::Value> {
+        use htsjdk_metrics::file::Value;
+        let m = self.0;
+        vec![
+            Value::Str(m.library.clone()),
+            Value::Long(m.unpaired_reads_examined),
+            Value::Long(m.read_pairs_examined),
+            Value::Long(m.secondary_or_supplementary),
+            Value::Long(m.unmapped_reads),
+            Value::Long(m.unpaired_read_duplicates),
+            Value::Long(m.read_pair_duplicates),
+            Value::Long(m.read_pair_optical_duplicates),
+            Value::Double(m.percent_duplication),
+            m.estimated_library_size.map_or(Value::Null, Value::Long),
+        ]
+    }
+}
+
+/// `finalizeAndWriteMetrics`: a row per library, the return-on-investment histogram when there is
+/// one library, and the three set-size histograms beside it (an empty one is not printed).
+pub fn duplication_metrics_text(
+    tool: &str,
+    metrics: &[Metrics],
+    header_libraries: &[String],
+    all_sets: &[(f64, f64)],
+    optical_sets: &[(f64, f64)],
+    non_optical_sets: &[(f64, f64)],
+) -> String {
+    use htsjdk_metrics::file::{Histogram, MetricsFile};
+    // `Histogram<Double>` prints its keys with `Double.toString`.
+    let key = |k: f64| {
+        if k.fract() == 0.0 && k.abs() < 1e7 {
+            format!("{k:.1}")
+        } else {
+            format!("{k}")
+        }
+    };
+    let histogram = |value_label: &str, bin_label: &str, bins: &[(f64, f64)]| Histogram {
+        bin_label: bin_label.to_string(),
+        value_label: value_label.to_string(),
+        key_class: "java.lang.Double".to_string(),
+        bins: bins.iter().map(|&(k, v)| (key(k), v)).collect(),
+    };
+    let mut file = MetricsFile::new();
+    file.add_header(&format!("{tool} <command line>"));
+    file.add_header("Started on: <timestamp>");
+    // `new LibraryIdGenerator(header)` makes a row for every library the header's read groups
+    // name, so a library with no record left is a row of zeroes.
+    let mut all: Vec<Metrics> = metrics.to_vec();
+    for library in header_libraries {
+        if !all.iter().any(|m| &m.library == library) {
+            all.push(Metrics {
+                library: library.clone(),
+                ..Metrics::default()
+            });
+        }
+    }
+    let metrics = &all[..];
+    // `LibraryIdGenerator` keeps its metrics in a `TreeMap`: the rows come out by library name.
+    let mut sorted_metrics: Vec<&Metrics> = metrics.iter().collect();
+    sorted_metrics.sort_by(|a, b| a.library.cmp(&b.library));
+    for m in sorted_metrics {
+        file.add_metric(&DuplicationRow(m));
+    }
+    if metrics.len() == 1 {
+        if let Some(roi) = roi_histogram(&metrics[0]) {
+            file.histograms.push(histogram("CoverageMult", "BIN", &roi));
+        }
+    }
+    let sorted = |bins: &[(f64, f64)]| {
+        let mut bins = bins.to_vec();
+        bins.sort_by(|a, b| a.0.total_cmp(&b.0));
+        bins
+    };
+    let (all, optical, non_optical) = (
+        sorted(all_sets),
+        sorted(optical_sets),
+        sorted(non_optical_sets),
+    );
+    file.histograms
+        .push(histogram("all_sets", "set_size", &all));
+    file.histograms
+        .push(histogram("optical_sets", "set_size", &optical));
+    file.histograms
+        .push(histogram("non_optical_sets", "set_size", &non_optical));
+    file.write()
 }
