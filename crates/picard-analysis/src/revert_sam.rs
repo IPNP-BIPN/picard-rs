@@ -69,10 +69,23 @@ const TAGS_TO_REVERSE: [&[u8; 2]; 2] = [b"OQ", b"U2"];
 /// the string tags in the two default lists. The alignment is dropped right after, so the CIGAR the
 /// full htsjdk method would also reverse is not reproduced.
 fn reverse_complement_record(rec: &mut BamRecord) {
+    let complement: Vec<String> = TAGS_TO_REVERSE_COMPLEMENT
+        .iter()
+        .map(|t| String::from_utf8_lossy(&t[..]).into_owned())
+        .collect();
+    let reverse: Vec<String> = TAGS_TO_REVERSE
+        .iter()
+        .map(|t| String::from_utf8_lossy(&t[..]).into_owned())
+        .collect();
+    reverse_complement_record_with(rec, &complement, &reverse);
+}
+
+/// `SAMRecord.reverseComplement(tagsToRevcomp, tagsToReverse, true)` over string tags.
+fn reverse_complement_record_with(rec: &mut BamRecord, complement: &[String], reverse: &[String]) {
     reverse_complement(&mut rec.read_bases);
     reverse_qualities(&mut rec.base_qualities);
 
-    for name in TAGS_TO_REVERSE_COMPLEMENT {
+    for name in complement.iter().filter_map(|n| tag_name(n)) {
         if let Some(TagValue::Str(s)) = rec.tags.get(Tag::new(name)) {
             let mut bytes = s.clone().into_bytes();
             reverse_complement(&mut bytes);
@@ -81,12 +94,17 @@ fn reverse_complement_record(rec: &mut BamRecord) {
             rec.tags.insert(Tag::new(name), TagValue::Str(value));
         }
     }
-    for name in TAGS_TO_REVERSE {
+    for name in reverse.iter().filter_map(|n| tag_name(n)) {
         if let Some(TagValue::Str(s)) = rec.tags.get(Tag::new(name)) {
             let value: String = s.chars().rev().collect();
             rec.tags.insert(Tag::new(name), TagValue::Str(value));
         }
     }
+}
+
+/// A two-character tag name as the tag map keys it; anything else names no tag.
+fn tag_name(name: &str) -> Option<&[u8; 2]> {
+    name.as_bytes().try_into().ok()
 }
 
 /// `SAMFileHeader.SortOrder`, for the two orders `RevertSam` can be asked for.
@@ -107,7 +125,7 @@ impl SortOrder {
 }
 
 /// The tool's arguments, with Picard's defaults.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Options {
     pub sort_order: SortOrder,
     pub restore_original_qualities: bool,
@@ -120,6 +138,25 @@ pub struct Options {
     /// sanitizing writes its output and THEN throws, which is Picard's order and not a detail:
     /// the file exists when the exception is raised.
     pub max_discard_fraction: f64,
+    /// `ATTRIBUTE_TO_CLEAR`, `ATTRIBUTE_TO_REVERSE` and `ATTRIBUTE_TO_REVERSE_COMPLEMENT`: the
+    /// defaults, extended by what the command line appends (a `null` empties a list first).
+    pub attributes_to_clear: Vec<String>,
+    pub attributes_to_reverse: Vec<String>,
+    pub attributes_to_reverse_complement: Vec<String>,
+}
+
+/// The three tag lists' defaults, as strings.
+pub fn default_tags() -> (Vec<String>, Vec<String>, Vec<String>) {
+    let names = |list: &[&[u8; 2]]| -> Vec<String> {
+        list.iter()
+            .map(|t| String::from_utf8_lossy(&t[..]).into_owned())
+            .collect()
+    };
+    (
+        names(&ATTRIBUTE_TO_CLEAR),
+        names(&TAGS_TO_REVERSE),
+        names(&TAGS_TO_REVERSE_COMPLEMENT),
+    )
 }
 
 impl Default for Options {
@@ -133,6 +170,9 @@ impl Default for Options {
             sanitize: false,
             keep_first_duplicate: false,
             max_discard_fraction: 0.01,
+            attributes_to_clear: default_tags().0,
+            attributes_to_reverse: default_tags().1,
+            attributes_to_reverse_complement: default_tags().2,
         }
     }
 }
@@ -239,7 +279,11 @@ fn revert_record_with(rec: &mut BamRecord, options: &Options) {
     }
 
     if rec.flags & READ_NEGATIVE_STRAND != 0 {
-        reverse_complement_record(rec);
+        reverse_complement_record_with(
+            rec,
+            &options.attributes_to_reverse_complement,
+            &options.attributes_to_reverse,
+        );
         rec.flags &= !READ_NEGATIVE_STRAND;
     }
 
@@ -282,7 +326,11 @@ fn revert_record_with(rec: &mut BamRecord, options: &Options) {
         }
     }
 
-    for name in ATTRIBUTE_TO_CLEAR {
+    for name in options
+        .attributes_to_clear
+        .iter()
+        .filter_map(|n| tag_name(n))
+    {
         rec.tags.remove(Tag::new(name));
     }
 }

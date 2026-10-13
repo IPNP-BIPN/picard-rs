@@ -102,6 +102,28 @@ fn count_mismatches(rec: &BamRecord, ref_bases: &[u8], bisulfite: bool) -> i32 {
     mismatches
 }
 
+/// Whether every aligned base of the read lies on the reference. `SequenceUtil.countMismatches`
+/// indexes the reference bases directly, so a block that runs off either end of the contig is
+/// an exception there ("Exception counting mismatches for read ..."), which the bisulfite NM
+/// recomputation reaches.
+pub fn aligned_within_reference(rec: &BamRecord, ref_bases: &[u8]) -> bool {
+    let mut position = rec.alignment_start as i64 - 1;
+    for ce in &rec.cigar.elements {
+        let len = ce.length as i64;
+        match ce.op {
+            Op::M | Op::Eq | Op::X => {
+                if position < 0 || position + len > ref_bases.len() as i64 {
+                    return false;
+                }
+                position += len;
+            }
+            Op::D | Op::N => position += len,
+            _ => {}
+        }
+    }
+    true
+}
+
 /// `SequenceUtil.calculateSamNmTag(read, ref, 0, bisulfiteSequence)`: the mismatches, plus every
 /// inserted and deleted base.
 fn calculate_sam_nm_tag(rec: &BamRecord, ref_bases: &[u8], bisulfite: bool) -> i32 {

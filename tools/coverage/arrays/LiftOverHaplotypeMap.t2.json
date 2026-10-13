@@ -4,16 +4,9 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 19,
-  "arguments_in_array": 4,
-  "arguments_excluded": 15,
+  "arguments_in_array": 5,
+  "arguments_excluded": 14,
   "excluded": [
-    {
-      "argument": "--INPUT",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/haplotypes.txt",
-      "source": "fixture"
-    },
     {
       "argument": "--OUTPUT",
       "type": "File",
@@ -113,9 +106,9 @@
       "source": "none"
     }
   ],
-  "rows": 7,
-  "tuples_total": 30,
-  "tuples_covered": 30,
+  "rows": 8,
+  "tuples_total": 48,
+  "tuples_covered": 48,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -127,12 +120,14 @@
       "labels": {
         "--CHAIN": "fixture[0]",
         "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CHAIN=/work/fixtures/lift.chain",
         "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/haplotypes.txt",
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -142,12 +137,14 @@
       "labels": {
         "--CHAIN": "fixture[0]",
         "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[1]",
         "--SEQUENCE_DICTIONARY": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CHAIN=/work/fixtures/lift.chain",
         "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/fp_haplotypes.txt",
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -157,13 +154,15 @@
       "labels": {
         "--CHAIN": "fixture[1]",
         "--CREATE_INDEX": "true",
-        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--INPUT": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CHAIN=/work/fixtures/lift_all.chain",
         "--CREATE_INDEX=true",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--INPUT=/work/fixtures/fp_haplotypes.txt",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -172,42 +171,48 @@
       "labels": {
         "--CHAIN": "fixture[1]",
         "--CREATE_INDEX": "false",
-        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--INPUT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CHAIN=/work/fixtures/lift_all.chain",
         "--CREATE_INDEX=false",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
+        "--INPUT=/work/fixtures/haplotypes.txt",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 4,
       "labels": {
-        "--CHAIN": "fixture[0]",
-        "--CREATE_INDEX": "false",
-        "--SEQUENCE_DICTIONARY": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
-      },
-      "arguments": [
-        "--CHAIN=/work/fixtures/lift.chain",
-        "--CREATE_INDEX=false",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 5,
-      "labels": {
         "--CHAIN": "fixture[1]",
         "--CREATE_INDEX": "true",
-        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--INPUT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CHAIN=/work/fixtures/lift_all.chain",
         "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/haplotypes.txt",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 5,
+      "labels": {
+        "--CHAIN": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CHAIN=/work/fixtures/lift.chain",
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/haplotypes.txt",
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -216,14 +221,33 @@
       "row": 6,
       "labels": {
         "--CHAIN": "fixture[0]",
-        "--CREATE_INDEX": "true",
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CHAIN=/work/fixtures/lift.chain",
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/haplotypes.txt",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--CHAIN": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CHAIN=/work/fixtures/lift.chain",
         "--CREATE_INDEX=true",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--INPUT=/work/fixtures/fp_haplotypes.txt",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     }

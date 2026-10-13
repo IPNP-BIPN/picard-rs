@@ -282,7 +282,7 @@ jobs:
             | tee /tmp/SetNmMdAndUqTags.log
           python3 tools/coverage/run_array.py --tool RevertSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/revert-sam \
+            --port target/release/revert-sam --output-name output.txt,rg1.bam,rg2.bam,rg1.sam,rg2.sam,rg1.cram,rg2.cram,mapped_rg1.bam,mapped_rg2.sam \
             | tee /tmp/RevertSam.log
           python3 tools/coverage/run_array.py --tool ExtractSequences --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -290,7 +290,7 @@ jobs:
             | tee /tmp/ExtractSequences.log
           python3 tools/coverage/run_array.py --tool IntervalListTools --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/interval-list-tools --strip-program-records --output-name output.txt,count.txt \
+            --port target/release/interval-list-tools --strip-program-records --output-name @all \
             | tee /tmp/IntervalListTools.log
           python3 tools/coverage/run_array.py --tool PositionBasedDownsampleSam --t 2 \
             --fixtures-dir /tmp/corpus \

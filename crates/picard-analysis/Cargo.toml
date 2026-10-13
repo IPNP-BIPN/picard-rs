@@ -21,6 +21,9 @@ rayon = "1"
 md-5 = "0.11"
 # `READ_NAME_REGEX` when it is not the default: a Java `Pattern` the parser `matches` a name against.
 regex = "1"
+# `JAVASCRIPT_FILE`: Picard runs the script on Nashorn, its bundled JavaScript engine; Boa is a
+# JavaScript engine in Rust, given the record as an object whose methods are the Java getters.
+boa_engine = "0.22"
 
 [dev-dependencies]
 flate2 = { version = "1", default-features = false, features = ["zlib"] }

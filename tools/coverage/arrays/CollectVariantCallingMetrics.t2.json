@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 22,
-  "arguments_in_array": 7,
-  "arguments_excluded": 15,
+  "arguments_in_array": 8,
+  "arguments_excluded": 14,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -34,13 +34,6 @@
       "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--INPUT",
-      "type": "PicardHtsPath",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/variants.vcf",
-      "source": "fixture"
     },
     {
       "argument": "--MAX_RECORDS_IN_RAM",
@@ -114,8 +107,8 @@
     }
   ],
   "rows": 10,
-  "tuples_total": 96,
-  "tuples_covered": 96,
+  "tuples_total": 126,
+  "tuples_covered": 126,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -128,6 +121,7 @@
         "--CREATE_INDEX": "true",
         "--DBSNP": "fixture[0]",
         "--GVCF_INPUT": "true",
+        "--INPUT": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--TARGET_INTERVALS": "fixture[0]",
         "--THREAD_COUNT": "fixture[0]",
@@ -137,6 +131,7 @@
         "--CREATE_INDEX=true",
         "--DBSNP=/work/fixtures/dbsnp.vcf",
         "--GVCF_INPUT=true",
+        "--INPUT=/work/fixtures/variants.vcf",
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
         "--THREAD_COUNT=1",
@@ -149,6 +144,7 @@
         "--CREATE_INDEX": "true",
         "--DBSNP": "fixture[1]",
         "--GVCF_INPUT": "false",
+        "--INPUT": "fixture[1]",
         "--SEQUENCE_DICTIONARY": "fixture[1]",
         "--TARGET_INTERVALS": "fixture[1]",
         "--THREAD_COUNT": "fixture[1]",
@@ -158,6 +154,7 @@
         "--CREATE_INDEX=true",
         "--DBSNP=/work/fixtures/variants.vcf",
         "--GVCF_INPUT=false",
+        "--INPUT=/work/fixtures/filter.vcf",
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
         "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
         "--THREAD_COUNT=2",
@@ -170,18 +167,20 @@
         "--CREATE_INDEX": "false",
         "--DBSNP": "fixture[0]",
         "--GVCF_INPUT": "false",
-        "--SEQUENCE_DICTIONARY": "fixture[0]",
-        "--TARGET_INTERVALS": "fixture[1]",
-        "--THREAD_COUNT": "fixture[0]",
+        "--INPUT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--TARGET_INTERVALS": "fixture[0]",
+        "--THREAD_COUNT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--DBSNP=/work/fixtures/dbsnp.vcf",
         "--GVCF_INPUT=false",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
-        "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
-        "--THREAD_COUNT=1",
+        "--INPUT=/work/fixtures/variants.vcf",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
+        "--THREAD_COUNT=2",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -191,18 +190,20 @@
         "--CREATE_INDEX": "false",
         "--DBSNP": "fixture[1]",
         "--GVCF_INPUT": "true",
-        "--SEQUENCE_DICTIONARY": "fixture[1]",
-        "--TARGET_INTERVALS": "fixture[0]",
-        "--THREAD_COUNT": "fixture[1]",
+        "--INPUT": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--TARGET_INTERVALS": "fixture[1]",
+        "--THREAD_COUNT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--DBSNP=/work/fixtures/variants.vcf",
         "--GVCF_INPUT=true",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
-        "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
-        "--THREAD_COUNT=2",
+        "--INPUT=/work/fixtures/filter.vcf",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
+        "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--THREAD_COUNT=1",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -212,7 +213,8 @@
         "--CREATE_INDEX": "false",
         "--DBSNP": "fixture[0]",
         "--GVCF_INPUT": "false",
-        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--INPUT": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--TARGET_INTERVALS": "fixture[0]",
         "--THREAD_COUNT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
@@ -221,7 +223,8 @@
         "--CREATE_INDEX=false",
         "--DBSNP=/work/fixtures/dbsnp.vcf",
         "--GVCF_INPUT=false",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--INPUT=/work/fixtures/filter.vcf",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
         "--THREAD_COUNT=1",
         "--VALIDATION_STRINGENCY=LENIENT"
@@ -232,19 +235,21 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--DBSNP": "fixture[1]",
-        "--GVCF_INPUT": "false",
+        "--GVCF_INPUT": "true",
+        "--INPUT": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--TARGET_INTERVALS": "fixture[0]",
-        "--THREAD_COUNT": "fixture[0]",
+        "--THREAD_COUNT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--DBSNP=/work/fixtures/variants.vcf",
-        "--GVCF_INPUT=false",
+        "--GVCF_INPUT=true",
+        "--INPUT=/work/fixtures/variants.vcf",
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
-        "--THREAD_COUNT=1",
+        "--THREAD_COUNT=2",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -254,8 +259,9 @@
         "--CREATE_INDEX": "true",
         "--DBSNP": "fixture[0]",
         "--GVCF_INPUT": "true",
+        "--INPUT": "fixture[1]",
         "--SEQUENCE_DICTIONARY": "fixture[1]",
-        "--TARGET_INTERVALS": "fixture[1]",
+        "--TARGET_INTERVALS": "fixture[0]",
         "--THREAD_COUNT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
@@ -263,8 +269,9 @@
         "--CREATE_INDEX=true",
         "--DBSNP=/work/fixtures/dbsnp.vcf",
         "--GVCF_INPUT=true",
+        "--INPUT=/work/fixtures/filter.vcf",
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
-        "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
         "--THREAD_COUNT=1",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -274,19 +281,21 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--DBSNP": "fixture[0]",
-        "--GVCF_INPUT": "true",
+        "--GVCF_INPUT": "false",
+        "--INPUT": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
-        "--TARGET_INTERVALS": "fixture[0]",
-        "--THREAD_COUNT": "fixture[1]",
+        "--TARGET_INTERVALS": "fixture[1]",
+        "--THREAD_COUNT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--DBSNP=/work/fixtures/dbsnp.vcf",
-        "--GVCF_INPUT=true",
+        "--GVCF_INPUT=false",
+        "--INPUT=/work/fixtures/variants.vcf",
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
-        "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
-        "--THREAD_COUNT=2",
+        "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--THREAD_COUNT=1",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -296,6 +305,7 @@
         "--CREATE_INDEX": "true",
         "--DBSNP": "fixture[0]",
         "--GVCF_INPUT": "true",
+        "--INPUT": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--TARGET_INTERVALS": "fixture[0]",
         "--THREAD_COUNT": "fixture[0]",
@@ -305,6 +315,7 @@
         "--CREATE_INDEX=true",
         "--DBSNP=/work/fixtures/dbsnp.vcf",
         "--GVCF_INPUT=true",
+        "--INPUT=/work/fixtures/variants.vcf",
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
         "--THREAD_COUNT=1",
@@ -317,6 +328,7 @@
         "--CREATE_INDEX": "true",
         "--DBSNP": "fixture[0]",
         "--GVCF_INPUT": "true",
+        "--INPUT": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--TARGET_INTERVALS": "fixture[0]",
         "--THREAD_COUNT": "fixture[0]",
@@ -326,6 +338,7 @@
         "--CREATE_INDEX=true",
         "--DBSNP=/work/fixtures/dbsnp.vcf",
         "--GVCF_INPUT=true",
+        "--INPUT=/work/fixtures/variants.vcf",
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
         "--THREAD_COUNT=1",

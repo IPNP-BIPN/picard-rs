@@ -204,7 +204,8 @@
         "tool": "RevertSam",
         "port": "revert-sam",
         "t": 2,
-        "status": "measured"
+        "status": "measured",
+        "output_name": "output.txt,rg1.bam,rg2.bam,rg1.sam,rg2.sam,rg1.cram,rg2.cram,mapped_rg1.bam,mapped_rg2.sam"
       },
       {
         "tool": "ExtractSequences",
@@ -218,7 +219,7 @@
         "t": 2,
         "status": "measured",
         "strip_program_records": true,
-        "output_name": "output.txt,count.txt"
+        "output_name": "@all"
       },
       {
         "tool": "PositionBasedDownsampleSam",
