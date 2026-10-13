@@ -621,7 +621,7 @@
         "tool": "MergeBamAlignment",
         "port": "merge-bam-alignment",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.bam"
       },
       {
