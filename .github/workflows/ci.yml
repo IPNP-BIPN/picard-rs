@@ -785,9 +785,6 @@ jobs:
             --log /tmp/ExtractIlluminaBarcodes.log \
             --log /tmp/IlluminaBasecallsToFastq.log \
             --log /tmp/IlluminaBasecallsToSam.log \
-            --pending FilterSamReads \
-            --pending MergeBamAlignment \
-            --pending FilterVcf \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -831,6 +828,7 @@ jobs:
             tools/coverage/corpus/IntervalListTools.t2.txt \
             tools/coverage/corpus/PositionBasedDownsampleSam.t2.txt \
             tools/coverage/corpus/ValidateSamFile.t2.txt \
+            tools/coverage/corpus/FilterSamReads.t2.txt \
             tools/coverage/corpus/MarkDuplicates.t2.txt \
             tools/coverage/corpus/FastqToSam.t2.txt \
             tools/coverage/corpus/SplitSamByNumberOfReads.t2.txt \
@@ -886,6 +884,7 @@ jobs:
             tools/coverage/corpus/MergePedIntoVcf.t2.txt \
             tools/coverage/corpus/BamToBfq.t2.txt \
             tools/coverage/corpus/CompareMetrics.t2.txt \
+            tools/coverage/corpus/MergeBamAlignment.t2.txt \
             tools/coverage/corpus/CollectSamErrorMetrics.t2.txt \
             tools/coverage/corpus/AccumulateVariantCallingMetrics.t2.txt \
             tools/coverage/corpus/BaitDesigner.t2.txt \
@@ -897,6 +896,7 @@ jobs:
             tools/coverage/corpus/ClusterCrosscheckMetrics.t2.txt \
             tools/coverage/corpus/SetNmAndUqTags.t2.txt \
             tools/coverage/corpus/CheckTerminatorBlock.t2.txt \
+            tools/coverage/corpus/FilterVcf.t2.txt \
             tools/coverage/corpus/CheckFingerprint.t2.txt \
             tools/coverage/corpus/CrosscheckFingerprints.t2.txt \
             tools/coverage/corpus/CrosscheckReadGroupFingerprints.t2.txt \

@@ -660,6 +660,26 @@
       "t": 2,
       "share": 1.0
     },
+    "FilterSamReads": {
+      "rows": 26,
+      "accepted": 5,
+      "rejected": 21,
+      "distinct_outputs": 4,
+      "distinct_rejections": 18,
+      "matched": 26,
+      "t": 2,
+      "share": 1.0
+    },
+    "FilterVcf": {
+      "rows": 18,
+      "accepted": 11,
+      "rejected": 7,
+      "distinct_outputs": 10,
+      "distinct_rejections": 2,
+      "matched": 18,
+      "t": 2,
+      "share": 1.0
+    },
     "FindMendelianViolations": {
       "rows": 13,
       "accepted": 9,
@@ -867,6 +887,16 @@
       "distinct_outputs": 3,
       "distinct_rejections": 2,
       "matched": 12,
+      "t": 2,
+      "share": 1.0
+    },
+    "MergeBamAlignment": {
+      "rows": 29,
+      "accepted": 16,
+      "rejected": 13,
+      "distinct_outputs": 16,
+      "distinct_rejections": 5,
+      "matched": 29,
       "t": 2,
       "share": 1.0
     },

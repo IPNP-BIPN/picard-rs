@@ -239,7 +239,7 @@
         "tool": "FilterSamReads",
         "port": "filter-sam-reads",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "MarkDuplicates",
@@ -621,7 +621,7 @@
         "tool": "MergeBamAlignment",
         "port": "merge-bam-alignment",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.bam"
       },
       {
@@ -703,7 +703,7 @@
         "tool": "FilterVcf",
         "port": "filter-vcf",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.vcf"
       },
       {
