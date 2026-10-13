@@ -349,6 +349,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
+    // `VariantProcessor` reads the input by interval, so it opens it requiring an index; a VCF
+    // without one is refused before a record is read.
+    if !std::path::Path::new(&format!("{input}.idx")).exists()
+        && !std::path::Path::new(&format!("{input}.tbi")).exists()
+    {
+        eprintln!(
+            "Exception in thread \"main\" htsjdk.tribble.TribbleException: An index is required, but none found with file ending .idx, for input source: {}",
+            picard_analysis::fingerprint::file_uri(&input)
+        );
+        std::process::exit(1);
+    }
     if arg(&args, "GVCF_INPUT=").as_deref() == Some("true") {
         // `GvcfMetricAccumulator.setup` refuses a file with more than one sample, and the message
         // is the tool's answer for those rows.

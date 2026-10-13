@@ -506,6 +506,19 @@ public class MakeFixtures {
         }
         revertReads.sort(new SAMRecordCoordinateComparator());
         writeBam(new File(dir, "revert.bam"), revertHeader, revertReads, false);
+        // JAVASCRIPT_FILE for FilterSamReads and FilterVcf. The reads script declares a variable
+        // and keeps well-mapped forward reads and every read of rg2; the variants script keeps
+        // single-base sites past position 1000; the third is not JavaScript at all.
+        try (PrintWriter out = new PrintWriter(new File(dir, "filter_reads.js"), "UTF-8")) {
+            out.print("var group = record.getAttribute(\"RG\");\n"
+                    + "(record.getMappingQuality() >= 30 && !record.getReadNegativeStrandFlag()) || group == \"rg2\";\n");
+        }
+        try (PrintWriter out = new PrintWriter(new File(dir, "filter_variants.js"), "UTF-8")) {
+            out.print("variant.isSNP() && variant.getStart() > 1000;\n");
+        }
+        try (PrintWriter out = new PrintWriter(new File(dir, "filter_broken.js"), "UTF-8")) {
+            out.print("record.getReadName( ;\n");
+        }
         // OUTPUT_MAP for OUTPUT_BY_READGROUP: one read group to a BAM, the other to a SAM.
         try (PrintWriter out = new PrintWriter(new File(dir, "revert_output_map.tsv"), "UTF-8")) {
             out.print("READ_GROUP_ID\tOUTPUT\nrg1\t/work/out/mapped_rg1.bam\nrg2\t/work/out/mapped_rg2.sam\n");
@@ -2970,6 +2983,40 @@ public class MakeFixtures {
      * Read bases are the reference's at the true location with two substitutions, so NM, MD and
      * UQ have something to count.
      */
+    /** Drops n bases from a record's five prime end, with the CIGAR operators and start they covered. */
+    static void trimFivePrime(SAMRecord r, int n) {
+        boolean reverse = r.getReadNegativeStrandFlag();
+        byte[] bases = r.getReadBases();
+        byte[] quals = r.getBaseQualities();
+        int from = reverse ? 0 : n;
+        int to = reverse ? bases.length - n : bases.length;
+        r.setReadBases(java.util.Arrays.copyOfRange(bases, from, to));
+        if (quals.length == bases.length) r.setBaseQualities(java.util.Arrays.copyOfRange(quals, from, to));
+        if (r.getReadUnmappedFlag() || r.getCigar().isEmpty()) return;
+        java.util.List<CigarElement> elements = new java.util.ArrayList<>(r.getCigar().getCigarElements());
+        if (reverse) java.util.Collections.reverse(elements);
+        int remaining = n;
+        int shift = 0;
+        java.util.List<CigarElement> kept = new java.util.ArrayList<>();
+        for (CigarElement e : elements) {
+            CigarOperator op = e.getOperator();
+            int length = e.getLength();
+            if (remaining > 0 && op.consumesReadBases()) {
+                int take = Math.min(length, remaining);
+                remaining -= take;
+                length -= take;
+                if (op.consumesReferenceBases()) shift += take;
+            } else if (remaining > 0 || (kept.isEmpty() && op == CigarOperator.D)) {
+                if (op.consumesReferenceBases()) shift += length;
+                length = 0;
+            }
+            if (length > 0) kept.add(new CigarElement(length, op));
+        }
+        if (reverse) java.util.Collections.reverse(kept);
+        r.setCigar(new Cigar(kept));
+        if (!reverse) r.setAlignmentStart(r.getAlignmentStart() + shift);
+    }
+
     static void writeMbaFixtures(File dir, String chr1, String chr2) throws Exception {
         String[] refs = {chr1, chr2};
         // name, end (0 fragment, 1 first, 2 second), contig, start, cigar, strand, mapq, flags, HI
@@ -3088,6 +3135,16 @@ public class MakeFixtures {
             }
         }
         writeBam(new File(dir, "mba_unmapped.bam"), unmappedHeader, unmapped, false);
+        // A second unmapped file for UNMAPPED_BAM: the same reads and one more template, z99, that
+        // no aligner saw, which the merge writes unmapped.
+        java.util.List<SAMRecord> extra = new java.util.ArrayList<>(unmapped);
+        for (SAMRecord r : unmapped) {
+            if (!r.getReadPairedFlag() || !r.getReadName().equals(unmapped.get(0).getReadName())) continue;
+            SAMRecord c = (SAMRecord) r.clone();
+            c.setReadName("z99");
+            extra.add(c);
+        }
+        writeBam(new File(dir, "mba_unmapped_extra.bam"), unmappedHeader, extra, false);
 
         for (int variant = 0; variant < 2; variant++) {
             boolean simple = variant == 1;
@@ -3192,6 +3249,45 @@ public class MakeFixtures {
                 aligned.removeAll(moved);
                 aligned.addAll(moved);
                 writeBam(new File(dir, "mba_aligned_simple.bam"), alignedHeader, aligned, false);
+                // The same alignments as an aligner of single ends writes them, for
+                // READ1_ALIGNED_BAM and READ2_ALIGNED_BAM: each end in its own file, named with
+                // its /1 or /2 suffix, unpaired, coordinate-sorted. Fragments are in neither.
+                SAMFileHeader endHeader = alignedHeader.clone();
+                endHeader.setSortOrder(SAMFileHeader.SortOrder.coordinate);
+                for (int end = 1; end <= 2; end++) {
+                    java.util.List<SAMRecord> ends = new java.util.ArrayList<>();
+                    for (SAMRecord r : aligned) {
+                        if (!r.getReadPairedFlag()) continue;
+                        if ((end == 1) != r.getFirstOfPairFlag()) continue;
+                        SAMRecord c = (SAMRecord) r.clone();
+                        c.setReadName(r.getReadName() + "/" + end);
+                        c.setReadPairedFlag(false);
+                        c.setFirstOfPairFlag(false);
+                        c.setSecondOfPairFlag(false);
+                        c.setProperPairFlag(false);
+                        c.setMateReferenceIndex(-1);
+                        c.setMateAlignmentStart(0);
+                        c.setInferredInsertSize(0);
+                        c.setAttribute("MC", null);
+                        ends.add(c);
+                    }
+                    ends.sort(new SAMRecordCoordinateComparator());
+                    writeBam(new File(dir, "mba_aligned_r" + end + ".bam"), endHeader, ends, false);
+                }
+                // The alignments of reads whose first three bases were trimmed before alignment,
+                // for READ1_TRIM and READ2_TRIM: each read loses three bases at its five prime end
+                // (the start of a forward read, the end of a reverse one), and its CIGAR and start
+                // lose what those bases covered.
+                java.util.List<SAMRecord> trimmed = new java.util.ArrayList<>();
+                for (SAMRecord r : aligned) {
+                    SAMRecord c = (SAMRecord) r.clone();
+                    trimFivePrime(c, 3);
+                    trimmed.add(c);
+                }
+                // In queryname order, unlike the file it comes from: a retried merge logs a warning
+                // stamped with the clock, which a refused row would then report.
+                trimmed.sort(new SAMRecordQueryNameComparator());
+                writeBam(new File(dir, "mba_aligned_trim.bam"), alignedHeader, trimmed, false);
             } else {
                 SAMFileWriterFactory factory = new SAMFileWriterFactory().setUseAsyncIo(false);
                 try (SAMFileWriter w = factory.makeBAMWriter(alignedHeader, false, new File(dir, "mba_aligned.bam"))) {

@@ -2008,6 +2008,43 @@ impl CommandLine {
     }
 }
 
+/// `SeparateEndAlignmentIterator`: the first ends' and the second ends' alignments, each read with
+/// its `/1` or `/2` suffix trimmed and its pair flags set, taken in turn by read name. The header is
+/// the two files' merged one, which for one file each is the first file's.
+fn separate_ends(read1: &[String], read2: &[String]) -> (SamHeader, Vec<BamRecord>) {
+    if read1.len() != 1 || read2.len() != 1 {
+        thrown(
+            "java.lang.UnsupportedOperationException: more than one READ1_ALIGNED_BAM or \
+             READ2_ALIGNED_BAM is not supported by this port",
+        );
+    }
+    let (header, first) = read_input(&read1[0]);
+    let (_, second) = read_input(&read2[0]);
+    let mark = |mut record: BamRecord, suffix: &str, first_of_pair: bool| -> BamRecord {
+        if let Some(name) = record.read_name.strip_suffix(suffix) {
+            record.read_name = name.to_string();
+        }
+        record.flags |= 0x1;
+        record.flags &= !(0x40 | 0x80);
+        record.flags |= if first_of_pair { 0x40 } else { 0x80 };
+        record
+    };
+    let mut ones = first.into_iter().map(|r| mark(r, "/1", true)).peekable();
+    let mut twos = second.into_iter().map(|r| mark(r, "/2", false)).peekable();
+    let mut merged = Vec::new();
+    loop {
+        let take_one = match (ones.peek(), twos.peek()) {
+            (Some(a), Some(b)) => a.read_name <= b.read_name,
+            (Some(_), None) => true,
+            (None, Some(_)) => false,
+            (None, None) => break,
+        };
+        let next = if take_one { ones.next() } else { twos.next() };
+        merged.extend(next);
+    }
+    (header, merged)
+}
+
 fn main() {
     let args = CommandLine::from_env();
 
@@ -2087,12 +2124,6 @@ fn main() {
                must be supplied."
                     .to_string(),
             ],
-        );
-    }
-    if aligned_bams.is_empty() {
-        thrown(
-            "java.lang.UnsupportedOperationException: READ1_ALIGNED_BAM and READ2_ALIGNED_BAM \
-             are not supported by this port",
         );
     }
 
@@ -2204,6 +2235,8 @@ fn main() {
     }
     for path in std::iter::once(&unmapped_path)
         .chain(aligned_bams.iter())
+        .chain(read1.iter())
+        .chain(read2.iter())
         .chain(std::iter::once(&reference))
     {
         if !std::path::Path::new(path).is_file() {
@@ -2215,13 +2248,17 @@ fn main() {
     }
 
     let (unmapped_header, unmapped) = read_input(&unmapped_path);
-    if aligned_bams.len() != 1 {
-        thrown(
-            "java.lang.UnsupportedOperationException: more than one ALIGNED_BAM is not \
-             supported by this port",
-        );
-    }
-    let (aligned_header, aligned) = read_input(&aligned_bams[0]);
+    let (aligned_header, aligned) = if aligned_bams.is_empty() {
+        separate_ends(&read1, &read2)
+    } else {
+        if aligned_bams.len() != 1 {
+            thrown(
+                "java.lang.UnsupportedOperationException: more than one ALIGNED_BAM is not \
+                 supported by this port",
+            );
+        }
+        read_input(&aligned_bams[0])
+    };
     let dictionary_text =
         std::fs::read_to_string(std::path::Path::new(&reference).with_extension("dict"))
             .unwrap_or_else(|_| {
@@ -2235,6 +2272,16 @@ fn main() {
         .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.SAMFormatException: {e:?}")))
         .0
         .sequences;
+    // `SAMSequenceDictionary.mergeDictionaries` insists on matching MD5 and length whatever else
+    // MATCHING_DICTIONARY_TAGS names; a list without them is refused before anything is merged.
+    let matching = args.collection("MATCHING_DICTIONARY_TAGS", &["M5", "LN"]);
+    if !matching.iter().any(|t| t == "M5") || !matching.iter().any(|t| t == "LN") {
+        thrown(&format!(
+            "java.lang.IllegalArgumentException: Both M5 and LN must be matched when merging \
+             dictionaries. Found: {}",
+            matching.join(",")
+        ));
+    }
     let contigs = htsjdk_bam::fasta::read_fasta_file(&reference)
         .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.SAMException: {e:?}")));
 
@@ -2312,6 +2359,18 @@ fn main() {
             }
             let name = header.sequences[rec.reference_index as usize].name.clone();
             let reference_bases = bases.get(name.as_str()).copied().unwrap_or(&[]);
+            // The bisulfite NM is counted base by base against the reference.
+            if settings.bisulfite
+                && !picard_analysis::set_nm_md_and_uq_tags::aligned_within_reference(
+                    rec,
+                    reference_bases,
+                )
+            {
+                thrown(&format!(
+                    "htsjdk.samtools.SAMException: Exception counting mismatches for read {}",
+                    describe(rec, &header)
+                ));
+            }
             fix_record(
                 rec,
                 reference_bases,

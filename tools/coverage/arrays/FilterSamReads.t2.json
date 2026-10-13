@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 25,
-  "arguments_in_array": 10,
-  "arguments_excluded": 15,
+  "arguments_in_array": 11,
+  "arguments_excluded": 14,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -32,13 +32,6 @@
       "argument": "--help",
       "type": "boolean",
       "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
-      "held_at": null,
-      "source": "none"
-    },
-    {
-      "argument": "--JAVASCRIPT_FILE",
-      "type": "File",
-      "reason": "excluded by the repository: no value is declared for this tool",
       "held_at": null,
       "source": "none"
     },
@@ -113,10 +106,10 @@
       "source": "none"
     }
   ],
-  "rows": 25,
-  "tuples_total": 337,
-  "tuples_covered": 337,
-  "tuples_forbidden": 0,
+  "rows": 26,
+  "tuples_total": 405,
+  "tuples_covered": 405,
+  "tuples_forbidden": 16,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
   ],
@@ -129,6 +122,7 @@
         "--FILTER": "includeAligned",
         "--INPUT": "fixture[0]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[0]",
         "--TAG": "fixture[0]",
@@ -141,6 +135,7 @@
         "--FILTER=includeAligned",
         "--INPUT=/work/fixtures/small.bam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=coordinate",
         "--TAG=<absent>",
@@ -156,6 +151,7 @@
         "--FILTER": "excludeAligned",
         "--INPUT": "fixture[1]",
         "--INTERVAL_LIST": "fixture[1]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[1]",
         "--SORT_ORDER": "fixture[1]",
         "--TAG": "fixture[1]",
@@ -168,6 +164,7 @@
         "--FILTER=excludeAligned",
         "--INPUT=/work/fixtures/small.sam",
         "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=/work/fixtures/read_names.txt",
         "--SORT_ORDER=queryname",
         "--TAG=RG",
@@ -183,6 +180,7 @@
         "--FILTER": "includeReadList",
         "--INPUT": "fixture[2]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[1]",
         "--SORT_ORDER": "fixture[0]",
         "--TAG": "fixture[1]",
@@ -195,6 +193,7 @@
         "--FILTER=includeReadList",
         "--INPUT=/work/fixtures/queryname.bam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=/work/fixtures/read_names.txt",
         "--SORT_ORDER=coordinate",
         "--TAG=RG",
@@ -210,6 +209,7 @@
         "--FILTER": "excludeReadList",
         "--INPUT": "fixture[0]",
         "--INTERVAL_LIST": "fixture[1]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[1]",
         "--TAG": "fixture[0]",
@@ -222,6 +222,7 @@
         "--FILTER=excludeReadList",
         "--INPUT=/work/fixtures/small.bam",
         "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=queryname",
         "--TAG=<absent>",
@@ -237,24 +238,26 @@
         "--FILTER": "includeJavascript",
         "--INPUT": "fixture[0]",
         "--INTERVAL_LIST": "fixture[0]",
-        "--READ_LIST_FILE": "fixture[1]",
+        "--JAVASCRIPT_FILE": "fixture[1]",
+        "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[1]",
         "--TAG": "fixture[0]",
         "--TAG_VALUE": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT",
-        "--WRITE_READS_FILES": "true"
+        "--WRITE_READS_FILES": "false"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--FILTER=includeJavascript",
         "--INPUT=/work/fixtures/small.bam",
         "--INTERVAL_LIST=<absent>",
-        "--READ_LIST_FILE=/work/fixtures/read_names.txt",
+        "--JAVASCRIPT_FILE=/work/fixtures/filter_reads.js",
+        "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=queryname",
         "--TAG=<absent>",
         "--TAG_VALUE=<absent>",
         "--VALIDATION_STRINGENCY=LENIENT",
-        "--WRITE_READS_FILES=true"
+        "--WRITE_READS_FILES=false"
       ]
     },
     {
@@ -264,24 +267,26 @@
         "--FILTER": "includePairedIntervals",
         "--INPUT": "fixture[0]",
         "--INTERVAL_LIST": "fixture[0]",
-        "--READ_LIST_FILE": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
+        "--READ_LIST_FILE": "fixture[1]",
         "--SORT_ORDER": "fixture[0]",
-        "--TAG": "fixture[1]",
+        "--TAG": "fixture[0]",
         "--TAG_VALUE": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT",
-        "--WRITE_READS_FILES": "false"
+        "--WRITE_READS_FILES": "true"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--FILTER=includePairedIntervals",
         "--INPUT=/work/fixtures/small.bam",
         "--INTERVAL_LIST=<absent>",
-        "--READ_LIST_FILE=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
+        "--READ_LIST_FILE=/work/fixtures/read_names.txt",
         "--SORT_ORDER=coordinate",
-        "--TAG=RG",
+        "--TAG=<absent>",
         "--TAG_VALUE=rg1",
         "--VALIDATION_STRINGENCY=STRICT",
-        "--WRITE_READS_FILES=false"
+        "--WRITE_READS_FILES=true"
       ]
     },
     {
@@ -291,24 +296,26 @@
         "--FILTER": "includeTagValues",
         "--INPUT": "fixture[0]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[0]",
-        "--TAG": "fixture[0]",
+        "--TAG": "fixture[1]",
         "--TAG_VALUE": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT",
-        "--WRITE_READS_FILES": "false"
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--WRITE_READS_FILES": "true"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--FILTER=includeTagValues",
         "--INPUT=/work/fixtures/small.bam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=coordinate",
-        "--TAG=<absent>",
+        "--TAG=RG",
         "--TAG_VALUE=<absent>",
-        "--VALIDATION_STRINGENCY=LENIENT",
-        "--WRITE_READS_FILES=false"
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--WRITE_READS_FILES=true"
       ]
     },
     {
@@ -318,11 +325,12 @@
         "--FILTER": "excludeTagValues",
         "--INPUT": "fixture[0]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[0]",
         "--TAG": "fixture[0]",
         "--TAG_VALUE": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT",
+        "--VALIDATION_STRINGENCY": "LENIENT",
         "--WRITE_READS_FILES": "true"
       },
       "arguments": [
@@ -330,11 +338,12 @@
         "--FILTER=excludeTagValues",
         "--INPUT=/work/fixtures/small.bam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=coordinate",
         "--TAG=<absent>",
         "--TAG_VALUE=<absent>",
-        "--VALIDATION_STRINGENCY=STRICT",
+        "--VALIDATION_STRINGENCY=LENIENT",
         "--WRITE_READS_FILES=true"
       ]
     },
@@ -345,6 +354,7 @@
         "--FILTER": "includeAligned",
         "--INPUT": "fixture[1]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[2]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[0]",
         "--TAG": "fixture[0]",
@@ -357,6 +367,7 @@
         "--FILTER=includeAligned",
         "--INPUT=/work/fixtures/small.sam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=/work/fixtures/filter_broken.js",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=coordinate",
         "--TAG=<absent>",
@@ -372,24 +383,26 @@
         "--FILTER": "excludeAligned",
         "--INPUT": "fixture[0]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[0]",
         "--TAG": "fixture[0]",
         "--TAG_VALUE": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT",
-        "--WRITE_READS_FILES": "true"
+        "--WRITE_READS_FILES": "false"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--FILTER=excludeAligned",
         "--INPUT=/work/fixtures/small.bam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=coordinate",
         "--TAG=<absent>",
         "--TAG_VALUE=<absent>",
         "--VALIDATION_STRINGENCY=STRICT",
-        "--WRITE_READS_FILES=true"
+        "--WRITE_READS_FILES=false"
       ]
     },
     {
@@ -399,6 +412,7 @@
         "--FILTER": "includeReadList",
         "--INPUT": "fixture[0]",
         "--INTERVAL_LIST": "fixture[1]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[1]",
         "--TAG": "fixture[0]",
@@ -411,6 +425,7 @@
         "--FILTER=includeReadList",
         "--INPUT=/work/fixtures/small.bam",
         "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=queryname",
         "--TAG=<absent>",
@@ -426,11 +441,12 @@
         "--FILTER": "excludeReadList",
         "--INPUT": "fixture[2]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[1]",
         "--SORT_ORDER": "fixture[0]",
         "--TAG": "fixture[1]",
         "--TAG_VALUE": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT",
+        "--VALIDATION_STRINGENCY": "LENIENT",
         "--WRITE_READS_FILES": "true"
       },
       "arguments": [
@@ -438,11 +454,12 @@
         "--FILTER=excludeReadList",
         "--INPUT=/work/fixtures/queryname.bam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=/work/fixtures/read_names.txt",
         "--SORT_ORDER=coordinate",
         "--TAG=RG",
         "--TAG_VALUE=<absent>",
-        "--VALIDATION_STRINGENCY=STRICT",
+        "--VALIDATION_STRINGENCY=LENIENT",
         "--WRITE_READS_FILES=true"
       ]
     },
@@ -452,25 +469,27 @@
         "--CREATE_INDEX": "false",
         "--FILTER": "includeJavascript",
         "--INPUT": "fixture[1]",
-        "--INTERVAL_LIST": "fixture[1]",
+        "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[1]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[0]",
-        "--TAG": "fixture[1]",
-        "--TAG_VALUE": "fixture[0]",
+        "--TAG": "fixture[0]",
+        "--TAG_VALUE": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT",
-        "--WRITE_READS_FILES": "false"
+        "--WRITE_READS_FILES": "true"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--FILTER=includeJavascript",
         "--INPUT=/work/fixtures/small.sam",
-        "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
+        "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=/work/fixtures/filter_reads.js",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=coordinate",
-        "--TAG=RG",
-        "--TAG_VALUE=<absent>",
+        "--TAG=<absent>",
+        "--TAG_VALUE=rg1",
         "--VALIDATION_STRINGENCY=STRICT",
-        "--WRITE_READS_FILES=false"
+        "--WRITE_READS_FILES=true"
       ]
     },
     {
@@ -480,24 +499,26 @@
         "--FILTER": "includePairedIntervals",
         "--INPUT": "fixture[1]",
         "--INTERVAL_LIST": "fixture[1]",
-        "--READ_LIST_FILE": "fixture[1]",
-        "--SORT_ORDER": "fixture[1]",
-        "--TAG": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
+        "--READ_LIST_FILE": "fixture[0]",
+        "--SORT_ORDER": "fixture[0]",
+        "--TAG": "fixture[1]",
         "--TAG_VALUE": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT",
-        "--WRITE_READS_FILES": "true"
+        "--WRITE_READS_FILES": "false"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--FILTER=includePairedIntervals",
         "--INPUT=/work/fixtures/small.sam",
         "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
-        "--READ_LIST_FILE=/work/fixtures/read_names.txt",
-        "--SORT_ORDER=queryname",
-        "--TAG=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
+        "--READ_LIST_FILE=<absent>",
+        "--SORT_ORDER=coordinate",
+        "--TAG=RG",
         "--TAG_VALUE=<absent>",
         "--VALIDATION_STRINGENCY=LENIENT",
-        "--WRITE_READS_FILES=true"
+        "--WRITE_READS_FILES=false"
       ]
     },
     {
@@ -507,24 +528,26 @@
         "--FILTER": "includeTagValues",
         "--INPUT": "fixture[1]",
         "--INTERVAL_LIST": "fixture[1]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[1]",
         "--SORT_ORDER": "fixture[1]",
-        "--TAG": "fixture[1]",
+        "--TAG": "fixture[0]",
         "--TAG_VALUE": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "STRICT",
-        "--WRITE_READS_FILES": "true"
+        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--WRITE_READS_FILES": "false"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--FILTER=includeTagValues",
         "--INPUT=/work/fixtures/small.sam",
         "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=/work/fixtures/read_names.txt",
         "--SORT_ORDER=queryname",
-        "--TAG=RG",
+        "--TAG=<absent>",
         "--TAG_VALUE=rg1",
-        "--VALIDATION_STRINGENCY=STRICT",
-        "--WRITE_READS_FILES=true"
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--WRITE_READS_FILES=false"
       ]
     },
     {
@@ -534,11 +557,12 @@
         "--FILTER": "excludeTagValues",
         "--INPUT": "fixture[1]",
         "--INTERVAL_LIST": "fixture[1]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[1]",
         "--SORT_ORDER": "fixture[1]",
         "--TAG": "fixture[1]",
         "--TAG_VALUE": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--VALIDATION_STRINGENCY": "STRICT",
         "--WRITE_READS_FILES": "false"
       },
       "arguments": [
@@ -546,11 +570,12 @@
         "--FILTER=excludeTagValues",
         "--INPUT=/work/fixtures/small.sam",
         "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=/work/fixtures/read_names.txt",
         "--SORT_ORDER=queryname",
         "--TAG=RG",
         "--TAG_VALUE=rg1",
-        "--VALIDATION_STRINGENCY=LENIENT",
+        "--VALIDATION_STRINGENCY=STRICT",
         "--WRITE_READS_FILES=false"
       ]
     },
@@ -561,11 +586,12 @@
         "--FILTER": "includeAligned",
         "--INPUT": "fixture[2]",
         "--INTERVAL_LIST": "fixture[1]",
-        "--READ_LIST_FILE": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[1]",
+        "--READ_LIST_FILE": "fixture[1]",
         "--SORT_ORDER": "fixture[1]",
-        "--TAG": "fixture[0]",
+        "--TAG": "fixture[1]",
         "--TAG_VALUE": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--VALIDATION_STRINGENCY": "STRICT",
         "--WRITE_READS_FILES": "false"
       },
       "arguments": [
@@ -573,11 +599,12 @@
         "--FILTER=includeAligned",
         "--INPUT=/work/fixtures/queryname.bam",
         "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
-        "--READ_LIST_FILE=<absent>",
+        "--JAVASCRIPT_FILE=/work/fixtures/filter_reads.js",
+        "--READ_LIST_FILE=/work/fixtures/read_names.txt",
         "--SORT_ORDER=queryname",
-        "--TAG=<absent>",
+        "--TAG=RG",
         "--TAG_VALUE=rg1",
-        "--VALIDATION_STRINGENCY=LENIENT",
+        "--VALIDATION_STRINGENCY=STRICT",
         "--WRITE_READS_FILES=false"
       ]
     },
@@ -588,6 +615,7 @@
         "--FILTER": "excludeAligned",
         "--INPUT": "fixture[2]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[0]",
         "--TAG": "fixture[0]",
@@ -600,6 +628,7 @@
         "--FILTER=excludeAligned",
         "--INPUT=/work/fixtures/queryname.bam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=coordinate",
         "--TAG=<absent>",
@@ -615,6 +644,7 @@
         "--FILTER": "includeReadList",
         "--INPUT": "fixture[1]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[0]",
         "--TAG": "fixture[0]",
@@ -627,6 +657,7 @@
         "--FILTER=includeReadList",
         "--INPUT=/work/fixtures/small.sam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=coordinate",
         "--TAG=<absent>",
@@ -642,11 +673,12 @@
         "--FILTER": "excludeReadList",
         "--INPUT": "fixture[1]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[0]",
         "--TAG": "fixture[0]",
         "--TAG_VALUE": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT",
+        "--VALIDATION_STRINGENCY": "STRICT",
         "--WRITE_READS_FILES": "false"
       },
       "arguments": [
@@ -654,11 +686,12 @@
         "--FILTER=excludeReadList",
         "--INPUT=/work/fixtures/small.sam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=coordinate",
         "--TAG=<absent>",
         "--TAG_VALUE=<absent>",
-        "--VALIDATION_STRINGENCY=LENIENT",
+        "--VALIDATION_STRINGENCY=STRICT",
         "--WRITE_READS_FILES=false"
       ]
     },
@@ -669,24 +702,26 @@
         "--FILTER": "includeJavascript",
         "--INPUT": "fixture[2]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[2]",
         "--READ_LIST_FILE": "fixture[0]",
-        "--SORT_ORDER": "fixture[0]",
+        "--SORT_ORDER": "fixture[1]",
         "--TAG": "fixture[0]",
         "--TAG_VALUE": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "SILENT",
-        "--WRITE_READS_FILES": "true"
+        "--VALIDATION_STRINGENCY": "STRICT",
+        "--WRITE_READS_FILES": "false"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--FILTER=includeJavascript",
         "--INPUT=/work/fixtures/queryname.bam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=/work/fixtures/filter_broken.js",
         "--READ_LIST_FILE=<absent>",
-        "--SORT_ORDER=coordinate",
+        "--SORT_ORDER=queryname",
         "--TAG=<absent>",
         "--TAG_VALUE=rg1",
-        "--VALIDATION_STRINGENCY=SILENT",
-        "--WRITE_READS_FILES=true"
+        "--VALIDATION_STRINGENCY=STRICT",
+        "--WRITE_READS_FILES=false"
       ]
     },
     {
@@ -696,8 +731,9 @@
         "--FILTER": "includePairedIntervals",
         "--INPUT": "fixture[2]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[0]",
-        "--SORT_ORDER": "fixture[0]",
+        "--SORT_ORDER": "fixture[1]",
         "--TAG": "fixture[0]",
         "--TAG_VALUE": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT",
@@ -708,8 +744,9 @@
         "--FILTER=includePairedIntervals",
         "--INPUT=/work/fixtures/queryname.bam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=<absent>",
-        "--SORT_ORDER=coordinate",
+        "--SORT_ORDER=queryname",
         "--TAG=<absent>",
         "--TAG_VALUE=<absent>",
         "--VALIDATION_STRINGENCY=SILENT",
@@ -723,6 +760,7 @@
         "--FILTER": "includeTagValues",
         "--INPUT": "fixture[2]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[0]",
         "--TAG": "fixture[0]",
@@ -735,6 +773,7 @@
         "--FILTER=includeTagValues",
         "--INPUT=/work/fixtures/queryname.bam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=coordinate",
         "--TAG=<absent>",
@@ -750,6 +789,7 @@
         "--FILTER": "excludeTagValues",
         "--INPUT": "fixture[2]",
         "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
         "--READ_LIST_FILE": "fixture[0]",
         "--SORT_ORDER": "fixture[0]",
         "--TAG": "fixture[0]",
@@ -762,6 +802,7 @@
         "--FILTER=excludeTagValues",
         "--INPUT=/work/fixtures/queryname.bam",
         "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=<absent>",
         "--READ_LIST_FILE=<absent>",
         "--SORT_ORDER=coordinate",
         "--TAG=<absent>",
@@ -776,24 +817,55 @@
         "--CREATE_INDEX": "true",
         "--FILTER": "includeAligned",
         "--INPUT": "fixture[0]",
-        "--INTERVAL_LIST": "fixture[0]",
+        "--INTERVAL_LIST": "fixture[1]",
+        "--JAVASCRIPT_FILE": "fixture[2]",
         "--READ_LIST_FILE": "fixture[1]",
         "--SORT_ORDER": "fixture[0]",
         "--TAG": "fixture[1]",
         "--TAG_VALUE": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT",
+        "--VALIDATION_STRINGENCY": "LENIENT",
         "--WRITE_READS_FILES": "true"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--FILTER=includeAligned",
         "--INPUT=/work/fixtures/small.bam",
-        "--INTERVAL_LIST=<absent>",
+        "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
+        "--JAVASCRIPT_FILE=/work/fixtures/filter_broken.js",
         "--READ_LIST_FILE=/work/fixtures/read_names.txt",
         "--SORT_ORDER=coordinate",
         "--TAG=RG",
         "--TAG_VALUE=<absent>",
-        "--VALIDATION_STRINGENCY=STRICT",
+        "--VALIDATION_STRINGENCY=LENIENT",
+        "--WRITE_READS_FILES=true"
+      ]
+    },
+    {
+      "row": 25,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--FILTER": "includeJavascript",
+        "--INPUT": "fixture[0]",
+        "--INTERVAL_LIST": "fixture[0]",
+        "--JAVASCRIPT_FILE": "fixture[1]",
+        "--READ_LIST_FILE": "fixture[0]",
+        "--SORT_ORDER": "fixture[0]",
+        "--TAG": "fixture[0]",
+        "--TAG_VALUE": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT",
+        "--WRITE_READS_FILES": "true"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--FILTER=includeJavascript",
+        "--INPUT=/work/fixtures/small.bam",
+        "--INTERVAL_LIST=<absent>",
+        "--JAVASCRIPT_FILE=/work/fixtures/filter_reads.js",
+        "--READ_LIST_FILE=<absent>",
+        "--SORT_ORDER=coordinate",
+        "--TAG=<absent>",
+        "--TAG_VALUE=<absent>",
+        "--VALIDATION_STRINGENCY=SILENT",
         "--WRITE_READS_FILES=true"
       ]
     }

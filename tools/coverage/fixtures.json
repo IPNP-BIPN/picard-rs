@@ -128,10 +128,12 @@
         "the tool at all: SEQUENCE_TAG_GROUP is required. Two values, one naming a tag every read",
         "of tagged.bam carries and one naming a pair of them, and the quality groups match. FASTQ",
         "and SECOND_END_FASTQ are the base tool's, and the array compares the TAG file, which is",
-        "what this tool adds."
+        "what this tool adds.",
+        "The second INPUT: small.bam carries none of the tag groups named."
       ],
       "--INPUT": [
-        "/work/fixtures/tagged.bam"
+        "/work/fixtures/tagged.bam",
+        "/work/fixtures/small.bam"
       ],
       "--FASTQ": [
         "/work/out/reads.fastq",
@@ -214,10 +216,12 @@
         "MINIMUM_MQ and MINIMUM_BARCODE_BQ are declared because both have a default and no bounds,",
         "so the generator would hold them there and the array would vary one boolean. The values",
         "straddle what umi.bam carries: mapping qualities of 25 and 60, and a barcode quality of",
-        "twenty in the reads that carry a BQ tag at all."
+        "twenty in the reads that carry a BQ tag at all.",
+        "The second INPUT: umi_partial.bam lacks the UMI on some reads."
       ],
       "--INPUT": [
-        "/work/fixtures/umi.bam"
+        "/work/fixtures/umi.bam",
+        "/work/fixtures/umi_partial.bam"
       ],
       "--MINIMUM_MQ": [
         "30",
@@ -247,10 +251,12 @@
         "input, so the known and novel partitions are both non-empty. Its second value is the",
         "input itself, under which every site is known and the novel partition empties.",
         "TARGET_INTERVALS decides which sites are counted at all, and the two lists cover",
-        "different ones, so it is the argument that moves the totals."
+        "different ones, so it is the argument that moves the totals.",
+        "The second INPUT: filter.vcf is a second callset on the same contigs."
       ],
       "--INPUT": [
-        "/work/fixtures/variants.vcf"
+        "/work/fixtures/variants.vcf",
+        "/work/fixtures/filter.vcf"
       ],
       "--DBSNP": [
         "/work/fixtures/dbsnp.vcf",
@@ -387,10 +393,12 @@
         "The shared --INPUT list is BAMs, and this tool reads a FASTA. INTERVALS is optional in the",
         "tool and held by the shared list, so every row takes the masked path; two interval lists",
         "are declared because the count is the only output there is, and one list would make the",
-        "array cover the arguments without observing any of them."
+        "array cover the arguments without observing any of them.",
+        "The second INPUT: arr_ref.fasta is a second reference, whose dictionary the interval lists do not match."
       ],
       "--INPUT": [
-        "/work/fixtures/ref.fasta"
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/arr_ref.fasta"
       ],
       "--INTERVALS": [
         "/work/fixtures/targets.interval_list",
@@ -883,10 +891,17 @@
         "<absent>",
         "RG"
       ],
-      "--JAVASCRIPT_FILE": [],
+      "--JAVASCRIPT_FILE": [
+        "<absent>",
+        "/work/fixtures/filter_reads.js",
+        "/work/fixtures/filter_broken.js"
+      ],
       "--TAG_VALUE": [
         "<absent>",
         "rg1"
+      ],
+      "$why": [
+        "JAVASCRIPT_FILE keeps well-mapped forward reads and every read of rg2, or is not JavaScript at all; it is only read under FILTER=includeJavascript, which refuses it absent and every other filter refuses it present."
       ]
     },
     "ValidateSamFile": {
@@ -964,10 +979,12 @@
         "floor, the difference rate, the group floor the metrics apply, and the pixel distance the",
         "optical duplicates are found within.",
         "INPUT is complexity.bam, whose pairs actually repeat: on the shared fixtures every group",
-        "holds one pair and MIN_GROUP_COUNT drops the lot."
+        "holds one pair and MIN_GROUP_COUNT drops the lot.",
+        "The second INPUT: small.bam is a second library of pairs."
       ],
       "--INPUT": [
-        "/work/fixtures/complexity.bam"
+        "/work/fixtures/complexity.bam",
+        "/work/fixtures/small.bam"
       ],
       "--MIN_IDENTICAL_BASES": [
         "5",
@@ -1189,10 +1206,12 @@
         "TRIOS is a pedigree file with no default, so the tool cannot run without one declared;",
         "trio.vcf and trio.ped are the corpus. MIN_GQ and MIN_DP are declared because both have a",
         "default and no bounds: the values straddle the child genotype qualities the fixture",
-        "carries, so lowering the floor admits a de novo call the default refuses to judge."
+        "carries, so lowering the floor admits a de novo call the default refuses to judge.",
+        "The second INPUT: vcf_unsorted_samples.vcf names none of the trio, so every trio is dropped."
       ],
       "--INPUT": [
-        "/work/fixtures/trio.vcf"
+        "/work/fixtures/trio.vcf",
+        "/work/fixtures/vcf_unsorted_samples.vcf"
       ],
       "--TRIOS": [
         "/work/fixtures/trio.ped",
@@ -1246,10 +1265,12 @@
         "The input is a haplotype database, which no shared value provides, and CHAIN has no",
         "default. haplotypes.txt carries two SNPs past chr1:1500, where lift.chain covers nothing,",
         "so every row of this array is the partial answer AND the 101 exit code the tool reports",
-        "for it."
+        "for it.",
+        "The second INPUT: fp_haplotypes.txt is the fingerprint database, inside the chain."
       ],
       "--INPUT": [
-        "/work/fixtures/haplotypes.txt"
+        "/work/fixtures/haplotypes.txt",
+        "/work/fixtures/fp_haplotypes.txt"
       ],
       "--CHAIN": [
         "/work/fixtures/lift.chain",
@@ -2884,24 +2905,20 @@
     },
     "MergeBamAlignment": {
       "$why": [
-        "mba_unmapped.bam and mba_aligned.bam are MakeFixtures' (see writeMbaFixtures): one template per",
-        "case of the merge. mba_aligned_simple.bam drops the paired multi-hits (so EarliestFragment, which",
-        "refuses a paired read with more than one hit, can run), carries two @PG lines (so none is",
-        "adopted) and is out of queryname order (so the merge throws, sorts the aligned reads and runs",
-        "again). VALIDATION_STRINGENCY is LENIENT or SILENT: STRICT refuses the alignment that runs off",
-        "chr2 (t07) as the aligned file is read, which is the case the merge exists to clip. JUMP_SIZE",
-        "and READ1/READ2_ALIGNED_BAM are left out: Barclay counts an argument given as `null` as set,",
-        "and each is mutually exclusive with one that is always given. The program-group arguments are",
-        "held absent: ID, VERSION and COMMAND_LINE must come together, which left free made a partial",
-        "set (one refusal) most of the array, and tied by constraints left the generator either",
-        "uncovered tuples or rows that break the constraints; the aligned file's own @PG is what the",
-        "rows adopt. READ1_TRIM and READ2_TRIM are held at 0: a trim is only consistent with an aligned",
-        "file whose reads were all trimmed, and on this one every other read becomes an invalid cigar;",
-        "t12's aligned read, shorter than its original, takes the same soft-clipping path. The",
-        "attribute lists and EXPECTED_ORIENTATIONS are $lists; ATTRIBUTES_TO_REVERSE(_COMPLEMENT)",
-        "append to their defaults, so OQ (E2) keeps the default and `null` empties it.",
-        "MATCHING_DICTIONARY_TAGS keeps its default, PAIRED_RUN is ignored by the tool and CREATE_INDEX",
-        "writes a side file only."
+        "mba_unmapped.bam and mba_aligned.bam are MakeFixtures' (see writeMbaFixtures): one template per case of the",
+        "merge. mba_aligned_simple.bam drops the paired multi-hits (so EarliestFragment, which refuses a paired read",
+        "with more than one hit, can run), carries two @PG lines (so none is adopted) and is out of queryname order (so",
+        "the merge throws, sorts the aligned reads and runs again). mba_aligned_r1.bam and _r2.bam are its ends aligned",
+        "separately (READ1/READ2_ALIGNED_BAM, mutually exclusive with ALIGNED_BAM), and mba_aligned_trim.bam its",
+        "alignments of reads trimmed by three bases, the only file a READ1/READ2_TRIM of 3 is consistent with: on the",
+        "others the trim is forbidden, since every read would become an invalid cigar. mba_unmapped_extra.bam has one",
+        "template no aligner saw. VALIDATION_STRINGENCY is LENIENT or SILENT: STRICT refuses the alignment that runs",
+        "off chr2 (t07) as the aligned file is read, which is the case the merge exists to clip. JUMP_SIZE is varied",
+        "against EXPECTED_ORIENTATIONS' absence (Barclay counts `null` as set), and the program-group ID, VERSION and",
+        "COMMAND_LINE, which must come together, are forbidden to differ in being given. The attribute lists and",
+        "EXPECTED_ORIENTATIONS are $lists; ATTRIBUTES_TO_REVERSE(_COMPLEMENT) append to their defaults, so OQ (E2) keeps",
+        "the default and `null` empties it. MATCHING_DICTIONARY_TAGS appends to M5 and LN, and `null` is the refusal",
+        "for leaving them out. PAIRED_RUN is ignored by the tool and CREATE_INDEX writes a side file only."
       ],
       "$lists": [
         "--ATTRIBUTES_TO_RETAIN",
@@ -2911,11 +2928,14 @@
         "--EXPECTED_ORIENTATIONS"
       ],
       "--UNMAPPED_BAM": [
-        "/work/fixtures/mba_unmapped.bam"
+        "/work/fixtures/mba_unmapped.bam",
+        "/work/fixtures/mba_unmapped_extra.bam"
       ],
       "--ALIGNED_BAM": [
         "/work/fixtures/mba_aligned.bam",
-        "/work/fixtures/mba_aligned_simple.bam"
+        "/work/fixtures/mba_aligned_simple.bam",
+        "/work/fixtures/mba_aligned_trim.bam",
+        "<absent>"
       ],
       "--OUTPUT": [
         "/work/out/output.bam"
@@ -2952,30 +2972,38 @@
         "null"
       ],
       "--READ1_TRIM": [
-        "0"
+        "0",
+        "3"
       ],
       "--READ2_TRIM": [
-        "0"
+        "0",
+        "3"
       ],
       "--EXPECTED_ORIENTATIONS": [
+        "<absent>",
         "null",
         "RF",
         "FR TANDEM"
       ],
       "--PROGRAM_RECORD_ID": [
-        "null"
+        "<absent>",
+        "pgX"
       ],
       "--PROGRAM_GROUP_VERSION": [
-        "null"
+        "<absent>",
+        "9.9"
       ],
       "--PROGRAM_GROUP_COMMAND_LINE": [
-        "null"
+        "<absent>",
+        "run it"
       ],
       "--PROGRAM_GROUP_NAME": [
-        "null"
+        "<absent>",
+        "namer"
       ],
       "--PAIRED_RUN": [
-        "true"
+        "true",
+        "false"
       ],
       "--VALIDATION_STRINGENCY": [
         "LENIENT",
@@ -2983,6 +3011,23 @@
       ],
       "--CREATE_INDEX": [
         "false"
+      ],
+      "--READ1_ALIGNED_BAM": [
+        "<absent>",
+        "/work/fixtures/mba_aligned_r1.bam"
+      ],
+      "--READ2_ALIGNED_BAM": [
+        "<absent>",
+        "/work/fixtures/mba_aligned_r2.bam"
+      ],
+      "--JUMP_SIZE": [
+        "<absent>",
+        "1000"
+      ],
+      "--MATCHING_DICTIONARY_TAGS": [
+        "<absent>",
+        "AS",
+        "null"
       ]
     },
     "FifoBuffer": {
@@ -3876,12 +3921,13 @@
     },
     "FilterVcf": {
       "$why": [
-        "filter.vcf (MakeFixtures) has a site for each filter on each side of the thresholds below, and missing",
-        "QD, FS, GQ and DP, which the reference reads as their defaults (-1 for a genotype's GQ and DP, so MIN_GQ=0",
-        "still filters a genotype without one). filter_no_contigs.vcf is refused because an output named .vcf needs a",
+        "filter.vcf (MakeFixtures) has a site for each filter on each side of the thresholds below, and missing QD, FS,",
+        "GQ and DP, which the reference reads as their defaults (-1 for a genotype's GQ and DP, so MIN_GQ=0 still",
+        "filters a genotype without one). filter_no_contigs.vcf is refused because an output named .vcf needs a",
         "dictionary; trio.vcf, vcf_unsorted_samples.vcf and vcf_sites_only.vcf are the corpus's other shapes. The",
-        "compared file is output.vcf; the .idx beside it records a timestamp and is not compared. JAVASCRIPT_FILE",
-        "runs a script engine and has no fixture."
+        "compared file is output.vcf; the .idx beside it records a timestamp and is not compared. JAVASCRIPT_FILE keeps",
+        "single-base sites past position 1000 (a site the script rejects is filtered under the script's base name), or",
+        "is not JavaScript at all."
       ],
       "--INPUT": [
         "/work/fixtures/filter.vcf",
@@ -3912,6 +3958,11 @@
       "--MIN_QD": [
         "0.0",
         "2.0"
+      ],
+      "--JAVASCRIPT_FILE": [
+        "<absent>",
+        "/work/fixtures/filter_variants.js",
+        "/work/fixtures/filter_broken.js"
       ]
     },
     "CreateBafRegressMetricsFile": {
@@ -7434,6 +7485,376 @@
         "--BASECALLS_DIR": "/work/fixtures/ill_run_n/Data/Intensities/BaseCalls"
       },
       "why": "a lane the run does not have: the reference's refusal lists the missing data types in a HashSet's identity-hashed order, which changes from one JVM to the next"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned.bam",
+        "--READ1_ALIGNED_BAM": "/work/fixtures/mba_aligned_r1.bam"
+      },
+      "why": "ALIGNED_BAM and READ1_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned.bam",
+        "--READ2_ALIGNED_BAM": "/work/fixtures/mba_aligned_r2.bam"
+      },
+      "why": "ALIGNED_BAM and READ2_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_simple.bam",
+        "--READ1_ALIGNED_BAM": "/work/fixtures/mba_aligned_r1.bam"
+      },
+      "why": "ALIGNED_BAM and READ1_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_simple.bam",
+        "--READ2_ALIGNED_BAM": "/work/fixtures/mba_aligned_r2.bam"
+      },
+      "why": "ALIGNED_BAM and READ2_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_trim.bam",
+        "--READ1_ALIGNED_BAM": "/work/fixtures/mba_aligned_r1.bam"
+      },
+      "why": "ALIGNED_BAM and READ1_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_trim.bam",
+        "--READ2_ALIGNED_BAM": "/work/fixtures/mba_aligned_r2.bam"
+      },
+      "why": "ALIGNED_BAM and READ2_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--READ1_TRIM": "3",
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned.bam"
+      },
+      "why": "a trim of three on alignments of untrimmed reads makes every read's cigar longer than its bases, which the reference refuses on the first record"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--READ1_TRIM": "3",
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_simple.bam"
+      },
+      "why": "a trim of three on alignments of untrimmed reads makes every read's cigar longer than its bases, which the reference refuses on the first record"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--READ2_TRIM": "3",
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned.bam"
+      },
+      "why": "a trim of three on alignments of untrimmed reads makes every read's cigar longer than its bases, which the reference refuses on the first record"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--READ2_TRIM": "3",
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_simple.bam"
+      },
+      "why": "a trim of three on alignments of untrimmed reads makes every read's cigar longer than its bases, which the reference refuses on the first record"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--READ1_TRIM": "3",
+        "--READ1_ALIGNED_BAM": "/work/fixtures/mba_aligned_r1.bam"
+      },
+      "why": "a trim of three on alignments of untrimmed reads makes every read's cigar longer than its bases, which the reference refuses on the first record"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--READ2_TRIM": "3",
+        "--READ2_ALIGNED_BAM": "/work/fixtures/mba_aligned_r2.bam"
+      },
+      "why": "a trim of three on alignments of untrimmed reads makes every read's cigar longer than its bases, which the reference refuses on the first record"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--JUMP_SIZE": "1000",
+        "--EXPECTED_ORIENTATIONS": "null"
+      },
+      "why": "JUMP_SIZE and EXPECTED_ORIENTATIONS are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--JUMP_SIZE": "1000",
+        "--EXPECTED_ORIENTATIONS": "RF"
+      },
+      "why": "JUMP_SIZE and EXPECTED_ORIENTATIONS are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--JUMP_SIZE": "1000",
+        "--EXPECTED_ORIENTATIONS": "FR TANDEM"
+      },
+      "why": "JUMP_SIZE and EXPECTED_ORIENTATIONS are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--PROGRAM_RECORD_ID": "pgX",
+        "--PROGRAM_GROUP_VERSION": "<absent>"
+      },
+      "why": "PROGRAM_RECORD_ID, PROGRAM_GROUP_VERSION and PROGRAM_GROUP_COMMAND_LINE must all be given or none, and a partial set is one refusal that would fill the array"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--PROGRAM_RECORD_ID": "pgX",
+        "--PROGRAM_GROUP_COMMAND_LINE": "<absent>"
+      },
+      "why": "PROGRAM_RECORD_ID, PROGRAM_GROUP_VERSION and PROGRAM_GROUP_COMMAND_LINE must all be given or none, and a partial set is one refusal that would fill the array"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--PROGRAM_GROUP_VERSION": "9.9",
+        "--PROGRAM_RECORD_ID": "<absent>"
+      },
+      "why": "PROGRAM_RECORD_ID, PROGRAM_GROUP_VERSION and PROGRAM_GROUP_COMMAND_LINE must all be given or none, and a partial set is one refusal that would fill the array"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--PROGRAM_GROUP_VERSION": "9.9",
+        "--PROGRAM_GROUP_COMMAND_LINE": "<absent>"
+      },
+      "why": "PROGRAM_RECORD_ID, PROGRAM_GROUP_VERSION and PROGRAM_GROUP_COMMAND_LINE must all be given or none, and a partial set is one refusal that would fill the array"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--PROGRAM_GROUP_COMMAND_LINE": "run it",
+        "--PROGRAM_RECORD_ID": "<absent>"
+      },
+      "why": "PROGRAM_RECORD_ID, PROGRAM_GROUP_VERSION and PROGRAM_GROUP_COMMAND_LINE must all be given or none, and a partial set is one refusal that would fill the array"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--PROGRAM_GROUP_COMMAND_LINE": "run it",
+        "--PROGRAM_GROUP_VERSION": "<absent>"
+      },
+      "why": "PROGRAM_RECORD_ID, PROGRAM_GROUP_VERSION and PROGRAM_GROUP_COMMAND_LINE must all be given or none, and a partial set is one refusal that would fill the array"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "excludeAligned",
+        "--JAVASCRIPT_FILE": "/work/fixtures/filter_reads.js"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "excludeAligned",
+        "--JAVASCRIPT_FILE": "/work/fixtures/filter_broken.js"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "includeReadList",
+        "--JAVASCRIPT_FILE": "/work/fixtures/filter_reads.js"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "includeReadList",
+        "--JAVASCRIPT_FILE": "/work/fixtures/filter_broken.js"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "excludeReadList",
+        "--JAVASCRIPT_FILE": "/work/fixtures/filter_reads.js"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "excludeReadList",
+        "--JAVASCRIPT_FILE": "/work/fixtures/filter_broken.js"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "includePairedIntervals",
+        "--JAVASCRIPT_FILE": "/work/fixtures/filter_reads.js"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "includePairedIntervals",
+        "--JAVASCRIPT_FILE": "/work/fixtures/filter_broken.js"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "includeTagValues",
+        "--JAVASCRIPT_FILE": "/work/fixtures/filter_reads.js"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "includeTagValues",
+        "--JAVASCRIPT_FILE": "/work/fixtures/filter_broken.js"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "excludeTagValues",
+        "--JAVASCRIPT_FILE": "/work/fixtures/filter_reads.js"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "excludeTagValues",
+        "--JAVASCRIPT_FILE": "/work/fixtures/filter_broken.js"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "includeJavascript",
+        "--JAVASCRIPT_FILE": "<absent>"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "includeJavascript",
+        "--READ_LIST_FILE": "/work/fixtures/read_names.txt"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "includeJavascript",
+        "--INTERVAL_LIST": "/work/fixtures/targets.interval_list"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
+    },
+    {
+      "tools": [
+        "FilterSamReads"
+      ],
+      "forbid": {
+        "--FILTER": "includeJavascript",
+        "--TAG": "RG"
+      },
+      "why": "a pair the reference refuses in one line before it reads a record; forbidding it leaves rows to the filter the script runs in"
     }
   ],
   "exclude": {
