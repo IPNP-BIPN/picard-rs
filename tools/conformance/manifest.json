@@ -167,7 +167,8 @@
         "port": "downsample-sam",
         "t": 2,
         "status": "measured",
-        "strip_program_records": true
+        "strip_program_records": true,
+        "output_name": "output.txt,metrics.txt"
       },
       {
         "tool": "FixMateInformation",
@@ -216,7 +217,8 @@
         "port": "interval-list-tools",
         "t": 2,
         "status": "measured",
-        "strip_program_records": true
+        "strip_program_records": true,
+        "output_name": "output.txt,count.txt"
       },
       {
         "tool": "PositionBasedDownsampleSam",
@@ -275,14 +277,15 @@
         "tool": "SamToFastq",
         "port": "sam-to-fastq",
         "t": 2,
-        "status": "measured"
+        "status": "measured",
+        "output_name": "@all"
       },
       {
         "tool": "CollectDuplicateMetrics",
         "port": "collect-duplicate-metrics",
         "t": 2,
         "status": "measured",
-        "output_name": "metrics.txt"
+        "output_name": "metrics.txt,metrics_b.txt"
       },
       {
         "tool": "MarkDuplicatesWithMateCigar",
@@ -353,14 +356,15 @@
         "tool": "MarkIlluminaAdapters",
         "port": "mark-illumina-adapters",
         "t": 2,
-        "status": "measured"
+        "status": "measured",
+        "output_name": "output.txt,metrics.txt,metrics_b.txt"
       },
       {
         "tool": "SamToFastqWithTags",
         "port": "sam-to-fastq-with-tags",
         "t": 2,
         "status": "measured",
-        "output_name": "CB.fastq"
+        "output_name": "@all"
       },
       {
         "tool": "FindMendelianViolations",
@@ -373,7 +377,8 @@
         "port": "lift-over-interval-list",
         "t": 2,
         "status": "measured",
-        "exit_code_is_a_result": true
+        "exit_code_is_a_result": true,
+        "output_name": "output.txt,reject.interval_list"
       },
       {
         "tool": "CompareSAMs",
@@ -466,7 +471,7 @@
         "port": "split-vcfs",
         "t": 2,
         "status": "measured",
-        "output_name": "snp.vcf,indel.vcf"
+        "output_name": "snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf"
       },
       {
         "tool": "VcfFormatConverter",
@@ -486,31 +491,36 @@
         "tool": "CollectWgsMetrics",
         "port": "collect-wgs-metrics",
         "t": 2,
-        "status": "measured"
+        "status": "measured",
+        "output_name": "output.txt,theoretical.txt"
       },
       {
         "tool": "CollectRawWgsMetrics",
         "port": "collect-raw-wgs-metrics",
         "t": 2,
-        "status": "measured"
+        "status": "measured",
+        "output_name": "output.txt,theoretical.txt"
       },
       {
         "tool": "CollectWgsMetricsWithNonZeroCoverage",
         "port": "collect-wgs-metrics-with-non-zero-coverage",
         "t": 2,
-        "status": "measured"
+        "status": "measured",
+        "output_name": "output.txt,theoretical.txt"
       },
       {
         "tool": "CollectHsMetrics",
         "port": "collect-hs-metrics",
         "t": 2,
-        "status": "measured"
+        "status": "measured",
+        "output_name": "output.txt,per_target.txt,per_base.txt,theoretical.txt"
       },
       {
         "tool": "CollectTargetedPcrMetrics",
         "port": "collect-targeted-pcr-metrics",
         "t": 2,
-        "status": "measured"
+        "status": "measured",
+        "output_name": "output.txt,per_target.txt,per_base.txt,theoretical.txt"
       },
       {
         "tool": "CollectSequencingArtifactMetrics",
@@ -537,7 +547,7 @@
         "port": "collect-gc-bias-metrics",
         "t": 2,
         "status": "measured",
-        "output_name": "output.txt,summary.txt"
+        "output_name": "output.txt,summary.txt,summary_b.txt"
       },
       {
         "tool": "CollectRrbsMetrics",
@@ -564,7 +574,7 @@
         "port": "liftover-vcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf,reject.vcf"
+        "output_name": "output.vcf,reject.vcf,reject_b.vcf"
       },
       {
         "tool": "CollectMultipleMetrics",

@@ -76,7 +76,7 @@ impl From<ParseError> for MergeError {
 
 /// `positiveFourDigitBase36Str`: render `n` in base 36 with digits `0-9a-z`, no leading zeros
 /// (`0` -> `"0"`, `1` -> `"1"`, `36` -> `"10"`). Despite the name it is not zero-padded.
-fn base36(mut n: u32) -> String {
+pub fn base36(mut n: u32) -> String {
     const DIGITS: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
     if n == 0 {
         return "0".to_string();
@@ -88,6 +88,25 @@ fn base36(mut n: u32) -> String {
     }
     buf.reverse();
     String::from_utf8(buf).expect("base36 digits are ASCII")
+}
+
+/// `SAMFileHeader.PgIdGenerator.getNonCollidingId` over a fresh generator: the id itself when no
+/// `@PG` of the header has it, else the id with `.` and the first base-36 counter, from the number
+/// of ids already taken, that is free.
+pub fn non_colliding_pg_id(header: &htsjdk_bam::header::SamHeader, id: &str) -> String {
+    let taken: std::collections::BTreeSet<&str> =
+        header.programs.iter().map(|pg| pg.id.as_str()).collect();
+    if !taken.contains(id) {
+        return id.to_string();
+    }
+    let mut counter = taken.len() as u32;
+    loop {
+        let candidate = format!("{id}.{}", base36(counter));
+        counter += 1;
+        if !taken.contains(candidate.as_str()) {
+            return candidate;
+        }
+    }
 }
 
 /// One merged header record (`@RG` or `@PG`) reduced to the two things the merge needs: its ID and a

@@ -116,6 +116,193 @@ pub fn fastq_to_sam_unpaired_to_bam(
     Ok(w.finish().expect("finish never fails on a Vec"))
 }
 
+/// Every `FastqToSam` argument that decides an output byte, for [`fastq_to_bam_full`].
+#[derive(Debug, Clone)]
+pub struct FullOptions {
+    pub read_group_name: String,
+    pub sample_name: String,
+    pub sort_order: String,
+    pub library_name: Option<String>,
+    pub platform: Option<String>,
+    pub platform_unit: Option<String>,
+    pub sequencing_center: Option<String>,
+    pub predicted_insert_size: Option<i32>,
+    pub description: Option<String>,
+    /// `RUN_DATE`, already in the form `Iso8601Date.toString` writes.
+    pub run_date: Option<String>,
+    pub platform_model: Option<String>,
+    pub program_group: Option<String>,
+    pub comments: Vec<String>,
+    pub min_q: i32,
+    pub max_q: i32,
+    /// `Standard`, `Illumina` or `Solexa`: the encoding the qualities are read in.
+    pub quality_format: String,
+    pub allow_and_ignore_empty_lines: bool,
+}
+
+/// `createSamFileHeader`: the read group's fields in setter order, then the comments.
+fn full_header(opts: &FullOptions) -> SamHeader {
+    let mut header = build_header(&opts.read_group_name, &opts.sample_name);
+    let group = &mut header.read_groups[0];
+    let optional = [
+        ("LB", opts.library_name.clone()),
+        ("PL", opts.platform.clone()),
+        ("PU", opts.platform_unit.clone()),
+        ("CN", opts.sequencing_center.clone()),
+        ("PI", opts.predicted_insert_size.map(|v| v.to_string())),
+        ("DS", opts.description.clone()),
+        ("DT", opts.run_date.clone()),
+        ("PM", opts.platform_model.clone()),
+        ("PG", opts.program_group.clone()),
+    ];
+    for (tag, value) in optional {
+        if let Some(value) = value {
+            group.attributes.set(tag, &value);
+        }
+    }
+    for comment in &opts.comments {
+        header.comments.push(if comment.starts_with("@CO\t") {
+            comment.clone()
+        } else {
+            format!("@CO\t{comment}")
+        });
+    }
+    header.set_sort_order(&opts.sort_order);
+    header
+}
+
+/// `convertQuality`: the quality characters as Phred values, in the encoding they were read in.
+fn convert_quality(text: &str, format: &str) -> Vec<u8> {
+    text.bytes()
+        .map(|q| match format {
+            "Illumina" => q.wrapping_sub(64),
+            "Solexa" => {
+                // `SolexaQualityConverter`: below the addend a quality is zero, above it the
+                // log-odds conversion, rounded.
+                if q < 64 {
+                    0
+                } else {
+                    let solexa = (q as f64 - 64.0) / 10.0;
+                    (10.0 * (1.0 + 10f64.powf(solexa)).log10()).round() as u8
+                }
+            }
+            _ => q.wrapping_sub(33),
+        })
+        .collect()
+}
+
+/// `getReadNameTokens`: the name and, when it ends in `/1` or `/2`, that number.
+fn read_name_tokens(name: &str) -> (String, Option<String>) {
+    match name.rfind('/') {
+        Some(idx) if matches!(&name[idx + 1..], "1" | "2") => {
+            (name[..idx].to_string(), Some(name[idx + 1..].to_string()))
+        }
+        _ => (name.to_string(), None),
+    }
+}
+
+/// `doUnpaired` or `doPaired`, from the FASTQ text to the BAM the writer produces. An `Err` is a
+/// Java throwable, class and message.
+pub fn fastq_to_bam_full(
+    fastq1: &str,
+    fastq2: Option<&str>,
+    opts: &FullOptions,
+) -> Result<Vec<u8>, String> {
+    use htsjdk_bam::fastq::get_sam_read_name_from_fastq_header;
+    use htsjdk_bam::writer::BamWriter;
+    let header = full_header(opts);
+    let parse = |text: &str| {
+        parse_fastq(text, opts.allow_and_ignore_empty_lines)
+            .map_err(|e| format!("htsjdk.samtools.SAMException: {e}"))
+    };
+    let reads1 = parse(fastq1)?;
+    let reads2 = match fastq2 {
+        Some(text) => Some(parse(text)?),
+        None => None,
+    };
+    let make = |frec: &htsjdk_bam::fastq::FastqRecord, name: String| -> Result<BamRecord, String> {
+        let quals = convert_quality(
+            frec.quality_string.as_deref().unwrap_or(""),
+            &opts.quality_format,
+        );
+        for &q in &quals {
+            let q = q as i32;
+            if q < opts.min_q || q > opts.max_q {
+                return Err(format!(
+                    "picard.PicardException: Base quality {q} is not in the range {}..{} for read {}",
+                    opts.min_q,
+                    opts.max_q,
+                    frec.read_name.as_deref().unwrap_or("")
+                ));
+            }
+        }
+        let mut rec = as_sam_record(frec);
+        rec.read_name = name;
+        rec.base_qualities = quals;
+        rec.tags
+            .insert(Tag::new(b"RG"), TagValue::Str(opts.read_group_name.clone()));
+        Ok(rec)
+    };
+    let mut records = Vec::new();
+    match reads2 {
+        None => {
+            for frec in &reads1 {
+                let name =
+                    get_sam_read_name_from_fastq_header(frec.read_name.as_deref().unwrap_or(""));
+                records.push(make(frec, name)?);
+            }
+        }
+        Some(reads2) => {
+            for (frec1, frec2) in reads1.iter().zip(reads2.iter()) {
+                let name1 =
+                    get_sam_read_name_from_fastq_header(frec1.read_name.as_deref().unwrap_or(""));
+                let name2 =
+                    get_sam_read_name_from_fastq_header(frec2.read_name.as_deref().unwrap_or(""));
+                if name1.is_empty() || name2.is_empty() {
+                    return Err(
+                        "picard.PicardException: Pair read name cannot be empty".to_string()
+                    );
+                }
+                let (base1, num1) = read_name_tokens(&name1);
+                let (base2, num2) = read_name_tokens(&name2);
+                if base1 != base2 {
+                    return Err(format!(
+                        "picard.PicardException: In paired mode, read name 1 ({base1}) does not match read name 2 ({base2})"
+                    ));
+                }
+                if num1.is_some() != num2.is_some()
+                    || num1.as_deref().is_some_and(|n| n != "1")
+                    || num2.as_deref().is_some_and(|n| n != "2")
+                {
+                    return Err(format!(
+                        "picard.PicardException: the pair numbers of {name1} and {name2} do not read 1 and 2"
+                    ));
+                }
+                let mut first = make(frec1, base1.clone())?;
+                first.flags |= 0x1 | 0x8 | 0x40;
+                records.push(first);
+                let mut second = make(frec2, base1)?;
+                second.flags |= 0x1 | 0x8 | 0x80;
+                records.push(second);
+            }
+            if reads1.len() != reads2.len() {
+                return Err(
+                    "picard.PicardException: Input paired fastq files must be the same length"
+                        .to_string(),
+                );
+            }
+        }
+    }
+    if opts.sort_order == "queryname" {
+        records.sort_by(query_name::compare);
+    }
+    let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &records {
+        w.write(rec).expect("unmapped record re-encodes as BAM");
+    }
+    Ok(w.finish().expect("finish never fails on a Vec"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

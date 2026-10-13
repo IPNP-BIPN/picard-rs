@@ -64,7 +64,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         drop_missing_contigs: flag(&args, "DROP_MISSING_CONTIGS=", false)?,
     };
 
-    let dictionary_text = std::fs::read_to_string(&dictionary)?;
+    // `SAMSequenceDictionaryExtractor`: a FASTA's dictionary is the `.dict` beside it.
+    let beside = std::path::Path::new(&dictionary);
+    let dictionary_text = match beside.extension().and_then(|e| e.to_str()) {
+        Some("fasta" | "fa" | "fna") => std::fs::read_to_string(beside.with_extension("dict"))?,
+        _ => std::fs::read_to_string(&dictionary)?,
+    };
     let bed = std::fs::read_to_string(&input)?;
     let list = bed_to_interval_list(&dictionary_text, &bed, &opts).map_err(|e| format!("{e:?}"))?;
 

@@ -19,6 +19,8 @@ jmath.workspace = true
 rayon = "1"
 # The sequence-dictionary M5 is an MD5 of the uppercased contig bases (SequenceUtil.calculateMD5).
 md-5 = "0.11"
+# `READ_NAME_REGEX` when it is not the default: a Java `Pattern` the parser `matches` a name against.
+regex = "1"
 
 [dev-dependencies]
 flate2 = { version = "1", default-features = false, features = ["zlib"] }

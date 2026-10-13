@@ -77,9 +77,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         read_sam(&text).map_err(|e| format!("{e:?}"))?
     };
 
+    // `SinglePassSamProgram.makeItSo` counts a record after handing it over, and stops once
+    // `STOP_AFTER` of them have been handed over; zero or less reads them all.
+    let stop_after: i64 = arg(&args, "STOP_AFTER=")
+        .map(|v| v.parse())
+        .transpose()?
+        .unwrap_or(0);
     let mut collector = QualityYieldMetricsCollector::new(options);
-    for record in &records {
+    for (count, record) in (1i64..).zip(&records) {
         collector.accept(record);
+        if stop_after > 0 && count >= stop_after {
+            break;
+        }
     }
     collector.finish();
 

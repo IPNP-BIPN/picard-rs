@@ -122,7 +122,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         rgsm: arg(&args, "RGSM=")
             .or_else(|| arg(&args, "SM="))
             .ok_or("RGSM= is required")?,
+        optional: Vec::new(),
     };
+    let mut opts = opts;
+    // `doWork`'s setter order, each set only when given.
+    for (name, tag) in [
+        ("RGCN", "CN"),
+        ("RGDS", "DS"),
+        ("RGDT", "DT"),
+        ("RGPI", "PI"),
+        ("RGPG", "PG"),
+        ("RGPM", "PM"),
+        ("RGKS", "KS"),
+        ("RGFO", "FO"),
+    ] {
+        let Some(value) =
+            arg(&args, &format!("{name}=")).or_else(|| arg(&args, &format!("{tag}=")))
+        else {
+            continue;
+        };
+        let value = match tag {
+            "DT" => picard_analysis::add_or_replace_read_groups::iso8601(&value)
+                .ok_or_else(|| format!("unreadable RGDT: {value}"))?,
+            "PI" => value.parse::<i32>()?.to_string(),
+            _ => value,
+        };
+        opts.optional.push((tag, value));
+    }
     let create_index = arg(&args, "CREATE_INDEX=")
         .map(|value| value == "true")
         .unwrap_or(false);

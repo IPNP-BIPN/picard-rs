@@ -23,12 +23,10 @@
 //!
 //! `NUM_SEQUENCES` truncates the dictionary to its first N contigs.
 //!
-//! `TRUNCATE_NAMES_AT_WHITESPACE=false` is NOT ported, and the reason is one layer down:
-//! `ReferenceSequenceFileFactory.getReferenceSequenceFile` takes the flag and the reader keeps the
-//! whole header when it is false, while `htsjdk_bam::fasta::ReferenceSequence` truncates and drops
-//! the description. Supporting it here would mean inventing the untruncated name from something
-//! this port no longer has. The array holds the argument at Picard's default until the reader
-//! carries the description. `ALT_NAMES` and the alias handling are a separate surface.
+//! `TRUNCATE_NAMES_AT_WHITESPACE=false` is answered by the binary before this runs: the whole
+//! header becomes the name, and a header with a description in it is an illegal `@SQ` name, so
+//! that path either refuses or names every contig exactly as this does. `ALT_NAMES` and the alias
+//! handling are a separate surface.
 
 use htsjdk_bam::fasta::{read_fasta, FastaError};
 use md5::{Digest, Md5};

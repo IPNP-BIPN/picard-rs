@@ -217,18 +217,36 @@ impl Default for Options {
     }
 }
 
-/// `InsertSizeMetricsCollector` restricted to the ALL_READS level, which is the default.
+/// `PerUnitInsertSizeMetricsCollector`: one unit's three histograms, named for the unit.
 pub struct InsertSizeMetricsCollector {
     options: Options,
     histograms: [Histogram; 3],
+    sample: Option<String>,
+    library: Option<String>,
+    read_group: Option<String>,
 }
 
 impl InsertSizeMetricsCollector {
+    /// The ALL_READS unit, whose histograms are prefixed `All_Reads.`.
     pub fn new(options: Options) -> Self {
-        // The prefix is "All_Reads." when no sample, library or read group is set, which is
-        // the only level the default METRIC_ACCUMULATION_LEVEL produces.
+        Self::for_unit(options, None, None, None)
+    }
+
+    /// `makeChildCollector(sample, library, readGroup)`: the histograms are prefixed with the most
+    /// specific of the three that is set, and the metric rows carry all three.
+    pub fn for_unit(
+        options: Options,
+        sample: Option<String>,
+        library: Option<String>,
+        read_group: Option<String>,
+    ) -> Self {
+        let prefix = read_group
+            .as_ref()
+            .or(library.as_ref())
+            .or(sample.as_ref())
+            .map_or("All_Reads.".to_string(), |unit| format!("{unit}."));
         let mk = |o: PairOrientation| {
-            Histogram::new("insert_size", &format!("All_Reads.{}", o.label_suffix()))
+            Histogram::new("insert_size", &format!("{prefix}{}", o.label_suffix()))
         };
         InsertSizeMetricsCollector {
             options,
@@ -237,6 +255,9 @@ impl InsertSizeMetricsCollector {
                 mk(PairOrientation::Rf),
                 mk(PairOrientation::Tandem),
             ],
+            sample,
+            library,
+            read_group,
         }
     }
 
@@ -283,6 +304,9 @@ impl InsertSizeMetricsCollector {
 
             let mut m = InsertSizeMetrics {
                 pair_orientation: Some(orientation),
+                sample: self.sample.clone(),
+                library: self.library.clone(),
+                read_group: self.read_group.clone(),
                 ..Default::default()
             };
 

@@ -78,6 +78,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     std::fs::write(&output, &result.output)?;
+    if let Some(reject) = arg(&args, "REJECT=") {
+        std::fs::write(reject, &result.rejects)?;
+    }
     // `return anyRejected ? 1 : 0`, after the file has been written.
     std::process::exit(result.return_code);
 }

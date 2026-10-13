@@ -34,6 +34,16 @@ fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
+    let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
+        std::env::args()
+            .find_map(|a| a.strip_prefix("READ_NAME_REGEX=").map(str::to_string))
+            .as_deref(),
+    )
+    .unwrap_or_else(|thrown| {
+        eprintln!("Exception in thread \"main\" {thrown}");
+        std::process::exit(1);
+    });
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -54,19 +64,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
         remove_duplicates: flag("REMOVE_DUPLICATES=", false),
-        remove_sequencing_duplicates: flag("REMOVE_SEQUENCING_DUPLICATES=", false),
+        // This tool's own `doWork` reads none of the three: it never removes a read for being an
+        // optical duplicate, never writes a `DT`, and leaves one the input carried where it was.
+        remove_sequencing_duplicates: false,
         tagging_policy: match arg(&args, "TAGGING_POLICY=").as_deref() {
-            None | Some("DontTag") => TaggingPolicy::DontTag,
-            Some("OpticalOnly") => TaggingPolicy::OpticalOnly,
-            Some("All") => TaggingPolicy::All,
+            None | Some("DontTag" | "OpticalOnly" | "All") => TaggingPolicy::DontTag,
             Some(other) => return Err(format!("unknown TAGGING_POLICY: {other}").into()),
         },
-        clear_dt: flag("CLEAR_DT=", true),
+        clear_dt: false,
         optical_duplicate_pixel_distance: arg(&args, "OPTICAL_DUPLICATE_PIXEL_DISTANCE=")
             .map(|v| v.parse::<i32>())
             .transpose()?
             .unwrap_or(100),
-        parse_read_names: true,
+        parse_read_names: !read_name_regex.is_off(),
+        read_name_regex,
+        max_optical_duplicate_set_size: std::env::args()
+            .find_map(|a| {
+                a.strip_prefix("MAX_OPTICAL_DUPLICATE_SET_SIZE=")
+                    .and_then(|v| v.parse().ok())
+            })
+            .unwrap_or(300_000),
         barcode_tag: arg(&args, "BARCODE_TAG="),
         assume_mate_cigar: false,
     };
@@ -96,7 +113,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // surely as the file does: a coordinate-sorted file assumed to be anything else is refused,
     // and the message says nothing about the assumption.
     let mut header = header;
-    if let Some(order) = arg(&args, "ASSUME_SORT_ORDER=").or_else(|| arg(&args, "ASO=")) {
+    // `ASSUME_SORTED=true` stands for `ASSUME_SORT_ORDER=coordinate`.
+    let assumed = arg(&args, "ASSUME_SORT_ORDER=")
+        .or_else(|| arg(&args, "ASO="))
+        .or_else(|| {
+            (arg(&args, "ASSUME_SORTED=")
+                .or_else(|| arg(&args, "AS="))
+                .as_deref()
+                == Some("true"))
+            .then(|| "coordinate".to_string())
+        });
+    if let Some(order) = assumed {
         header.set_sort_order(&order);
     }
     let header_order = header
@@ -179,7 +206,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let out_header = header.clone();
+    let mut out_header = header.clone();
+    // `COMMENT.forEach(outputHeader::addComment)`.
+    for comment in args
+        .iter()
+        .filter_map(|a| a.strip_prefix("COMMENT=").or_else(|| a.strip_prefix("CO=")))
+    {
+        out_header.comments.push(format!("@CO\t{comment}"));
+    }
     let add_pg_tag = flag("ADD_PG_TAG_TO_READS=", true);
 
     let mut writer = BamWriter::new(Vec::new(), &out_header).map_err(|e| format!("{e:?}"))?;
@@ -192,8 +226,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if marking.duplicate[index] {
             written.flags |= DUPLICATE_READ;
         }
-        written.tags.remove(Tag::new(b"DT"));
-        if let Some(code) = &marking.duplicate_type[index] {
+        let existing = string_tag(record, b"DT");
+        if marking.duplicate_type[index] != existing {
+            written.tags.remove(Tag::new(b"DT"));
+        }
+        if let (Some(code), true) = (
+            &marking.duplicate_type[index],
+            marking.duplicate_type[index] != existing,
+        ) {
             written
                 .tags
                 .insert(Tag::new(b"DT"), TagValue::Str(code.clone()));

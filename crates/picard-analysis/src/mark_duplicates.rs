@@ -39,7 +39,6 @@
 //!  * **the barcode HASH**: the reference keys a barcode by `Objects.hash` of the tag's value, and
 //!    what the port compares is the value itself. The two agree except on a collision, which no
 //!    fixture has;
-//!  * **`TAG_DUPLICATE_SET_MEMBERS`** and the `DI`/`DS` tags it writes.
 //!
 //! Ported from `picard.sam.markduplicates.MarkDuplicates`,
 //! `picard.sam.markduplicates.util.AbstractMarkDuplicatesCommandLineProgram`,
@@ -86,6 +85,11 @@ pub struct Options {
     /// `READ_NAME_REGEX`, of which only "the default" and "none" are ported: a custom regex is a
     /// `java.util.regex` pattern, and the port has no Java regex engine.
     pub parse_read_names: bool,
+    /// `READ_NAME_REGEX`, which `parse_read_names` is false for when it is `null`.
+    pub read_name_regex: ReadNameRegex,
+    /// `MAX_OPTICAL_DUPLICATE_SET_SIZE`: a list handed to the optical finder that is longer than
+    /// this gets no optical duplicates at all.
+    pub max_optical_duplicate_set_size: i64,
     /// `BARCODE_TAG`, whose value splits one position into one set per barcode.
     pub barcode_tag: Option<String>,
     /// Not an argument of any tool: the two mate-cigar markers score a pair from ONE end, adding
@@ -107,6 +111,8 @@ impl Default for Options {
             clear_dt: true,
             optical_duplicate_pixel_distance: DEFAULT_OPTICAL_DUPLICATE_DISTANCE,
             parse_read_names: true,
+            read_name_regex: ReadNameRegex::Default,
+            max_optical_duplicate_set_size: 300_000,
             barcode_tag: None,
             assume_mate_cigar: false,
         }
@@ -357,6 +363,69 @@ pub fn location(name: &str) -> Location {
     }
 }
 
+/// `READ_NAME_REGEX`: the optimised default, `null` (no locations at all), or a pattern.
+#[derive(Debug, Clone, Default)]
+pub enum ReadNameRegex {
+    #[default]
+    Default,
+    Off,
+    /// The pattern, anchored at both ends because `Matcher.matches` is.
+    Pattern(regex::Regex),
+}
+
+impl ReadNameRegex {
+    /// The argument as given: absent or the default's own text is the default, `null` is off.
+    pub fn from_arg(value: Option<&str>) -> Result<Self, String> {
+        match value {
+            None
+            | Some("<optimized capture of last three ':' separated fields as numeric values>") => {
+                Ok(ReadNameRegex::Default)
+            }
+            Some("null") => Ok(ReadNameRegex::Off),
+            Some(pattern) => regex::Regex::new(&format!("^(?:{pattern})$"))
+                .map(ReadNameRegex::Pattern)
+                .map_err(|e| format!("java.util.regex.PatternSyntaxException: {e}")),
+        }
+    }
+
+    pub fn is_off(&self) -> bool {
+        matches!(self, ReadNameRegex::Off)
+    }
+}
+
+/// `Integer.parseInt`: an optional sign and decimal digits, nothing else, within `int`.
+fn java_parse_int(text: &str) -> Option<i32> {
+    let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    text.parse::<i32>().ok()
+}
+
+/// `ReadNameParser.readLocationInformation` under any `READ_NAME_REGEX`: groups one to three of
+/// a whole-name match are the tile (cast to `short`), x and y.
+pub fn location_with(name: &str, regex: &ReadNameRegex) -> Location {
+    match regex {
+        ReadNameRegex::Default => location(name),
+        ReadNameRegex::Off => Location::default(),
+        ReadNameRegex::Pattern(pattern) => {
+            let Some(groups) = pattern.captures(name) else {
+                return Location::default();
+            };
+            let field = |i: usize| groups.get(i).and_then(|m| java_parse_int(m.as_str()));
+            match (field(1), field(2), field(3)) {
+                (Some(tile), Some(x), Some(y)) => Location {
+                    tile: tile as i16,
+                    x,
+                    y,
+                    known: true,
+                },
+                _ => Location::default(),
+            }
+        }
+    }
+}
+
 /// `ReadEndsForMarkDuplicates`: one record's, or one pair's, position and score.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadEnds {
@@ -402,7 +471,7 @@ pub fn build_read_ends(record: &Record, index: usize, options: &Options) -> Read
         read2_index_in_file: index,
         score: duplicate_score_with(record, options.scoring, options.assume_mate_cigar),
         location: if options.parse_read_names {
-            location(&record.name)
+            location_with(&record.name, &options.read_name_regex)
         } else {
             Location::default()
         },
@@ -665,6 +734,10 @@ pub struct Marking {
     pub all_sets: Vec<(f64, f64)>,
     pub optical_sets: Vec<(f64, f64)>,
     pub non_optical_sets: Vec<(f64, f64)>,
+    /// `TAG_DUPLICATE_SET_MEMBERS`: for each record in a duplicate set of pairs, the index in the
+    /// file of the set's representative read (its best end's first read) and the set's size,
+    /// which the `DI` and `DS` tags carry.
+    pub duplicate_set: Vec<Option<(usize, usize)>>,
 }
 
 /// `Histogram.increment`, which adds to the bin or creates it.
@@ -781,6 +854,7 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
 
     let mut duplicate = vec![false; records.len()];
     let mut optical = vec![false; records.len()];
+    let mut duplicate_set = vec![None; records.len()];
     let mut all_sets: Vec<(f64, f64)> = Vec::new();
     let mut optical_sets: Vec<(f64, f64)> = Vec::new();
     let mut non_optical_sets: Vec<(f64, f64)> = Vec::new();
@@ -798,6 +872,12 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
             continue;
         }
         let keeper = best(&chunk);
+        // `addRepresentativeReadIndex`, whose best is chosen by the same rule as the keeper.
+        let representative = chunk[keeper].read1_index_in_file;
+        for ends in &chunk {
+            duplicate_set[ends.read1_index_in_file] = Some((representative, chunk.len()));
+            duplicate_set[ends.read2_index_in_file] = Some((representative, chunk.len()));
+        }
         let flags = if options.parse_read_names {
             optical_flags(&chunk, keeper, options)
         } else {
@@ -864,6 +944,7 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
     marking.all_sets = all_sets;
     marking.optical_sets = optical_sets;
     marking.non_optical_sets = non_optical_sets;
+    marking.duplicate_set = duplicate_set;
     marking
 }
 
@@ -921,12 +1002,15 @@ fn optical_flags(chunk: &[ReadEnds], keeper: usize, options: &Options) -> Vec<bo
     let has_rf = chunk
         .iter()
         .any(|ends| ends.orientation_for_optical_duplicates == RF);
+    let limited = |list: &[ReadEnds], keeper: Option<usize>| -> Vec<bool> {
+        if list.len() as i64 > options.max_optical_duplicate_set_size {
+            vec![false; list.len()]
+        } else {
+            optical_duplicates(list, keeper, options.optical_duplicate_pixel_distance)
+        }
+    };
     if !(has_fr && has_rf) {
-        return optical_duplicates(
-            chunk,
-            Some(keeper),
-            options.optical_duplicate_pixel_distance,
-        );
+        return limited(chunk, Some(keeper));
     }
     let mut flags = vec![false; chunk.len()];
     for orientation in [FR, RF] {
@@ -938,11 +1022,7 @@ fn optical_flags(chunk: &[ReadEnds], keeper: usize, options: &Options) -> Vec<bo
             .map(|index| chunk[*index].clone())
             .collect();
         let inner_keeper = positions.iter().position(|index| *index == keeper);
-        let inner = optical_duplicates(
-            &list,
-            inner_keeper,
-            options.optical_duplicate_pixel_distance,
-        );
+        let inner = limited(&list, inner_keeper);
         for (position, flag) in positions.iter().zip(inner) {
             flags[*position] = flag;
         }
@@ -1050,5 +1130,6 @@ fn write(records: &[Record], options: &Options, duplicate: &[bool], optical: &[b
         all_sets: Vec::new(),
         optical_sets: Vec::new(),
         non_optical_sets: Vec::new(),
+        duplicate_set: vec![None; records.len()],
     }
 }

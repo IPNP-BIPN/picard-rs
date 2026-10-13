@@ -421,13 +421,25 @@ pub fn main_for(tool: Tool) {
             (vec![path], name)
         }
     };
-    for side in [
-        "PER_TARGET_COVERAGE",
-        "PER_BASE_COVERAGE",
-        "THEORETICAL_SENSITIVITY_OUTPUT",
-    ] {
-        if one(&args, side, None).filter(|v| not_null(v)).is_some() {
-            fail(&format!("{side} is not ported"));
+    let side = |name: &str| {
+        one(&args, name, None)
+            .filter(|v| not_null(v))
+            .map(str::to_string)
+    };
+    let per_target_coverage = side("PER_TARGET_COVERAGE");
+    let per_base_coverage = side("PER_BASE_COVERAGE");
+    let theoretical_output = side("THEORETICAL_SENSITIVITY_OUTPUT");
+    // `ALLELE_FRACTION`: a collection appended to its default, emptied by `null`.
+    let mut allele_fractions: Vec<f64> = vec![0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5];
+    for value in values_of(&args, "ALLELE_FRACTION", None) {
+        if value == "null" {
+            allele_fractions.clear();
+        } else {
+            allele_fractions.push(
+                value
+                    .parse()
+                    .unwrap_or_else(|_| fail(&format!("bad ALLELE_FRACTION: {value}"))),
+            );
         }
     }
     if let Some(stringency) = one(&args, "VALIDATION_STRINGENCY", None) {
@@ -453,6 +465,17 @@ pub fn main_for(tool: Tool) {
         if !levels.contains(&level) {
             levels.push(level);
         }
+    }
+    // `customCommandLineValidation`: a per-target file is one unit's, and its GC needs bases.
+    if per_target_coverage.is_some() && levels != [Level::AllReads] {
+        fail("PER_TARGET_COVERAGE can be specified only when METRIC_ACCUMULATION_LEVEL is set to ALL_READS.");
+    }
+    if per_target_coverage.is_some()
+        && one(&args, "REFERENCE_SEQUENCE", Some("R"))
+            .filter(|v| not_null(v))
+            .is_none()
+    {
+        fail("Must supply REFERENCE_SEQUENCE when supplying PER_TARGET_COVERAGE");
     }
     let hs = tool == Tool::Hs;
     let options = Options {
@@ -523,6 +546,91 @@ pub fn main_for(tool: Tool) {
     let outcome =
         collect(&records, group_of, &groups, &panel, &options).unwrap_or_else(|e| thrown(&e));
 
+    // The targets as `uniqued()` leaves them, names joined with `|`, for the two coverage files.
+    let mut all_targets = IntervalList::new(names.clone());
+    for path in &targets_paths {
+        let text = std::fs::read_to_string(path).unwrap_or_else(|e| fail(&format!("{e}")));
+        let list = IntervalList::parse_body(names.to_vec(), &text)
+            .unwrap_or_else(|e| fail(&format!("{e:?}")));
+        all_targets.intervals.extend(list.intervals);
+    }
+    let named = all_targets.uniqued(true).intervals;
+    let target_name = |t: usize| {
+        named
+            .get(t)
+            .and_then(|i| i.name.clone())
+            .unwrap_or_else(|| "null".to_string())
+    };
+    // `calculateGcMetrics`, run by the one unit a per-target file is allowed with.
+    if let (Some(path), Some(gc), Some(unit)) = (
+        &per_target_coverage,
+        &panel.target_gc,
+        outcome.units.first(),
+    ) {
+        let fmt = |x: f64| Value::Double(x).format();
+        let mut text = String::from("chrom\tstart\tend\tlength\tname\t%gc\tmean_coverage\tnormalized_coverage\tmin_normalized_coverage\tmax_normalized_coverage\tmin_coverage\tmax_coverage\tpct_0x\tread_count\n");
+        for (t, &(seq, start, end)) in panel.targets.iter().enumerate() {
+            let length = (end - start + 1) as f64;
+            if length <= 0.0 {
+                continue;
+            }
+            let depths = &unit.depths[t];
+            let total: i64 = depths.iter().map(|&d| i64::from(d)).sum();
+            let coverage = total as f64 / length;
+            let (mut min, mut max) = (i32::MAX as f64, i32::MIN as f64);
+            let mut zero = 0.0;
+            for &d in depths {
+                let d = f64::from(d);
+                if d == 0.0 {
+                    zero += 1.0;
+                }
+                if d < min {
+                    min = d;
+                }
+                if max < d {
+                    max = d;
+                }
+            }
+            let mean = unit.mean_target_coverage;
+            text.push_str(&format!(
+                "{}\t{start}\t{end}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                names[seq as usize],
+                length as i64,
+                target_name(t),
+                fmt(gc[t]),
+                fmt(coverage),
+                fmt(coverage / mean),
+                fmt(min / mean),
+                fmt(max / mean),
+                fmt(min),
+                fmt(max),
+                fmt(zero / length),
+                Value::Long(unit.read_counts[t]).format(),
+            ));
+        }
+        if let Err(e) = std::fs::write(path, text) {
+            fail(&format!("{e}"));
+        }
+    }
+    // `emitPerBaseCoverageIfRequested`, which every unit runs into the same file: the last one
+    // to finish is the one left.
+    if let (Some(path), Some(unit)) = (&per_base_coverage, outcome.units.last()) {
+        let mut text = String::from("chrom\tpos\ttarget\tcoverage\n");
+        for (t, &(seq, start, _)) in panel.targets.iter().enumerate() {
+            for (i, depth) in unit.depths[t].iter().enumerate() {
+                text.push_str(&format!(
+                    "{}\t{}\t{}\t{depth}\n",
+                    names[seq as usize],
+                    start + i as i32,
+                    target_name(t)
+                ));
+            }
+        }
+        if let Err(e) = std::fs::write(path, text) {
+            fail(&format!("{e}"));
+        }
+    }
+
     let mut file = MetricsFile::new();
     file.add_header(&format!(
         "{} <command line>",
@@ -546,5 +654,30 @@ pub fn main_for(tool: Tool) {
     text.push('\n');
     if let Err(e) = std::fs::write(&output, text) {
         fail(&format!("{e}"));
+    }
+    if let Some(path) = theoretical_output {
+        use crate::theoretical_sensitivity::{calculate_sensitivities_with, JavaHistogram};
+        let rows = calculate_sensitivities_with(
+            options.sample_size as i32,
+            &JavaHistogram::from_bins(&outcome.unfiltered_depth),
+            &JavaHistogram::from_bins(&outcome.unfiltered_base_q),
+            &allele_fractions,
+        )
+        .unwrap_or_else(|e| thrown(&e));
+        let mut sensitivity = MetricsFile::new();
+        sensitivity.add_header(&format!(
+            "{} <command line>",
+            match tool {
+                Tool::Hs => "CollectHsMetrics",
+                Tool::TargetedPcr => "CollectTargetedPcrMetrics",
+            }
+        ));
+        sensitivity.add_header("Started on: <timestamp>");
+        for row in &rows {
+            sensitivity.add_metric(&crate::wgs_cli::SensitivityMetric(row));
+        }
+        if let Err(e) = std::fs::write(&path, sensitivity.write()) {
+            fail(&format!("{e}"));
+        }
     }
 }

@@ -210,6 +210,14 @@ pub struct LibraryHistograms {
     pub optical: BTreeMap<i64, i64>,
 }
 
+/// `OPTICAL_DUPLICATE_PIXEL_DISTANCE` and `MAX_OPTICAL_DUPLICATE_SET_SIZE`: how close two reads
+/// must be to be one cluster, and how large a set the finder looks at.
+#[derive(Debug, Clone, Copy)]
+pub struct OpticalLimits {
+    pub distance: i32,
+    pub max_set_size: i64,
+}
+
 /// `ElcIdenticalBasesDuplicatesFinder.searchDuplicates` and `fillHistogram`.
 ///
 /// Each pair not already claimed takes every later pair that matches it, and the SIZE of what it
@@ -224,7 +232,7 @@ pub fn search_duplicates(
     seed: usize,
     max_diff_rate: f64,
     max_read_length: usize,
-    optical_distance: i32,
+    optical: OpticalLimits,
     use_barcodes: bool,
     histograms: &mut LibraryHistograms,
 ) {
@@ -284,7 +292,12 @@ pub fn search_duplicates(
                 }
             })
             .collect();
-        let flags = optical_duplicates(&ends, Some(ends.len() - 1), optical_distance);
+        // `findOpticalDuplicates` returns nothing for a set longer than its maximum.
+        let flags = if ends.len() as i64 > optical.max_set_size {
+            vec![false; ends.len()]
+        } else {
+            optical_duplicates(&ends, Some(ends.len() - 1), optical.distance)
+        };
         for flag in flags {
             if flag {
                 *histograms.optical.entry(size).or_insert(0) += 1;

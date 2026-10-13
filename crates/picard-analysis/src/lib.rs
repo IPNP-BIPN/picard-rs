@@ -117,6 +117,7 @@ pub mod revert_sam;
 pub mod rnaseq_metrics;
 pub mod sam_format_converter;
 pub mod sam_to_fastq;
+pub mod sam_to_fastq_full;
 pub mod sam_to_fastq_with_tags;
 pub mod scatter_intervals_by_ns;
 pub mod series_stats;

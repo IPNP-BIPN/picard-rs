@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 22,
-  "arguments_in_array": 5,
-  "arguments_excluded": 17,
+  "arguments_in_array": 6,
+  "arguments_excluded": 16,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -85,13 +85,6 @@
       "source": "none"
     },
     {
-      "argument": "--THREAD_COUNT",
-      "type": "int",
-      "reason": "only one value available (default)",
-      "held_at": "1",
-      "source": "default"
-    },
-    {
       "argument": "--TMP_DIR",
       "type": "List[File]",
       "reason": "only one value available (fixture[0])",
@@ -127,9 +120,9 @@
       "source": "none"
     }
   ],
-  "rows": 8,
-  "tuples_total": 48,
-  "tuples_covered": 48,
+  "rows": 9,
+  "tuples_total": 70,
+  "tuples_covered": 70,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -143,6 +136,7 @@
         "--DBSNP": "fixture[0]",
         "--GVCF_INPUT": "true",
         "--TARGET_INTERVALS": "fixture[0]",
+        "--THREAD_COUNT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -150,6 +144,7 @@
         "--DBSNP=/work/fixtures/dbsnp.vcf",
         "--GVCF_INPUT=true",
         "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
+        "--THREAD_COUNT=1",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -160,6 +155,7 @@
         "--DBSNP": "fixture[1]",
         "--GVCF_INPUT": "false",
         "--TARGET_INTERVALS": "fixture[1]",
+        "--THREAD_COUNT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
@@ -167,6 +163,7 @@
         "--DBSNP=/work/fixtures/variants.vcf",
         "--GVCF_INPUT=false",
         "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
+        "--THREAD_COUNT=2",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -177,6 +174,7 @@
         "--DBSNP": "fixture[0]",
         "--GVCF_INPUT": "false",
         "--TARGET_INTERVALS": "fixture[0]",
+        "--THREAD_COUNT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -184,6 +182,7 @@
         "--DBSNP=/work/fixtures/dbsnp.vcf",
         "--GVCF_INPUT=false",
         "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
+        "--THREAD_COUNT=2",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -194,14 +193,16 @@
         "--DBSNP": "fixture[1]",
         "--GVCF_INPUT": "true",
         "--TARGET_INTERVALS": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--THREAD_COUNT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--DBSNP=/work/fixtures/variants.vcf",
         "--GVCF_INPUT=true",
         "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--THREAD_COUNT=1",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -209,32 +210,36 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--DBSNP": "fixture[0]",
-        "--GVCF_INPUT": "true",
+        "--GVCF_INPUT": "false",
         "--TARGET_INTERVALS": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--THREAD_COUNT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--DBSNP=/work/fixtures/dbsnp.vcf",
-        "--GVCF_INPUT=true",
+        "--GVCF_INPUT=false",
         "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--THREAD_COUNT=1",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 5,
       "labels": {
-        "--CREATE_INDEX": "true",
+        "--CREATE_INDEX": "false",
         "--DBSNP": "fixture[1]",
         "--GVCF_INPUT": "true",
         "--TARGET_INTERVALS": "fixture[0]",
+        "--THREAD_COUNT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
+        "--CREATE_INDEX=false",
         "--DBSNP=/work/fixtures/variants.vcf",
         "--GVCF_INPUT=true",
         "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
+        "--THREAD_COUNT=1",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -244,15 +249,17 @@
         "--CREATE_INDEX": "true",
         "--DBSNP": "fixture[1]",
         "--GVCF_INPUT": "true",
-        "--TARGET_INTERVALS": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--TARGET_INTERVALS": "fixture[0]",
+        "--THREAD_COUNT": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--DBSNP=/work/fixtures/variants.vcf",
         "--GVCF_INPUT=true",
-        "--TARGET_INTERVALS=/work/fixtures/targets_mixed.interval_list",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
+        "--THREAD_COUNT=2",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -260,16 +267,37 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--DBSNP": "fixture[0]",
-        "--GVCF_INPUT": "false",
+        "--GVCF_INPUT": "true",
         "--TARGET_INTERVALS": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--THREAD_COUNT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--DBSNP=/work/fixtures/dbsnp.vcf",
-        "--GVCF_INPUT=false",
+        "--GVCF_INPUT=true",
         "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--THREAD_COUNT=1",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--DBSNP": "fixture[0]",
+        "--GVCF_INPUT": "true",
+        "--TARGET_INTERVALS": "fixture[0]",
+        "--THREAD_COUNT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--DBSNP=/work/fixtures/dbsnp.vcf",
+        "--GVCF_INPUT=true",
+        "--TARGET_INTERVALS=/work/fixtures/targets.interval_list",
+        "--THREAD_COUNT=1",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     }
   ]

@@ -724,6 +724,9 @@ public class MakeFixtures {
             r.setAttribute("CY", "IIIIIII");
             r.setAttribute("UR", "TTGCA");
             r.setAttribute("UY", "IIIII");
+            // An integer tag inside the read, for SamToFastq's CLIPPING_ATTRIBUTE: a clip point
+            // past the end of the read is an exception rather than a clip, so it stays in 10..39.
+            r.setAttribute("XT", 10 + n % 30);
         }
         writeBam(new File(dir, "tagged.bam"), taggedHeader, taggedReads, false);
 

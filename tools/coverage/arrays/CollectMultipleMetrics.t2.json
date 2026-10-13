@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 28,
-  "arguments_in_array": 12,
-  "arguments_excluded": 16,
+  "arguments_in_array": 13,
+  "arguments_excluded": 15,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -78,13 +78,6 @@
       "source": "none"
     },
     {
-      "argument": "--STOP_AFTER",
-      "type": "int",
-      "reason": "only one value available (default)",
-      "held_at": "0",
-      "source": "default"
-    },
-    {
       "argument": "--TMP_DIR",
       "type": "List[File]",
       "reason": "only one value available (fixture[0])",
@@ -121,8 +114,8 @@
     }
   ],
   "rows": 18,
-  "tuples_total": 379,
-  "tuples_covered": 379,
+  "tuples_total": 437,
+  "tuples_covered": 437,
   "tuples_forbidden": 2,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -143,6 +136,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[0]",
         "--REF_FLAT": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -157,6 +151,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=CollectAlignmentSummaryMetrics",
         "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -174,6 +169,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--PROGRAM": "fixture[2]",
         "--REF_FLAT": "fixture[1]",
+        "--STOP_AFTER": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
@@ -188,6 +184,7 @@
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--PROGRAM=null CollectGcBiasMetrics RnaSeqMetrics",
         "--REF_FLAT=null",
+        "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -205,6 +202,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[1]",
         "--REF_FLAT": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -219,6 +217,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=CollectQualityYieldMetrics",
         "--REF_FLAT=null",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -236,6 +235,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--PROGRAM": "fixture[3]",
         "--REF_FLAT": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -250,6 +250,7 @@
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--PROGRAM=null CollectSequencingArtifactMetrics QualityScoreDistribution",
         "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -267,6 +268,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[4]",
         "--REF_FLAT": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
@@ -281,6 +283,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=null",
         "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -298,6 +301,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--PROGRAM": "fixture[2]",
         "--REF_FLAT": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -312,6 +316,7 @@
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--PROGRAM=null CollectGcBiasMetrics RnaSeqMetrics",
         "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -329,6 +334,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[1]",
         "--REF_FLAT": "fixture[1]",
+        "--STOP_AFTER": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -343,6 +349,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=CollectQualityYieldMetrics",
         "--REF_FLAT=null",
+        "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -360,6 +367,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[3]",
         "--REF_FLAT": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
@@ -374,6 +382,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=null CollectSequencingArtifactMetrics QualityScoreDistribution",
         "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -391,6 +400,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[2]",
         "--REF_FLAT": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
@@ -405,6 +415,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=null CollectGcBiasMetrics RnaSeqMetrics",
         "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -422,6 +433,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[4]",
         "--REF_FLAT": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -436,6 +448,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=null",
         "--REF_FLAT=null",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -453,6 +466,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--PROGRAM": "fixture[2]",
         "--REF_FLAT": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -467,6 +481,7 @@
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--PROGRAM=null CollectGcBiasMetrics RnaSeqMetrics",
         "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -484,6 +499,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[0]",
         "--REF_FLAT": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -498,6 +514,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=CollectAlignmentSummaryMetrics",
         "--REF_FLAT=null",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -515,6 +532,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[1]",
         "--REF_FLAT": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
@@ -529,6 +547,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=CollectQualityYieldMetrics",
         "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -546,6 +565,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[3]",
         "--REF_FLAT": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -560,6 +580,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=null CollectSequencingArtifactMetrics QualityScoreDistribution",
         "--REF_FLAT=null",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -577,6 +598,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--PROGRAM": "fixture[4]",
         "--REF_FLAT": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -591,6 +613,7 @@
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--PROGRAM=null",
         "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -608,6 +631,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[0]",
         "--REF_FLAT": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -622,6 +646,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=CollectAlignmentSummaryMetrics",
         "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -639,6 +664,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[4]",
         "--REF_FLAT": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -653,6 +679,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=null",
         "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -670,6 +697,7 @@
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--PROGRAM": "fixture[0]",
         "--REF_FLAT": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
@@ -684,6 +712,7 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--PROGRAM=CollectAlignmentSummaryMetrics",
         "--REF_FLAT=/work/fixtures/refflat.txt",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     }

@@ -24,7 +24,8 @@
       "/work/fixtures/ref.fasta"
     ],
     "--HISTOGRAM_FILE": [
-      "/work/out/histogram.pdf"
+      "/work/out/histogram.pdf",
+      "/work/out/histogram_other.pdf"
     ],
     "--METRICS": [
       "/work/out/metrics.txt"
@@ -33,7 +34,8 @@
       "/work/out/metrics.txt"
     ],
     "--CHART_OUTPUT": [
-      "/work/out/chart.pdf"
+      "/work/out/chart.pdf",
+      "/work/out/chart_other.pdf"
     ],
     "--INTERVAL_LIST": [
       "/work/fixtures/targets.interval_list",
@@ -132,13 +134,22 @@
         "/work/fixtures/tagged.bam"
       ],
       "--FASTQ": [
-        "/work/out/reads.fastq"
+        "/work/out/reads.fastq",
+        "<absent>"
       ],
       "--SECOND_END_FASTQ": [
-        "/work/out/second.fastq"
+        "/work/out/second.fastq",
+        "<absent>"
       ],
-      "--OUTPUT_PER_RG": [],
-      "--COMPRESS_OUTPUTS_PER_RG": [],
+      "--OUTPUT_PER_RG": [
+        "<absent>",
+        "true"
+      ],
+      "--COMPRESS_OUTPUTS_PER_RG": [
+        "<absent>",
+        "false",
+        "true"
+      ],
       "--SEQUENCE_TAG_GROUP": [
         "CB",
         "CB,UR"
@@ -146,6 +157,56 @@
       "--QUALITY_TAG_GROUP": [
         "CY",
         "CY,UY"
+      ],
+      "--UNPAIRED_FASTQ": [
+        "<absent>",
+        "/work/out/unpaired.fastq"
+      ],
+      "--OUTPUT_DIR": [
+        "<absent>",
+        "/work/out"
+      ],
+      "--RG_TAG": [
+        "PU",
+        "ID"
+      ],
+      "--CLIPPING_ATTRIBUTE": [
+        "<absent>",
+        "XT"
+      ],
+      "--CLIPPING_ACTION": [
+        "<absent>",
+        "X",
+        "N",
+        "2"
+      ],
+      "--CLIPPING_MIN_LENGTH": [
+        "0",
+        "45"
+      ],
+      "--READ1_TRIM": [
+        "0",
+        "5"
+      ],
+      "--READ2_TRIM": [
+        "0",
+        "5"
+      ],
+      "--READ1_MAX_BASES_TO_WRITE": [
+        "<absent>",
+        "20"
+      ],
+      "--READ2_MAX_BASES_TO_WRITE": [
+        "<absent>",
+        "20"
+      ],
+      "--QUALITY": [
+        "<absent>",
+        "20"
+      ],
+      "--TAG_GROUP_SEPERATOR": [
+        "<absent>",
+        "-"
       ]
     },
     "CollectUmiPrevalenceMetrics": {
@@ -165,6 +226,18 @@
       "--MINIMUM_BARCODE_BQ": [
         "30",
         "15"
+      ],
+      "--BARCODE_TAG": [
+        "RX",
+        "BX"
+      ],
+      "--BARCODE_BQ": [
+        "BQ",
+        "QX"
+      ],
+      "--PROGRESS_STEP_INTERVAL": [
+        "1000000",
+        "1"
       ]
     },
     "CollectVariantCallingMetrics": {
@@ -186,6 +259,10 @@
       "--TARGET_INTERVALS": [
         "/work/fixtures/targets.interval_list",
         "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--THREAD_COUNT": [
+        "1",
+        "2"
       ]
     },
     "BedToIntervalList": {
@@ -194,7 +271,8 @@
         "/work/fixtures/targets_mixed.bed"
       ],
       "--SEQUENCE_DICTIONARY": [
-        "/work/fixtures/ref.dict"
+        "/work/fixtures/ref.dict",
+        "/work/fixtures/ref.fasta"
       ]
     },
     "ReplaceSamHeader": {
@@ -224,6 +302,10 @@
       "--INPUT": [
         "/work/fixtures/targets.interval_list",
         "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--SCORE": [
+        "500",
+        "0"
       ]
     },
     "AddOrReplaceReadGroups": {
@@ -235,16 +317,64 @@
         "that are actually varied and the tool runs at all."
       ],
       "--RGLB": [
-        "lib1"
+        "lib1",
+        "lib2"
       ],
       "--RGPL": [
-        "ILLUMINA"
+        "ILLUMINA",
+        "SOLID"
       ],
       "--RGPU": [
-        "unit1"
+        "unit1",
+        "unit2"
       ],
       "--RGSM": [
-        "sample1"
+        "sample1",
+        "sample2"
+      ],
+      "--RGID": [
+        "1",
+        "rg2"
+      ],
+      "--RGCN": [
+        "<absent>",
+        "BI"
+      ],
+      "--RGDS": [
+        "<absent>",
+        "first_lane"
+      ],
+      "--RGDT": [
+        "<absent>",
+        "2024-01-02",
+        "2024-01-02T03:04:05+0100"
+      ],
+      "--RGPI": [
+        "<absent>",
+        "300"
+      ],
+      "--RGPG": [
+        "<absent>",
+        "bwa"
+      ],
+      "--RGPM": [
+        "<absent>",
+        "HiSeq2500"
+      ],
+      "--RGKS": [
+        "<absent>",
+        "TCAG"
+      ],
+      "--RGFO": [
+        "<absent>",
+        "TACG"
+      ],
+      "--SORT_ORDER": [
+        "unsorted",
+        "queryname",
+        "coordinate",
+        "duplicate",
+        "unknown"
       ]
     },
     "NonNFastaSize": {
@@ -268,13 +398,22 @@
         "does not reach it and the argument is required: without this every row was a usage error."
       ],
       "--REFERENCE": [
-        "/work/fixtures/ref.fasta"
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/masked.fasta"
+      ],
+      "--MAX_TO_MERGE": [
+        "1",
+        "10"
       ]
     },
     "NormalizeFasta": {
       "--INPUT": [
         "/work/fixtures/ref.fasta",
         "/work/fixtures/described.fasta"
+      ],
+      "--LINE_LENGTH": [
+        "100",
+        "7"
       ]
     },
     "CheckDuplicateMarking": {
@@ -301,28 +440,198 @@
     },
     "CreateSequenceDictionary": {
       "--TRUNCATE_NAMES_AT_WHITESPACE": [
-        "true"
+        "true",
+        "false"
+      ],
+      "--REFERENCE": [
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/described.fasta"
+      ],
+      "--SPECIES": [
+        "Homo_sapiens",
+        "Mus_musculus"
+      ],
+      "--URI": [
+        "file:/work/fixtures/ref.fasta",
+        "http://example.org/other.fasta"
       ]
     },
     "DownsampleSam": {
       "--STRATEGY": [
-        "ConstantMemory"
+        "ConstantMemory",
+        "HighAccuracy",
+        "Chained"
+      ],
+      "--ACCURACY": [
+        "1.0E-4",
+        "0.1"
+      ],
+      "--METRICS_FILE": [
+        "<absent>",
+        "/work/out/metrics.txt"
       ]
     },
     "MarkDuplicatesWithMateCigar": {
-      "--ASSUME_SORTED": [],
+      "--ASSUME_SORTED": [
+        "<absent>",
+        "true",
+        "false"
+      ],
       "--TAG_DUPLICATE_SET_MEMBERS": [],
       "--INPUT": [
         "/work/fixtures/mate_cigar.bam",
         "/work/fixtures/small.bam"
+      ],
+      "--OPTICAL_DUPLICATE_PIXEL_DISTANCE": [
+        "100",
+        "2500"
+      ],
+      "--MINIMUM_DISTANCE": [
+        "-1",
+        "200"
+      ],
+      "--ASSUME_SORT_ORDER": [
+        "coordinate",
+        "duplicate",
+        "queryname",
+        "unknown",
+        "unsorted",
+        "<absent>"
+      ],
+      "--COMMENT": [
+        "<absent>",
+        "first comment"
+      ],
+      "--MAX_OPTICAL_DUPLICATE_SET_SIZE": [
+        "300000",
+        "1"
+      ],
+      "--PROGRAM_GROUP_COMMAND_LINE": [
+        "<absent>",
+        "md --flag"
+      ],
+      "--PROGRAM_GROUP_VERSION": [
+        "<absent>",
+        "9.9"
+      ],
+      "--PROGRAM_GROUP_NAME": [
+        "<absent>",
+        "OtherName"
+      ],
+      "--PROGRAM_RECORD_ID": [
+        "<absent>",
+        "null",
+        "PGX"
+      ],
+      "--READ_NAME_REGEX": [
+        "<absent>",
+        "null",
+        "[a-zA-Z0-9]+:[0-9]+:([0-9]+):([0-9]+):([0-9]+).*"
+      ],
+      "--BLOCK_SIZE": [
+        "100000",
+        "10"
       ]
     },
     "SimpleMarkDuplicatesWithMateCigar": {
-      "--ASSUME_SORTED": [],
-      "--TAG_DUPLICATE_SET_MEMBERS": [],
+      "--ASSUME_SORTED": [
+        "<absent>",
+        "true",
+        "false"
+      ],
+      "--TAG_DUPLICATE_SET_MEMBERS": [
+        "false",
+        "true"
+      ],
       "--INPUT": [
         "/work/fixtures/mate_cigar.bam",
         "/work/fixtures/small.bam"
+      ],
+      "--OPTICAL_DUPLICATE_PIXEL_DISTANCE": [
+        "100",
+        "2500"
+      ],
+      "--BARCODE_TAG": [
+        "<absent>",
+        "RX"
+      ],
+      "--ASSUME_SORT_ORDER": [
+        "coordinate",
+        "duplicate",
+        "queryname",
+        "unknown",
+        "unsorted",
+        "<absent>"
+      ],
+      "--COMMENT": [
+        "<absent>",
+        "first comment"
+      ],
+      "--MAX_OPTICAL_DUPLICATE_SET_SIZE": [
+        "300000",
+        "1"
+      ],
+      "--PROGRAM_GROUP_COMMAND_LINE": [
+        "<absent>",
+        "md --flag"
+      ],
+      "--PROGRAM_GROUP_VERSION": [
+        "<absent>",
+        "9.9"
+      ],
+      "--PROGRAM_GROUP_NAME": [
+        "<absent>",
+        "OtherName"
+      ],
+      "--PROGRAM_RECORD_ID": [
+        "<absent>",
+        "null",
+        "PGX"
+      ],
+      "--READ_NAME_REGEX": [
+        "<absent>",
+        "null",
+        "[a-zA-Z0-9]+:[0-9]+:([0-9]+):([0-9]+):([0-9]+).*"
+      ],
+      "--FLOW_EFFECTIVE_QUALITY_THRESHOLD": [
+        "15",
+        "5"
+      ],
+      "--FLOW_SKIP_FIRST_N_FLOWS": [
+        "0",
+        "2"
+      ],
+      "--FLOW_UNPAIRED_END_UNCERTAINTY": [
+        "0",
+        "3"
+      ],
+      "--FLOW_UNPAIRED_START_UNCERTAINTY": [
+        "0",
+        "3"
+      ],
+      "--MAX_FILE_HANDLES_FOR_READ_ENDS_MAP": [
+        "8000",
+        "50"
+      ],
+      "--MAX_SEQUENCES_FOR_DISK_READ_ENDS_MAP": [
+        "50000",
+        "10"
+      ],
+      "--SORTING_COLLECTION_SIZE_RATIO": [
+        "0.25",
+        "0.01"
+      ],
+      "--READ_ONE_BARCODE_TAG": [
+        "<absent>",
+        "BX"
+      ],
+      "--READ_TWO_BARCODE_TAG": [
+        "<absent>",
+        "BX"
+      ],
+      "--MOLECULAR_IDENTIFIER_TAG": [
+        "<absent>",
+        "MI"
       ]
     },
     "GenotypeConcordance": {
@@ -348,12 +657,60 @@
       ],
       "--CALL_SAMPLE": [
         "sample1"
+      ],
+      "--MIN_DP": [
+        "0",
+        "10"
+      ],
+      "--MIN_GQ": [
+        "0",
+        "30"
       ]
     },
     "MarkIlluminaAdapters": {
       "--INPUT": [
         "/work/fixtures/adapters.bam",
         "/work/fixtures/queryname.bam"
+      ],
+      "--ADAPTER_TRUNCATION_LENGTH": [
+        "30",
+        "10"
+      ],
+      "--MAX_ERROR_RATE_PE": [
+        "0.1",
+        "0.0"
+      ],
+      "--MAX_ERROR_RATE_SE": [
+        "0.1",
+        "0.0"
+      ],
+      "--MIN_MATCH_BASES_PE": [
+        "6",
+        "3"
+      ],
+      "--MIN_MATCH_BASES_SE": [
+        "12",
+        "6"
+      ],
+      "--NUM_ADAPTERS_TO_KEEP": [
+        "1",
+        "0"
+      ],
+      "--PRUNE_ADAPTER_LIST_AFTER_THIS_MANY_ADAPTERS_SEEN": [
+        "100",
+        "1"
+      ],
+      "--METRICS": [
+        "/work/out/metrics.txt",
+        "/work/out/metrics_b.txt"
+      ],
+      "--FIVE_PRIME_ADAPTER": [
+        "<absent>",
+        "AATGATACGGCGACCACCGAGATCTACAC"
+      ],
+      "--THREE_PRIME_ADAPTER": [
+        "<absent>",
+        "AGATCGGAAGAGC"
       ]
     },
     "MakeVcfSampleNameMap": {
@@ -370,7 +727,11 @@
         "100",
         "300"
       ],
-      "--SPLIT_TO_N_FILES": []
+      "--SPLIT_TO_N_FILES": [],
+      "--TOTAL_READS_IN_INPUT": [
+        "0",
+        "400"
+      ]
     },
     "SplitSamByLibrary": {
       "--OUTPUT": [
@@ -378,8 +739,101 @@
       ]
     },
     "MarkDuplicates": {
-      "--ASSUME_SORTED": [],
-      "--TAG_DUPLICATE_SET_MEMBERS": []
+      "--ASSUME_SORTED": [
+        "<absent>",
+        "true",
+        "false"
+      ],
+      "--TAG_DUPLICATE_SET_MEMBERS": [
+        "false",
+        "true"
+      ],
+      "--OPTICAL_DUPLICATE_PIXEL_DISTANCE": [
+        "100",
+        "2500"
+      ],
+      "--BARCODE_TAG": [
+        "<absent>",
+        "RX"
+      ],
+      "--ASSUME_SORT_ORDER": [
+        "coordinate",
+        "duplicate",
+        "queryname",
+        "unknown",
+        "unsorted",
+        "<absent>"
+      ],
+      "--COMMENT": [
+        "<absent>",
+        "first comment"
+      ],
+      "--MAX_OPTICAL_DUPLICATE_SET_SIZE": [
+        "300000",
+        "1"
+      ],
+      "--PROGRAM_GROUP_COMMAND_LINE": [
+        "<absent>",
+        "md --flag"
+      ],
+      "--PROGRAM_GROUP_VERSION": [
+        "<absent>",
+        "9.9"
+      ],
+      "--PROGRAM_GROUP_NAME": [
+        "<absent>",
+        "OtherName"
+      ],
+      "--PROGRAM_RECORD_ID": [
+        "<absent>",
+        "null",
+        "PGX"
+      ],
+      "--READ_NAME_REGEX": [
+        "<absent>",
+        "null",
+        "[a-zA-Z0-9]+:[0-9]+:([0-9]+):([0-9]+):([0-9]+).*"
+      ],
+      "--FLOW_EFFECTIVE_QUALITY_THRESHOLD": [
+        "15",
+        "5"
+      ],
+      "--FLOW_SKIP_FIRST_N_FLOWS": [
+        "0",
+        "2"
+      ],
+      "--FLOW_UNPAIRED_END_UNCERTAINTY": [
+        "0",
+        "3"
+      ],
+      "--FLOW_UNPAIRED_START_UNCERTAINTY": [
+        "0",
+        "3"
+      ],
+      "--MAX_FILE_HANDLES_FOR_READ_ENDS_MAP": [
+        "8000",
+        "50"
+      ],
+      "--MAX_SEQUENCES_FOR_DISK_READ_ENDS_MAP": [
+        "50000",
+        "10"
+      ],
+      "--SORTING_COLLECTION_SIZE_RATIO": [
+        "0.25",
+        "0.01"
+      ],
+      "--READ_ONE_BARCODE_TAG": [
+        "<absent>",
+        "BX"
+      ],
+      "--READ_TWO_BARCODE_TAG": [
+        "<absent>",
+        "BX"
+      ],
+      "--MOLECULAR_IDENTIFIER_TAG": [
+        "<absent>",
+        "MI"
+      ]
     },
     "FilterSamReads": {
       "--READ_LIST_FILE": [
@@ -393,11 +847,39 @@
       "--IGNORE": [
         "MATE_NOT_FOUND",
         "MISSING_TAG_NM"
+      ],
+      "--MAX_OUTPUT": [
+        "100",
+        "1"
+      ],
+      "--MAX_OPEN_TEMP_FILES": [
+        "8000",
+        "2"
       ]
     },
     "IntervalListTools": {
       "--INPUT": [
         "/work/fixtures/targets.interval_list",
+        "/work/fixtures/targets_mixed.interval_list"
+      ],
+      "--BREAK_BANDS_AT_MULTIPLES_OF": [
+        "0",
+        "100"
+      ],
+      "--PADDING": [
+        "0",
+        "10"
+      ],
+      "--COMMENT": [
+        "<absent>",
+        "a_comment"
+      ],
+      "--COUNT_OUTPUT": [
+        "<absent>",
+        "/work/out/count.txt"
+      ],
+      "--SECOND_INPUT": [
+        "<absent>",
         "/work/fixtures/targets_mixed.interval_list"
       ]
     },
@@ -409,6 +891,15 @@
       "--INPUT": [
         "/work/fixtures/tiled.bam",
         "/work/fixtures/small.bam"
+      ],
+      "--STOP_AFTER": [
+        "<absent>",
+        "5"
+      ],
+      "--READ_NAME_REGEX": [
+        "<absent>",
+        "null",
+        "[a-zA-Z0-9]+:[0-9]+:([0-9]+):([0-9]+):([0-9]+).*"
       ]
     },
     "EstimateLibraryComplexity": {
@@ -443,6 +934,35 @@
       "--OPTICAL_DUPLICATE_PIXEL_DISTANCE": [
         "100",
         "10"
+      ],
+      "--MAX_GROUP_RATIO": [
+        "500",
+        "1"
+      ],
+      "--MAX_READ_LENGTH": [
+        "0",
+        "20"
+      ],
+      "--BARCODE_TAG": [
+        "<absent>",
+        "RX"
+      ],
+      "--READ_ONE_BARCODE_TAG": [
+        "<absent>",
+        "BX"
+      ],
+      "--READ_TWO_BARCODE_TAG": [
+        "<absent>",
+        "BX"
+      ],
+      "--MAX_OPTICAL_DUPLICATE_SET_SIZE": [
+        "300000",
+        "1"
+      ],
+      "--READ_NAME_REGEX": [
+        "<absent>",
+        "null",
+        "[a-zA-Z0-9]+:[0-9]+:([0-9]+):([0-9]+):([0-9]+).*"
       ]
     },
     "ExtractSequences": {
@@ -459,16 +979,72 @@
     },
     "SamToFastq": {
       "--FASTQ": [
-        "/work/out/output.txt"
+        "/work/out/output.txt",
+        "<absent>"
       ],
-      "--OUTPUT_PER_RG": [],
-      "--COMPRESS_OUTPUTS_PER_RG": [],
+      "--OUTPUT_PER_RG": [
+        "<absent>",
+        "true"
+      ],
+      "--COMPRESS_OUTPUTS_PER_RG": [
+        "<absent>",
+        "false",
+        "true"
+      ],
       "--SECOND_END_FASTQ": [
-        "/work/out/second.fastq"
+        "/work/out/second.fastq",
+        "<absent>"
       ],
       "--INPUT": [
         "/work/fixtures/queryname.bam",
-        "/work/fixtures/small.bam"
+        "/work/fixtures/small.bam",
+        "/work/fixtures/tagged.bam"
+      ],
+      "--UNPAIRED_FASTQ": [
+        "<absent>",
+        "/work/out/unpaired.fastq"
+      ],
+      "--OUTPUT_DIR": [
+        "<absent>",
+        "/work/out"
+      ],
+      "--RG_TAG": [
+        "PU",
+        "ID"
+      ],
+      "--CLIPPING_ATTRIBUTE": [
+        "<absent>",
+        "XT"
+      ],
+      "--CLIPPING_ACTION": [
+        "<absent>",
+        "X",
+        "N",
+        "2"
+      ],
+      "--CLIPPING_MIN_LENGTH": [
+        "0",
+        "45"
+      ],
+      "--READ1_TRIM": [
+        "0",
+        "5"
+      ],
+      "--READ2_TRIM": [
+        "0",
+        "5"
+      ],
+      "--READ1_MAX_BASES_TO_WRITE": [
+        "<absent>",
+        "20"
+      ],
+      "--READ2_MAX_BASES_TO_WRITE": [
+        "<absent>",
+        "20"
+      ],
+      "--QUALITY": [
+        "<absent>",
+        "20"
       ]
     },
     "RevertOriginalBaseQualitiesAndAddMateCigar": {
@@ -488,6 +1064,10 @@
         "duplicate",
         "unsorted",
         "unknown"
+      ],
+      "--MAX_RECORDS_TO_EXAMINE": [
+        "10000",
+        "1"
       ]
     },
     "FindMendelianViolations": {
@@ -510,6 +1090,14 @@
       "--MIN_DP": [
         "0",
         "10"
+      ],
+      "--MIN_HET_FRACTION": [
+        "0.3",
+        "0.0"
+      ],
+      "--THREAD_COUNT": [
+        "1",
+        "2"
       ]
     },
     "LiftOverHaplotypeMap": {
@@ -525,6 +1113,10 @@
       "--CHAIN": [
         "/work/fixtures/lift.chain",
         "/work/fixtures/lift_all.chain"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/ref.dict"
       ]
     },
     "LiftOverIntervalList": {
@@ -541,11 +1133,20 @@
         "/work/fixtures/targets_mixed.interval_list"
       ],
       "--CHAIN": [
-        "/work/fixtures/lift.chain"
+        "/work/fixtures/lift.chain",
+        "/work/fixtures/lift_all.chain"
       ],
       "--MIN_LIFTOVER_PCT": [
         "0.95",
         "0.3"
+      ],
+      "--REJECT": [
+        "<absent>",
+        "/work/out/reject.interval_list"
+      ],
+      "--SEQUENCE_DICTIONARY": [
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/ref.dict"
       ]
     },
     "BuildBamIndex": {
@@ -634,14 +1235,20 @@
         "800"
       ],
       "--METRIC_ACCUMULATION_LEVEL": [
-        "ALL_READS"
+        "ALL_READS",
+        "SAMPLE LIBRARY",
+        "READ_GROUP"
       ],
       "--STOP_AFTER": [
         "0",
         "50"
       ],
       "--Histogram_FILE": [
-        "/work/out/histogram.pdf"
+        "/work/out/histogram.pdf",
+        "/work/out/histogram_b.pdf"
+      ],
+      "$lists": [
+        "--METRIC_ACCUMULATION_LEVEL"
       ]
     },
     "CompareSAMs": {
@@ -892,10 +1499,12 @@
         "/work/fixtures/vcf_sites_only.vcf"
       ],
       "--SNP_OUTPUT": [
-        "/work/out/snp.vcf"
+        "/work/out/snp.vcf",
+        "/work/out/snp_b.vcf"
       ],
       "--INDEL_OUTPUT": [
-        "/work/out/indel.vcf"
+        "/work/out/indel.vcf",
+        "/work/out/indel_b.vcf"
       ],
       "--SEQUENCE_DICTIONARY": [
         "null",
@@ -1020,6 +1629,17 @@
       "--SAMPLE_SIZE": [
         "10000",
         "100"
+      ],
+      "$lists": [
+        "--ALLELE_FRACTION"
+      ],
+      "--ALLELE_FRACTION": [
+        "<absent>",
+        "null 0.1 0.5"
+      ],
+      "--THEORETICAL_SENSITIVITY_OUTPUT": [
+        "<absent>",
+        "/work/out/theoretical.txt"
       ]
     },
     "CollectRawWgsMetrics": {
@@ -1072,6 +1692,17 @@
       "--SAMPLE_SIZE": [
         "10000",
         "100"
+      ],
+      "$lists": [
+        "--ALLELE_FRACTION"
+      ],
+      "--ALLELE_FRACTION": [
+        "<absent>",
+        "null 0.1 0.5"
+      ],
+      "--THEORETICAL_SENSITIVITY_OUTPUT": [
+        "<absent>",
+        "/work/out/theoretical.txt"
       ]
     },
     "CollectSamErrorMetrics": {
@@ -1204,11 +1835,23 @@
         "1000"
       ],
       "--READ_LENGTH": [
-        "150"
+        "150",
+        "50"
       ],
       "--SAMPLE_SIZE": [
         "10000",
         "100"
+      ],
+      "$lists": [
+        "--ALLELE_FRACTION"
+      ],
+      "--ALLELE_FRACTION": [
+        "<absent>",
+        "null 0.1 0.5"
+      ],
+      "--THEORETICAL_SENSITIVITY_OUTPUT": [
+        "<absent>",
+        "/work/out/theoretical.txt"
       ]
     },
     "CollectHsMetrics": {
@@ -1227,6 +1870,7 @@
         "harness does not compare, and have no fixture; the port refuses them."
       ],
       "$lists": [
+        "--ALLELE_FRACTION",
         "--BAIT_INTERVALS",
         "--TARGET_INTERVALS"
       ],
@@ -1276,6 +1920,22 @@
       "--REFERENCE_SEQUENCE": [
         "/work/fixtures/ref.fasta",
         "null"
+      ],
+      "--ALLELE_FRACTION": [
+        "<absent>",
+        "null 0.1 0.5"
+      ],
+      "--PER_TARGET_COVERAGE": [
+        "<absent>",
+        "/work/out/per_target.txt"
+      ],
+      "--PER_BASE_COVERAGE": [
+        "<absent>",
+        "/work/out/per_base.txt"
+      ],
+      "--THEORETICAL_SENSITIVITY_OUTPUT": [
+        "<absent>",
+        "/work/out/theoretical.txt"
       ]
     },
     "CollectTargetedPcrMetrics": {
@@ -1286,6 +1946,7 @@
         "CLIP_OVERLAPPING_READS false."
       ],
       "$lists": [
+        "--ALLELE_FRACTION",
         "--TARGET_INTERVALS"
       ],
       "--INPUT": [
@@ -1333,6 +1994,22 @@
       "--REFERENCE_SEQUENCE": [
         "/work/fixtures/ref.fasta",
         "null"
+      ],
+      "--ALLELE_FRACTION": [
+        "<absent>",
+        "null 0.1 0.5"
+      ],
+      "--PER_TARGET_COVERAGE": [
+        "<absent>",
+        "/work/out/per_target.txt"
+      ],
+      "--PER_BASE_COVERAGE": [
+        "<absent>",
+        "/work/out/per_base.txt"
+      ],
+      "--THEORETICAL_SENSITIVITY_OUTPUT": [
+        "<absent>",
+        "/work/out/theoretical.txt"
       ]
     },
     "CollectSequencingArtifactMetrics": {
@@ -1514,7 +2191,8 @@
         "/work/fixtures/unmapped.bam"
       ],
       "--SUMMARY_OUTPUT": [
-        "/work/out/summary.txt"
+        "/work/out/summary.txt",
+        "/work/out/summary_b.txt"
       ],
       "--SCAN_WINDOW_SIZE": [
         "100",
@@ -1530,6 +2208,10 @@
       "--STOP_AFTER": [
         "0",
         "150"
+      ],
+      "--MINIMUM_GENOME_FRACTION": [
+        "1.0E-5",
+        "0.05"
       ]
     },
     "CollectRrbsMetrics": {
@@ -1583,6 +2265,10 @@
         "SAMPLE LIBRARY",
         "READ_GROUP",
         "null"
+      ],
+      "--REFERENCE": [
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/masked.fasta"
       ]
     },
     "CollectRnaSeqMetrics": {
@@ -1718,6 +2404,10 @@
       "--STOP_AFTER": [
         "0",
         "20"
+      ],
+      "--PROGRESS_STEP_INTERVAL": [
+        "100000",
+        "1"
       ]
     },
     "LiftoverVcf": {
@@ -1745,7 +2435,8 @@
         "/work/out/output.vcf"
       ],
       "--REJECT": [
-        "/work/out/reject.vcf"
+        "/work/out/reject.vcf",
+        "/work/out/reject_b.vcf"
       ],
       "--CHAIN": [
         "/work/fixtures/lift_vcf.chain",
@@ -1823,6 +2514,10 @@
       "--IGNORE_SEQUENCE": [
         "null",
         "chr2"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "5"
       ]
     },
     "SortGff": {
@@ -2326,9 +3021,14 @@
         "/work/out/umi_metrics.txt"
       ],
       "--ASSUME_SORT_ORDER": [
-        "coordinate"
+        "coordinate",
+        "<absent>"
       ],
-      "--ASSUME_SORTED": [],
+      "--ASSUME_SORTED": [
+        "<absent>",
+        "true",
+        "false"
+      ],
       "--UMI_TAG_NAME": [
         "RX",
         "BC"
@@ -2349,6 +3049,80 @@
       "--ALLOW_MISSING_UMIS": [
         "true",
         "false"
+      ],
+      "--COMMENT": [
+        "<absent>",
+        "first comment"
+      ],
+      "--MAX_OPTICAL_DUPLICATE_SET_SIZE": [
+        "300000",
+        "1"
+      ],
+      "--PROGRAM_GROUP_COMMAND_LINE": [
+        "<absent>",
+        "md --flag"
+      ],
+      "--PROGRAM_GROUP_VERSION": [
+        "<absent>",
+        "9.9"
+      ],
+      "--PROGRAM_GROUP_NAME": [
+        "<absent>",
+        "OtherName"
+      ],
+      "--PROGRAM_RECORD_ID": [
+        "<absent>",
+        "null",
+        "PGX"
+      ],
+      "--READ_NAME_REGEX": [
+        "<absent>",
+        "null",
+        "[a-zA-Z0-9]+:[0-9]+:([0-9]+):([0-9]+):([0-9]+).*"
+      ],
+      "--FLOW_EFFECTIVE_QUALITY_THRESHOLD": [
+        "15",
+        "5"
+      ],
+      "--FLOW_SKIP_FIRST_N_FLOWS": [
+        "0",
+        "2"
+      ],
+      "--FLOW_UNPAIRED_END_UNCERTAINTY": [
+        "0",
+        "3"
+      ],
+      "--FLOW_UNPAIRED_START_UNCERTAINTY": [
+        "0",
+        "3"
+      ],
+      "--MAX_FILE_HANDLES_FOR_READ_ENDS_MAP": [
+        "8000",
+        "50"
+      ],
+      "--MAX_SEQUENCES_FOR_DISK_READ_ENDS_MAP": [
+        "50000",
+        "10"
+      ],
+      "--SORTING_COLLECTION_SIZE_RATIO": [
+        "0.25",
+        "0.01"
+      ],
+      "--READ_ONE_BARCODE_TAG": [
+        "<absent>",
+        "BX"
+      ],
+      "--READ_TWO_BARCODE_TAG": [
+        "<absent>",
+        "BX"
+      ],
+      "--BARCODE_TAG": [
+        "<absent>",
+        "RX"
+      ],
+      "--OPTICAL_DUPLICATE_PIXEL_DISTANCE": [
+        "100",
+        "2500"
       ]
     },
     "ConvertHaplotypeDatabaseToVcf": {
@@ -2537,10 +3311,17 @@
         "/work/fixtures/fp_genotypes_a.vcf"
       ],
       "--OUTPUT": [
-        "/work/out/output"
+        "/work/out/output",
+        "<absent>"
       ],
-      "--SUMMARY_OUTPUT": [],
-      "--DETAIL_OUTPUT": [],
+      "--SUMMARY_OUTPUT": [
+        "<absent>",
+        "/work/out/summary.txt"
+      ],
+      "--DETAIL_OUTPUT": [
+        "<absent>",
+        "/work/out/detail.txt"
+      ],
       "--HAPLOTYPE_MAP": [
         "/work/fixtures/fp_haplotypes.txt",
         "/work/fixtures/fp_haplotypes_swapped.txt",
@@ -3040,10 +3821,12 @@
         "/work/out/output.adpc.bin"
       ],
       "--SAMPLES_FILE": [
-        "/work/out/samples.txt"
+        "/work/out/samples.txt",
+        "/work/out/samples_b.txt"
       ],
       "--NUM_MARKERS_FILE": [
-        "/work/out/markers.txt"
+        "/work/out/markers.txt",
+        "/work/out/markers_b.txt"
       ]
     },
     "CombineGenotypingArrayVcfs": {
@@ -3233,13 +4016,15 @@
       ],
       "--BASECALLS_DIR": [
         "/work/fixtures/ill_run24/Data/Intensities/BaseCalls",
-        "/work/fixtures/ill_run/Data/Intensities/BaseCalls"
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run24_2l/Data/Intensities/BaseCalls"
       ],
       "--OUTPUT": [
         "/work/out/output"
       ],
       "--LANE": [
-        "1"
+        "1",
+        "2"
       ],
       "--N_CYCLES": [
         "24",
@@ -3262,7 +4047,8 @@
         "Barcodes data type has no format and is refused."
       ],
       "--BASECALLS_DIR": [
-        "/work/fixtures/ill_run/Data/Intensities/BaseCalls"
+        "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "/work/fixtures/ill_run_2l/Data/Intensities/BaseCalls"
       ],
       "--BARCODES_DIR": [
         "/work/fixtures/ill_bcdir",
@@ -3274,7 +4060,8 @@
         "/work/fixtures/ill_barcodes_one.txt"
       ],
       "--LANE": [
-        "1"
+        "1",
+        "2"
       ],
       "--READ_STRUCTURE": [
         "2T2B",
@@ -3702,6 +4489,179 @@
       ],
       "--CREATE_INDEX": [
         "false"
+      ]
+    },
+    "CollectQualityYieldMetrics": {
+      "--STOP_AFTER": [
+        "0",
+        "5"
+      ]
+    },
+    "MeanQualityByCycle": {
+      "--STOP_AFTER": [
+        "0",
+        "5"
+      ]
+    },
+    "CollectBaseDistributionByCycle": {
+      "--STOP_AFTER": [
+        "0",
+        "5"
+      ]
+    },
+    "QualityScoreDistribution": {
+      "--STOP_AFTER": [
+        "0",
+        "5"
+      ]
+    },
+    "CollectAlignmentSummaryMetrics": {
+      "--MAX_INSERT_SIZE": [
+        "100000",
+        "50"
+      ],
+      "$lists": [
+        "--ADAPTER_SEQUENCE"
+      ],
+      "--ADAPTER_SEQUENCE": [
+        "<absent>",
+        "null",
+        "null AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC"
+      ],
+      "--STOP_AFTER": [
+        "0",
+        "5"
+      ]
+    },
+    "CollectJumpingLibraryMetrics": {
+      "--CHIMERA_KB_MIN": [
+        "100000",
+        "1"
+      ],
+      "--MINIMUM_MAPPING_QUALITY": [
+        "0",
+        "30"
+      ],
+      "--TAIL_LIMIT": [
+        "10000",
+        "100"
+      ]
+    },
+    "FastqToSam": {
+      "--READ_GROUP_NAME": [
+        "A",
+        "rg2"
+      ],
+      "--SAMPLE_NAME": [
+        "sample1",
+        "sample2"
+      ],
+      "--FASTQ": [
+        "/work/fixtures/reads_1.fastq",
+        "/work/fixtures/reads_2.fastq"
+      ],
+      "--FASTQ2": [
+        "<absent>",
+        "/work/fixtures/reads_2.fastq"
+      ],
+      "--COMMENT": [
+        "<absent>",
+        "a_comment"
+      ],
+      "--DESCRIPTION": [
+        "<absent>",
+        "desc"
+      ],
+      "--LIBRARY_NAME": [
+        "<absent>",
+        "lib9"
+      ],
+      "--PLATFORM": [
+        "<absent>",
+        "ILLUMINA"
+      ],
+      "--PLATFORM_MODEL": [
+        "<absent>",
+        "NovaSeq"
+      ],
+      "--PLATFORM_UNIT": [
+        "<absent>",
+        "pu1"
+      ],
+      "--PREDICTED_INSERT_SIZE": [
+        "<absent>",
+        "250"
+      ],
+      "--PROGRAM_GROUP": [
+        "<absent>",
+        "pg1"
+      ],
+      "--RUN_DATE": [
+        "<absent>",
+        "2024-01-02",
+        "2024-01-02T03:04:05+0100"
+      ],
+      "--SEQUENCING_CENTER": [
+        "<absent>",
+        "BI"
+      ],
+      "--MAX_Q": [
+        "93",
+        "40"
+      ],
+      "--MIN_Q": [
+        "0",
+        "5"
+      ],
+      "--QUALITY_FORMAT": [
+        "Standard",
+        "Illumina",
+        "Solexa"
+      ],
+      "--USE_SEQUENTIAL_FASTQS": [
+        "false",
+        "true"
+      ]
+    },
+    "CollectDuplicateMetrics": {
+      "--STOP_AFTER": [
+        "0",
+        "5"
+      ],
+      "--METRICS_FILE": [
+        "/work/out/metrics.txt",
+        "/work/out/metrics_b.txt"
+      ]
+    },
+    "MergeSamFiles": {
+      "--COMMENT": [
+        "<absent>",
+        "merged here"
+      ],
+      "--SORT_ORDER": [
+        "unsorted",
+        "queryname",
+        "coordinate",
+        "duplicate",
+        "unknown"
+      ]
+    },
+    "ReorderSam": {
+      "--SEQUENCE_DICTIONARY": [
+        "/work/fixtures/ref.fasta",
+        "/work/fixtures/ref.dict"
+      ]
+    },
+    "AddOATag": {
+      "--INTERVAL_LIST": [
+        "<absent>",
+        "/work/fixtures/targets.interval_list"
+      ]
+    },
+    "ViewSam": {
+      "--INTERVAL_LIST": [
+        "<absent>",
+        "/work/fixtures/targets.interval_list"
       ]
     }
   },
@@ -4941,6 +5901,608 @@
         "--IGNORE_UNEXPECTED_BARCODES": "false"
       },
       "why": "The reference throws 'Read records with barcode CT, but this barcode was not expected' from its main thread and then never exits: the executor its tile workers ran on is not shut down on that path, so a non-daemon pool thread keeps the JVM alive and the row waits until the job's own timeout. The refusal cannot be observed as an answer, so the pair is not run."
+    },
+    {
+      "tools": [
+        "MarkDuplicates"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "coordinate",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicates"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "coordinate",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicates"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "duplicate",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicates"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "duplicate",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicates"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "queryname",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicates"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "queryname",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicates"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "unknown",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicates"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "unknown",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicates"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "unsorted",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicates"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "unsorted",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SimpleMarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "coordinate",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SimpleMarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "coordinate",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SimpleMarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "duplicate",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SimpleMarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "duplicate",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SimpleMarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "queryname",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SimpleMarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "queryname",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SimpleMarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "unknown",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SimpleMarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "unknown",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SimpleMarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "unsorted",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SimpleMarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "unsorted",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "UmiAwareMarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "coordinate",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "UmiAwareMarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "coordinate",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "coordinate",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "coordinate",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "duplicate",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "duplicate",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "queryname",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "queryname",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "unknown",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "unknown",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "unsorted",
+        "--ASSUME_SORTED": "true"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MarkDuplicatesWithMateCigar"
+      ],
+      "forbid": {
+        "--ASSUME_SORT_ORDER": "unsorted",
+        "--ASSUME_SORTED": "false"
+      },
+      "why": "ASSUME_SORTED and ASSUME_SORT_ORDER are mutually exclusive, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--OUTPUT": "/work/out/output",
+        "--SUMMARY_OUTPUT": "/work/out/summary.txt"
+      },
+      "why": "OUTPUT is mutually exclusive with SUMMARY_OUTPUT and with DETAIL_OUTPUT, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "CheckFingerprint"
+      ],
+      "forbid": {
+        "--OUTPUT": "/work/out/output",
+        "--DETAIL_OUTPUT": "/work/out/detail.txt"
+      },
+      "why": "OUTPUT is mutually exclusive with SUMMARY_OUTPUT and with DETAIL_OUTPUT, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "CollectHiSeqXPfFailMetrics"
+      ],
+      "forbid": {
+        "--BASECALLS_DIR": "/work/fixtures/ill_run24/Data/Intensities/BaseCalls",
+        "--LANE": "2"
+      },
+      "why": "A run without lane 2 refuses LANE=2 by listing the data types it found no files for, and the list is a HashSet's iteration order, which changes from one JVM to the next: two rows with the same refusal printed it in two orders. The lane is varied on ill_run24_2l, which has it."
+    },
+    {
+      "tools": [
+        "CollectHiSeqXPfFailMetrics"
+      ],
+      "forbid": {
+        "--BASECALLS_DIR": "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "--LANE": "2"
+      },
+      "why": "same as the clause above"
+    },
+    {
+      "tools": [
+        "SamToFastq"
+      ],
+      "forbid": {
+        "--FASTQ": "/work/out/output.txt",
+        "--OUTPUT_PER_RG": "true"
+      },
+      "why": "FASTQ and OUTPUT_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastq"
+      ],
+      "forbid": {
+        "--FASTQ": "/work/out/output.txt",
+        "--COMPRESS_OUTPUTS_PER_RG": "false"
+      },
+      "why": "FASTQ and COMPRESS_OUTPUTS_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastq"
+      ],
+      "forbid": {
+        "--FASTQ": "/work/out/output.txt",
+        "--COMPRESS_OUTPUTS_PER_RG": "true"
+      },
+      "why": "FASTQ and COMPRESS_OUTPUTS_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastq"
+      ],
+      "forbid": {
+        "--FASTQ": "/work/out/output.txt",
+        "--OUTPUT_DIR": "/work/out"
+      },
+      "why": "FASTQ and OUTPUT_DIR are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastq"
+      ],
+      "forbid": {
+        "--SECOND_END_FASTQ": "/work/out/second.fastq",
+        "--OUTPUT_PER_RG": "true"
+      },
+      "why": "SECOND_END_FASTQ and OUTPUT_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastq"
+      ],
+      "forbid": {
+        "--SECOND_END_FASTQ": "/work/out/second.fastq",
+        "--COMPRESS_OUTPUTS_PER_RG": "false"
+      },
+      "why": "SECOND_END_FASTQ and COMPRESS_OUTPUTS_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastq"
+      ],
+      "forbid": {
+        "--SECOND_END_FASTQ": "/work/out/second.fastq",
+        "--COMPRESS_OUTPUTS_PER_RG": "true"
+      },
+      "why": "SECOND_END_FASTQ and COMPRESS_OUTPUTS_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastq"
+      ],
+      "forbid": {
+        "--UNPAIRED_FASTQ": "/work/out/unpaired.fastq",
+        "--OUTPUT_PER_RG": "true"
+      },
+      "why": "UNPAIRED_FASTQ and OUTPUT_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastq"
+      ],
+      "forbid": {
+        "--UNPAIRED_FASTQ": "/work/out/unpaired.fastq",
+        "--COMPRESS_OUTPUTS_PER_RG": "false"
+      },
+      "why": "UNPAIRED_FASTQ and COMPRESS_OUTPUTS_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastq"
+      ],
+      "forbid": {
+        "--UNPAIRED_FASTQ": "/work/out/unpaired.fastq",
+        "--COMPRESS_OUTPUTS_PER_RG": "true"
+      },
+      "why": "UNPAIRED_FASTQ and COMPRESS_OUTPUTS_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastq"
+      ],
+      "forbid": {
+        "--UNPAIRED_FASTQ": "/work/out/unpaired.fastq",
+        "--SECOND_END_FASTQ": "<absent>"
+      },
+      "why": "UNPAIRED_FASTQ needs SECOND_END_FASTQ: a one-line refusal before any read"
+    },
+    {
+      "tools": [
+        "SamToFastqWithTags"
+      ],
+      "forbid": {
+        "--FASTQ": "/work/out/reads.fastq",
+        "--OUTPUT_PER_RG": "true"
+      },
+      "why": "FASTQ and OUTPUT_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastqWithTags"
+      ],
+      "forbid": {
+        "--FASTQ": "/work/out/reads.fastq",
+        "--COMPRESS_OUTPUTS_PER_RG": "false"
+      },
+      "why": "FASTQ and COMPRESS_OUTPUTS_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastqWithTags"
+      ],
+      "forbid": {
+        "--FASTQ": "/work/out/reads.fastq",
+        "--COMPRESS_OUTPUTS_PER_RG": "true"
+      },
+      "why": "FASTQ and COMPRESS_OUTPUTS_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastqWithTags"
+      ],
+      "forbid": {
+        "--FASTQ": "/work/out/reads.fastq",
+        "--OUTPUT_DIR": "/work/out"
+      },
+      "why": "FASTQ and OUTPUT_DIR are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastqWithTags"
+      ],
+      "forbid": {
+        "--SECOND_END_FASTQ": "/work/out/second.fastq",
+        "--OUTPUT_PER_RG": "true"
+      },
+      "why": "SECOND_END_FASTQ and OUTPUT_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastqWithTags"
+      ],
+      "forbid": {
+        "--SECOND_END_FASTQ": "/work/out/second.fastq",
+        "--COMPRESS_OUTPUTS_PER_RG": "false"
+      },
+      "why": "SECOND_END_FASTQ and COMPRESS_OUTPUTS_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastqWithTags"
+      ],
+      "forbid": {
+        "--SECOND_END_FASTQ": "/work/out/second.fastq",
+        "--COMPRESS_OUTPUTS_PER_RG": "true"
+      },
+      "why": "SECOND_END_FASTQ and COMPRESS_OUTPUTS_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastqWithTags"
+      ],
+      "forbid": {
+        "--UNPAIRED_FASTQ": "/work/out/unpaired.fastq",
+        "--OUTPUT_PER_RG": "true"
+      },
+      "why": "UNPAIRED_FASTQ and OUTPUT_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastqWithTags"
+      ],
+      "forbid": {
+        "--UNPAIRED_FASTQ": "/work/out/unpaired.fastq",
+        "--COMPRESS_OUTPUTS_PER_RG": "false"
+      },
+      "why": "UNPAIRED_FASTQ and COMPRESS_OUTPUTS_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastqWithTags"
+      ],
+      "forbid": {
+        "--UNPAIRED_FASTQ": "/work/out/unpaired.fastq",
+        "--COMPRESS_OUTPUTS_PER_RG": "true"
+      },
+      "why": "UNPAIRED_FASTQ and COMPRESS_OUTPUTS_PER_RG are mutually exclusive in the reference's argument definitions, and Barclay refuses the pair before the tool runs; each side is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "SamToFastqWithTags"
+      ],
+      "forbid": {
+        "--UNPAIRED_FASTQ": "/work/out/unpaired.fastq",
+        "--SECOND_END_FASTQ": "<absent>"
+      },
+      "why": "UNPAIRED_FASTQ needs SECOND_END_FASTQ: a one-line refusal before any read"
+    },
+    {
+      "tools": [
+        "CollectIlluminaBasecallingMetrics"
+      ],
+      "forbid": {
+        "--BASECALLS_DIR": "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "--LANE": "2",
+        "--INPUT": "/work/fixtures/ill_barcodes.txt"
+      },
+      "why": "A lane the run does not have, with barcodes declared, is refused by listing both data types it found no files for, PF and Barcodes, and the list is a HashSet's iteration order, which is not fixed from one JVM to the next. Without barcodes the list is PF alone and the row stays."
+    },
+    {
+      "tools": [
+        "CollectIlluminaBasecallingMetrics"
+      ],
+      "forbid": {
+        "--BASECALLS_DIR": "/work/fixtures/ill_run/Data/Intensities/BaseCalls",
+        "--LANE": "2",
+        "--INPUT": "/work/fixtures/ill_barcodes_one.txt"
+      },
+      "why": "same as the clause above"
     }
   ],
   "exclude": {

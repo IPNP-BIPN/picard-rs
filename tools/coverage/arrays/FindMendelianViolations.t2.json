@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 28,
-  "arguments_in_array": 5,
-  "arguments_excluded": 23,
+  "arguments_in_array": 7,
+  "arguments_excluded": 21,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -64,13 +64,6 @@
       "source": "none"
     },
     {
-      "argument": "--MIN_HET_FRACTION",
-      "type": "double",
-      "reason": "only one value available (default)",
-      "held_at": "0.3",
-      "source": "default"
-    },
-    {
       "argument": "--OUTPUT",
       "type": "File",
       "reason": "only one value available (fixture[0])",
@@ -111,13 +104,6 @@
       "reason": "unmodelled type Set[String]",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--THREAD_COUNT",
-      "type": "int",
-      "reason": "only one value available (default)",
-      "held_at": "1",
-      "source": "default"
     },
     {
       "argument": "--TMP_DIR",
@@ -169,9 +155,9 @@
       "source": "none"
     }
   ],
-  "rows": 8,
-  "tuples_total": 48,
-  "tuples_covered": 48,
+  "rows": 10,
+  "tuples_total": 96,
+  "tuples_covered": 96,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -184,14 +170,18 @@
         "--CREATE_INDEX": "true",
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[0]",
+        "--MIN_HET_FRACTION": "fixture[0]",
         "--TAB_MODE": "true",
+        "--THREAD_COUNT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--MIN_DP=0",
         "--MIN_GQ=30",
+        "--MIN_HET_FRACTION=0.3",
         "--TAB_MODE=true",
+        "--THREAD_COUNT=1",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -201,14 +191,18 @@
         "--CREATE_INDEX": "true",
         "--MIN_DP": "fixture[1]",
         "--MIN_GQ": "fixture[1]",
+        "--MIN_HET_FRACTION": "fixture[1]",
         "--TAB_MODE": "false",
+        "--THREAD_COUNT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
-        "--MIN_DP=20",
+        "--MIN_DP=10",
         "--MIN_GQ=10",
+        "--MIN_HET_FRACTION=0.0",
         "--TAB_MODE=false",
+        "--THREAD_COUNT=2",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -218,14 +212,18 @@
         "--CREATE_INDEX": "false",
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[1]",
-        "--TAB_MODE": "true",
+        "--MIN_HET_FRACTION": "fixture[0]",
+        "--TAB_MODE": "false",
+        "--THREAD_COUNT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--MIN_DP=0",
         "--MIN_GQ=10",
-        "--TAB_MODE=true",
+        "--MIN_HET_FRACTION=0.3",
+        "--TAB_MODE=false",
+        "--THREAD_COUNT=1",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -235,15 +233,19 @@
         "--CREATE_INDEX": "false",
         "--MIN_DP": "fixture[1]",
         "--MIN_GQ": "fixture[0]",
-        "--TAB_MODE": "false",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--MIN_HET_FRACTION": "fixture[1]",
+        "--TAB_MODE": "true",
+        "--THREAD_COUNT": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
-        "--MIN_DP=20",
+        "--MIN_DP=10",
         "--MIN_GQ=30",
-        "--TAB_MODE=false",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--MIN_HET_FRACTION=0.0",
+        "--TAB_MODE=true",
+        "--THREAD_COUNT=2",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -251,50 +253,62 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--MIN_DP": "fixture[0]",
-        "--MIN_GQ": "fixture[0]",
-        "--TAB_MODE": "false",
+        "--MIN_GQ": "fixture[1]",
+        "--MIN_HET_FRACTION": "fixture[1]",
+        "--TAB_MODE": "true",
+        "--THREAD_COUNT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--MIN_DP=0",
-        "--MIN_GQ=30",
-        "--TAB_MODE=false",
+        "--MIN_GQ=10",
+        "--MIN_HET_FRACTION=0.0",
+        "--TAB_MODE=true",
+        "--THREAD_COUNT=1",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 5,
       "labels": {
-        "--CREATE_INDEX": "true",
+        "--CREATE_INDEX": "false",
         "--MIN_DP": "fixture[1]",
-        "--MIN_GQ": "fixture[0]",
+        "--MIN_GQ": "fixture[1]",
+        "--MIN_HET_FRACTION": "fixture[0]",
         "--TAB_MODE": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--THREAD_COUNT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
-        "--MIN_DP=20",
-        "--MIN_GQ=30",
+        "--CREATE_INDEX=false",
+        "--MIN_DP=10",
+        "--MIN_GQ=10",
+        "--MIN_HET_FRACTION=0.3",
         "--TAB_MODE=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--THREAD_COUNT=1",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 6,
       "labels": {
         "--CREATE_INDEX": "true",
-        "--MIN_DP": "fixture[1]",
+        "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[0]",
+        "--MIN_HET_FRACTION": "fixture[1]",
         "--TAB_MODE": "false",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--THREAD_COUNT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
-        "--MIN_DP=20",
+        "--MIN_DP=0",
         "--MIN_GQ=30",
+        "--MIN_HET_FRACTION=0.0",
         "--TAB_MODE=false",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--THREAD_COUNT=1",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -302,16 +316,62 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--MIN_DP": "fixture[0]",
-        "--MIN_GQ": "fixture[1]",
+        "--MIN_GQ": "fixture[0]",
+        "--MIN_HET_FRACTION": "fixture[0]",
         "--TAB_MODE": "true",
+        "--THREAD_COUNT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--MIN_DP=0",
-        "--MIN_GQ=10",
+        "--MIN_GQ=30",
+        "--MIN_HET_FRACTION=0.3",
         "--TAB_MODE=true",
+        "--THREAD_COUNT=2",
         "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--MIN_DP": "fixture[0]",
+        "--MIN_GQ": "fixture[0]",
+        "--MIN_HET_FRACTION": "fixture[0]",
+        "--TAB_MODE": "true",
+        "--THREAD_COUNT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--MIN_DP=0",
+        "--MIN_GQ=30",
+        "--MIN_HET_FRACTION=0.3",
+        "--TAB_MODE=true",
+        "--THREAD_COUNT=1",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--MIN_DP": "fixture[0]",
+        "--MIN_GQ": "fixture[0]",
+        "--MIN_HET_FRACTION": "fixture[0]",
+        "--TAB_MODE": "true",
+        "--THREAD_COUNT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--MIN_DP=0",
+        "--MIN_GQ=30",
+        "--MIN_HET_FRACTION=0.3",
+        "--TAB_MODE=true",
+        "--THREAD_COUNT=1",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     }
   ]

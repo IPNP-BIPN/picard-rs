@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 18,
-  "arguments_in_array": 3,
-  "arguments_excluded": 15,
+  "arguments_in_array": 4,
+  "arguments_excluded": 14,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -32,13 +32,6 @@
       "argument": "--help",
       "type": "boolean",
       "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
-      "held_at": null,
-      "source": "none"
-    },
-    {
-      "argument": "--INTERVAL_LIST",
-      "type": "File",
-      "reason": "File needs a fixture; declare one in the repository's fixtures file",
       "held_at": null,
       "source": "none"
     },
@@ -114,8 +107,12 @@
     }
   ],
   "rows": 9,
-  "tuples_total": 21,
-  "tuples_covered": 21,
+  "tuples_total": 37,
+  "tuples_covered": 37,
+  "tuples_forbidden": 0,
+  "constraint_notes": [
+    "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
+  ],
   "coverage": 1.0,
   "array": [
     {
@@ -123,11 +120,13 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
+        "--INTERVAL_LIST": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
+        "--INTERVAL_LIST=<absent>",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -136,11 +135,13 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
+        "--INTERVAL_LIST": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.sam",
+        "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -149,11 +150,13 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[2]",
+        "--INTERVAL_LIST": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/queryname.bam",
+        "--INTERVAL_LIST=<absent>",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -162,12 +165,14 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--INTERVAL_LIST": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.bam",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -175,11 +180,13 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[1]",
+        "--INTERVAL_LIST": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.sam",
+        "--INTERVAL_LIST=<absent>",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -188,11 +195,13 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[2]",
+        "--INTERVAL_LIST": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/queryname.bam",
+        "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -201,12 +210,14 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--INTERVAL_LIST": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.bam",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--INTERVAL_LIST=<absent>",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -214,11 +225,13 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
+        "--INTERVAL_LIST": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.sam",
+        "--INTERVAL_LIST=<absent>",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -227,11 +240,13 @@
       "labels": {
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[2]",
+        "--INTERVAL_LIST": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/queryname.bam",
+        "--INTERVAL_LIST=<absent>",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     }

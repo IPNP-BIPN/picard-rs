@@ -179,6 +179,19 @@ fn main() {
         }
     }
     let with_barcodes = declared.is_some() && !counts.is_empty();
+    // A lane the run does not have has no filter files, and the provider factory finds no format
+    // for the one data type it asks of them before anything looks for tiles.
+    let lane_dir = basecalls.join(format!("L{lane:03}"));
+    let has_filters = std::fs::read_dir(&lane_dir)
+        .map(|entries| {
+            entries
+                .flatten()
+                .any(|e| e.file_name().to_string_lossy().ends_with(".filter"))
+        })
+        .unwrap_or(false);
+    if !has_filters {
+        thrown("picard.PicardException: Could not find a format with available files for the following data types: PF");
+    }
     if with_barcodes && !has_barcode_files(&barcodes_dir, lane) {
         thrown("picard.PicardException: Could not find a format with available files for the following data types: Barcodes");
     }

@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 20,
-  "arguments_in_array": 3,
-  "arguments_excluded": 17,
+  "arguments_in_array": 6,
+  "arguments_excluded": 14,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -13,13 +13,6 @@
       "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--CHIMERA_KB_MIN",
-      "type": "int",
-      "reason": "only one value available (default)",
-      "held_at": "100000",
-      "source": "default"
     },
     {
       "argument": "--COMPRESSION_LEVEL",
@@ -50,13 +43,6 @@
       "source": "none"
     },
     {
-      "argument": "--MINIMUM_MAPPING_QUALITY",
-      "type": "Integer",
-      "reason": "only one value available (default)",
-      "held_at": "0",
-      "source": "default"
-    },
-    {
       "argument": "--OUTPUT",
       "type": "File",
       "reason": "only one value available (fixture[0])",
@@ -83,13 +69,6 @@
       "reason": "excluded by the repository: changes the usage text only",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--TAIL_LIMIT",
-      "type": "int",
-      "reason": "only one value available (default)",
-      "held_at": "10000",
-      "source": "default"
     },
     {
       "argument": "--TMP_DIR",
@@ -128,8 +107,8 @@
     }
   ],
   "rows": 9,
-  "tuples_total": 21,
-  "tuples_covered": 21,
+  "tuples_total": 81,
+  "tuples_covered": 81,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -139,118 +118,172 @@
     {
       "row": 0,
       "labels": {
+        "--CHIMERA_KB_MIN": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--TAIL_LIMIT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--CHIMERA_KB_MIN=100000",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
+        "--MINIMUM_MAPPING_QUALITY=0",
+        "--TAIL_LIMIT=10000",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 1,
       "labels": {
-        "--CREATE_INDEX": "true",
+        "--CHIMERA_KB_MIN": "fixture[0]",
+        "--CREATE_INDEX": "false",
         "--INPUT": "fixture[1]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[1]",
+        "--TAIL_LIMIT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
+        "--CHIMERA_KB_MIN=100000",
+        "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.sam",
+        "--MINIMUM_MAPPING_QUALITY=30",
+        "--TAIL_LIMIT=100",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 2,
       "labels": {
+        "--CHIMERA_KB_MIN": "fixture[1]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
+        "--INPUT": "fixture[1]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--TAIL_LIMIT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
+        "--CHIMERA_KB_MIN=1",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/queryname.bam",
+        "--INPUT=/work/fixtures/small.sam",
+        "--MINIMUM_MAPPING_QUALITY=0",
+        "--TAIL_LIMIT=100",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 3,
       "labels": {
+        "--CHIMERA_KB_MIN": "fixture[1]",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--MINIMUM_MAPPING_QUALITY": "fixture[1]",
+        "--TAIL_LIMIT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
+        "--CHIMERA_KB_MIN=1",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.bam",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--MINIMUM_MAPPING_QUALITY=30",
+        "--TAIL_LIMIT=10000",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 4,
       "labels": {
-        "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--CHIMERA_KB_MIN": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[2]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[1]",
+        "--TAIL_LIMIT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/small.sam",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--CHIMERA_KB_MIN=100000",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--MINIMUM_MAPPING_QUALITY=30",
+        "--TAIL_LIMIT=10000",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 5,
       "labels": {
+        "--CHIMERA_KB_MIN": "fixture[1]",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[2]",
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--TAIL_LIMIT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--CHIMERA_KB_MIN=1",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/queryname.bam",
+        "--MINIMUM_MAPPING_QUALITY=0",
+        "--TAIL_LIMIT=100",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 6,
       "labels": {
-        "--CREATE_INDEX": "false",
+        "--CHIMERA_KB_MIN": "fixture[1]",
+        "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--TAIL_LIMIT": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=false",
+        "--CHIMERA_KB_MIN=1",
+        "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--MINIMUM_MAPPING_QUALITY=0",
+        "--TAIL_LIMIT=100",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 7,
       "labels": {
+        "--CHIMERA_KB_MIN": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--MINIMUM_MAPPING_QUALITY": "fixture[1]",
+        "--TAIL_LIMIT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--CHIMERA_KB_MIN=100000",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.sam",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--MINIMUM_MAPPING_QUALITY=30",
+        "--TAIL_LIMIT=10000",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 8,
       "labels": {
+        "--CHIMERA_KB_MIN": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[2]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--MINIMUM_MAPPING_QUALITY": "fixture[0]",
+        "--TAIL_LIMIT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
+        "--CHIMERA_KB_MIN=100000",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/queryname.bam",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--MINIMUM_MAPPING_QUALITY=0",
+        "--TAIL_LIMIT=10000",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     }
   ]

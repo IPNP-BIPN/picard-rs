@@ -4,20 +4,13 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 23,
-  "arguments_in_array": 7,
-  "arguments_excluded": 16,
+  "arguments_in_array": 8,
+  "arguments_excluded": 15,
   "excluded": [
     {
       "argument": "--arguments_file",
       "type": "List[File]",
       "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
-      "held_at": null,
-      "source": "none"
-    },
-    {
-      "argument": "--COMMENT",
-      "type": "List[String]",
-      "reason": "free-form string with no default: a fixture must supply the values",
       "held_at": null,
       "source": "none"
     },
@@ -120,9 +113,9 @@
       "source": "none"
     }
   ],
-  "rows": 17,
-  "tuples_total": 151,
-  "tuples_covered": 151,
+  "rows": 18,
+  "tuples_total": 189,
+  "tuples_covered": 189,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -133,15 +126,17 @@
       "row": 0,
       "labels": {
         "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
         "--MERGE_SEQUENCE_DICTIONARIES": "true",
-        "--SORT_ORDER": "unsorted",
+        "--SORT_ORDER": "fixture[0]",
         "--USE_THREADING": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
+        "--COMMENT=<absent>",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
         "--MERGE_SEQUENCE_DICTIONARIES=true",
@@ -154,15 +149,17 @@
       "row": 1,
       "labels": {
         "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[1]",
         "--MERGE_SEQUENCE_DICTIONARIES": "false",
-        "--SORT_ORDER": "queryname",
+        "--SORT_ORDER": "fixture[1]",
         "--USE_THREADING": "false",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
+        "--COMMENT=merged here",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.sam",
         "--MERGE_SEQUENCE_DICTIONARIES=false",
@@ -175,17 +172,19 @@
       "row": 2,
       "labels": {
         "--ASSUME_SORTED": "false",
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[2]",
         "--MERGE_SEQUENCE_DICTIONARIES": "true",
-        "--SORT_ORDER": "coordinate",
+        "--SORT_ORDER": "fixture[2]",
         "--USE_THREADING": "false",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.sam",
+        "--COMMENT=<absent>",
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/queryname.bam",
         "--MERGE_SEQUENCE_DICTIONARIES=true",
         "--SORT_ORDER=coordinate",
         "--USE_THREADING=false",
@@ -196,16 +195,18 @@
       "row": 3,
       "labels": {
         "--ASSUME_SORTED": "false",
-        "--CREATE_INDEX": "false",
+        "--COMMENT": "fixture[1]",
+        "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
         "--MERGE_SEQUENCE_DICTIONARIES": "false",
-        "--SORT_ORDER": "duplicate",
+        "--SORT_ORDER": "fixture[3]",
         "--USE_THREADING": "true",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
-        "--CREATE_INDEX=false",
+        "--COMMENT=merged here",
+        "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
         "--MERGE_SEQUENCE_DICTIONARIES=false",
         "--SORT_ORDER=duplicate",
@@ -217,18 +218,20 @@
       "row": 4,
       "labels": {
         "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[2]",
-        "--MERGE_SEQUENCE_DICTIONARIES": "false",
-        "--SORT_ORDER": "unknown",
+        "--MERGE_SEQUENCE_DICTIONARIES": "true",
+        "--SORT_ORDER": "fixture[4]",
         "--USE_THREADING": "true",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
+        "--COMMENT=merged here",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/queryname.bam",
-        "--MERGE_SEQUENCE_DICTIONARIES=false",
+        "--MERGE_SEQUENCE_DICTIONARIES=true",
         "--SORT_ORDER=unknown",
         "--USE_THREADING=true",
         "--VALIDATION_STRINGENCY=LENIENT"
@@ -238,20 +241,22 @@
       "row": 5,
       "labels": {
         "--ASSUME_SORTED": "false",
-        "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[2]",
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
         "--MERGE_SEQUENCE_DICTIONARIES": "true",
-        "--SORT_ORDER": "unsorted",
-        "--USE_THREADING": "false",
+        "--SORT_ORDER": "fixture[1]",
+        "--USE_THREADING": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
-        "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/queryname.bam",
+        "--COMMENT=<absent>",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.sam",
         "--MERGE_SEQUENCE_DICTIONARIES=true",
-        "--SORT_ORDER=unsorted",
-        "--USE_THREADING=false",
+        "--SORT_ORDER=queryname",
+        "--USE_THREADING=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -259,16 +264,64 @@
       "row": 6,
       "labels": {
         "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
+        "--MERGE_SEQUENCE_DICTIONARIES": "true",
+        "--SORT_ORDER": "fixture[3]",
+        "--USE_THREADING": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--COMMENT=<absent>",
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/small.bam",
+        "--MERGE_SEQUENCE_DICTIONARIES=true",
+        "--SORT_ORDER=duplicate",
+        "--USE_THREADING=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--ASSUME_SORTED": "false",
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[2]",
         "--MERGE_SEQUENCE_DICTIONARIES": "false",
-        "--SORT_ORDER": "coordinate",
+        "--SORT_ORDER": "fixture[0]",
+        "--USE_THREADING": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=false",
+        "--COMMENT=<absent>",
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--MERGE_SEQUENCE_DICTIONARIES=false",
+        "--SORT_ORDER=unsorted",
+        "--USE_THREADING=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[1]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--MERGE_SEQUENCE_DICTIONARIES": "false",
+        "--SORT_ORDER": "fixture[2]",
         "--USE_THREADING": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
-        "--CREATE_INDEX=false",
+        "--COMMENT=merged here",
+        "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
         "--MERGE_SEQUENCE_DICTIONARIES=false",
         "--SORT_ORDER=coordinate",
@@ -277,63 +330,23 @@
       ]
     },
     {
-      "row": 7,
-      "labels": {
-        "--ASSUME_SORTED": "true",
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
-        "--MERGE_SEQUENCE_DICTIONARIES": "true",
-        "--SORT_ORDER": "duplicate",
-        "--USE_THREADING": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
-      },
-      "arguments": [
-        "--ASSUME_SORTED=true",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.sam",
-        "--MERGE_SEQUENCE_DICTIONARIES=true",
-        "--SORT_ORDER=duplicate",
-        "--USE_THREADING=true",
-        "--VALIDATION_STRINGENCY=STRICT"
-      ]
-    },
-    {
-      "row": 8,
-      "labels": {
-        "--ASSUME_SORTED": "false",
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[0]",
-        "--MERGE_SEQUENCE_DICTIONARIES": "true",
-        "--SORT_ORDER": "queryname",
-        "--USE_THREADING": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
-      },
-      "arguments": [
-        "--ASSUME_SORTED=false",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.bam",
-        "--MERGE_SEQUENCE_DICTIONARIES=true",
-        "--SORT_ORDER=queryname",
-        "--USE_THREADING=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
-      ]
-    },
-    {
       "row": 9,
       "labels": {
         "--ASSUME_SORTED": "false",
+        "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
-        "--MERGE_SEQUENCE_DICTIONARIES": "true",
-        "--SORT_ORDER": "unknown",
+        "--MERGE_SEQUENCE_DICTIONARIES": "false",
+        "--SORT_ORDER": "fixture[4]",
         "--USE_THREADING": "false",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=false",
+        "--COMMENT=<absent>",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.bam",
-        "--MERGE_SEQUENCE_DICTIONARIES=true",
+        "--MERGE_SEQUENCE_DICTIONARIES=false",
         "--SORT_ORDER=unknown",
         "--USE_THREADING=false",
         "--VALIDATION_STRINGENCY=STRICT"
@@ -343,36 +356,109 @@
       "row": 10,
       "labels": {
         "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
-        "--MERGE_SEQUENCE_DICTIONARIES": "false",
-        "--SORT_ORDER": "unsorted",
-        "--USE_THREADING": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--MERGE_SEQUENCE_DICTIONARIES": "true",
+        "--SORT_ORDER": "fixture[0]",
+        "--USE_THREADING": "false",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
+        "--COMMENT=merged here",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.sam",
-        "--MERGE_SEQUENCE_DICTIONARIES=false",
+        "--MERGE_SEQUENCE_DICTIONARIES=true",
         "--SORT_ORDER=unsorted",
-        "--USE_THREADING=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--USE_THREADING=false",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 11,
       "labels": {
         "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--MERGE_SEQUENCE_DICTIONARIES": "true",
+        "--SORT_ORDER": "fixture[1]",
+        "--USE_THREADING": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--COMMENT=<absent>",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--MERGE_SEQUENCE_DICTIONARIES=true",
+        "--SORT_ORDER=queryname",
+        "--USE_THREADING=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
         "--MERGE_SEQUENCE_DICTIONARIES": "true",
-        "--SORT_ORDER": "unknown",
+        "--SORT_ORDER": "fixture[2]",
+        "--USE_THREADING": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--COMMENT=<absent>",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--MERGE_SEQUENCE_DICTIONARIES=true",
+        "--SORT_ORDER=coordinate",
+        "--USE_THREADING=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 13,
+      "labels": {
+        "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
+        "--MERGE_SEQUENCE_DICTIONARIES": "true",
+        "--SORT_ORDER": "fixture[3]",
+        "--USE_THREADING": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--COMMENT=<absent>",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--MERGE_SEQUENCE_DICTIONARIES=true",
+        "--SORT_ORDER=duplicate",
+        "--USE_THREADING=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 14,
+      "labels": {
+        "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
+        "--MERGE_SEQUENCE_DICTIONARIES": "true",
+        "--SORT_ORDER": "fixture[4]",
         "--USE_THREADING": "true",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
+        "--COMMENT=<absent>",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.sam",
         "--MERGE_SEQUENCE_DICTIONARIES=true",
@@ -382,108 +468,72 @@
       ]
     },
     {
-      "row": 12,
+      "row": 15,
       "labels": {
         "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[2]",
         "--MERGE_SEQUENCE_DICTIONARIES": "true",
-        "--SORT_ORDER": "queryname",
+        "--SORT_ORDER": "fixture[1]",
         "--USE_THREADING": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
+        "--COMMENT=<absent>",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/queryname.bam",
         "--MERGE_SEQUENCE_DICTIONARIES=true",
         "--SORT_ORDER=queryname",
         "--USE_THREADING=true",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 13,
-      "labels": {
-        "--ASSUME_SORTED": "true",
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
-        "--MERGE_SEQUENCE_DICTIONARIES": "true",
-        "--SORT_ORDER": "coordinate",
-        "--USE_THREADING": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
-      },
-      "arguments": [
-        "--ASSUME_SORTED=true",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/queryname.bam",
-        "--MERGE_SEQUENCE_DICTIONARIES=true",
-        "--SORT_ORDER=coordinate",
-        "--USE_THREADING=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
-      ]
-    },
-    {
-      "row": 14,
-      "labels": {
-        "--ASSUME_SORTED": "true",
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
-        "--MERGE_SEQUENCE_DICTIONARIES": "true",
-        "--SORT_ORDER": "duplicate",
-        "--USE_THREADING": "false",
-        "--VALIDATION_STRINGENCY": "LENIENT"
-      },
-      "arguments": [
-        "--ASSUME_SORTED=true",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/queryname.bam",
-        "--MERGE_SEQUENCE_DICTIONARIES=true",
-        "--SORT_ORDER=duplicate",
-        "--USE_THREADING=false",
-        "--VALIDATION_STRINGENCY=LENIENT"
-      ]
-    },
-    {
-      "row": 15,
-      "labels": {
-        "--ASSUME_SORTED": "true",
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[0]",
-        "--MERGE_SEQUENCE_DICTIONARIES": "true",
-        "--SORT_ORDER": "unsorted",
-        "--USE_THREADING": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
-      },
-      "arguments": [
-        "--ASSUME_SORTED=true",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.bam",
-        "--MERGE_SEQUENCE_DICTIONARIES=true",
-        "--SORT_ORDER=unsorted",
-        "--USE_THREADING=true",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 16,
       "labels": {
         "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[0]",
+        "--INPUT": "fixture[2]",
         "--MERGE_SEQUENCE_DICTIONARIES": "true",
-        "--SORT_ORDER": "queryname",
+        "--SORT_ORDER": "fixture[3]",
         "--USE_THREADING": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ASSUME_SORTED=true",
+        "--COMMENT=<absent>",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--MERGE_SEQUENCE_DICTIONARIES=true",
+        "--SORT_ORDER=duplicate",
+        "--USE_THREADING=true",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 17,
+      "labels": {
+        "--ASSUME_SORTED": "true",
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--MERGE_SEQUENCE_DICTIONARIES": "true",
+        "--SORT_ORDER": "fixture[1]",
+        "--USE_THREADING": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ASSUME_SORTED=true",
+        "--COMMENT=<absent>",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
         "--MERGE_SEQUENCE_DICTIONARIES=true",
         "--SORT_ORDER=queryname",
         "--USE_THREADING=true",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     }
   ]

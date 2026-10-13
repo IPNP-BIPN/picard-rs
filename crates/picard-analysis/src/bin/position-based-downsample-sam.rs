@@ -20,7 +20,6 @@ use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::writer::BamWriter;
-use picard_analysis::mark_duplicates::location;
 use picard_analysis::position_based_downsample_sam::{
     fraction_out_of_range_message, keep, PhysicalLocation, PG_PROGRAM_NAME,
 };
@@ -33,6 +32,16 @@ fn arg(args: &[String], key: &str) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // `READ_NAME_REGEX`, which a name has to match whole for its tile and position to be read.
+    let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
+        std::env::args()
+            .find_map(|a| a.strip_prefix("READ_NAME_REGEX=").map(str::to_string))
+            .as_deref(),
+    )
+    .unwrap_or_else(|thrown| {
+        eprintln!("Exception in thread \"main\" {thrown}");
+        std::process::exit(1);
+    });
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -101,7 +110,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let locations: Vec<PhysicalLocation> = records
         .iter()
         .map(|rec| {
-            let parsed = location(&rec.read_name);
+            let parsed =
+                picard_analysis::mark_duplicates::location_with(&rec.read_name, &read_name_regex);
             if parsed.known {
                 PhysicalLocation {
                     tile: parsed.tile,

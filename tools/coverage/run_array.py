@@ -30,6 +30,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -50,6 +51,13 @@ LOG_TIME = re.compile(r"(?m)^(ERROR|WARN|INFO|DEBUG)\t\d{4}-\d{2}-\d{2} \d{2}:\d
 
 # Values that mean "the argument is absent", so a held-at value carrying one must not be passed.
 ABSENT = {"None", "null", "[]", ""}
+
+# A fixture value that leaves the argument off the row's command line. Barclay counts an argument
+# given as `null` as SET, so `null` cannot stand for "not given": a pair of mutually exclusive
+# arguments could only ever vary one side, the other held absent for the whole array. Listing this
+# as one of each side's values, with a constraint forbidding both sides present (and both absent,
+# where one is required), lets the array cover both.
+OMITTED = "<absent>"
 
 
 def build_fixtures(workdir):
@@ -101,8 +109,8 @@ def row_arguments(row, held):
     `--ADAPTER_SEQUENCE`'s default is a `List[String]` and came back as a single token with its
     brackets and commas, which the parser read as positional arguments.
     """
-    args = list(row["arguments"])
-    covered = {a.split("=", 1)[0] for a in args}
+    covered = {a.split("=", 1)[0] for a in row["arguments"]}
+    args = [a for a in row["arguments"] if a.partition("=")[2] != OMITTED]
     for entry in held:
         name, value = entry["argument"], entry.get("held_at")
         if entry.get("source") != "fixture" or name in covered:
@@ -232,7 +240,10 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_
             copied.append(pair)
         row_args = copied
     stdin_bytes = (fixtures / Path(stdin_name).name).read_bytes() if stdin_name else None
-    cli = " ".join(as_cli(row_args, lists) + positional)
+    # Each word is quoted for the container's shell: a value with a space (a COMMENT, a program
+    # group's command line) or a parenthesis (a READ_NAME_REGEX) is one argument to the tool, and
+    # unquoted the shell split it or refused the line before Java started.
+    cli = " ".join(shlex.quote(word) for word in as_cli(row_args, lists) + positional)
     # `java -jar picard.jar <Tool> <args>`: the tool name is the first token, and the arguments
     # follow in Barclay long form.
     command = f"mkdir -p /work/tmp /work/out && {copies}java -jar $PICARD_JAR {tool} {cli}"

@@ -102,6 +102,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .transpose()?;
     let seconds: Vec<&str> = second.as_deref().into_iter().collect();
     let text = interval_list_tools(&[&first], &seconds, &options).map_err(|e| format!("{e:?}"))?;
-    std::fs::write(&output, text)?;
+    // `header.addComment` for every COMMENT: the comments close the header, after any `@PG`.
+    let comments: Vec<String> = args
+        .iter()
+        .filter_map(|a| a.strip_prefix("COMMENT=").or_else(|| a.strip_prefix("CO=")))
+        .map(|c| format!("@CO\t{c}\n"))
+        .collect();
+    let header_end = text
+        .lines()
+        .take_while(|line| line.starts_with('@'))
+        .map(|line| line.len() + 1)
+        .sum::<usize>();
+    let text = format!(
+        "{}{}{}",
+        &text[..header_end],
+        comments.concat(),
+        &text[header_end..]
+    );
+    std::fs::write(&output, &text)?;
+    // `OUTPUT_VALUE.output`: the bases or the intervals of what was written, one line.
+    if let Some(path) = &count_output {
+        let intervals: Vec<(i64, i64)> = text
+            .lines()
+            .filter(|line| !line.starts_with('@'))
+            .filter_map(|line| {
+                let mut fields = line.split('\t').skip(1);
+                Some((fields.next()?.parse().ok()?, fields.next()?.parse().ok()?))
+            })
+            .collect();
+        let value = match output_value.as_str() {
+            "BASES" => intervals
+                .iter()
+                .map(|(start, end)| end - start + 1)
+                .sum::<i64>(),
+            _ => intervals.len() as i64,
+        };
+        std::fs::write(path, format!("{value}\n"))?;
+    }
     Ok(())
 }

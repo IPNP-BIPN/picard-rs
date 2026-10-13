@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 21,
-  "arguments_in_array": 7,
-  "arguments_excluded": 14,
+  "arguments_in_array": 8,
+  "arguments_excluded": 13,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -32,13 +32,6 @@
       "argument": "--help",
       "type": "boolean",
       "reason": "excluded by the repository: prints usage and exits; the row would measure the argument parser, not the tool",
-      "held_at": null,
-      "source": "none"
-    },
-    {
-      "argument": "--INTERVAL_LIST",
-      "type": "File",
-      "reason": "File needs a fixture; declare one in the repository's fixtures file",
       "held_at": null,
       "source": "none"
     },
@@ -107,8 +100,8 @@
     }
   ],
   "rows": 14,
-  "tuples_total": 138,
-  "tuples_covered": 138,
+  "tuples_total": 174,
+  "tuples_covered": 174,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -122,6 +115,7 @@
         "--CREATE_INDEX": "true",
         "--HEADER_ONLY": "true",
         "--INPUT": "fixture[0]",
+        "--INTERVAL_LIST": "fixture[0]",
         "--PF_STATUS": "PF",
         "--RECORDS_ONLY": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
@@ -131,6 +125,7 @@
         "--CREATE_INDEX=true",
         "--HEADER_ONLY=true",
         "--INPUT=/work/fixtures/small.bam",
+        "--INTERVAL_LIST=<absent>",
         "--PF_STATUS=PF",
         "--RECORDS_ONLY=true",
         "--VALIDATION_STRINGENCY=STRICT"
@@ -143,6 +138,7 @@
         "--CREATE_INDEX": "false",
         "--HEADER_ONLY": "false",
         "--INPUT": "fixture[1]",
+        "--INTERVAL_LIST": "fixture[1]",
         "--PF_STATUS": "NonPF",
         "--RECORDS_ONLY": "false",
         "--VALIDATION_STRINGENCY": "LENIENT"
@@ -152,6 +148,7 @@
         "--CREATE_INDEX=false",
         "--HEADER_ONLY=false",
         "--INPUT=/work/fixtures/small.sam",
+        "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
         "--PF_STATUS=NonPF",
         "--RECORDS_ONLY=false",
         "--VALIDATION_STRINGENCY=LENIENT"
@@ -164,8 +161,9 @@
         "--CREATE_INDEX": "true",
         "--HEADER_ONLY": "false",
         "--INPUT": "fixture[2]",
+        "--INTERVAL_LIST": "fixture[0]",
         "--PF_STATUS": "All",
-        "--RECORDS_ONLY": "true",
+        "--RECORDS_ONLY": "false",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -173,8 +171,9 @@
         "--CREATE_INDEX=true",
         "--HEADER_ONLY=false",
         "--INPUT=/work/fixtures/queryname.bam",
+        "--INTERVAL_LIST=<absent>",
         "--PF_STATUS=All",
-        "--RECORDS_ONLY=true",
+        "--RECORDS_ONLY=false",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -185,18 +184,20 @@
         "--CREATE_INDEX": "false",
         "--HEADER_ONLY": "true",
         "--INPUT": "fixture[0]",
-        "--PF_STATUS": "NonPF",
-        "--RECORDS_ONLY": "false",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--INTERVAL_LIST": "fixture[1]",
+        "--PF_STATUS": "All",
+        "--RECORDS_ONLY": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ALIGNMENT_STATUS=Unaligned",
         "--CREATE_INDEX=false",
         "--HEADER_ONLY=true",
         "--INPUT=/work/fixtures/small.bam",
-        "--PF_STATUS=NonPF",
-        "--RECORDS_ONLY=false",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
+        "--PF_STATUS=All",
+        "--RECORDS_ONLY=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -206,18 +207,20 @@
         "--CREATE_INDEX": "true",
         "--HEADER_ONLY": "true",
         "--INPUT": "fixture[1]",
-        "--PF_STATUS": "All",
-        "--RECORDS_ONLY": "false",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--INTERVAL_LIST": "fixture[0]",
+        "--PF_STATUS": "NonPF",
+        "--RECORDS_ONLY": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ALIGNMENT_STATUS=All",
         "--CREATE_INDEX=true",
         "--HEADER_ONLY=true",
         "--INPUT=/work/fixtures/small.sam",
-        "--PF_STATUS=All",
-        "--RECORDS_ONLY=false",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--INTERVAL_LIST=<absent>",
+        "--PF_STATUS=NonPF",
+        "--RECORDS_ONLY=true",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -227,18 +230,20 @@
         "--CREATE_INDEX": "false",
         "--HEADER_ONLY": "false",
         "--INPUT": "fixture[0]",
+        "--INTERVAL_LIST": "fixture[0]",
         "--PF_STATUS": "PF",
-        "--RECORDS_ONLY": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--RECORDS_ONLY": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ALIGNMENT_STATUS=All",
         "--CREATE_INDEX=false",
         "--HEADER_ONLY=false",
         "--INPUT=/work/fixtures/small.bam",
+        "--INTERVAL_LIST=<absent>",
         "--PF_STATUS=PF",
-        "--RECORDS_ONLY=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--RECORDS_ONLY=false",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -248,18 +253,20 @@
         "--CREATE_INDEX": "false",
         "--HEADER_ONLY": "true",
         "--INPUT": "fixture[2]",
-        "--PF_STATUS": "All",
-        "--RECORDS_ONLY": "false",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--INTERVAL_LIST": "fixture[1]",
+        "--PF_STATUS": "PF",
+        "--RECORDS_ONLY": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ALIGNMENT_STATUS=Aligned",
         "--CREATE_INDEX=false",
         "--HEADER_ONLY=true",
         "--INPUT=/work/fixtures/queryname.bam",
-        "--PF_STATUS=All",
-        "--RECORDS_ONLY=false",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
+        "--PF_STATUS=PF",
+        "--RECORDS_ONLY=true",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -267,20 +274,22 @@
       "labels": {
         "--ALIGNMENT_STATUS": "Unaligned",
         "--CREATE_INDEX": "true",
-        "--HEADER_ONLY": "true",
+        "--HEADER_ONLY": "false",
         "--INPUT": "fixture[1]",
+        "--INTERVAL_LIST": "fixture[0]",
         "--PF_STATUS": "PF",
         "--RECORDS_ONLY": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ALIGNMENT_STATUS=Unaligned",
         "--CREATE_INDEX=true",
-        "--HEADER_ONLY=true",
+        "--HEADER_ONLY=false",
         "--INPUT=/work/fixtures/small.sam",
+        "--INTERVAL_LIST=<absent>",
         "--PF_STATUS=PF",
         "--RECORDS_ONLY=true",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -288,8 +297,9 @@
       "labels": {
         "--ALIGNMENT_STATUS": "All",
         "--CREATE_INDEX": "true",
-        "--HEADER_ONLY": "false",
+        "--HEADER_ONLY": "true",
         "--INPUT": "fixture[2]",
+        "--INTERVAL_LIST": "fixture[1]",
         "--PF_STATUS": "NonPF",
         "--RECORDS_ONLY": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
@@ -297,8 +307,9 @@
       "arguments": [
         "--ALIGNMENT_STATUS=All",
         "--CREATE_INDEX=true",
-        "--HEADER_ONLY=false",
+        "--HEADER_ONLY=true",
         "--INPUT=/work/fixtures/queryname.bam",
+        "--INTERVAL_LIST=/work/fixtures/targets.interval_list",
         "--PF_STATUS=NonPF",
         "--RECORDS_ONLY=true",
         "--VALIDATION_STRINGENCY=STRICT"
@@ -307,19 +318,21 @@
     {
       "row": 9,
       "labels": {
-        "--ALIGNMENT_STATUS": "Unaligned",
-        "--CREATE_INDEX": "false",
+        "--ALIGNMENT_STATUS": "Aligned",
+        "--CREATE_INDEX": "true",
         "--HEADER_ONLY": "true",
-        "--INPUT": "fixture[0]",
+        "--INPUT": "fixture[1]",
+        "--INTERVAL_LIST": "fixture[0]",
         "--PF_STATUS": "All",
         "--RECORDS_ONLY": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--ALIGNMENT_STATUS=Unaligned",
-        "--CREATE_INDEX=false",
+        "--ALIGNMENT_STATUS=Aligned",
+        "--CREATE_INDEX=true",
         "--HEADER_ONLY=true",
-        "--INPUT=/work/fixtures/small.bam",
+        "--INPUT=/work/fixtures/small.sam",
+        "--INTERVAL_LIST=<absent>",
         "--PF_STATUS=All",
         "--RECORDS_ONLY=true",
         "--VALIDATION_STRINGENCY=STRICT"
@@ -328,10 +341,57 @@
     {
       "row": 10,
       "labels": {
-        "--ALIGNMENT_STATUS": "Aligned",
+        "--ALIGNMENT_STATUS": "Unaligned",
+        "--CREATE_INDEX": "true",
+        "--HEADER_ONLY": "true",
+        "--INPUT": "fixture[0]",
+        "--INTERVAL_LIST": "fixture[0]",
+        "--PF_STATUS": "NonPF",
+        "--RECORDS_ONLY": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ALIGNMENT_STATUS=Unaligned",
+        "--CREATE_INDEX=true",
+        "--HEADER_ONLY=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--INTERVAL_LIST=<absent>",
+        "--PF_STATUS=NonPF",
+        "--RECORDS_ONLY=true",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 11,
+      "labels": {
+        "--ALIGNMENT_STATUS": "All",
         "--CREATE_INDEX": "true",
         "--HEADER_ONLY": "true",
         "--INPUT": "fixture[2]",
+        "--INTERVAL_LIST": "fixture[0]",
+        "--PF_STATUS": "All",
+        "--RECORDS_ONLY": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ALIGNMENT_STATUS=All",
+        "--CREATE_INDEX=true",
+        "--HEADER_ONLY=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--INTERVAL_LIST=<absent>",
+        "--PF_STATUS=All",
+        "--RECORDS_ONLY=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--ALIGNMENT_STATUS": "Aligned",
+        "--CREATE_INDEX": "true",
+        "--HEADER_ONLY": "true",
+        "--INPUT": "fixture[0]",
+        "--INTERVAL_LIST": "fixture[0]",
         "--PF_STATUS": "PF",
         "--RECORDS_ONLY": "false",
         "--VALIDATION_STRINGENCY": "STRICT"
@@ -340,73 +400,34 @@
         "--ALIGNMENT_STATUS=Aligned",
         "--CREATE_INDEX=true",
         "--HEADER_ONLY=true",
-        "--INPUT=/work/fixtures/queryname.bam",
+        "--INPUT=/work/fixtures/small.bam",
+        "--INTERVAL_LIST=<absent>",
         "--PF_STATUS=PF",
         "--RECORDS_ONLY=false",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
-      "row": 11,
+      "row": 13,
       "labels": {
         "--ALIGNMENT_STATUS": "Aligned",
         "--CREATE_INDEX": "true",
         "--HEADER_ONLY": "true",
         "--INPUT": "fixture[0]",
+        "--INTERVAL_LIST": "fixture[0]",
         "--PF_STATUS": "PF",
         "--RECORDS_ONLY": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ALIGNMENT_STATUS=Aligned",
         "--CREATE_INDEX=true",
         "--HEADER_ONLY=true",
         "--INPUT=/work/fixtures/small.bam",
-        "--PF_STATUS=PF",
-        "--RECORDS_ONLY=true",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 12,
-      "labels": {
-        "--ALIGNMENT_STATUS": "Unaligned",
-        "--CREATE_INDEX": "true",
-        "--HEADER_ONLY": "true",
-        "--INPUT": "fixture[0]",
-        "--PF_STATUS": "PF",
-        "--RECORDS_ONLY": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
-      },
-      "arguments": [
-        "--ALIGNMENT_STATUS=Unaligned",
-        "--CREATE_INDEX=true",
-        "--HEADER_ONLY=true",
-        "--INPUT=/work/fixtures/small.bam",
+        "--INTERVAL_LIST=<absent>",
         "--PF_STATUS=PF",
         "--RECORDS_ONLY=true",
         "--VALIDATION_STRINGENCY=LENIENT"
-      ]
-    },
-    {
-      "row": 13,
-      "labels": {
-        "--ALIGNMENT_STATUS": "All",
-        "--CREATE_INDEX": "true",
-        "--HEADER_ONLY": "true",
-        "--INPUT": "fixture[0]",
-        "--PF_STATUS": "PF",
-        "--RECORDS_ONLY": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
-      },
-      "arguments": [
-        "--ALIGNMENT_STATUS=All",
-        "--CREATE_INDEX=true",
-        "--HEADER_ONLY=true",
-        "--INPUT=/work/fixtures/small.bam",
-        "--PF_STATUS=PF",
-        "--RECORDS_ONLY=true",
-        "--VALIDATION_STRINGENCY=SILENT"
       ]
     }
   ]

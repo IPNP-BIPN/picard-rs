@@ -69,6 +69,11 @@ public class MakeIlluminaCoverageFixtures {
                 null);
         IlluminaRun.write(dir.resolve("ill_run"));
         IlluminaRun.write(dir.resolve("ill_run24"), 24);
+        // The same two runs over lanes 1 and 2, for the tools whose LANE is a choice: with one
+        // lane in the corpus every other value is a refusal, and one refusal's wording comes from
+        // a HashSet's iteration order, which is not the same from one JVM to the next.
+        IlluminaRun.write(dir.resolve("ill_run_2l"), 4, new int[]{1, 2});
+        IlluminaRun.write(dir.resolve("ill_run24_2l"), 24, new int[]{1, 2});
         // ill_run_n is ill_run with a no-call in the second cluster's third cycle and a quality of
         // ten under the third cluster's fourth, so its barcodes read AG, NG, CT (the T poor) and
         // CT: MAX_NO_CALLS and MINIMUM_BASE_QUALITY each have a cluster to decide.
@@ -205,11 +210,17 @@ final class IlluminaRun {
      */
     static void writeTileMetrics(final Path file, final int lane, final int[] tiles)
             throws IOException {
-        final ByteBuffer buffer = ByteBuffer.allocate(2 + tiles.length * 10)
+        writeTileMetrics(file, new int[]{lane}, tiles);
+    }
+
+    /** One tile metrics file over several lanes, each holding the same tiles. */
+    static void writeTileMetrics(final Path file, final int[] lanes, final int... tiles)
+            throws IOException {
+        final ByteBuffer buffer = ByteBuffer.allocate(2 + lanes.length * tiles.length * 10)
                 .order(ByteOrder.LITTLE_ENDIAN);
         buffer.put((byte) 2);
         buffer.put((byte) 10);
-        for (final int tile : tiles) {
+        for (final int lane : lanes) for (final int tile : tiles) {
             buffer.putShort((short) lane);
             buffer.putShort((short) tile);
             // Code 100 is the cluster count, which is the metric the tools read a tile's existence
@@ -240,24 +251,36 @@ final class IlluminaRun {
      * twenty-four cycles whatever the command line says. A fixture for it has to have them.
      */
     static Path write(final Path run, final int cycles) throws IOException {
+        return write(run, cycles, new int[]{LANE});
+    }
+
+    /**
+     * The same directory carrying several LANES, each with the one tile. Lane 1 is the run above;
+     * every further lane passes only its first two clusters, so a tool told `LANE=2` reports a
+     * different PF count from one told `LANE=1` rather than the same numbers under a new label.
+     */
+    static Path write(final Path run, final int cycles, final int[] lanes) throws IOException {
         final Path intensities = run.resolve("Data").resolve("Intensities");
         final Path root = intensities.resolve("BaseCalls");
-        writeTileMetrics(run.resolve("InterOp").resolve("TileMetricsOut.bin"), LANE,
-                new int[]{TILE});
+        writeTileMetrics(run.resolve("InterOp").resolve("TileMetricsOut.bin"), lanes, TILE);
         writeLocs(intensities.resolve("s.locs"), CLUSTERS);
-        final Path lane = root.resolve(String.format("L%03d", LANE));
-        for (int cycle = 1; cycle <= cycles; cycle++) {
-            // Past the fourth cycle the four patterns repeat, so a longer run carries the same
-            // four clusters and nothing new to reason about.
-            writeBcl(lane.resolve("C" + cycle + ".1")
-                            .resolve(String.format("s_%d_%d.bcl", LANE, TILE)),
-                    CYCLES[(cycle - 1) % CYCLES.length], 30);
+        for (final int number : lanes) {
+            final Path lane = root.resolve(String.format("L%03d", number));
+            for (int cycle = 1; cycle <= cycles; cycle++) {
+                // Past the fourth cycle the four patterns repeat, so a longer run carries the same
+                // four clusters and nothing new to reason about.
+                writeBcl(lane.resolve("C" + cycle + ".1")
+                                .resolve(String.format("s_%d_%d.bcl", number, TILE)),
+                        CYCLES[(cycle - 1) % CYCLES.length], 30);
+            }
+            // Three of the four clusters pass the filter, which is what makes a `PF` count worth
+            // reading: a tool that ignored the filter would report four.
+            writeFilter(lane.resolve(String.format("s_%d_%d.filter", number, TILE)),
+                    number == LANE
+                            ? new boolean[]{true, true, true, false}
+                            : new boolean[]{true, true, false, false});
+            writeLocs(lane.resolve(String.format("s_%d_%d.locs", number, TILE)), CLUSTERS);
         }
-        // Three of the four clusters pass the filter, which is what makes a `PF` count worth
-        // reading: a tool that ignored the filter would report four.
-        writeFilter(lane.resolve(String.format("s_%d_%d.filter", LANE, TILE)),
-                new boolean[]{true, true, true, false});
-        writeLocs(lane.resolve(String.format("s_%d_%d.locs", LANE, TILE)), CLUSTERS);
         Files.writeString(root.resolve("config.xml"), "<BaseCallAnalysis/>\n",
                 StandardCharsets.UTF_8);
         return root;

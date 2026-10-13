@@ -33,12 +33,14 @@ pub const OUTPUT_VCF_TRUTH_SAMPLE_NAME: &str = "truth";
 pub const OUTPUT_VCF_CALL_SAMPLE_NAME: &str = "call";
 
 /// The `CONC_ST` value a cell writes: `VCFEncoder.formatVCFField` over the list of states, which
-/// joins them with commas and writes an empty list as `.`. `None` for a cell the scheme says
-/// cannot happen, where the reference's `Arrays.asList(null)` throws.
+/// joins them with commas. An empty cell here is the scheme's `EMPTY`, which in the reference is
+/// not an empty list but a one-element array holding the `EMPTY` state, so it writes that word.
+/// `None` for a cell the scheme says cannot happen, where the reference's `Arrays.asList(null)`
+/// throws.
 pub fn contingency_state_value(cell: Cell) -> Option<String> {
     match cell {
         Cell::Unreachable => None,
-        Cell::Values([]) => Some(NO_CALL_STRING.to_string()),
+        Cell::Values([]) => Some("EMPTY".to_string()),
         Cell::Values(values) => Some(
             values
                 .iter()

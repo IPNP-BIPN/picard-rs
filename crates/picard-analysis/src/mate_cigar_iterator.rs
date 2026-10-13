@@ -30,8 +30,8 @@
 use std::cmp::Ordering;
 
 use crate::mark_duplicates::{
-    duplicate_score_with, location, orientation_byte, Location, Options, Record, ScoringStrategy,
-    F, FF, FR, R,
+    duplicate_score_with, orientation_byte, Location, Options, Record, ScoringStrategy, F, FF, FR,
+    R,
 };
 
 /// One read end, as `ReadEndsForMateCigar` builds it.
@@ -330,7 +330,8 @@ fn build_end(records: &[Record], index: usize, library_id: i32, options: &Option
         end.has_unmapped = 1;
     }
     if options.parse_read_names {
-        end.location = location(&record.name);
+        end.location =
+            crate::mark_duplicates::location_with(&record.name, &options.read_name_regex);
         if end.location.known {
             end.read_group = record.read_group;
         }
@@ -537,6 +538,10 @@ fn drain(
 /// `AbstractMarkDuplicatesCommandLineProgram.trackOpticalDuplicates` over one location set: the
 /// ends within the pixel distance of the best-scoring one are optical duplicates of it.
 fn track_optical(entries: &[End], options: &Options, records: &[Record], optical: &mut [bool]) {
+    // `findOpticalDuplicates` returns nothing for a set longer than MAX_OPTICAL_DUPLICATE_SET_SIZE.
+    if entries.len() as i64 > options.max_optical_duplicate_set_size {
+        return;
+    }
     let known: Vec<&End> = entries.iter().filter(|end| end.location.known).collect();
     if known.len() < 2 {
         return;

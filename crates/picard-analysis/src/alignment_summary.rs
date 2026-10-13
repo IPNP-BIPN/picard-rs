@@ -324,6 +324,8 @@ pub struct Options {
     /// `EXPECTED_PAIR_ORIENTATIONS`, default `{FR}`.
     pub expected_orientations: Vec<PairOrientation>,
     pub is_bisulfite_sequenced: bool,
+    /// `ADAPTER_SEQUENCE`, default `AdapterUtility.DEFAULT_ADAPTER_SEQUENCE`.
+    pub adapter_sequence: Vec<String>,
 }
 
 impl Default for Options {
@@ -333,6 +335,10 @@ impl Default for Options {
             max_insert_size: DEFAULT_INSERT_SIZE_LIMIT,
             expected_orientations: vec![PairOrientation::Fr],
             is_bisulfite_sequenced: false,
+            adapter_sequence: crate::adapter::DEFAULT_ADAPTER_SEQUENCE
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
         }
     }
 }
@@ -798,7 +804,13 @@ impl GroupCollector {
             first_of_pair: IndividualCollector::new(Category::FirstOfPair),
             second_of_pair: IndividualCollector::new(Category::SecondOfPair),
             pair: IndividualCollector::new(Category::Pair),
-            adapters: AdapterUtility::with_defaults(),
+            adapters: AdapterUtility::new(
+                &opts
+                    .adapter_sequence
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>(),
+            ),
             opts,
         }
     }

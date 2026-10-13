@@ -4,16 +4,9 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 22,
-  "arguments_in_array": 5,
-  "arguments_excluded": 17,
+  "arguments_in_array": 8,
+  "arguments_excluded": 14,
   "excluded": [
-    {
-      "argument": "--ACCURACY",
-      "type": "double",
-      "reason": "only one value available (default)",
-      "held_at": "1.0E-4",
-      "source": "default"
-    },
     {
       "argument": "--arguments_file",
       "type": "List[File]",
@@ -50,13 +43,6 @@
       "source": "none"
     },
     {
-      "argument": "--METRICS_FILE",
-      "type": "PicardHtsPath",
-      "reason": "PicardHtsPath needs a fixture; declare one in the repository's fixtures file",
-      "held_at": null,
-      "source": "none"
-    },
-    {
       "argument": "--OUTPUT",
       "type": "PicardHtsPath",
       "reason": "only one value available (fixture[0])",
@@ -83,13 +69,6 @@
       "reason": "excluded by the repository: changes the usage text only",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--STRATEGY",
-      "type": "Strategy",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "ConstantMemory",
-      "source": "fixture"
     },
     {
       "argument": "--TMP_DIR",
@@ -127,9 +106,9 @@
       "source": "none"
     }
   ],
-  "rows": 11,
-  "tuples_total": 57,
-  "tuples_covered": 57,
+  "rows": 13,
+  "tuples_total": 157,
+  "tuples_covered": 157,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -139,188 +118,300 @@
     {
       "row": 0,
       "labels": {
+        "--ACCURACY": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
+        "--METRICS_FILE": "fixture[0]",
         "--PROBABILITY": "fixture[0]",
         "--RANDOM_SEED": "fixture[0]",
+        "--STRATEGY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--ACCURACY=1.0E-4",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.bam",
+        "--METRICS_FILE=<absent>",
         "--PROBABILITY=1.0",
         "--RANDOM_SEED=1",
+        "--STRATEGY=ConstantMemory",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 1,
       "labels": {
-        "--CREATE_INDEX": "true",
+        "--ACCURACY": "fixture[0]",
+        "--CREATE_INDEX": "false",
         "--INPUT": "fixture[1]",
+        "--METRICS_FILE": "fixture[1]",
         "--PROBABILITY": "fixture[1]",
         "--RANDOM_SEED": "fixture[1]",
+        "--STRATEGY": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
+        "--ACCURACY=1.0E-4",
+        "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.sam",
+        "--METRICS_FILE=/work/out/metrics.txt",
         "--PROBABILITY=0.5",
         "--RANDOM_SEED=42",
+        "--STRATEGY=HighAccuracy",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 2,
       "labels": {
+        "--ACCURACY": "fixture[1]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
-        "--PROBABILITY": "fixture[0]",
-        "--RANDOM_SEED": "fixture[1]",
+        "--INPUT": "fixture[1]",
+        "--METRICS_FILE": "fixture[0]",
+        "--PROBABILITY": "fixture[1]",
+        "--RANDOM_SEED": "fixture[0]",
+        "--STRATEGY": "fixture[2]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
+        "--ACCURACY=0.1",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/queryname.bam",
-        "--PROBABILITY=1.0",
-        "--RANDOM_SEED=42",
+        "--INPUT=/work/fixtures/small.sam",
+        "--METRICS_FILE=<absent>",
+        "--PROBABILITY=0.5",
+        "--RANDOM_SEED=1",
+        "--STRATEGY=Chained",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 3,
       "labels": {
+        "--ACCURACY": "fixture[1]",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
-        "--PROBABILITY": "fixture[1]",
-        "--RANDOM_SEED": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--METRICS_FILE": "fixture[1]",
+        "--PROBABILITY": "fixture[0]",
+        "--RANDOM_SEED": "fixture[1]",
+        "--STRATEGY": "fixture[2]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--ACCURACY=0.1",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.bam",
-        "--PROBABILITY=0.5",
-        "--RANDOM_SEED=1",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--METRICS_FILE=/work/out/metrics.txt",
+        "--PROBABILITY=1.0",
+        "--RANDOM_SEED=42",
+        "--STRATEGY=Chained",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 4,
       "labels": {
-        "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[1]",
+        "--ACCURACY": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[2]",
+        "--METRICS_FILE": "fixture[1]",
         "--PROBABILITY": "fixture[0]",
         "--RANDOM_SEED": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--STRATEGY": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/small.sam",
+        "--ACCURACY=1.0E-4",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--METRICS_FILE=/work/out/metrics.txt",
         "--PROBABILITY=1.0",
         "--RANDOM_SEED=1",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--STRATEGY=HighAccuracy",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 5,
       "labels": {
+        "--ACCURACY": "fixture[1]",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[2]",
+        "--METRICS_FILE": "fixture[0]",
         "--PROBABILITY": "fixture[1]",
-        "--RANDOM_SEED": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--RANDOM_SEED": "fixture[1]",
+        "--STRATEGY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
+        "--ACCURACY=0.1",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/queryname.bam",
+        "--METRICS_FILE=<absent>",
         "--PROBABILITY=0.5",
-        "--RANDOM_SEED=1",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--RANDOM_SEED=42",
+        "--STRATEGY=ConstantMemory",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 6,
       "labels": {
+        "--ACCURACY": "fixture[1]",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
-        "--PROBABILITY": "fixture[0]",
-        "--RANDOM_SEED": "fixture[1]",
+        "--METRICS_FILE": "fixture[0]",
+        "--PROBABILITY": "fixture[1]",
+        "--RANDOM_SEED": "fixture[0]",
+        "--STRATEGY": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--ACCURACY=0.1",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/small.bam",
-        "--PROBABILITY=1.0",
-        "--RANDOM_SEED=42",
+        "--METRICS_FILE=<absent>",
+        "--PROBABILITY=0.5",
+        "--RANDOM_SEED=1",
+        "--STRATEGY=HighAccuracy",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 7,
       "labels": {
+        "--ACCURACY": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[0]",
+        "--INPUT": "fixture[1]",
+        "--METRICS_FILE": "fixture[1]",
         "--PROBABILITY": "fixture[0]",
         "--RANDOM_SEED": "fixture[0]",
+        "--STRATEGY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
+        "--ACCURACY=1.0E-4",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.bam",
+        "--INPUT=/work/fixtures/small.sam",
+        "--METRICS_FILE=/work/out/metrics.txt",
         "--PROBABILITY=1.0",
         "--RANDOM_SEED=1",
+        "--STRATEGY=ConstantMemory",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 8,
       "labels": {
+        "--ACCURACY": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
+        "--INPUT": "fixture[0]",
+        "--METRICS_FILE": "fixture[0]",
         "--PROBABILITY": "fixture[0]",
-        "--RANDOM_SEED": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--RANDOM_SEED": "fixture[1]",
+        "--STRATEGY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
+        "--ACCURACY=1.0E-4",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.sam",
+        "--INPUT=/work/fixtures/small.bam",
+        "--METRICS_FILE=<absent>",
         "--PROBABILITY=1.0",
-        "--RANDOM_SEED=1",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--RANDOM_SEED=42",
+        "--STRATEGY=ConstantMemory",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 9,
       "labels": {
+        "--ACCURACY": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
+        "--INPUT": "fixture[2]",
+        "--METRICS_FILE": "fixture[0]",
         "--PROBABILITY": "fixture[0]",
         "--RANDOM_SEED": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--STRATEGY": "fixture[2]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--ACCURACY=1.0E-4",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.sam",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--METRICS_FILE=<absent>",
         "--PROBABILITY=1.0",
         "--RANDOM_SEED=1",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--STRATEGY=Chained",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 10,
       "labels": {
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
+        "--ACCURACY": "fixture[0]",
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[0]",
+        "--METRICS_FILE": "fixture[0]",
         "--PROBABILITY": "fixture[0]",
         "--RANDOM_SEED": "fixture[0]",
+        "--STRATEGY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ACCURACY=1.0E-4",
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/small.bam",
+        "--METRICS_FILE=<absent>",
+        "--PROBABILITY=1.0",
+        "--RANDOM_SEED=1",
+        "--STRATEGY=ConstantMemory",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 11,
+      "labels": {
+        "--ACCURACY": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--METRICS_FILE": "fixture[0]",
+        "--PROBABILITY": "fixture[0]",
+        "--RANDOM_SEED": "fixture[0]",
+        "--STRATEGY": "fixture[2]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
+        "--ACCURACY=1.0E-4",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/queryname.bam",
+        "--INPUT=/work/fixtures/small.bam",
+        "--METRICS_FILE=<absent>",
         "--PROBABILITY=1.0",
         "--RANDOM_SEED=1",
+        "--STRATEGY=Chained",
         "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--ACCURACY": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
+        "--METRICS_FILE": "fixture[0]",
+        "--PROBABILITY": "fixture[0]",
+        "--RANDOM_SEED": "fixture[0]",
+        "--STRATEGY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ACCURACY=1.0E-4",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--METRICS_FILE=<absent>",
+        "--PROBABILITY=1.0",
+        "--RANDOM_SEED=1",
+        "--STRATEGY=ConstantMemory",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     }
   ]

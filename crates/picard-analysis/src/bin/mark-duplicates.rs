@@ -39,7 +39,95 @@ fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
     }
 }
 
+/// `UmiUtil.setMolecularIdentifier(rec, "", tag, duplex)`: the contig, the position of the end the
+/// pair shares, a `/`, no UMI, and with `DUPLEX_UMI` the strand, `/A` on top and `/B` below.
+///
+/// The strand needs the mate's unclipped 5' end, which comes from its `MC` tag, so a pair on one
+/// contig without one is htsjdk's refusal; and asking an unpaired read about its mate is Java's.
+fn molecular_identifier(
+    header: &SamHeader,
+    record: &BamRecord,
+    marked: &Record,
+    duplex: bool,
+) -> Result<String, String> {
+    // `SAMRecord.getContig()` is null for an unmapped read, placed or not, and the builder
+    // appends that as the word.
+    let contig = if marked.unmapped() {
+        "null".to_string()
+    } else {
+        usize::try_from(record.reference_index)
+            .ok()
+            .and_then(|i| header.sequences.get(i))
+            .map_or("null".to_string(), |s| s.name.clone())
+    };
+    let mut out = picard_analysis::umi_duplicates::molecular_identifier(
+        &contig,
+        record.alignment_start,
+        record.mate_alignment_start,
+        marked.reverse_strand(),
+        "",
+    );
+    if !duplex {
+        return Ok(out);
+    }
+    // `getReadUnmappedFlag() || getMateUnmappedFlag()`: the second is only asked of a mapped read,
+    // and asking it of an unpaired one throws.
+    if marked.unmapped() {
+        return Ok(out);
+    }
+    if !marked.paired() {
+        return Err(
+            "java.lang.IllegalStateException: Inappropriate call if not paired read".to_string(),
+        );
+    }
+    if marked.mate_unmapped() {
+        return Ok(out);
+    }
+    let top = if record.reference_index != record.mate_reference_index {
+        marked.first_of_pair() == (record.reference_index < record.mate_reference_index)
+    } else {
+        let read_five = if marked.reverse_strand() {
+            marked.unclipped_end()
+        } else {
+            marked.unclipped_start()
+        };
+        let mate_cigar = match record.tags.get(Tag::new(b"MC")) {
+            Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text).ok(),
+            _ => None,
+        };
+        let Some(mate_cigar) = mate_cigar else {
+            return Err(format!(
+                "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found: {}",
+                picard_analysis::mate_cigar_duplicates::describe_with_contig(marked, Some(&contig))
+            ));
+        };
+        let mate = Record {
+            alignment_start: record.mate_alignment_start,
+            cigar: mate_cigar,
+            ..marked.clone()
+        };
+        let mate_five = if marked.mate_reverse_strand() {
+            mate.unclipped_end()
+        } else {
+            mate.unclipped_start()
+        };
+        marked.first_of_pair() == (read_five <= mate_five)
+    };
+    out.push_str(if top { "/A" } else { "/B" });
+    Ok(out)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
+    let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
+        std::env::args()
+            .find_map(|a| a.strip_prefix("READ_NAME_REGEX=").map(str::to_string))
+            .as_deref(),
+    )
+    .unwrap_or_else(|thrown| {
+        eprintln!("Exception in thread \"main\" {thrown}");
+        std::process::exit(1);
+    });
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -72,7 +160,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|v| v.parse::<i32>())
             .transpose()?
             .unwrap_or(100),
-        parse_read_names: true,
+        parse_read_names: !read_name_regex.is_off(),
+        read_name_regex,
+        max_optical_duplicate_set_size: std::env::args()
+            .find_map(|a| {
+                a.strip_prefix("MAX_OPTICAL_DUPLICATE_SET_SIZE=")
+                    .and_then(|v| v.parse().ok())
+            })
+            .unwrap_or(300_000),
         barcode_tag: arg(&args, "BARCODE_TAG="),
         assume_mate_cigar: false,
     };
@@ -101,7 +196,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `openInputs` sets the header's own sort order to ASSUME_SORT_ORDER, so by the time the check
     // below reads "the header", the header is already saying what it was told to say -- which is
     // why the refusal prints the assumed order twice.
-    let assumed = arg(&args, "ASSUME_SORT_ORDER=").or_else(|| arg(&args, "ASO="));
+    // `ASSUME_SORTED=true` is `ASSUME_SORT_ORDER=coordinate` by the time `openInputs` reads it.
+    let assumed = arg(&args, "ASSUME_SORT_ORDER=")
+        .or_else(|| arg(&args, "ASO="))
+        .or_else(|| {
+            (arg(&args, "ASSUME_SORTED=")
+                .or_else(|| arg(&args, "AS="))
+                .as_deref()
+                == Some("true"))
+            .then(|| "coordinate".to_string())
+        });
     let mut header = header;
     if let Some(order) = &assumed {
         header.set_sort_order(order);
@@ -184,7 +288,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         out_header.set_sort_order("unknown");
         out_header.set_group_order("query");
     }
+    // `COMMENT.forEach(outputHeader::addComment)`.
+    for comment in args
+        .iter()
+        .filter_map(|a| a.strip_prefix("COMMENT=").or_else(|| a.strip_prefix("CO=")))
+    {
+        out_header.comments.push(format!("@CO\t{comment}"));
+    }
+    let tag_duplicate_set_members = flag("TAG_DUPLICATE_SET_MEMBERS=", false);
+    let molecular_identifier_tag = arg(&args, "MOLECULAR_IDENTIFIER_TAG=")
+        .filter(|tag| tag != "null" && options.barcode_tag.is_some());
+    let duplex = flag("DUPLEX_UMI=", false);
     let add_pg_tag = flag("ADD_PG_TAG_TO_READS=", true);
+    // The id every read is tagged with: `PROGRAM_RECORD_ID` made unique against the header's own
+    // program records, or no tag at all when it is `null`. The corpus's reads carry no `PG`, so the
+    // one chain `getChainedPgIds` builds is the one from `null`.
+    let pg_id: Option<String> = match arg(&args, "PROGRAM_RECORD_ID=").as_deref() {
+        Some("null") => None,
+        Some(id) => Some(id.to_string()),
+        None => Some("MarkDuplicates".to_string()),
+    }
+    .map(|id| picard_analysis::merge_sam_files::non_colliding_pg_id(&header, &id));
 
     // htsjdk's own check in `SAMFileWriterImpl.addAlignment`, which is where a file assumed to be
     // coordinate-sorted and not is caught. The writer is presorted, so nothing re-sorts and the
@@ -194,6 +318,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut writer = BamWriter::new(Vec::new(), &out_header).map_err(|e| format!("{e:?}"))?;
     for (index, record) in records.iter().enumerate() {
+        // `UmiUtil.setMolecularIdentifier`, reached for every record before the ones that are
+        // removed are skipped, so a record that cannot be given one stops the run wherever it is.
+        let molecular_identifier = match &molecular_identifier_tag {
+            Some(_) => {
+                match molecular_identifier(&header, record, &marked_records[index], duplex) {
+                    Ok(value) => Some(value),
+                    Err(thrown) => {
+                        eprintln!("Exception in thread \"main\" {thrown}");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            None => None,
+        };
         if !marking.written[index] {
             continue;
         }
@@ -255,10 +393,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .tags
                 .insert(Tag::new(b"DT"), TagValue::Str(code.clone()));
         }
-        if add_pg_tag {
+        if tag_duplicate_set_members && record.flags & (0x4 | 0x100 | 0x800) == 0 {
+            if let Some((representative, size)) = marking.duplicate_set[index] {
+                written
+                    .tags
+                    .insert(Tag::new(b"DI"), TagValue::Int(representative as i64));
+                written
+                    .tags
+                    .insert(Tag::new(b"DS"), TagValue::Int(size as i64));
+            }
+        }
+        if let (Some(tag), Some(value)) = (&molecular_identifier_tag, molecular_identifier) {
+            if let Ok(key) = <[u8; 2]>::try_from(tag.as_bytes()) {
+                written.tags.insert(Tag::new(&key), TagValue::Str(value));
+            }
+        }
+        if let (true, Some(id)) = (add_pg_tag, &pg_id) {
             written
                 .tags
-                .insert(Tag::new(b"PG"), TagValue::Str("MarkDuplicates".to_string()));
+                .insert(Tag::new(b"PG"), TagValue::Str(id.clone()));
         }
         writer.write(&written).map_err(|e| format!("{e:?}"))?;
     }

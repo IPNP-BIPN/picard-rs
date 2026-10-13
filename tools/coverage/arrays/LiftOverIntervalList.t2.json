@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 21,
-  "arguments_in_array": 4,
-  "arguments_excluded": 17,
+  "arguments_in_array": 7,
+  "arguments_excluded": 14,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -13,13 +13,6 @@
       "reason": "List[File] needs a fixture; declare one in the repository's fixtures file",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--CHAIN",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/lift.chain",
-      "source": "fixture"
     },
     {
       "argument": "--COMPRESSION_LEVEL",
@@ -71,20 +64,6 @@
       "source": "fixture"
     },
     {
-      "argument": "--REJECT",
-      "type": "File",
-      "reason": "File needs a fixture; declare one in the repository's fixtures file",
-      "held_at": null,
-      "source": "none"
-    },
-    {
-      "argument": "--SEQUENCE_DICTIONARY",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/ref.fasta",
-      "source": "fixture"
-    },
-    {
       "argument": "--showHidden",
       "type": "boolean",
       "reason": "excluded by the repository: changes the usage text only",
@@ -127,9 +106,9 @@
       "source": "none"
     }
   ],
-  "rows": 7,
-  "tuples_total": 30,
-  "tuples_covered": 30,
+  "rows": 10,
+  "tuples_total": 96,
+  "tuples_covered": 96,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -139,106 +118,211 @@
     {
       "row": 0,
       "labels": {
+        "--CHAIN": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
         "--MIN_LIFTOVER_PCT": "fixture[0]",
+        "--REJECT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--CHAIN=/work/fixtures/lift.chain",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/targets.interval_list",
         "--MIN_LIFTOVER_PCT=0.95",
+        "--REJECT=<absent>",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 1,
       "labels": {
-        "--CREATE_INDEX": "true",
+        "--CHAIN": "fixture[0]",
+        "--CREATE_INDEX": "false",
         "--INPUT": "fixture[1]",
         "--MIN_LIFTOVER_PCT": "fixture[1]",
+        "--REJECT": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
+        "--CHAIN=/work/fixtures/lift.chain",
+        "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/targets_mixed.interval_list",
         "--MIN_LIFTOVER_PCT=0.3",
+        "--REJECT=/work/out/reject.interval_list",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 2,
       "labels": {
-        "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[0]",
-        "--MIN_LIFTOVER_PCT": "fixture[1]",
+        "--CHAIN": "fixture[1]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
+        "--MIN_LIFTOVER_PCT": "fixture[0]",
+        "--REJECT": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
-        "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/targets.interval_list",
-        "--MIN_LIFTOVER_PCT=0.3",
+        "--CHAIN=/work/fixtures/lift_all.chain",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/targets_mixed.interval_list",
+        "--MIN_LIFTOVER_PCT=0.95",
+        "--REJECT=/work/out/reject.interval_list",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 3,
       "labels": {
+        "--CHAIN": "fixture[1]",
         "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[1]",
-        "--MIN_LIFTOVER_PCT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--INPUT": "fixture[0]",
+        "--MIN_LIFTOVER_PCT": "fixture[1]",
+        "--REJECT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
+        "--CHAIN=/work/fixtures/lift_all.chain",
         "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/targets_mixed.interval_list",
-        "--MIN_LIFTOVER_PCT=0.95",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--INPUT=/work/fixtures/targets.interval_list",
+        "--MIN_LIFTOVER_PCT=0.3",
+        "--REJECT=<absent>",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 4,
       "labels": {
+        "--CHAIN": "fixture[1]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
-        "--MIN_LIFTOVER_PCT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--MIN_LIFTOVER_PCT": "fixture[1]",
+        "--REJECT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
+        "--CHAIN=/work/fixtures/lift_all.chain",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/targets_mixed.interval_list",
-        "--MIN_LIFTOVER_PCT=0.95",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--MIN_LIFTOVER_PCT=0.3",
+        "--REJECT=<absent>",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 5,
       "labels": {
+        "--CHAIN": "fixture[1]",
         "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[0]",
+        "--INPUT": "fixture[1]",
         "--MIN_LIFTOVER_PCT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--REJECT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--CHAIN=/work/fixtures/lift_all.chain",
         "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/targets.interval_list",
+        "--INPUT=/work/fixtures/targets_mixed.interval_list",
         "--MIN_LIFTOVER_PCT=0.95",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--REJECT=<absent>",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 6,
       "labels": {
+        "--CHAIN": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
         "--MIN_LIFTOVER_PCT": "fixture[1]",
+        "--REJECT": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
+        "--CHAIN=/work/fixtures/lift.chain",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/targets.interval_list",
         "--MIN_LIFTOVER_PCT=0.3",
+        "--REJECT=/work/out/reject.interval_list",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 7,
+      "labels": {
+        "--CHAIN": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--MIN_LIFTOVER_PCT": "fixture[0]",
+        "--REJECT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CHAIN=/work/fixtures/lift.chain",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/targets.interval_list",
+        "--MIN_LIFTOVER_PCT=0.95",
+        "--REJECT=<absent>",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 8,
+      "labels": {
+        "--CHAIN": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--MIN_LIFTOVER_PCT": "fixture[0]",
+        "--REJECT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CHAIN=/work/fixtures/lift.chain",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/targets.interval_list",
+        "--MIN_LIFTOVER_PCT=0.95",
+        "--REJECT=<absent>",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--CHAIN": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--MIN_LIFTOVER_PCT": "fixture[0]",
+        "--REJECT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CHAIN=/work/fixtures/lift.chain",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/targets.interval_list",
+        "--MIN_LIFTOVER_PCT=0.95",
+        "--REJECT=<absent>",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     }
   ]

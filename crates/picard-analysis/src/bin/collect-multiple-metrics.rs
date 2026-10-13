@@ -172,6 +172,8 @@ fn instance(program: Program, s: &Shared) -> (Vec<String>, Vec<String>) {
             for level in s.levels {
                 args.push(format!("METRIC_ACCUMULATION_LEVEL={level}"));
             }
+            // The shared pass stops every program at once, this one included.
+            args.push(stop);
         }
         Program::CollectInsertSizeMetrics => {
             output(&mut args, "OUTPUT", ".insert_size_metrics");
@@ -249,6 +251,7 @@ fn instance(program: Program, s: &Shared) -> (Vec<String>, Vec<String>) {
         }
         Program::CollectQualityYieldMetrics => {
             output(&mut args, "OUTPUT", ".quality_yield_metrics");
+            args.push(stop);
         }
     }
     (args, outputs)

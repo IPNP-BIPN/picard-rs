@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 21,
-  "arguments_in_array": 6,
-  "arguments_excluded": 15,
+  "arguments_in_array": 7,
+  "arguments_excluded": 14,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -64,13 +64,6 @@
       "source": "fixture"
     },
     {
-      "argument": "--SEQUENCE_DICTIONARY",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/fixtures/ref.dict",
-      "source": "fixture"
-    },
-    {
       "argument": "--showHidden",
       "type": "boolean",
       "reason": "excluded by the repository: changes the usage text only",
@@ -113,9 +106,9 @@
       "source": "none"
     }
   ],
-  "rows": 9,
-  "tuples_total": 70,
-  "tuples_covered": 70,
+  "rows": 10,
+  "tuples_total": 96,
+  "tuples_covered": 96,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -128,6 +121,7 @@
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
         "--KEEP_LENGTH_ZERO_INTERVALS": "true",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--SORT": "true",
         "--UNIQUE": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
@@ -136,6 +130,7 @@
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/targets.bed",
         "--KEEP_LENGTH_ZERO_INTERVALS=true",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
         "--SORT=true",
         "--UNIQUE=true",
         "--VALIDATION_STRINGENCY=STRICT"
@@ -147,6 +142,7 @@
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
         "--KEEP_LENGTH_ZERO_INTERVALS": "false",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
         "--SORT": "false",
         "--UNIQUE": "false",
         "--VALIDATION_STRINGENCY": "LENIENT"
@@ -155,6 +151,7 @@
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/targets_mixed.bed",
         "--KEEP_LENGTH_ZERO_INTERVALS=false",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
         "--SORT=false",
         "--UNIQUE=false",
         "--VALIDATION_STRINGENCY=LENIENT"
@@ -166,16 +163,18 @@
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
         "--KEEP_LENGTH_ZERO_INTERVALS": "false",
-        "--SORT": "true",
-        "--UNIQUE": "false",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--SORT": "false",
+        "--UNIQUE": "true",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/targets.bed",
         "--KEEP_LENGTH_ZERO_INTERVALS=false",
-        "--SORT=true",
-        "--UNIQUE=false",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--SORT=false",
+        "--UNIQUE=true",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -185,16 +184,18 @@
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[1]",
         "--KEEP_LENGTH_ZERO_INTERVALS": "true",
-        "--SORT": "false",
-        "--UNIQUE": "true",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--SORT": "true",
+        "--UNIQUE": "false",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/targets_mixed.bed",
         "--KEEP_LENGTH_ZERO_INTERVALS=true",
-        "--SORT=false",
-        "--UNIQUE=true",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
+        "--SORT=true",
+        "--UNIQUE=false",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -204,17 +205,19 @@
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
         "--KEEP_LENGTH_ZERO_INTERVALS": "false",
-        "--SORT": "false",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--SORT": "true",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/targets.bed",
         "--KEEP_LENGTH_ZERO_INTERVALS=false",
-        "--SORT=false",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
+        "--SORT=true",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -222,36 +225,40 @@
       "labels": {
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[1]",
-        "--KEEP_LENGTH_ZERO_INTERVALS": "true",
+        "--KEEP_LENGTH_ZERO_INTERVALS": "false",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--SORT": "true",
         "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/targets_mixed.bed",
-        "--KEEP_LENGTH_ZERO_INTERVALS=true",
+        "--KEEP_LENGTH_ZERO_INTERVALS=false",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
         "--SORT=true",
         "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
       "row": 6,
       "labels": {
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
+        "--INPUT": "fixture[0]",
         "--KEEP_LENGTH_ZERO_INTERVALS": "true",
-        "--SORT": "true",
-        "--UNIQUE": "false",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--SORT": "false",
+        "--UNIQUE": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/targets_mixed.bed",
+        "--INPUT=/work/fixtures/targets.bed",
         "--KEEP_LENGTH_ZERO_INTERVALS=true",
-        "--SORT=true",
-        "--UNIQUE=false",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.fasta",
+        "--SORT=false",
+        "--UNIQUE=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -261,17 +268,19 @@
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
         "--KEEP_LENGTH_ZERO_INTERVALS": "true",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--SORT": "true",
-        "--UNIQUE": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--UNIQUE": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/targets.bed",
         "--KEEP_LENGTH_ZERO_INTERVALS=true",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
         "--SORT=true",
-        "--UNIQUE=true",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--UNIQUE=false",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -280,6 +289,28 @@
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
         "--KEEP_LENGTH_ZERO_INTERVALS": "true",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--SORT": "true",
+        "--UNIQUE": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/targets.bed",
+        "--KEEP_LENGTH_ZERO_INTERVALS=true",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--SORT=true",
+        "--UNIQUE=true",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 9,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--KEEP_LENGTH_ZERO_INTERVALS": "true",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--SORT": "true",
         "--UNIQUE": "true",
         "--VALIDATION_STRINGENCY": "LENIENT"
@@ -288,6 +319,7 @@
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/targets.bed",
         "--KEEP_LENGTH_ZERO_INTERVALS=true",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
         "--SORT=true",
         "--UNIQUE=true",
         "--VALIDATION_STRINGENCY=LENIENT"

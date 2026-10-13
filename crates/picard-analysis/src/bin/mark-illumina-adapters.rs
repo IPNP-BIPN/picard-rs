@@ -49,6 +49,103 @@ fn args_of(args: &[String], key: &str) -> Vec<String> {
 }
 
 /// The reference throws rather than exiting, so its handler prints the class before the message.
+/// `AdapterMarker`'s pruning: once `threshold` adapter hits have been tallied, the list searched
+/// from then on is the `keep` adapters seen most often, plus any tied with the last of them.
+///
+/// The ranking goes through a `TreeMap` keyed by COUNT, filled from a `HashMap` of adapter to count,
+/// so two adapters seen equally often collide and the one the hash map yields last survives. The
+/// reads already written keep their tags whatever the pruning decides; the pair that crossed the
+/// threshold has not been written yet, and loses its tag if its adapter was not kept.
+struct Pruning {
+    threshold: i64,
+    keep: usize,
+    reached: bool,
+    seen: i64,
+    /// `(adapter, count)` in the order each adapter was first tallied.
+    counts: Vec<(Adapter, i64)>,
+}
+
+impl Pruning {
+    fn new(threshold: i64, keep: usize) -> Self {
+        Pruning {
+            threshold,
+            keep,
+            reached: false,
+            seen: 0,
+            counts: Vec::new(),
+        }
+    }
+
+    /// `TruncatedAdapterPair.hashCode`: the five prime sequence (not in read order) and then the
+    /// three prime one, through `String.hashCode`.
+    fn hash(adapter: &Adapter) -> i32 {
+        let string = |s: &str| {
+            s.encode_utf16()
+                .fold(0i32, |h, c| h.wrapping_mul(31).wrapping_add(c as i32))
+        };
+        let five = picard_analysis::mark_illumina_adapters::reverse_complement(
+            &adapter.five_prime_read_order,
+        );
+        string(&five)
+            .wrapping_mul(31)
+            .wrapping_add(string(&adapter.three_prime_read_order))
+    }
+
+    /// Tallies a hit for `adapters[position]` and prunes when the threshold is crossed. Returns
+    /// whether the reads that hit it keep their tags.
+    fn tally(&mut self, adapters: &mut Vec<Adapter>, position: usize) -> bool {
+        if self.reached || self.threshold < 1 {
+            return true;
+        }
+        let found = adapters[position].clone();
+        let same = |a: &Adapter, b: &Adapter| {
+            a.three_prime_read_order == b.three_prime_read_order
+                && a.five_prime_read_order == b.five_prime_read_order
+        };
+        match self.counts.iter_mut().find(|(a, _)| same(a, &found)) {
+            Some(entry) => entry.1 += 1,
+            None => self.counts.push((found.clone(), 1)),
+        }
+        self.seen += 1;
+        if self.seen < self.threshold {
+            return true;
+        }
+        // A `HashMap` this small never resizes: its order is the bucket, then insertion.
+        let mut ordered: Vec<(usize, &(Adapter, i64))> = self
+            .counts
+            .iter()
+            .map(|entry| {
+                let h = Self::hash(&entry.0) as u32;
+                (((h ^ (h >> 16)) & 15) as usize, entry)
+            })
+            .collect();
+        ordered.sort_by_key(|(bucket, _)| *bucket);
+        let mut by_count: std::collections::BTreeMap<std::cmp::Reverse<i64>, Adapter> =
+            std::collections::BTreeMap::new();
+        for (_, (adapter, count)) in ordered {
+            by_count.insert(std::cmp::Reverse(*count), adapter.clone());
+        }
+        let mut best: Vec<Adapter> = Vec::new();
+        let mut last = i64::MAX;
+        for (std::cmp::Reverse(count), adapter) in by_count {
+            if best.len() >= self.keep {
+                if count == last {
+                    best.push(adapter);
+                } else {
+                    break;
+                }
+            } else {
+                last = count;
+                best.push(adapter);
+            }
+        }
+        self.reached = true;
+        let kept = best.iter().any(|a| same(a, &found));
+        *adapters = best;
+        kept
+    }
+}
+
 fn throw(message: &str) -> ! {
     eprintln!("Exception in thread \"main\" picard.PicardException: {message}");
     std::process::exit(1);
@@ -88,6 +185,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let max_error_se = rate("MAX_ERROR_RATE_SE=", MAX_ERROR_RATE)?;
     let max_error_pe = rate("MAX_ERROR_RATE_PE=", MAX_PE_ERROR_RATE)?;
     let truncation = number("ADAPTER_TRUNCATION_LENGTH=", DEFAULT_ADAPTER_LENGTH)?;
+    let num_adapters_to_keep: i64 = arg(&args, "NUM_ADAPTERS_TO_KEEP=")
+        .map(|v| v.parse())
+        .transpose()?
+        .unwrap_or(1);
+    let prune_after: i64 = arg(&args, "PRUNE_ADAPTER_LIST_AFTER_THIS_MANY_ADAPTERS_SEEN=")
+        .map(|v| v.parse())
+        .transpose()?
+        .unwrap_or(100);
 
     // `customCommandLineValidation`: the two custom sequences are a pair, and half a pair is a
     // command line error rather than a run with a default filled in.
@@ -169,6 +274,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let queryname = header.attributes.get("SO") == Some("queryname");
 
+    // `AdapterMarker.setNumAdaptersToKeep`, called while the marker is built, before any read.
+    if num_adapters_to_keep <= 0 {
+        eprintln!(
+            "Exception in thread \"main\" java.lang.IllegalArgumentException: numAdaptersToKeep should be positive: {num_adapters_to_keep}"
+        );
+        std::process::exit(1);
+    }
+    let mut pruning = Pruning::new(prune_after, num_adapters_to_keep as usize);
+
     let xt = Tag::new(b"XT");
     let mut index = 0usize;
     while index < records.len() {
@@ -241,17 +355,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .tags
                     .insert(xt, TagValue::Int(tag as i64));
             }
+            if let Some(position) = trim.matched {
+                if !pruning.tally(&mut adapters, position) {
+                    records[first_of_pair].tags.remove(xt);
+                    records[second_of_pair].tags.remove(xt);
+                }
+            }
         } else {
             let bases = read_bases_in_read_order(
                 &records[index].read_bases,
                 records[index].flags & READ_STRAND_FLAG != 0,
             );
-            if let Some((_, found)) =
+            if let Some((position, found)) =
                 trim_single_read(&bases, &adapters, min_match_se, max_error_se)
             {
                 records[index]
                     .tags
                     .insert(xt, TagValue::Int((found + 1) as i64));
+                if !pruning.tally(&mut adapters, position) {
+                    records[index].tags.remove(xt);
+                }
             }
         }
         index += if mate.is_some() { 2 } else { 1 };
