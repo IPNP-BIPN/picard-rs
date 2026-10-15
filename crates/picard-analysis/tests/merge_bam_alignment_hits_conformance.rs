@@ -231,7 +231,10 @@ fn earliest_fragment_refuses_a_pair() {
         recorded,
         format!(
             "java.lang.UnsupportedOperationException:{}",
-            earliest_fragment_refusal("p", "1/2 20b aligned to chr1:41-60.")
+            earliest_fragment_refusal(
+                "p\t321\tchr1\t41\t60\t20M\t=\t81\t60\tACGTACGTACGTACGTACGT\t\
+                 IIIIIIIIIIIIIIIIIIII\tRG:Z:rg1\tHI:i:1"
+            )
         )
     );
 }

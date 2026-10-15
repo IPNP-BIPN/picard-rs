@@ -15,7 +15,7 @@ use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::mark_duplicates::{Options, Record, ScoringStrategy};
-use picard_analysis::mate_cigar_duplicates::{describe_with_contig, needs_mate_cigar};
+use picard_analysis::mate_cigar_duplicates::needs_mate_cigar;
 use picard_analysis::metrics_cli::{fail, read_input, thrown, Args};
 use picard_analysis::umi_aware::{run, UmiAwareOptions};
 
@@ -165,12 +165,7 @@ fn main() {
         if needs_mate_cigar(record) && record.mate_cigar.is_none() {
             thrown(&format!(
                 "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found: {}",
-                describe_with_contig(
-                    record,
-                    contigs
-                        .get(record.reference_index.max(0) as usize)
-                        .map(String::as_str),
-                )
+                picard_analysis::view_sam::sam_string(&header, &records[index])
             ));
         }
     }

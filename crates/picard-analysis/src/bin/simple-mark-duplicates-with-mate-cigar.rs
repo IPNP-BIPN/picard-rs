@@ -197,6 +197,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let marking = match simple_mark_with_mate_cigar(&marked_records, order, &options, &contigs) {
         Ok(marking) => marking,
         Err(refusal) => {
+            let refusal = refusal
+                .naming_line(|i| picard_analysis::view_sam::sam_string(&header, &records[i]));
             eprintln!(
                 "Exception in thread \"main\" {}: {}",
                 refusal.exception(),

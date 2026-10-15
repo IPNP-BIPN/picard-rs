@@ -176,9 +176,10 @@ pub fn earliest_fragment_candidates(hits: &[Hit]) -> Vec<usize> {
     candidates
 }
 
-/// The refusal `EarliestFragment` answers a paired read with.
-pub fn earliest_fragment_refusal(read_name: &str, description: &str) -> String {
-    format!("getFragment called for paired read: {read_name} {description}")
+/// The refusal `EarliestFragment` answers a paired read with: the record as `SAMRecord.toString`
+/// renders it, which from htsjdk 5.0.0 is the whole SAM line.
+pub fn earliest_fragment_refusal(record: &str) -> String {
+    format!("getFragment called for paired read: {record}")
 }
 
 /// How far apart a pairing reaches: the first base of one end to the last of the other.
