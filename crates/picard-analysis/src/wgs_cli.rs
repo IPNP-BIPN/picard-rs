@@ -246,8 +246,12 @@ pub fn main_for(tool: Tool) {
     let reference = one(&args, "REFERENCE_SEQUENCE", Some("R"))
         .map(str::to_string)
         .unwrap_or_else(|| fail("Argument 'REFERENCE_SEQUENCE' is required"));
-    if tool == Tool::NonZero && one(&args, "CHART_OUTPUT", Some("CHART")).is_none() {
-        fail("Argument CHART_OUTPUT was missing: Argument 'CHART_OUTPUT' is required");
+    // Optional since Picard 3.5.0, which refuses it only where there is no R.
+    if tool == Tool::NonZero {
+        crate::metrics_cli::refuse_chart_without_r(
+            "CollectWgsMetricsWithNonZeroCoverage",
+            one(&args, "CHART_OUTPUT", Some("CHART")).is_some(),
+        );
     }
     let theoretical_output =
         optional_path(&args, "THEORETICAL_SENSITIVITY_OUTPUT", None).map(|p| p.to_string());

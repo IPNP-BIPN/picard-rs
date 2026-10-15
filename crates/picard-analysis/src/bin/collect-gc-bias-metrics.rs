@@ -218,7 +218,11 @@ fn main() {
     let input = args.required("INPUT");
     let output = args.required("OUTPUT");
     let reference = args.required("REFERENCE_SEQUENCE");
-    let _chart = args.required("CHART_OUTPUT");
+    // Optional since Picard 3.5.0, which refuses it only where there is no R.
+    picard_analysis::metrics_cli::refuse_chart_without_r(
+        "CollectGcBiasMetrics",
+        args.get("CHART_OUTPUT").is_some(),
+    );
     let summary_output = args.required("SUMMARY_OUTPUT");
     let window = args.int("SCAN_WINDOW_SIZE", 100) as i32;
     let _ = args.double("MINIMUM_GENOME_FRACTION", 0.00001);

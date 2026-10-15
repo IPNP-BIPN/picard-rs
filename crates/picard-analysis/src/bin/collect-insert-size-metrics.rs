@@ -143,10 +143,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
-    if arg(&args, "Histogram_FILE=").is_none() && arg(&args, "H=").is_none() {
-        eprintln!("Argument Histogram_FILE was missing: Argument 'Histogram_FILE' is required");
-        std::process::exit(1);
-    }
+    // Optional since Picard 3.5.0, which refuses it only where there is no R.
+    picard_analysis::metrics_cli::refuse_chart_without_r(
+        "CollectInsertSizeMetrics",
+        arg(&args, "Histogram_FILE=").is_some() || arg(&args, "H=").is_some(),
+    );
     let flag = |key: &str, default: bool| {
         arg(&args, key)
             .map(|v| v.eq_ignore_ascii_case("true"))

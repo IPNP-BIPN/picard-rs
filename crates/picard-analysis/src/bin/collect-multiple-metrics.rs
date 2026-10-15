@@ -136,6 +136,7 @@ struct Shared<'a> {
     ignore_sequence: &'a [String],
     include_unpaired: bool,
     stop_after: i64,
+    skip_plotting: bool,
 }
 
 /// `makeInstance`: the program's own arguments, and the metrics files it will write.
@@ -166,7 +167,9 @@ fn instance(program: Program, s: &Shared) -> (Vec<String>, Vec<String>) {
     match program {
         Program::CollectAlignmentSummaryMetrics => {
             output(&mut args, "OUTPUT", ".alignment_summary_metrics");
-            args.push(format!("HISTOGRAM_FILE={ob}.read_length_histogram.pdf"));
+            if !s.skip_plotting {
+                args.push(format!("HISTOGRAM_FILE={ob}.read_length_histogram.pdf"));
+            }
             // This port appends to its ALL_READS default and has no `null`; the set it is given
             // always holds ALL_READS here, which is the same set.
             for level in s.levels {
@@ -177,28 +180,38 @@ fn instance(program: Program, s: &Shared) -> (Vec<String>, Vec<String>) {
         }
         Program::CollectInsertSizeMetrics => {
             output(&mut args, "OUTPUT", ".insert_size_metrics");
-            args.push(format!("Histogram_FILE={ob}.insert_size_histogram.pdf"));
+            if !s.skip_plotting {
+                args.push(format!("Histogram_FILE={ob}.insert_size_histogram.pdf"));
+            }
             args.extend([sorted, stop]);
         }
         Program::QualityScoreDistribution => {
             output(&mut args, "OUTPUT", ".quality_distribution_metrics");
-            args.push(format!("CHART_OUTPUT={ob}.quality_distribution.pdf"));
+            if !s.skip_plotting {
+                args.push(format!("CHART_OUTPUT={ob}.quality_distribution.pdf"));
+            }
             args.extend([sorted, stop]);
         }
         Program::MeanQualityByCycle => {
             output(&mut args, "OUTPUT", ".quality_by_cycle_metrics");
-            args.push(format!("CHART_OUTPUT={ob}.quality_by_cycle.pdf"));
+            if !s.skip_plotting {
+                args.push(format!("CHART_OUTPUT={ob}.quality_by_cycle.pdf"));
+            }
             args.extend([sorted, stop]);
         }
         Program::CollectBaseDistributionByCycle => {
             output(&mut args, "OUTPUT", ".base_distribution_by_cycle_metrics");
-            args.push(format!("CHART_OUTPUT={ob}.base_distribution_by_cycle.pdf"));
+            if !s.skip_plotting {
+                args.push(format!("CHART_OUTPUT={ob}.base_distribution_by_cycle.pdf"));
+            }
             args.extend([sorted, stop]);
         }
         Program::CollectGcBiasMetrics => {
             output(&mut args, "OUTPUT", ".gc_bias.detail_metrics");
             output(&mut args, "SUMMARY_OUTPUT", ".gc_bias.summary_metrics");
-            args.push(format!("CHART_OUTPUT={ob}.gc_bias.pdf"));
+            if !s.skip_plotting {
+                args.push(format!("CHART_OUTPUT={ob}.gc_bias.pdf"));
+            }
             levels(&mut args);
             args.extend([
                 "SCAN_WINDOW_SIZE=100".to_string(),
@@ -211,7 +224,9 @@ fn instance(program: Program, s: &Shared) -> (Vec<String>, Vec<String>) {
         }
         Program::RnaSeqMetrics => {
             output(&mut args, "OUTPUT", ".rna_metrics");
-            args.push(format!("CHART_OUTPUT={ob}.rna_coverage.pdf"));
+            if !s.skip_plotting {
+                args.push(format!("CHART_OUTPUT={ob}.rna_coverage.pdf"));
+            }
             levels(&mut args);
             if let Some(i) = s.intervals {
                 args.push(format!("RIBOSOMAL_INTERVALS={i}"));
@@ -338,9 +353,19 @@ fn main() {
         }
     }
 
+    // DO_NOT_CREATE_PLOTS, new in Picard 3.5.0: the programs are not handed a chart file.
+    let skip_plotting = args.bool("DO_NOT_CREATE_PLOTS", false);
+
     // customCommandLineValidation.
+    let mut messages = Vec::new();
     if programs.is_empty() {
-        refuse_validation(TOOL, &["No programs specified with PROGRAM".to_string()]);
+        messages.push("No programs specified with PROGRAM".to_string());
+    }
+    if !skip_plotting && picard_analysis::metrics_cli::running_in_gatk_lite_docker() {
+        messages.push("Histogram files cannot be written because that requires R, which is not available in the GATK Lite Docker image.".to_string());
+    }
+    if !messages.is_empty() {
+        refuse_validation(TOOL, &messages);
     }
 
     // doWork, before the pass.
@@ -404,6 +429,7 @@ fn main() {
         .and_then(|p| p.parent().map(PathBuf::from))
         .unwrap_or_default();
     let shared = Shared {
+        skip_plotting,
         outbase: &output,
         outext: file_extension.as_deref().unwrap_or(""),
         input: &input,

@@ -35,6 +35,7 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sequence::{reverse_complement, reverse_qualities};
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
+use picard_analysis::insert_size::forward_mate_five_prime;
 use picard_analysis::java_hash_map::string_hash_code;
 use picard_analysis::metrics_cli::{absolute, read_input, refuse_validation, thrown};
 use picard_analysis::set_nm_md_and_uq_tags::{fix_record, Options as NmOptions};
@@ -171,29 +172,7 @@ fn unclipped_end(rec: &BamRecord) -> i32 {
 
 /// `SAMRecord.toString()`.
 fn describe(rec: &BamRecord, header: &SamHeader) -> String {
-    let mut out = rec.read_name.clone();
-    if flag(rec, PAIRED) {
-        out.push_str(if flag(rec, FIRST_OF_PAIR) {
-            " 1/2"
-        } else {
-            " 2/2"
-        });
-    }
-    out.push_str(&format!(" {}b", rec.read_bases.len()));
-    if is_unmapped(rec) {
-        out.push_str(" unmapped read.");
-    } else {
-        let contig = header
-            .sequences
-            .get(rec.reference_index.max(0) as usize)
-            .map_or("*", |s| s.name.as_str());
-        out.push_str(&format!(
-            " aligned to {contig}:{}-{}.",
-            rec.alignment_start,
-            alignment_end(rec)
-        ));
-    }
-    out
+    picard_analysis::view_sam::sam_string(header, rec)
 }
 
 /// One `AlignmentBlock`: 1-based read start, 1-based reference start, length.
@@ -542,9 +521,10 @@ fn pair_orientation(rec: &BamRecord) -> Orientation {
     let negative_five_prime = if reverse {
         i64::from(alignment_end(rec))
     } else {
-        i64::from(rec.alignment_start) + i64::from(rec.inferred_insert_size)
+        forward_mate_five_prime(rec)
     };
-    if positive_five_prime < negative_five_prime {
+    // htsjdk 5.0.0: the mate cigar when set, and a tie is FR.
+    if positive_five_prime <= negative_five_prime {
         Orientation::Fr
     } else {
         Orientation::Rf
@@ -2366,6 +2346,9 @@ fn main() {
                     reference_bases,
                 )
             {
+                // `calculateMdAndNmTags` has set MD by the time the count throws, and the
+                // exception names the record with it.
+                picard_analysis::set_nm_md_and_uq_tags::set_md(rec, reference_bases);
                 thrown(&format!(
                     "htsjdk.samtools.SAMException: Exception counting mismatches for read {}",
                     describe(rec, &header)

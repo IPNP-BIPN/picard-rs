@@ -231,11 +231,21 @@ fn the_refusals_are_the_reference_ones() {
     )
     .expect_err("the refusal");
     let recorded = field(&text, "error", "no-mate-cigar.simple").expect("the golden's refusal");
+    let Refusal::MateCigarNotFound { index, .. } = refused else {
+        panic!("expected MateCigarNotFound, got {refused:?}");
+    };
+    // The golden records the input too, one SAM line per record; the refusal names one whole.
+    let lines = field(&text, "sam", "no-mate-cigar").expect("the input");
+    let line = lines
+        .lines()
+        .nth(index)
+        .expect("the named record")
+        .to_string();
+    let refused = refused.naming_line(|_| line);
     assert_eq!(
         recorded,
         format!("{}:{}", refused.exception(), refused.message())
     );
-    assert!(matches!(refused, Refusal::MateCigarNotFound { .. }));
 
     // And a queryname-sorted file, which both refuse and `MarkDuplicates` accepts.
     for label in [

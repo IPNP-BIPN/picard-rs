@@ -82,28 +82,15 @@ pub struct MateCigarCheck {
     pub start: i32,
     pub end: i32,
     pub mate_cigar: Option<String>,
+    /// [`crate::view_sam::sam_string`] of the record.
+    pub sam_string: String,
 }
 
 impl MateCigarCheck {
-    /// `SAMRecord.toString()`, which is what the refusal names the record with.
+    /// `SAMRecord.toString()`, which is what the refusal names the record with: the whole SAM
+    /// line under htsjdk 5.0.0.
     pub fn description(&self) -> String {
-        let mut text = self.read_name.clone();
-        if self.paired {
-            text.push_str(if self.first_of_pair { " 1/2" } else { " 2/2" });
-        }
-        text.push(' ');
-        text.push_str(&format!("{}b", self.read_length));
-        if self.unmapped {
-            text.push_str(" unmapped read.");
-        } else {
-            text.push_str(&format!(
-                " aligned to {}:{}-{}.",
-                self.reference.clone().unwrap_or_default(),
-                self.start,
-                self.end
-            ));
-        }
-        text
+        self.sam_string.clone()
     }
 
     /// Whether sorting by duplicate order would ask this record for its mate's coordinate.

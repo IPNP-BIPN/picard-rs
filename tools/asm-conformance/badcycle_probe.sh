@@ -32,7 +32,7 @@ for case in collide distinct; do
   cp "$case.fasta" ref.fasta
   cp "$case.fasta.fai" ref.fasta.fai
   cp "$case.dict" ref.dict
-  docker run --rm --platform linux/amd64 -v "$PWD":/work -w /work picard-rs-oracle:3.4.0 \
+  docker run --rm --platform linux/amd64 -v "$PWD":/work -w /work picard-rs-oracle:3.5.0 \
     "java -jar \$PICARD_JAR CollectAlignmentSummaryMetrics I=probe.sam O=out_$case.txt R=ref.fasta >/dev/null 2>&1"
   python3 - "$case" <<'PY'
 import sys

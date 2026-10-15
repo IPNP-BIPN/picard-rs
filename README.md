@@ -8,9 +8,11 @@ Native Rust reimplementation of [Picard](https://github.com/broadinstitute/picar
 
 ## Reference version
 
-Ported from Picard `3.4.0`, commit `6c3f23bc2e0d229d75e9f9b04200396bcd067526`. This is the
-exact version pinned by GATK 4.6.2.0 (`picardVersion = '3.4.0'` in its `build.gradle`), so the
-two ports are coherent by construction rather than by coincidence.
+Picard `3.5.0`, commit `a53d7ebd975606b79ca0eaddb7bf93f555ec4db4`, whose release jar bundles
+htsjdk `5.0.0`. The port began at `3.4.0`, the version GATK 4.6.2.0 pins, and moved ahead of
+gatk-rs once the cost of the move had been measured: see
+[decision 0013](docs/decisions/0013-picard-rs-moves-to-3.5.0-on-its-own.md). Module headers that
+cite `3.4.0` name symbols that did not change between the two tags.
 
 ## Method
 
@@ -205,6 +207,7 @@ all three and why. No optimisation work has been done, so 1.46x is a floor.
 | [0010](docs/decisions/0010-the-fuzzer-found-a-divergence-the-conformance-suite-cannot.md) | The fuzzer found a divergence the conformance suite cannot |
 | [0011](docs/decisions/0011-the-sixteen-unchecked-goldens-came-back-green.md) | The sixteen unchecked goldens came back green |
 | [0012](docs/decisions/0012-what-the-move-to-3.5.0-costs-the-ported-surface.md) | What the move to Picard 3.5.0 costs the ported surface |
+| [0013](docs/decisions/0013-picard-rs-moves-to-3.5.0-on-its-own.md) | picard-rs moves to Picard 3.5.0 on its own |
 
 ## Conformance suites
 
@@ -289,7 +292,7 @@ divergence rate, and the output is described as **bio-identical** rather than
 | Repo | Ports | Depends on |
 |---|---|---|
 | `htsjdk-rs` | htsjdk 4.2.0 | (none) |
-| `picard-rs` | Picard 3.4.0 | `htsjdk-rs` |
+| `picard-rs` | Picard 3.5.0 (htsjdk 5.0.0) | `htsjdk-rs` |
 | `gatk-rs` | GATK 4.6.2.0 | `picard-rs`, `htsjdk-rs` |
 
 ## Relationship to `fulcrumgenomics/riker`

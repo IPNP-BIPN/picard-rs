@@ -1275,7 +1275,8 @@ pub fn pileup<'r>(
 /// genotypes (`computeIfAbsent`).
 ///
 /// With an index beside the file the records are read SNP by SNP in `Snp` order, the first record
-/// at each position; without one, in file order. A record whose alleles do not match its SNP, or
+/// at each position that `subsetVCToMatchSnp` accepts (Picard 3.5.0; 3.4.0 took the first record
+/// whatever it was); without one, in file order. A record whose alleles do not match its SNP, or
 /// that lacks a sample, is skipped from the sample it failed on, as the caught exception does.
 pub fn load_vcf_fingerprints(
     path: &str,
@@ -1297,6 +1298,7 @@ pub fn load_vcf_fingerprints(
                     v.contig == snp.chrom
                         && v.start <= i64::from(snp.pos)
                         && v.stop >= i64::from(snp.pos)
+                        && matches_snp(v, snp)
                 })
             })
             .collect()
@@ -1372,6 +1374,33 @@ pub fn check_dictionary(dictionary: &[Sequence], map: &HaplotypeMap) -> Result<(
 }
 
 /// `getFingerprintFromVc`.
+/// Whether `AlleleSubsettingUtils.subsetVCToMatchSnp` returns a context rather than null: an
+/// unfiltered record with a one-base reference that is one of the SNP's alleles, and the SNP's
+/// other allele, or `<NON_REF>`, among its alternates.
+fn matches_snp(ctx: &htsjdk_vcf::variant::VariantContext, snp: &Snp) -> bool {
+    if ctx.is_filtered() || ctx.alleles[0].len() != 1 {
+        return false;
+    }
+    let reference = ctx.alleles[0].base_string().as_bytes()[0].to_ascii_uppercase();
+    let Some(ref_allele) = [snp.allele1, snp.allele2]
+        .into_iter()
+        .find(|b| b.to_ascii_uppercase() == reference)
+    else {
+        return false;
+    };
+    let other = if snp.allele1 == ref_allele {
+        snp.allele2
+    } else {
+        snp.allele1
+    };
+    ctx.alleles[1..].iter().any(|a| {
+        // The display string, because a symbolic allele's base string is empty.
+        let shown = a.display_string();
+        (shown.len() == 1 && shown.as_bytes()[0].eq_ignore_ascii_case(&other))
+            || shown == "<NON_REF>"
+    })
+}
+
 fn add_from_vc(
     map: &HaplotypeMap,
     fingerprints: &mut [(String, Fingerprint)],

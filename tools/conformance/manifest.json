@@ -14,7 +14,7 @@
     "docs/decisions/0008 for what the unchecked goldens turned out to be."
   ],
   "oracle": {
-    "image": "picard-rs-oracle:3.4.0",
+    "image": "picard-rs-oracle:3.5.0",
     "context": "tools/oracle",
     "platform": "linux/amd64"
   },
@@ -2619,7 +2619,11 @@
         "CollectMultipleMetrics"
       ],
       "compare": {
-        "mode": "keyed"
+        "mode": "keyed",
+        "skip_kinds": [
+          "chart-stability"
+        ],
+        "$why": "Whether two R runs of one fixture give identical PDFs depends on whether they fall in the same second, because the PDF carries its creation time: under 3.4.0 all five charts differed, the first 3.5.0 run found two the same. The line measures the clock, so it is recorded and not compared; the Rust test reads the frozen golden."
       },
       "why": "The tool is a dispatcher and not an arithmetic: it builds one instance per PROGRAM and hands every one of them the same records. The default set is five of the eight programs the enum declares, an extension lands on the metrics file and not on the chart, and the charts are R's output, which two runs of one fixture do not agree on byte for byte.",
       "cases": [

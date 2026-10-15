@@ -37,7 +37,7 @@ import run_array  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 FINDINGS = REPO / "tools" / "fuzz" / "findings"
-IMAGE = "picard-rs-oracle:3.4.0"
+IMAGE = "picard-rs-oracle:3.5.0"
 PLATFORM = "linux/amd64"
 
 

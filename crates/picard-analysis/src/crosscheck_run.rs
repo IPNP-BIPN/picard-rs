@@ -519,6 +519,8 @@ pub struct Outcome {
     pub unexpected: usize,
     /// `log.error` lines the run printed, in order.
     pub errors: Vec<String>,
+    /// Whether any comparison, written or not, had a non-zero LOD.
+    pub found_non_zero_lod: bool,
 }
 
 /// A `TabbedInputParser` file of two columns, as `getStringStringMap` reads it.
@@ -586,6 +588,9 @@ pub fn run(options: &Options) -> Result<Outcome, String> {
     let mut errors: Vec<String> = Vec::new();
     let mut unexpected = 0usize;
     let mut matrix = None;
+    // Picard 3.5.0 accumulates this over every comparison; 3.4.0 re-derived it from the metrics
+    // that survived OUTPUT_ERRORS_ONLY, so a run with only expected results refused itself.
+    let mut found_non_zero_lod = false;
     let mut cross = |lhs: Vec<(IdDetails, Fingerprint)>,
                      rhs: Vec<(IdDetails, Fingerprint)>,
                      metrics: &mut Vec<Metric>|
@@ -619,6 +624,9 @@ pub fn run(options: &Options) -> Result<Outcome, String> {
                 }
                 if v.is_expected() == Some(false) {
                     unexpected += 1;
+                }
+                if results.lod != 0.0 {
+                    found_non_zero_lod = true;
                 }
                 lods[row][col] = results.lod;
             }
@@ -704,7 +712,8 @@ pub fn run(options: &Options) -> Result<Outcome, String> {
                     options.tumor_aware,
                 );
                 let v = verdict(true, results.lod, options.lod_threshold);
-                if !options.output_errors_only || v.is_expected() != Some(true) {
+                // Picard 3.5.0 leaves INCONCLUSIVE out here; 3.4.0 unboxed its null and threw.
+                if !options.output_errors_only || v.is_expected() == Some(false) {
                     metrics.push(Metric {
                         left: lid.clone(),
                         right: rid.clone(),
@@ -719,6 +728,8 @@ pub fn run(options: &Options) -> Result<Outcome, String> {
                 if results.lod == 0.0 {
                     errors.push("LOD score of zero found when checking sample fingerprints.  Probably there are no reads/variants at fingerprinting sites for one of the samples".to_string());
                     unexpected += 1;
+                } else {
+                    found_non_zero_lod = true;
                 }
             }
         }
@@ -728,6 +739,7 @@ pub fn run(options: &Options) -> Result<Outcome, String> {
         matrix,
         unexpected,
         errors,
+        found_non_zero_lod,
     })
 }
 
@@ -837,7 +849,7 @@ pub fn write_outcome(options: &Options, outcome: &Outcome) -> i32 {
     for e in &outcome.errors {
         crate::vcf_io::log_error("CrosscheckFingerprints", e);
     }
-    if outcome.metrics.iter().all(|m| m.results.lod == 0.0) {
+    if !outcome.found_non_zero_lod {
         crate::vcf_io::log_error(
             "CrosscheckFingerprints",
             "No non-zero results found. This is likely an error. Probable cause: there are no reads or variants at fingerprinting sites ",

@@ -40,7 +40,7 @@ use htsjdk_metrics::file::{Histogram as OutHistogram, MetricBean, Value};
 use htsjdk_metrics::histogram::Histogram;
 
 use crate::annotation::{Gene, LocusFunction};
-use crate::insert_size::{pair_orientation, PairOrientation};
+use crate::insert_size::{mate_cigar_reference_length, pair_orientation, PairOrientation};
 
 // SAM flag bits used here (htsjdk SAMFlag), named locally rather than pulling a dependency.
 const READ_PAIRED: u16 = 0x1;
@@ -419,7 +419,10 @@ impl<'a> RnaSeqMetricsCollector<'a> {
                             mate_cigar_reference_length(rec).unwrap_or(rec.read_length() as i32);
                         let mate_alignment_end =
                             rec.mate_alignment_start + mate_reference_length - 1;
-                        proper_orientation = pair_orientation(rec) == PairOrientation::Fr;
+                        // Picard 3.5.0 (#2027): a mate on another contig is never properly
+                        // oriented, and getPairOrientation would refuse it.
+                        proper_orientation = rec.reference_index == rec.mate_reference_index
+                            && pair_orientation(rec) == PairOrientation::Fr;
                         left_most = read_start.min(rec.mate_alignment_start);
                         right_most = read_end.max(mate_alignment_end);
                     }
@@ -673,18 +676,6 @@ fn mathutil_divide(numerator: f64, denominator: f64) -> f64 {
         numerator / denominator
     } else {
         0.0
-    }
-}
-
-/// `SAMUtils.getMateCigar`: reads the "MC" tag's reference length, or `None` when absent.
-fn mate_cigar_reference_length(rec: &BamRecord) -> Option<i32> {
-    use htsjdk_bam::tag::{Tag, TagValue};
-    let tag = Tag::new(b"MC");
-    match rec.tags.get(tag) {
-        Some(TagValue::Str(s)) => htsjdk_bam::text_parse::parse_cigar(s)
-            .ok()
-            .map(|c| c.reference_length() as i32),
-        _ => None,
     }
 }
 

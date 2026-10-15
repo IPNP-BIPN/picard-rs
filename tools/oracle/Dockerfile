@@ -4,14 +4,14 @@
 # the platform is linux/amd64, and the probe fails the build rather than letting a degraded
 # environment produce a golden.
 #
-# The jar is Picard's release fat jar, which bundles htsjdk 4.2.0 and GKL as
-# `build.gradle` at tag 3.4.0 pins them. Taking the fat jar rather than assembling a classpath
+# The jar is Picard's release fat jar, which bundles htsjdk 5.0.0 and GKL as
+# `build.gradle` at tag 3.5.0 pins them. Taking the fat jar rather than assembling a classpath
 # is deliberate: the version skew between Picard and its htsjdk is exactly the kind of thing
 # that would silently change output, and the release artefact is what users actually run.
 
 FROM eclipse-temurin@sha256:068a8f9ae4b74d9a20de3ecca771ba1a6437f1d7a8a8ad6deaf9dbdd2274397a
 
-ARG PICARD_VERSION=3.4.0
+ARG PICARD_VERSION=3.5.0
 
 # R is not optional for a large part of the archetype. Ten of the 44 metrics tools declare
 # a chart argument as REQUIRED (CollectInsertSizeMetrics's HISTOGRAM_FILE among them) and shell
@@ -36,7 +36,7 @@ WORKDIR /opt/oracle/jars
 RUN set -eux; \
     curl -fsSL --retry 8 --retry-all-errors --retry-delay 5 -o picard.jar \
       https://github.com/broadinstitute/picard/releases/download/${PICARD_VERSION}/picard.jar; \
-    echo "e76128c283889fc583c9dea33a3b7448974c067d102c9e35be152642d4d5f901  picard.jar" \
+    echo "b7d97861c3a54ba5a421f5a317f38382f955803862d30ef4aca2bcdc54943631  picard.jar" \
       | sha256sum -c -
 
 # JaCoCo, for the coverage-guided differential fuzzer. Pinned by sha256 like the Picard jar: the
@@ -80,9 +80,11 @@ WORKDIR /opt/oracle
 COPY OracleProbe.java .
 RUN mkdir -p classes && javac -cp "$ORACLE_CP" -d classes OracleProbe.java
 
-# Fail the build itself if the environment does not satisfy the contract.
-RUN java -cp "$ORACLE_CP:classes" OracleProbe
+# Fail the build itself if the environment does not satisfy the contract. The libdeflate property
+# is the one every dump runs with (manifest.json's default_java_props): htsjdk 5.0.0 turns it on by
+# default, and the probe refuses an environment where it is on.
+RUN java -Dsamjdk.use_libdeflate=false -cp "$ORACLE_CP:classes" OracleProbe
 
 WORKDIR /work
 ENTRYPOINT ["/bin/sh", "-c"]
-CMD ["java -cp \"$ORACLE_CP:/opt/oracle/classes\" OracleProbe"]
+CMD ["java -Dsamjdk.use_libdeflate=false -cp \"$ORACLE_CP:/opt/oracle/classes\" OracleProbe"]

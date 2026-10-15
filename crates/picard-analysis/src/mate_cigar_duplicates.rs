@@ -72,7 +72,9 @@ pub enum Refusal {
     NoMateCigar { read: String },
     /// `SAMException`, thrown by the simple one whatever the skip says, because it asks htsjdk for
     /// the mate cigar and htsjdk is the one that refuses.
-    MateCigarNotFound { read: String },
+    /// `index` is the record's position in the input, so a caller holding the decoded records can
+    /// replace `read` with the whole SAM line htsjdk 5.0.0 writes (see [`Refusal::naming_line`]).
+    MateCigarNotFound { read: String, index: usize },
     /// `PicardException`, thrown by `MarkDuplicatesWithMateCigarIterator`'s constructor: this tool
     /// refuses one of the three scoring strategies outright, because the two ends of a pair are
     /// scored separately here and summing base qualities would let them disagree.
@@ -80,6 +82,18 @@ pub enum Refusal {
 }
 
 impl Refusal {
+    /// The refusal with the record it names rendered by `line`, given the record's index; other
+    /// refusals are returned as they are.
+    pub fn naming_line(self, line: impl FnOnce(usize) -> String) -> Refusal {
+        match self {
+            Refusal::MateCigarNotFound { index, .. } => Refusal::MateCigarNotFound {
+                read: line(index),
+                index,
+            },
+            other => other,
+        }
+    }
+
     /// The message, which is the reference's and not this port's.
     pub fn message(&self) -> String {
         match self {
@@ -89,11 +103,10 @@ impl Refusal {
             Refusal::NoMateCigar { read } => format!(
                 "Read {read} was mapped and had a mapped mate, but no mate cigar (\"MC\") tag."
             ),
-            // htsjdk appends the RECORD and not its name: `SAMRecord.toString` renders
-            // `<name> <1|2>/2 <length>b aligned to <contig>:<start>-<end>.`. This port carries the
-            // name alone, because a `Record` here has no contig NAME to render -- the difference
-            // is visible in the covering array and is tracked rather than hidden.
-            Refusal::MateCigarNotFound { read } => {
+            // htsjdk appends the RECORD, and from 5.0.0 `SAMRecord.toString` is the whole SAM
+            // line. A `Record` here has too little of it to render, so the binaries put the line
+            // in through `naming_line`.
+            Refusal::MateCigarNotFound { read, .. } => {
                 format!("Mate CIGAR (Tag MC) not found: {read}")
             }
             Refusal::SumOfBaseQualitiesUnsupported => {
@@ -240,6 +253,7 @@ pub fn simple_mark_with_mate_cigar(
         let record = &records[index];
         if needs_mate_cigar(record) && mate_cigar(record).is_none() {
             return Err(Refusal::MateCigarNotFound {
+                index,
                 read: describe_with_contig(
                     record,
                     contigs

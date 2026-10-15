@@ -322,7 +322,7 @@ fn main() {
     );
     add("reference", &reference_path(&reference));
     // `CommandLineProgram.getVersion()`, which is the jar's implementation version with its prefix.
-    add("picardVersion", "Version:3.4.0");
+    add("picardVersion", "Version:3.5.0");
     let percentile = |p: &Option<[i32; 3]>| -> String {
         p.map(|v| v[2].to_string())
             .unwrap_or_else(|| raise("java.lang.NullPointerException"))

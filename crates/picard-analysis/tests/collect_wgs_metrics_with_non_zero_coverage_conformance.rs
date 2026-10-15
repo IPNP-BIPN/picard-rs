@@ -215,12 +215,14 @@ fn the_histogram_is_one_table_of_two_columns() {
     assert_eq!(with_bq[0].len(), 4);
 }
 
-/// The chart argument is required, and the chart is written even when nothing is covered.
+/// The chart argument is optional from Picard 3.5.0, and the chart is written whenever it is
+/// asked for, even when nothing is covered.
 #[test]
-fn the_chart_is_required_and_always_written() {
+fn the_chart_is_optional_and_written_when_asked_for() {
     let text = corpus();
-    assert_eq!(field(&text, "error", "no-chart").as_deref(), Some("exit 1"));
-    assert!(field(&text, "metrics", "no-chart").is_none());
+    assert!(field(&text, "error", "no-chart").is_none());
+    assert!(field(&text, "metrics", "no-chart").is_some());
+    assert_eq!(field(&text, "chart", "no-chart").as_deref(), Some("absent"));
     // The emptiness test asks the histogram whether it has bins, and a bin is created for every
     // depth up to the cap, so the "no valid bases" warning is unreachable.
     for case in ["no-reads", "all-duplicates", "all-excluded"] {

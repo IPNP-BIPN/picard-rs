@@ -102,9 +102,17 @@ pub fn view_sam(input_sam: &str, opts: &Options) -> Result<String, ParseError> {
     Ok(out)
 }
 
-/// One record as `getSAMString` renders it: the alignment line and its trailing newline, with
-/// reference names resolved against the header.
+/// One record as Picard 3.5.0's ViewSam writes it: the alignment line and its trailing newline.
 fn render(header: &htsjdk_bam::header::SamHeader, rec: &BamRecord) -> String {
+    let mut line = sam_string(header, rec);
+    line.push('\n');
+    line
+}
+
+/// `SAMRecord.getSAMString()` under htsjdk 5.0.0, which is also its `toString()`: the alignment
+/// line without a newline, with reference names resolved against the header. An exception that
+/// names a record carries this whole line; htsjdk 4.2.0 wrote `<name> 1/2 20b aligned to ...`.
+pub fn sam_string(header: &htsjdk_bam::header::SamHeader, rec: &BamRecord) -> String {
     let name_of = |index: i32| -> &str {
         if index < 0 {
             "*"
@@ -116,14 +124,12 @@ fn render(header: &htsjdk_bam::header::SamHeader, rec: &BamRecord) -> String {
                 .unwrap_or("*")
         }
     };
-    let mut line = write_alignment(
+    write_alignment(
         rec,
         name_of(rec.reference_index),
         name_of(rec.mate_reference_index),
     )
-    .expect("records that parsed re-encode as SAM text");
-    line.push('\n');
-    line
+    .expect("records that parsed re-encode as SAM text")
 }
 
 #[cfg(test)]

@@ -262,6 +262,13 @@ pub(crate) fn fix_nm_md_and_uq(rec: &mut BamRecord, ref_bases: &[u8]) {
     fix_record(rec, ref_bases, Options::default());
 }
 
+/// The first half of `calculateMdAndNmTags(record, ref, true, false)`: `MD` alone, which is set
+/// before the bisulfite `NM` is counted and so is on the record when that count throws.
+pub fn set_md(rec: &mut BamRecord, ref_bases: &[u8]) {
+    let (md, _) = calculate_md_and_nm(rec.alignment_start, &rec.cigar, &rec.read_bases, ref_bases);
+    rec.tags.insert(Tag::new(b"MD"), TagValue::Str(md));
+}
+
 /// The tool's own two arguments, with Picard's defaults.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Options {

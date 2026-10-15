@@ -76,13 +76,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
-    // Required by the reference, so a row that omits it is refused before the input is opened.
-    // Barclay refuses a missing required argument through the parser rather than by throwing, and
-    // that is what the corpus records: `Argument 'CHART_OUTPUT' is required`.
-    if arg(&args, "CHART_OUTPUT=").is_none() && arg(&args, "CHART=").is_none() {
-        eprintln!("Argument CHART_OUTPUT was missing: Argument 'CHART_OUTPUT' is required");
-        std::process::exit(1);
-    }
+    // Optional since Picard 3.5.0, which refuses it only where there is no R.
+    picard_analysis::metrics_cli::refuse_chart_without_r(
+        "QualityScoreDistribution",
+        arg(&args, "CHART_OUTPUT=").is_some() || arg(&args, "CHART=").is_some(),
+    );
     let flag = |key: &str| arg(&args, key).map(|v| v == "true").unwrap_or(false);
 
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {

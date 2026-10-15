@@ -246,11 +246,12 @@ fn get_pair_orientation(rec: &BamRecord) -> PairOrientation {
         rec.alignment_start
     };
     let negative_5prime = if read_reverse {
-        rec.alignment_end()
+        i64::from(rec.alignment_end())
     } else {
-        rec.alignment_start + rec.inferred_insert_size
+        crate::insert_size::forward_mate_five_prime(rec)
     };
-    if positive_5prime < negative_5prime {
+    // htsjdk 5.0.0: the mate cigar when set, and a tie is FR.
+    if i64::from(positive_5prime) <= negative_5prime {
         PairOrientation::Fr
     } else {
         PairOrientation::Rf

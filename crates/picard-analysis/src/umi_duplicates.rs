@@ -262,12 +262,14 @@ pub fn mark_with_umis(
     if order != SortOrder::Coordinate {
         return Err(UmiRefusal::Inherited(Refusal::NotCoordinateSorted));
     }
-    if let Some(record) = records
+    if let Some((index, record)) = records
         .iter()
-        .find(|record| needs_mate_cigar(record) && record.mate_cigar.is_none())
+        .enumerate()
+        .find(|(_, record)| needs_mate_cigar(record) && record.mate_cigar.is_none())
     {
         return Err(UmiRefusal::Inherited(Refusal::MateCigarNotFound {
             read: record.name.clone(),
+            index,
         }));
     }
     for record in records {
