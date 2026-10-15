@@ -81,6 +81,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
     let reference = arg(&args, "REFERENCE_SEQUENCE=").or_else(|| arg(&args, "R="));
+    // Picard 3.5.0 refuses a chart where there is no R.
+    picard_analysis::metrics_cli::refuse_chart_without_r(
+        "CollectAlignmentSummaryMetrics",
+        arg(&args, "HISTOGRAM_FILE=").is_some() || arg(&args, "H=").is_some(),
+    );
 
     let mut options = Options::default();
     if let Some(value) = arg(&args, "IS_BISULFITE_SEQUENCED=") {

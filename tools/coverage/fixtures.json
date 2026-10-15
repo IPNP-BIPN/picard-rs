@@ -25,7 +25,8 @@
     ],
     "--HISTOGRAM_FILE": [
       "/work/out/histogram.pdf",
-      "/work/out/histogram_other.pdf"
+      "/work/out/histogram_other.pdf",
+      null
     ],
     "--METRICS": [
       "/work/out/metrics.txt"
@@ -35,7 +36,8 @@
     ],
     "--CHART_OUTPUT": [
       "/work/out/chart.pdf",
-      "/work/out/chart_other.pdf"
+      "/work/out/chart_other.pdf",
+      null
     ],
     "--INTERVAL_LIST": [
       "/work/fixtures/targets.interval_list",
@@ -1407,7 +1409,8 @@
       ],
       "--Histogram_FILE": [
         "/work/out/histogram.pdf",
-        "/work/out/histogram_b.pdf"
+        "/work/out/histogram_b.pdf",
+        null
       ],
       "$lists": [
         "--METRIC_ACCUMULATION_LEVEL"

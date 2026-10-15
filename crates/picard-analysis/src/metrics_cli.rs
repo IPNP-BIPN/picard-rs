@@ -146,6 +146,27 @@ pub fn thrown(message: &str) -> ! {
     std::process::exit(1);
 }
 
+/// `RExecutor.runningInGatkLiteDocker`, new in Picard 3.5.0: the `IN_GATKLITE_DOCKER` environment
+/// variable, when it is not blank, read as `Boolean.parseBoolean` reads it. The system property of
+/// the same name has no equivalent here.
+pub fn running_in_gatk_lite_docker() -> bool {
+    match std::env::var("IN_GATKLITE_DOCKER") {
+        Ok(value) if !value.trim().is_empty() => value.eq_ignore_ascii_case("true"),
+        _ => false,
+    }
+}
+
+/// What the chart-writing tools refuse with, from Picard 3.5.0, when a chart is asked for in the
+/// GATK Lite image, which has no R.
+pub const NO_R_IN_GATK_LITE: &str = "The histogram file cannot be written because it requires R, which is not available in the GATK Lite Docker image.";
+
+/// The chart argument became optional in Picard 3.5.0, and asking for one without R is refused.
+pub fn refuse_chart_without_r(tool: &str, chart_requested: bool) {
+    if chart_requested && running_in_gatk_lite_docker() {
+        refuse_validation(tool, &[NO_R_IN_GATK_LITE.to_string()]);
+    }
+}
+
 /// `customCommandLineValidation`'s messages: the usage, then one message per line.
 pub fn refuse_validation(tool: &str, messages: &[String]) -> ! {
     eprintln!("USAGE: {tool} [arguments]\n");

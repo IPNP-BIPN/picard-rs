@@ -110,7 +110,7 @@ public class CheckDuplicateMarkingDump {
         final StringBuilder sam = new StringBuilder();
         try (final SamReader reader = SamReaderFactory.makeDefault().open(bam)) {
             for (final SAMRecord read : reader) {
-                sam.append(read.getSAMString());
+                sam.append(samLine(read));
             }
         }
         emit("sam", name, sam.toString());
@@ -214,5 +214,14 @@ public class CheckDuplicateMarkingDump {
                 SAMFileHeader.SortOrder.queryname, "NO_OUTPUT");
 
         System.out.print(buf);
+    }
+
+    /**
+     * The record as one SAM line ending in a newline. htsjdk 5.0.0 dropped the trailing newline
+     * from getSAMString(); Picard 3.5.0's ViewSam adds it back the same way, and so does this.
+     */
+    private static String samLine(final htsjdk.samtools.SAMRecord record) {
+        final String line = record.getSAMString();
+        return line.endsWith("\n") ? line : line + "\n";
     }
 }

@@ -349,6 +349,12 @@ fn main() {
     if t.min_read_length <= 0 {
         messages.push("MINIMUM_READ_LENGTH must be > 0".to_string());
     }
+    // DO_NOT_CREATE_PLOTS, new in Picard 3.5.0. No chart is written here either way.
+    if !args.bool("DO_NOT_CREATE_PLOTS", false)
+        && picard_analysis::metrics_cli::running_in_gatk_lite_docker()
+    {
+        messages.push(picard_analysis::metrics_cli::NO_R_IN_GATK_LITE.to_string());
+    }
     if !messages.is_empty() {
         refuse_validation(TOOL, &messages);
     }

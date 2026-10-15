@@ -73,6 +73,11 @@ fn main() {
         ("LEVEL", "METRIC_ACCUMULATION_LEVEL"),
         ("AS", "ASSUME_SORTED"),
     ]);
+    // Picard 3.5.0 refuses a chart where there is no R.
+    picard_analysis::metrics_cli::refuse_chart_without_r(
+        "CollectRnaSeqMetrics",
+        args.get("CHART_OUTPUT").is_some(),
+    );
     let input = args.required("INPUT");
     let output = args.required("OUTPUT");
     let ref_flat = args.required("REF_FLAT");

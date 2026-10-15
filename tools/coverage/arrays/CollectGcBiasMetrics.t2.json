@@ -106,9 +106,9 @@
       "source": "none"
     }
   ],
-  "rows": 23,
-  "tuples_total": 435,
-  "tuples_covered": 435,
+  "rows": 27,
+  "tuples_total": 464,
+  "tuples_covered": 464,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -244,28 +244,28 @@
       "labels": {
         "--ALSO_IGNORE_DUPLICATES": "true",
         "--ASSUME_SORTED": "true",
-        "--CHART_OUTPUT": "fixture[0]",
+        "--CHART_OUTPUT": "fixture[2]",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[4]",
-        "--IS_BISULFITE_SEQUENCED": "false",
+        "--IS_BISULFITE_SEQUENCED": "true",
         "--METRIC_ACCUMULATION_LEVEL": "fixture[2]",
         "--MINIMUM_GENOME_FRACTION": "fixture[1]",
         "--SCAN_WINDOW_SIZE": "fixture[0]",
-        "--STOP_AFTER": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
         "--SUMMARY_OUTPUT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ALSO_IGNORE_DUPLICATES=true",
         "--ASSUME_SORTED=true",
-        "--CHART_OUTPUT=/work/out/chart.pdf",
+        "--CHART_OUTPUT=None",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/unmapped.bam",
-        "--IS_BISULFITE_SEQUENCED=false",
+        "--IS_BISULFITE_SEQUENCED=true",
         "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
         "--MINIMUM_GENOME_FRACTION=0.05",
         "--SCAN_WINDOW_SIZE=100",
-        "--STOP_AFTER=0",
+        "--STOP_AFTER=150",
         "--SUMMARY_OUTPUT=/work/out/summary_b.txt",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -275,28 +275,28 @@
       "labels": {
         "--ALSO_IGNORE_DUPLICATES": "false",
         "--ASSUME_SORTED": "false",
-        "--CHART_OUTPUT": "fixture[1]",
+        "--CHART_OUTPUT": "fixture[2]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[4]",
-        "--IS_BISULFITE_SEQUENCED": "true",
+        "--INPUT": "fixture[0]",
+        "--IS_BISULFITE_SEQUENCED": "false",
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
-        "--MINIMUM_GENOME_FRACTION": "fixture[0]",
+        "--MINIMUM_GENOME_FRACTION": "fixture[1]",
         "--SCAN_WINDOW_SIZE": "fixture[1]",
-        "--STOP_AFTER": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
         "--SUMMARY_OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ALSO_IGNORE_DUPLICATES=false",
         "--ASSUME_SORTED=false",
-        "--CHART_OUTPUT=/work/out/chart_other.pdf",
+        "--CHART_OUTPUT=None",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/unmapped.bam",
-        "--IS_BISULFITE_SEQUENCED=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--IS_BISULFITE_SEQUENCED=false",
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
-        "--MINIMUM_GENOME_FRACTION=1.0E-5",
+        "--MINIMUM_GENOME_FRACTION=0.05",
         "--SCAN_WINDOW_SIZE=50",
-        "--STOP_AFTER=150",
+        "--STOP_AFTER=0",
         "--SUMMARY_OUTPUT=/work/out/summary.txt",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -312,10 +312,10 @@
         "--IS_BISULFITE_SEQUENCED": "true",
         "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--MINIMUM_GENOME_FRACTION": "fixture[0]",
-        "--SCAN_WINDOW_SIZE": "fixture[0]",
+        "--SCAN_WINDOW_SIZE": "fixture[1]",
         "--STOP_AFTER": "fixture[0]",
         "--SUMMARY_OUTPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ALSO_IGNORE_DUPLICATES=true",
@@ -326,10 +326,10 @@
         "--IS_BISULFITE_SEQUENCED=true",
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--MINIMUM_GENOME_FRACTION=1.0E-5",
-        "--SCAN_WINDOW_SIZE=100",
+        "--SCAN_WINDOW_SIZE=50",
         "--STOP_AFTER=0",
         "--SUMMARY_OUTPUT=/work/out/summary.txt",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -340,13 +340,13 @@
         "--CHART_OUTPUT": "fixture[1]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[3]",
-        "--IS_BISULFITE_SEQUENCED": "false",
+        "--IS_BISULFITE_SEQUENCED": "true",
         "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
         "--MINIMUM_GENOME_FRACTION": "fixture[0]",
         "--SCAN_WINDOW_SIZE": "fixture[0]",
         "--STOP_AFTER": "fixture[1]",
         "--SUMMARY_OUTPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ALSO_IGNORE_DUPLICATES=true",
@@ -354,48 +354,17 @@
         "--CHART_OUTPUT=/work/out/chart_other.pdf",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/one_read_group.bam",
-        "--IS_BISULFITE_SEQUENCED=false",
+        "--IS_BISULFITE_SEQUENCED=true",
         "--METRIC_ACCUMULATION_LEVEL=null",
         "--MINIMUM_GENOME_FRACTION=1.0E-5",
         "--SCAN_WINDOW_SIZE=100",
         "--STOP_AFTER=150",
         "--SUMMARY_OUTPUT=/work/out/summary.txt",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 8,
-      "labels": {
-        "--ALSO_IGNORE_DUPLICATES": "false",
-        "--ASSUME_SORTED": "false",
-        "--CHART_OUTPUT": "fixture[1]",
-        "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[0]",
-        "--IS_BISULFITE_SEQUENCED": "false",
-        "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
-        "--MINIMUM_GENOME_FRACTION": "fixture[1]",
-        "--SCAN_WINDOW_SIZE": "fixture[2]",
-        "--STOP_AFTER": "fixture[0]",
-        "--SUMMARY_OUTPUT": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "STRICT"
-      },
-      "arguments": [
-        "--ALSO_IGNORE_DUPLICATES=false",
-        "--ASSUME_SORTED=false",
-        "--CHART_OUTPUT=/work/out/chart_other.pdf",
-        "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/small.bam",
-        "--IS_BISULFITE_SEQUENCED=false",
-        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
-        "--MINIMUM_GENOME_FRACTION=0.05",
-        "--SCAN_WINDOW_SIZE=1500",
-        "--STOP_AFTER=0",
-        "--SUMMARY_OUTPUT=/work/out/summary_b.txt",
-        "--VALIDATION_STRINGENCY=STRICT"
-      ]
-    },
-    {
-      "row": 9,
       "labels": {
         "--ALSO_IGNORE_DUPLICATES": "false",
         "--ASSUME_SORTED": "true",
@@ -426,34 +395,65 @@
       ]
     },
     {
-      "row": 10,
+      "row": 9,
       "labels": {
-        "--ALSO_IGNORE_DUPLICATES": "true",
+        "--ALSO_IGNORE_DUPLICATES": "false",
         "--ASSUME_SORTED": "false",
         "--CHART_OUTPUT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[0]",
-        "--IS_BISULFITE_SEQUENCED": "true",
+        "--INPUT": "fixture[4]",
+        "--IS_BISULFITE_SEQUENCED": "false",
         "--METRIC_ACCUMULATION_LEVEL": "fixture[2]",
         "--MINIMUM_GENOME_FRACTION": "fixture[0]",
-        "--SCAN_WINDOW_SIZE": "fixture[1]",
-        "--STOP_AFTER": "fixture[1]",
+        "--SCAN_WINDOW_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
         "--SUMMARY_OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--ALSO_IGNORE_DUPLICATES=true",
+        "--ALSO_IGNORE_DUPLICATES=false",
         "--ASSUME_SORTED=false",
         "--CHART_OUTPUT=/work/out/chart.pdf",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.bam",
-        "--IS_BISULFITE_SEQUENCED=true",
+        "--INPUT=/work/fixtures/unmapped.bam",
+        "--IS_BISULFITE_SEQUENCED=false",
         "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
         "--MINIMUM_GENOME_FRACTION=1.0E-5",
-        "--SCAN_WINDOW_SIZE=50",
-        "--STOP_AFTER=150",
+        "--SCAN_WINDOW_SIZE=100",
+        "--STOP_AFTER=0",
         "--SUMMARY_OUTPUT=/work/out/summary.txt",
         "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 10,
+      "labels": {
+        "--ALSO_IGNORE_DUPLICATES": "true",
+        "--ASSUME_SORTED": "true",
+        "--CHART_OUTPUT": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[0]",
+        "--IS_BISULFITE_SEQUENCED": "true",
+        "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
+        "--MINIMUM_GENOME_FRACTION": "fixture[0]",
+        "--SCAN_WINDOW_SIZE": "fixture[2]",
+        "--STOP_AFTER": "fixture[1]",
+        "--SUMMARY_OUTPUT": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ALSO_IGNORE_DUPLICATES=true",
+        "--ASSUME_SORTED=true",
+        "--CHART_OUTPUT=/work/out/chart_other.pdf",
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/small.bam",
+        "--IS_BISULFITE_SEQUENCED=true",
+        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
+        "--MINIMUM_GENOME_FRACTION=1.0E-5",
+        "--SCAN_WINDOW_SIZE=1500",
+        "--STOP_AFTER=150",
+        "--SUMMARY_OUTPUT=/work/out/summary_b.txt",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -461,13 +461,13 @@
       "labels": {
         "--ALSO_IGNORE_DUPLICATES": "true",
         "--ASSUME_SORTED": "true",
-        "--CHART_OUTPUT": "fixture[0]",
+        "--CHART_OUTPUT": "fixture[1]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[0]",
+        "--INPUT": "fixture[4]",
         "--IS_BISULFITE_SEQUENCED": "true",
-        "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
+        "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
         "--MINIMUM_GENOME_FRACTION": "fixture[0]",
-        "--SCAN_WINDOW_SIZE": "fixture[2]",
+        "--SCAN_WINDOW_SIZE": "fixture[1]",
         "--STOP_AFTER": "fixture[0]",
         "--SUMMARY_OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
@@ -475,13 +475,13 @@
       "arguments": [
         "--ALSO_IGNORE_DUPLICATES=true",
         "--ASSUME_SORTED=true",
-        "--CHART_OUTPUT=/work/out/chart.pdf",
+        "--CHART_OUTPUT=/work/out/chart_other.pdf",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.bam",
+        "--INPUT=/work/fixtures/unmapped.bam",
         "--IS_BISULFITE_SEQUENCED=true",
-        "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
+        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--MINIMUM_GENOME_FRACTION=1.0E-5",
-        "--SCAN_WINDOW_SIZE=1500",
+        "--SCAN_WINDOW_SIZE=50",
         "--STOP_AFTER=0",
         "--SUMMARY_OUTPUT=/work/out/summary.txt",
         "--VALIDATION_STRINGENCY=SILENT"
@@ -490,44 +490,13 @@
     {
       "row": 12,
       "labels": {
-        "--ALSO_IGNORE_DUPLICATES": "true",
+        "--ALSO_IGNORE_DUPLICATES": "false",
         "--ASSUME_SORTED": "true",
-        "--CHART_OUTPUT": "fixture[0]",
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[0]",
-        "--IS_BISULFITE_SEQUENCED": "true",
-        "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
-        "--MINIMUM_GENOME_FRACTION": "fixture[0]",
-        "--SCAN_WINDOW_SIZE": "fixture[1]",
-        "--STOP_AFTER": "fixture[0]",
-        "--SUMMARY_OUTPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
-      },
-      "arguments": [
-        "--ALSO_IGNORE_DUPLICATES=true",
-        "--ASSUME_SORTED=true",
-        "--CHART_OUTPUT=/work/out/chart.pdf",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.bam",
-        "--IS_BISULFITE_SEQUENCED=true",
-        "--METRIC_ACCUMULATION_LEVEL=null",
-        "--MINIMUM_GENOME_FRACTION=1.0E-5",
-        "--SCAN_WINDOW_SIZE=50",
-        "--STOP_AFTER=0",
-        "--SUMMARY_OUTPUT=/work/out/summary.txt",
-        "--VALIDATION_STRINGENCY=LENIENT"
-      ]
-    },
-    {
-      "row": 13,
-      "labels": {
-        "--ALSO_IGNORE_DUPLICATES": "true",
-        "--ASSUME_SORTED": "true",
-        "--CHART_OUTPUT": "fixture[0]",
+        "--CHART_OUTPUT": "fixture[2]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
         "--IS_BISULFITE_SEQUENCED": "true",
-        "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
+        "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
         "--MINIMUM_GENOME_FRACTION": "fixture[0]",
         "--SCAN_WINDOW_SIZE": "fixture[2]",
         "--STOP_AFTER": "fixture[0]",
@@ -535,13 +504,13 @@
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--ALSO_IGNORE_DUPLICATES=true",
+        "--ALSO_IGNORE_DUPLICATES=false",
         "--ASSUME_SORTED=true",
-        "--CHART_OUTPUT=/work/out/chart.pdf",
+        "--CHART_OUTPUT=None",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/small.sam",
         "--IS_BISULFITE_SEQUENCED=true",
-        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
+        "--METRIC_ACCUMULATION_LEVEL=null",
         "--MINIMUM_GENOME_FRACTION=1.0E-5",
         "--SCAN_WINDOW_SIZE=1500",
         "--STOP_AFTER=0",
@@ -550,17 +519,48 @@
       ]
     },
     {
+      "row": 13,
+      "labels": {
+        "--ALSO_IGNORE_DUPLICATES": "true",
+        "--ASSUME_SORTED": "true",
+        "--CHART_OUTPUT": "fixture[2]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[2]",
+        "--IS_BISULFITE_SEQUENCED": "true",
+        "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
+        "--MINIMUM_GENOME_FRACTION": "fixture[1]",
+        "--SCAN_WINDOW_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--SUMMARY_OUTPUT": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ALSO_IGNORE_DUPLICATES=true",
+        "--ASSUME_SORTED=true",
+        "--CHART_OUTPUT=None",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--IS_BISULFITE_SEQUENCED=true",
+        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
+        "--MINIMUM_GENOME_FRACTION=0.05",
+        "--SCAN_WINDOW_SIZE=100",
+        "--STOP_AFTER=0",
+        "--SUMMARY_OUTPUT=/work/out/summary_b.txt",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
       "row": 14,
       "labels": {
         "--ALSO_IGNORE_DUPLICATES": "true",
         "--ASSUME_SORTED": "true",
-        "--CHART_OUTPUT": "fixture[0]",
+        "--CHART_OUTPUT": "fixture[2]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
-        "--IS_BISULFITE_SEQUENCED": "true",
-        "--METRIC_ACCUMULATION_LEVEL": "fixture[2]",
+        "--INPUT": "fixture[3]",
+        "--IS_BISULFITE_SEQUENCED": "false",
+        "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--MINIMUM_GENOME_FRACTION": "fixture[0]",
-        "--SCAN_WINDOW_SIZE": "fixture[0]",
+        "--SCAN_WINDOW_SIZE": "fixture[1]",
         "--STOP_AFTER": "fixture[0]",
         "--SUMMARY_OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
@@ -568,13 +568,13 @@
       "arguments": [
         "--ALSO_IGNORE_DUPLICATES=true",
         "--ASSUME_SORTED=true",
-        "--CHART_OUTPUT=/work/out/chart.pdf",
+        "--CHART_OUTPUT=None",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.sam",
-        "--IS_BISULFITE_SEQUENCED=true",
-        "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
+        "--INPUT=/work/fixtures/one_read_group.bam",
+        "--IS_BISULFITE_SEQUENCED=false",
+        "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--MINIMUM_GENOME_FRACTION=1.0E-5",
-        "--SCAN_WINDOW_SIZE=100",
+        "--SCAN_WINDOW_SIZE=50",
         "--STOP_AFTER=0",
         "--SUMMARY_OUTPUT=/work/out/summary.txt",
         "--VALIDATION_STRINGENCY=STRICT"
@@ -587,28 +587,28 @@
         "--ASSUME_SORTED": "true",
         "--CHART_OUTPUT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
+        "--INPUT": "fixture[0]",
         "--IS_BISULFITE_SEQUENCED": "true",
-        "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
+        "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--MINIMUM_GENOME_FRACTION": "fixture[0]",
-        "--SCAN_WINDOW_SIZE": "fixture[0]",
+        "--SCAN_WINDOW_SIZE": "fixture[2]",
         "--STOP_AFTER": "fixture[0]",
         "--SUMMARY_OUTPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ALSO_IGNORE_DUPLICATES=true",
         "--ASSUME_SORTED=true",
         "--CHART_OUTPUT=/work/out/chart.pdf",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/small.sam",
+        "--INPUT=/work/fixtures/small.bam",
         "--IS_BISULFITE_SEQUENCED=true",
-        "--METRIC_ACCUMULATION_LEVEL=null",
+        "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
         "--MINIMUM_GENOME_FRACTION=1.0E-5",
-        "--SCAN_WINDOW_SIZE=100",
+        "--SCAN_WINDOW_SIZE=1500",
         "--STOP_AFTER=0",
         "--SUMMARY_OUTPUT=/work/out/summary.txt",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -616,12 +616,12 @@
       "labels": {
         "--ALSO_IGNORE_DUPLICATES": "true",
         "--ASSUME_SORTED": "true",
-        "--CHART_OUTPUT": "fixture[0]",
+        "--CHART_OUTPUT": "fixture[1]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
+        "--INPUT": "fixture[0]",
         "--IS_BISULFITE_SEQUENCED": "true",
-        "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
-        "--MINIMUM_GENOME_FRACTION": "fixture[1]",
+        "--METRIC_ACCUMULATION_LEVEL": "fixture[2]",
+        "--MINIMUM_GENOME_FRACTION": "fixture[0]",
         "--SCAN_WINDOW_SIZE": "fixture[1]",
         "--STOP_AFTER": "fixture[0]",
         "--SUMMARY_OUTPUT": "fixture[0]",
@@ -630,12 +630,12 @@
       "arguments": [
         "--ALSO_IGNORE_DUPLICATES=true",
         "--ASSUME_SORTED=true",
-        "--CHART_OUTPUT=/work/out/chart.pdf",
+        "--CHART_OUTPUT=/work/out/chart_other.pdf",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/queryname.bam",
+        "--INPUT=/work/fixtures/small.bam",
         "--IS_BISULFITE_SEQUENCED=true",
-        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
-        "--MINIMUM_GENOME_FRACTION=0.05",
+        "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
+        "--MINIMUM_GENOME_FRACTION=1.0E-5",
         "--SCAN_WINDOW_SIZE=50",
         "--STOP_AFTER=0",
         "--SUMMARY_OUTPUT=/work/out/summary.txt",
@@ -649,13 +649,13 @@
         "--ASSUME_SORTED": "true",
         "--CHART_OUTPUT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
-        "--IS_BISULFITE_SEQUENCED": "true",
+        "--INPUT": "fixture[0]",
+        "--IS_BISULFITE_SEQUENCED": "false",
         "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
         "--MINIMUM_GENOME_FRACTION": "fixture[0]",
-        "--SCAN_WINDOW_SIZE": "fixture[0]",
+        "--SCAN_WINDOW_SIZE": "fixture[1]",
         "--STOP_AFTER": "fixture[0]",
-        "--SUMMARY_OUTPUT": "fixture[1]",
+        "--SUMMARY_OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -663,13 +663,13 @@
         "--ASSUME_SORTED=true",
         "--CHART_OUTPUT=/work/out/chart.pdf",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/queryname.bam",
-        "--IS_BISULFITE_SEQUENCED=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--IS_BISULFITE_SEQUENCED=false",
         "--METRIC_ACCUMULATION_LEVEL=null",
         "--MINIMUM_GENOME_FRACTION=1.0E-5",
-        "--SCAN_WINDOW_SIZE=100",
+        "--SCAN_WINDOW_SIZE=50",
         "--STOP_AFTER=0",
-        "--SUMMARY_OUTPUT=/work/out/summary_b.txt",
+        "--SUMMARY_OUTPUT=/work/out/summary.txt",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -680,40 +680,9 @@
         "--ASSUME_SORTED": "true",
         "--CHART_OUTPUT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[3]",
+        "--INPUT": "fixture[1]",
         "--IS_BISULFITE_SEQUENCED": "true",
         "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
-        "--MINIMUM_GENOME_FRACTION": "fixture[0]",
-        "--SCAN_WINDOW_SIZE": "fixture[1]",
-        "--STOP_AFTER": "fixture[0]",
-        "--SUMMARY_OUTPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
-      },
-      "arguments": [
-        "--ALSO_IGNORE_DUPLICATES=true",
-        "--ASSUME_SORTED=true",
-        "--CHART_OUTPUT=/work/out/chart.pdf",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/one_read_group.bam",
-        "--IS_BISULFITE_SEQUENCED=true",
-        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
-        "--MINIMUM_GENOME_FRACTION=1.0E-5",
-        "--SCAN_WINDOW_SIZE=50",
-        "--STOP_AFTER=0",
-        "--SUMMARY_OUTPUT=/work/out/summary.txt",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 19,
-      "labels": {
-        "--ALSO_IGNORE_DUPLICATES": "true",
-        "--ASSUME_SORTED": "true",
-        "--CHART_OUTPUT": "fixture[0]",
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[3]",
-        "--IS_BISULFITE_SEQUENCED": "true",
-        "--METRIC_ACCUMULATION_LEVEL": "fixture[1]",
         "--MINIMUM_GENOME_FRACTION": "fixture[0]",
         "--SCAN_WINDOW_SIZE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
@@ -725,9 +694,40 @@
         "--ASSUME_SORTED=true",
         "--CHART_OUTPUT=/work/out/chart.pdf",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/one_read_group.bam",
+        "--INPUT=/work/fixtures/small.sam",
         "--IS_BISULFITE_SEQUENCED=true",
-        "--METRIC_ACCUMULATION_LEVEL=SAMPLE LIBRARY",
+        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
+        "--MINIMUM_GENOME_FRACTION=1.0E-5",
+        "--SCAN_WINDOW_SIZE=100",
+        "--STOP_AFTER=0",
+        "--SUMMARY_OUTPUT=/work/out/summary.txt",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 19,
+      "labels": {
+        "--ALSO_IGNORE_DUPLICATES": "true",
+        "--ASSUME_SORTED": "true",
+        "--CHART_OUTPUT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[1]",
+        "--IS_BISULFITE_SEQUENCED": "true",
+        "--METRIC_ACCUMULATION_LEVEL": "fixture[2]",
+        "--MINIMUM_GENOME_FRACTION": "fixture[0]",
+        "--SCAN_WINDOW_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--SUMMARY_OUTPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ALSO_IGNORE_DUPLICATES=true",
+        "--ASSUME_SORTED=true",
+        "--CHART_OUTPUT=/work/out/chart.pdf",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.sam",
+        "--IS_BISULFITE_SEQUENCED=true",
+        "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
         "--MINIMUM_GENOME_FRACTION=1.0E-5",
         "--SCAN_WINDOW_SIZE=100",
         "--STOP_AFTER=0",
@@ -742,6 +742,68 @@
         "--ASSUME_SORTED": "true",
         "--CHART_OUTPUT": "fixture[0]",
         "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[2]",
+        "--IS_BISULFITE_SEQUENCED": "true",
+        "--METRIC_ACCUMULATION_LEVEL": "fixture[3]",
+        "--MINIMUM_GENOME_FRACTION": "fixture[0]",
+        "--SCAN_WINDOW_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--SUMMARY_OUTPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ALSO_IGNORE_DUPLICATES=true",
+        "--ASSUME_SORTED=true",
+        "--CHART_OUTPUT=/work/out/chart.pdf",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/queryname.bam",
+        "--IS_BISULFITE_SEQUENCED=true",
+        "--METRIC_ACCUMULATION_LEVEL=null",
+        "--MINIMUM_GENOME_FRACTION=1.0E-5",
+        "--SCAN_WINDOW_SIZE=100",
+        "--STOP_AFTER=0",
+        "--SUMMARY_OUTPUT=/work/out/summary.txt",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 21,
+      "labels": {
+        "--ALSO_IGNORE_DUPLICATES": "true",
+        "--ASSUME_SORTED": "true",
+        "--CHART_OUTPUT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[3]",
+        "--IS_BISULFITE_SEQUENCED": "true",
+        "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
+        "--MINIMUM_GENOME_FRACTION": "fixture[0]",
+        "--SCAN_WINDOW_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--SUMMARY_OUTPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ALSO_IGNORE_DUPLICATES=true",
+        "--ASSUME_SORTED=true",
+        "--CHART_OUTPUT=/work/out/chart.pdf",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/one_read_group.bam",
+        "--IS_BISULFITE_SEQUENCED=true",
+        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
+        "--MINIMUM_GENOME_FRACTION=1.0E-5",
+        "--SCAN_WINDOW_SIZE=100",
+        "--STOP_AFTER=0",
+        "--SUMMARY_OUTPUT=/work/out/summary.txt",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 22,
+      "labels": {
+        "--ALSO_IGNORE_DUPLICATES": "true",
+        "--ASSUME_SORTED": "true",
+        "--CHART_OUTPUT": "fixture[0]",
+        "--CREATE_INDEX": "true",
         "--INPUT": "fixture[3]",
         "--IS_BISULFITE_SEQUENCED": "true",
         "--METRIC_ACCUMULATION_LEVEL": "fixture[2]",
@@ -749,7 +811,7 @@
         "--SCAN_WINDOW_SIZE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
         "--SUMMARY_OUTPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ALSO_IGNORE_DUPLICATES=true",
@@ -763,11 +825,11 @@
         "--SCAN_WINDOW_SIZE=100",
         "--STOP_AFTER=0",
         "--SUMMARY_OUTPUT=/work/out/summary.txt",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
-      "row": 21,
+      "row": 23,
       "labels": {
         "--ALSO_IGNORE_DUPLICATES": "true",
         "--ASSUME_SORTED": "true",
@@ -780,7 +842,7 @@
         "--SCAN_WINDOW_SIZE": "fixture[2]",
         "--STOP_AFTER": "fixture[0]",
         "--SUMMARY_OUTPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ALSO_IGNORE_DUPLICATES=true",
@@ -794,11 +856,11 @@
         "--SCAN_WINDOW_SIZE=1500",
         "--STOP_AFTER=0",
         "--SUMMARY_OUTPUT=/work/out/summary.txt",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
-      "row": 22,
+      "row": 24,
       "labels": {
         "--ALSO_IGNORE_DUPLICATES": "true",
         "--ASSUME_SORTED": "true",
@@ -811,7 +873,7 @@
         "--SCAN_WINDOW_SIZE": "fixture[0]",
         "--STOP_AFTER": "fixture[0]",
         "--SUMMARY_OUTPUT": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--ALSO_IGNORE_DUPLICATES=true",
@@ -821,6 +883,68 @@
         "--INPUT=/work/fixtures/unmapped.bam",
         "--IS_BISULFITE_SEQUENCED=true",
         "--METRIC_ACCUMULATION_LEVEL=null",
+        "--MINIMUM_GENOME_FRACTION=1.0E-5",
+        "--SCAN_WINDOW_SIZE=100",
+        "--STOP_AFTER=0",
+        "--SUMMARY_OUTPUT=/work/out/summary.txt",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 25,
+      "labels": {
+        "--ALSO_IGNORE_DUPLICATES": "true",
+        "--ASSUME_SORTED": "true",
+        "--CHART_OUTPUT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--IS_BISULFITE_SEQUENCED": "true",
+        "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
+        "--MINIMUM_GENOME_FRACTION": "fixture[0]",
+        "--SCAN_WINDOW_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
+        "--SUMMARY_OUTPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ALSO_IGNORE_DUPLICATES=true",
+        "--ASSUME_SORTED=true",
+        "--CHART_OUTPUT=/work/out/chart.pdf",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--IS_BISULFITE_SEQUENCED=true",
+        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
+        "--MINIMUM_GENOME_FRACTION=1.0E-5",
+        "--SCAN_WINDOW_SIZE=100",
+        "--STOP_AFTER=150",
+        "--SUMMARY_OUTPUT=/work/out/summary.txt",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 26,
+      "labels": {
+        "--ALSO_IGNORE_DUPLICATES": "true",
+        "--ASSUME_SORTED": "true",
+        "--CHART_OUTPUT": "fixture[2]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[0]",
+        "--IS_BISULFITE_SEQUENCED": "true",
+        "--METRIC_ACCUMULATION_LEVEL": "fixture[0]",
+        "--MINIMUM_GENOME_FRACTION": "fixture[0]",
+        "--SCAN_WINDOW_SIZE": "fixture[0]",
+        "--STOP_AFTER": "fixture[0]",
+        "--SUMMARY_OUTPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ALSO_IGNORE_DUPLICATES=true",
+        "--ASSUME_SORTED=true",
+        "--CHART_OUTPUT=None",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--IS_BISULFITE_SEQUENCED=true",
+        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--MINIMUM_GENOME_FRACTION=1.0E-5",
         "--SCAN_WINDOW_SIZE=100",
         "--STOP_AFTER=0",

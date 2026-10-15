@@ -107,8 +107,8 @@
     }
   ],
   "rows": 15,
-  "tuples_total": 177,
-  "tuples_covered": 177,
+  "tuples_total": 195,
+  "tuples_covered": 195,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -218,26 +218,26 @@
     {
       "row": 4,
       "labels": {
-        "--ALIGNED_READS_ONLY": "false",
+        "--ALIGNED_READS_ONLY": "true",
         "--ASSUME_SORTED": "true",
-        "--CHART_OUTPUT": "fixture[1]",
+        "--CHART_OUTPUT": "fixture[2]",
         "--CREATE_INDEX": "false",
         "--INCLUDE_NO_CALLS": "true",
-        "--INPUT": "fixture[0]",
-        "--PF_READS_ONLY": "false",
-        "--STOP_AFTER": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--INPUT": "fixture[1]",
+        "--PF_READS_ONLY": "true",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--ALIGNED_READS_ONLY=false",
+        "--ALIGNED_READS_ONLY=true",
         "--ASSUME_SORTED=true",
-        "--CHART_OUTPUT=/work/out/chart_other.pdf",
+        "--CHART_OUTPUT=None",
         "--CREATE_INDEX=false",
         "--INCLUDE_NO_CALLS=true",
-        "--INPUT=/work/fixtures/small.bam",
-        "--PF_READS_ONLY=false",
-        "--STOP_AFTER=5",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--INPUT=/work/fixtures/small.sam",
+        "--PF_READS_ONLY=true",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -245,9 +245,34 @@
       "labels": {
         "--ALIGNED_READS_ONLY": "false",
         "--ASSUME_SORTED": "false",
+        "--CHART_OUTPUT": "fixture[2]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_NO_CALLS": "false",
+        "--INPUT": "fixture[0]",
+        "--PF_READS_ONLY": "false",
+        "--STOP_AFTER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ALIGNED_READS_ONLY=false",
+        "--ASSUME_SORTED=false",
+        "--CHART_OUTPUT=None",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_NO_CALLS=false",
+        "--INPUT=/work/fixtures/small.bam",
+        "--PF_READS_ONLY=false",
+        "--STOP_AFTER=5",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 6,
+      "labels": {
+        "--ALIGNED_READS_ONLY": "false",
+        "--ASSUME_SORTED": "false",
         "--CHART_OUTPUT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INCLUDE_NO_CALLS": "true",
+        "--INCLUDE_NO_CALLS": "false",
         "--INPUT": "fixture[1]",
         "--PF_READS_ONLY": "true",
         "--STOP_AFTER": "fixture[0]",
@@ -258,36 +283,11 @@
         "--ASSUME_SORTED=false",
         "--CHART_OUTPUT=/work/out/chart.pdf",
         "--CREATE_INDEX=true",
-        "--INCLUDE_NO_CALLS=true",
+        "--INCLUDE_NO_CALLS=false",
         "--INPUT=/work/fixtures/small.sam",
         "--PF_READS_ONLY=true",
         "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=LENIENT"
-      ]
-    },
-    {
-      "row": 6,
-      "labels": {
-        "--ALIGNED_READS_ONLY": "true",
-        "--ASSUME_SORTED": "false",
-        "--CHART_OUTPUT": "fixture[0]",
-        "--CREATE_INDEX": "false",
-        "--INCLUDE_NO_CALLS": "false",
-        "--INPUT": "fixture[0]",
-        "--PF_READS_ONLY": "true",
-        "--STOP_AFTER": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
-      },
-      "arguments": [
-        "--ALIGNED_READS_ONLY=true",
-        "--ASSUME_SORTED=false",
-        "--CHART_OUTPUT=/work/out/chart.pdf",
-        "--CREATE_INDEX=false",
-        "--INCLUDE_NO_CALLS=false",
-        "--INPUT=/work/fixtures/small.bam",
-        "--PF_READS_ONLY=true",
-        "--STOP_AFTER=0",
-        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -296,9 +296,9 @@
         "--ALIGNED_READS_ONLY": "true",
         "--ASSUME_SORTED": "true",
         "--CHART_OUTPUT": "fixture[1]",
-        "--CREATE_INDEX": "true",
+        "--CREATE_INDEX": "false",
         "--INCLUDE_NO_CALLS": "true",
-        "--INPUT": "fixture[2]",
+        "--INPUT": "fixture[0]",
         "--PF_READS_ONLY": "true",
         "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
@@ -307,9 +307,9 @@
         "--ALIGNED_READS_ONLY=true",
         "--ASSUME_SORTED=true",
         "--CHART_OUTPUT=/work/out/chart_other.pdf",
-        "--CREATE_INDEX=true",
+        "--CREATE_INDEX=false",
         "--INCLUDE_NO_CALLS=true",
-        "--INPUT=/work/fixtures/queryname.bam",
+        "--INPUT=/work/fixtures/small.bam",
         "--PF_READS_ONLY=true",
         "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=STRICT"
@@ -320,24 +320,24 @@
       "labels": {
         "--ALIGNED_READS_ONLY": "true",
         "--ASSUME_SORTED": "true",
-        "--CHART_OUTPUT": "fixture[0]",
+        "--CHART_OUTPUT": "fixture[2]",
         "--CREATE_INDEX": "true",
         "--INCLUDE_NO_CALLS": "true",
-        "--INPUT": "fixture[1]",
+        "--INPUT": "fixture[2]",
         "--PF_READS_ONLY": "true",
         "--STOP_AFTER": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ALIGNED_READS_ONLY=true",
         "--ASSUME_SORTED=true",
-        "--CHART_OUTPUT=/work/out/chart.pdf",
+        "--CHART_OUTPUT=None",
         "--CREATE_INDEX=true",
         "--INCLUDE_NO_CALLS=true",
-        "--INPUT=/work/fixtures/small.sam",
+        "--INPUT=/work/fixtures/queryname.bam",
         "--PF_READS_ONLY=true",
         "--STOP_AFTER=0",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -348,7 +348,7 @@
         "--CHART_OUTPUT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INCLUDE_NO_CALLS": "true",
-        "--INPUT": "fixture[0]",
+        "--INPUT": "fixture[1]",
         "--PF_READS_ONLY": "false",
         "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
@@ -359,7 +359,7 @@
         "--CHART_OUTPUT=/work/out/chart.pdf",
         "--CREATE_INDEX=true",
         "--INCLUDE_NO_CALLS=true",
-        "--INPUT=/work/fixtures/small.bam",
+        "--INPUT=/work/fixtures/small.sam",
         "--PF_READS_ONLY=false",
         "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=STRICT"
@@ -373,7 +373,7 @@
         "--CHART_OUTPUT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INCLUDE_NO_CALLS": "true",
-        "--INPUT": "fixture[0]",
+        "--INPUT": "fixture[2]",
         "--PF_READS_ONLY": "true",
         "--STOP_AFTER": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
@@ -384,7 +384,7 @@
         "--CHART_OUTPUT=/work/out/chart.pdf",
         "--CREATE_INDEX=true",
         "--INCLUDE_NO_CALLS=true",
-        "--INPUT=/work/fixtures/small.bam",
+        "--INPUT=/work/fixtures/queryname.bam",
         "--PF_READS_ONLY=true",
         "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=STRICT"
@@ -392,6 +392,31 @@
     },
     {
       "row": 11,
+      "labels": {
+        "--ALIGNED_READS_ONLY": "true",
+        "--ASSUME_SORTED": "true",
+        "--CHART_OUTPUT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INCLUDE_NO_CALLS": "true",
+        "--INPUT": "fixture[0]",
+        "--PF_READS_ONLY": "true",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ALIGNED_READS_ONLY=true",
+        "--ASSUME_SORTED=true",
+        "--CHART_OUTPUT=/work/out/chart.pdf",
+        "--CREATE_INDEX=true",
+        "--INCLUDE_NO_CALLS=true",
+        "--INPUT=/work/fixtures/small.bam",
+        "--PF_READS_ONLY=true",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 12,
       "labels": {
         "--ALIGNED_READS_ONLY": "true",
         "--ASSUME_SORTED": "true",
@@ -413,31 +438,6 @@
         "--PF_READS_ONLY=true",
         "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 12,
-      "labels": {
-        "--ALIGNED_READS_ONLY": "true",
-        "--ASSUME_SORTED": "true",
-        "--CHART_OUTPUT": "fixture[0]",
-        "--CREATE_INDEX": "true",
-        "--INCLUDE_NO_CALLS": "true",
-        "--INPUT": "fixture[0]",
-        "--PF_READS_ONLY": "true",
-        "--STOP_AFTER": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
-      },
-      "arguments": [
-        "--ALIGNED_READS_ONLY=true",
-        "--ASSUME_SORTED=true",
-        "--CHART_OUTPUT=/work/out/chart.pdf",
-        "--CREATE_INDEX=true",
-        "--INCLUDE_NO_CALLS=true",
-        "--INPUT=/work/fixtures/small.bam",
-        "--PF_READS_ONLY=true",
-        "--STOP_AFTER=0",
-        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {

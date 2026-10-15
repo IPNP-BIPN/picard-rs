@@ -150,9 +150,17 @@ pub fn pair_orientation(record: &End) -> PairOrientation {
     let negative_five_prime = if record.negative_strand {
         i64::from(record.end())
     } else {
-        i64::from(record.start) + i64::from(record.insert_size)
+        // htsjdk 5.0.0: the mate cigar when set, the insert size otherwise.
+        match record
+            .mate_cigar
+            .as_deref()
+            .and_then(|c| htsjdk_bam::text_parse::parse_cigar(c).ok())
+        {
+            Some(cigar) => i64::from(record.mate_start) + cigar.reference_length() as i64 - 1,
+            None => i64::from(record.start) + i64::from(record.insert_size) - 1,
+        }
     };
-    if positive_five_prime < negative_five_prime {
+    if positive_five_prime <= negative_five_prime {
         PairOrientation::FR
     } else {
         PairOrientation::RF

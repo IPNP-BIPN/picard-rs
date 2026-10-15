@@ -60,11 +60,15 @@ const SECONDARY: u16 = 0x100;
 const DUPLICATE: u16 = 0x400;
 const SUPPLEMENTARY: u16 = 0x800;
 
-/// `SamPairUtil.getPairOrientation`.
+/// `SamPairUtil.getPairOrientation`, as htsjdk 5.0.0 has it.
 ///
 /// Two reads on the same strand are `TANDEM`. Otherwise the five-prime position of the forward
 /// read is compared against that of the reverse read, and the *reverse* read's position is
-/// derived from the alignment end or from the insert size depending on which mate is in hand.
+/// derived from the alignment end or, from the forward read, from the mate cigar (`MC`) when it
+/// is present and from the insert size otherwise. Coinciding five-prime positions are `FR`.
+///
+/// htsjdk 4.2.0 took `start + TLEN` with no `MC` and called a tie `RF`; 5.0.0 made both ends of
+/// a dovetail pair agree.
 pub fn pair_orientation(rec: &BamRecord) -> PairOrientation {
     let read_reverse = rec.flags & READ_REVERSE != 0;
     let mate_reverse = rec.flags & MATE_REVERSE != 0;
@@ -79,12 +83,33 @@ pub fn pair_orientation(rec: &BamRecord) -> PairOrientation {
     let negative_five_prime = if read_reverse {
         rec.alignment_end() as i64
     } else {
-        rec.alignment_start as i64 + rec.inferred_insert_size as i64
+        forward_mate_five_prime(rec)
     };
-    if positive_five_prime < negative_five_prime {
+    if positive_five_prime <= negative_five_prime {
         PairOrientation::Fr
     } else {
         PairOrientation::Rf
+    }
+}
+
+/// The reverse mate's five-prime position seen from the forward read: `CoordMath.getEnd` over the
+/// mate cigar's reference length when `MC` is set, over the insert size otherwise.
+pub fn forward_mate_five_prime(rec: &BamRecord) -> i64 {
+    match mate_cigar_reference_length(rec) {
+        Some(length) => rec.mate_alignment_start as i64 + length as i64 - 1,
+        None => rec.alignment_start as i64 + rec.inferred_insert_size as i64 - 1,
+    }
+}
+
+/// `SAMUtils.getMateCigar`: reads the "MC" tag's reference length, or `None` when absent.
+pub fn mate_cigar_reference_length(rec: &BamRecord) -> Option<i32> {
+    use htsjdk_bam::tag::{Tag, TagValue};
+    let tag = Tag::new(b"MC");
+    match rec.tags.get(tag) {
+        Some(TagValue::Str(s)) => htsjdk_bam::text_parse::parse_cigar(s)
+            .ok()
+            .map(|c| c.reference_length() as i32),
+        _ => None,
     }
 }
 
@@ -275,6 +300,7 @@ impl InsertSizeMetricsCollector {
             || rec.flags & (SECONDARY | SUPPLEMENTARY) != 0
             || (rec.flags & DUPLICATE != 0 && !self.options.include_duplicates)
             || rec.inferred_insert_size == 0
+            || rec.reference_index != rec.mate_reference_index
         {
             return;
         }

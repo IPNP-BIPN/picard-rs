@@ -106,10 +106,10 @@
       "source": "none"
     }
   ],
-  "rows": 18,
-  "tuples_total": 383,
-  "tuples_covered": 383,
-  "tuples_forbidden": 27,
+  "rows": 20,
+  "tuples_total": 410,
+  "tuples_covered": 410,
+  "tuples_forbidden": 28,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
   ],
@@ -185,12 +185,12 @@
         "--COLLECT_ALIGNMENT_INFORMATION": "false",
         "--CREATE_INDEX": "true",
         "--EXPECTED_PAIR_ORIENTATIONS": "TANDEM",
-        "--HISTOGRAM_FILE": "fixture[1]",
-        "--INPUT": "fixture[0]",
-        "--IS_BISULFITE_SEQUENCED": "false",
-        "--MAX_INSERT_SIZE": "fixture[0]",
+        "--HISTOGRAM_FILE": "fixture[2]",
+        "--INPUT": "fixture[1]",
+        "--IS_BISULFITE_SEQUENCED": "true",
+        "--MAX_INSERT_SIZE": "fixture[1]",
         "--METRIC_ACCUMULATION_LEVEL": "LIBRARY",
-        "--STOP_AFTER": "fixture[1]",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -199,12 +199,12 @@
         "--COLLECT_ALIGNMENT_INFORMATION=false",
         "--CREATE_INDEX=true",
         "--EXPECTED_PAIR_ORIENTATIONS=TANDEM",
-        "--HISTOGRAM_FILE=/work/out/histogram_other.pdf",
-        "--INPUT=/work/fixtures/small.bam",
-        "--IS_BISULFITE_SEQUENCED=false",
-        "--MAX_INSERT_SIZE=100000",
+        "--HISTOGRAM_FILE=None",
+        "--INPUT=/work/fixtures/small.sam",
+        "--IS_BISULFITE_SEQUENCED=true",
+        "--MAX_INSERT_SIZE=50",
         "--METRIC_ACCUMULATION_LEVEL=LIBRARY",
-        "--STOP_AFTER=5",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -216,12 +216,12 @@
         "--COLLECT_ALIGNMENT_INFORMATION": "true",
         "--CREATE_INDEX": "false",
         "--EXPECTED_PAIR_ORIENTATIONS": "FR",
-        "--HISTOGRAM_FILE": "fixture[0]",
-        "--INPUT": "fixture[1]",
-        "--IS_BISULFITE_SEQUENCED": "true",
-        "--MAX_INSERT_SIZE": "fixture[1]",
+        "--HISTOGRAM_FILE": "fixture[2]",
+        "--INPUT": "fixture[0]",
+        "--IS_BISULFITE_SEQUENCED": "false",
+        "--MAX_INSERT_SIZE": "fixture[0]",
         "--METRIC_ACCUMULATION_LEVEL": "READ_GROUP",
-        "--STOP_AFTER": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -230,12 +230,12 @@
         "--COLLECT_ALIGNMENT_INFORMATION=true",
         "--CREATE_INDEX=false",
         "--EXPECTED_PAIR_ORIENTATIONS=FR",
-        "--HISTOGRAM_FILE=/work/out/histogram.pdf",
-        "--INPUT=/work/fixtures/small.sam",
-        "--IS_BISULFITE_SEQUENCED=true",
-        "--MAX_INSERT_SIZE=50",
+        "--HISTOGRAM_FILE=None",
+        "--INPUT=/work/fixtures/small.bam",
+        "--IS_BISULFITE_SEQUENCED=false",
+        "--MAX_INSERT_SIZE=100000",
         "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
-        "--STOP_AFTER=0",
+        "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -248,8 +248,8 @@
         "--CREATE_INDEX": "false",
         "--EXPECTED_PAIR_ORIENTATIONS": "RF",
         "--HISTOGRAM_FILE": "fixture[0]",
-        "--INPUT": "fixture[0]",
-        "--IS_BISULFITE_SEQUENCED": "false",
+        "--INPUT": "fixture[1]",
+        "--IS_BISULFITE_SEQUENCED": "true",
         "--MAX_INSERT_SIZE": "fixture[0]",
         "--METRIC_ACCUMULATION_LEVEL": "SAMPLE",
         "--STOP_AFTER": "fixture[0]",
@@ -262,8 +262,8 @@
         "--CREATE_INDEX=false",
         "--EXPECTED_PAIR_ORIENTATIONS=RF",
         "--HISTOGRAM_FILE=/work/out/histogram.pdf",
-        "--INPUT=/work/fixtures/small.bam",
-        "--IS_BISULFITE_SEQUENCED=false",
+        "--INPUT=/work/fixtures/small.sam",
+        "--IS_BISULFITE_SEQUENCED=true",
         "--MAX_INSERT_SIZE=100000",
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE",
         "--STOP_AFTER=0",
@@ -279,11 +279,11 @@
         "--CREATE_INDEX": "true",
         "--EXPECTED_PAIR_ORIENTATIONS": "FR",
         "--HISTOGRAM_FILE": "fixture[1]",
-        "--INPUT": "fixture[1]",
+        "--INPUT": "fixture[0]",
         "--IS_BISULFITE_SEQUENCED": "true",
-        "--MAX_INSERT_SIZE": "fixture[0]",
-        "--METRIC_ACCUMULATION_LEVEL": "ALL_READS",
-        "--STOP_AFTER": "fixture[1]",
+        "--MAX_INSERT_SIZE": "fixture[1]",
+        "--METRIC_ACCUMULATION_LEVEL": "READ_GROUP",
+        "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -293,11 +293,11 @@
         "--CREATE_INDEX=true",
         "--EXPECTED_PAIR_ORIENTATIONS=FR",
         "--HISTOGRAM_FILE=/work/out/histogram_other.pdf",
-        "--INPUT=/work/fixtures/small.sam",
+        "--INPUT=/work/fixtures/small.bam",
         "--IS_BISULFITE_SEQUENCED=true",
-        "--MAX_INSERT_SIZE=100000",
-        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
-        "--STOP_AFTER=5",
+        "--MAX_INSERT_SIZE=50",
+        "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
+        "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -311,10 +311,10 @@
         "--EXPECTED_PAIR_ORIENTATIONS": "TANDEM",
         "--HISTOGRAM_FILE": "fixture[0]",
         "--INPUT": "fixture[0]",
-        "--IS_BISULFITE_SEQUENCED": "true",
+        "--IS_BISULFITE_SEQUENCED": "false",
         "--MAX_INSERT_SIZE": "fixture[1]",
         "--METRIC_ACCUMULATION_LEVEL": "LIBRARY",
-        "--STOP_AFTER": "fixture[0]",
+        "--STOP_AFTER": "fixture[1]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -325,10 +325,10 @@
         "--EXPECTED_PAIR_ORIENTATIONS=TANDEM",
         "--HISTOGRAM_FILE=/work/out/histogram.pdf",
         "--INPUT=/work/fixtures/small.bam",
-        "--IS_BISULFITE_SEQUENCED=true",
+        "--IS_BISULFITE_SEQUENCED=false",
         "--MAX_INSERT_SIZE=50",
         "--METRIC_ACCUMULATION_LEVEL=LIBRARY",
-        "--STOP_AFTER=0",
+        "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -336,29 +336,29 @@
       "row": 7,
       "labels": {
         "--ADAPTER_SEQUENCE": "fixture[1]",
-        "--ASSUME_SORTED": "true",
+        "--ASSUME_SORTED": "false",
         "--COLLECT_ALIGNMENT_INFORMATION": "false",
         "--CREATE_INDEX": "true",
         "--EXPECTED_PAIR_ORIENTATIONS": "RF",
         "--HISTOGRAM_FILE": "fixture[0]",
         "--INPUT": "fixture[0]",
-        "--IS_BISULFITE_SEQUENCED": "true",
-        "--MAX_INSERT_SIZE": "fixture[1]",
-        "--METRIC_ACCUMULATION_LEVEL": "READ_GROUP",
+        "--IS_BISULFITE_SEQUENCED": "false",
+        "--MAX_INSERT_SIZE": "fixture[0]",
+        "--METRIC_ACCUMULATION_LEVEL": "ALL_READS",
         "--STOP_AFTER": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--ADAPTER_SEQUENCE=null",
-        "--ASSUME_SORTED=true",
+        "--ASSUME_SORTED=false",
         "--COLLECT_ALIGNMENT_INFORMATION=false",
         "--CREATE_INDEX=true",
         "--EXPECTED_PAIR_ORIENTATIONS=RF",
         "--HISTOGRAM_FILE=/work/out/histogram.pdf",
         "--INPUT=/work/fixtures/small.bam",
-        "--IS_BISULFITE_SEQUENCED=true",
-        "--MAX_INSERT_SIZE=50",
-        "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
+        "--IS_BISULFITE_SEQUENCED=false",
+        "--MAX_INSERT_SIZE=100000",
+        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -368,57 +368,57 @@
       "labels": {
         "--ADAPTER_SEQUENCE": "fixture[2]",
         "--ASSUME_SORTED": "true",
-        "--COLLECT_ALIGNMENT_INFORMATION": "false",
-        "--CREATE_INDEX": "true",
+        "--COLLECT_ALIGNMENT_INFORMATION": "true",
+        "--CREATE_INDEX": "false",
         "--EXPECTED_PAIR_ORIENTATIONS": "TANDEM",
-        "--HISTOGRAM_FILE": "fixture[0]",
-        "--INPUT": "fixture[1]",
-        "--IS_BISULFITE_SEQUENCED": "true",
-        "--MAX_INSERT_SIZE": "fixture[1]",
-        "--METRIC_ACCUMULATION_LEVEL": "READ_GROUP",
-        "--STOP_AFTER": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--HISTOGRAM_FILE": "fixture[1]",
+        "--INPUT": "fixture[0]",
+        "--IS_BISULFITE_SEQUENCED": "false",
+        "--MAX_INSERT_SIZE": "fixture[0]",
+        "--METRIC_ACCUMULATION_LEVEL": "ALL_READS",
+        "--STOP_AFTER": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--ADAPTER_SEQUENCE=null AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
         "--ASSUME_SORTED=true",
-        "--COLLECT_ALIGNMENT_INFORMATION=false",
-        "--CREATE_INDEX=true",
+        "--COLLECT_ALIGNMENT_INFORMATION=true",
+        "--CREATE_INDEX=false",
         "--EXPECTED_PAIR_ORIENTATIONS=TANDEM",
-        "--HISTOGRAM_FILE=/work/out/histogram.pdf",
-        "--INPUT=/work/fixtures/small.sam",
-        "--IS_BISULFITE_SEQUENCED=true",
-        "--MAX_INSERT_SIZE=50",
-        "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
-        "--STOP_AFTER=0",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--HISTOGRAM_FILE=/work/out/histogram_other.pdf",
+        "--INPUT=/work/fixtures/small.bam",
+        "--IS_BISULFITE_SEQUENCED=false",
+        "--MAX_INSERT_SIZE=100000",
+        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
+        "--STOP_AFTER=5",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 9,
       "labels": {
-        "--ADAPTER_SEQUENCE": "fixture[1]",
+        "--ADAPTER_SEQUENCE": "fixture[0]",
         "--ASSUME_SORTED": "true",
         "--COLLECT_ALIGNMENT_INFORMATION": "true",
         "--CREATE_INDEX": "true",
-        "--EXPECTED_PAIR_ORIENTATIONS": "FR",
-        "--HISTOGRAM_FILE": "fixture[1]",
+        "--EXPECTED_PAIR_ORIENTATIONS": "RF",
+        "--HISTOGRAM_FILE": "fixture[2]",
         "--INPUT": "fixture[0]",
-        "--IS_BISULFITE_SEQUENCED": "true",
+        "--IS_BISULFITE_SEQUENCED": "false",
         "--MAX_INSERT_SIZE": "fixture[0]",
         "--METRIC_ACCUMULATION_LEVEL": "SAMPLE",
         "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--ADAPTER_SEQUENCE=null",
+        "--ADAPTER_SEQUENCE=<absent>",
         "--ASSUME_SORTED=true",
         "--COLLECT_ALIGNMENT_INFORMATION=true",
         "--CREATE_INDEX=true",
-        "--EXPECTED_PAIR_ORIENTATIONS=FR",
-        "--HISTOGRAM_FILE=/work/out/histogram_other.pdf",
+        "--EXPECTED_PAIR_ORIENTATIONS=RF",
+        "--HISTOGRAM_FILE=None",
         "--INPUT=/work/fixtures/small.bam",
-        "--IS_BISULFITE_SEQUENCED=true",
+        "--IS_BISULFITE_SEQUENCED=false",
         "--MAX_INSERT_SIZE=100000",
         "--METRIC_ACCUMULATION_LEVEL=SAMPLE",
         "--STOP_AFTER=0",
@@ -431,75 +431,44 @@
         "--ADAPTER_SEQUENCE": "fixture[1]",
         "--ASSUME_SORTED": "true",
         "--COLLECT_ALIGNMENT_INFORMATION": "true",
-        "--CREATE_INDEX": "false",
-        "--EXPECTED_PAIR_ORIENTATIONS": "FR",
-        "--HISTOGRAM_FILE": "fixture[0]",
-        "--INPUT": "fixture[0]",
-        "--IS_BISULFITE_SEQUENCED": "false",
-        "--MAX_INSERT_SIZE": "fixture[1]",
-        "--METRIC_ACCUMULATION_LEVEL": "ALL_READS",
-        "--STOP_AFTER": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
-      },
-      "arguments": [
-        "--ADAPTER_SEQUENCE=null",
-        "--ASSUME_SORTED=true",
-        "--COLLECT_ALIGNMENT_INFORMATION=true",
-        "--CREATE_INDEX=false",
-        "--EXPECTED_PAIR_ORIENTATIONS=FR",
-        "--HISTOGRAM_FILE=/work/out/histogram.pdf",
-        "--INPUT=/work/fixtures/small.bam",
-        "--IS_BISULFITE_SEQUENCED=false",
-        "--MAX_INSERT_SIZE=50",
-        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
-        "--STOP_AFTER=0",
-        "--VALIDATION_STRINGENCY=LENIENT"
-      ]
-    },
-    {
-      "row": 11,
-      "labels": {
-        "--ADAPTER_SEQUENCE": "fixture[0]",
-        "--ASSUME_SORTED": "true",
-        "--COLLECT_ALIGNMENT_INFORMATION": "true",
         "--CREATE_INDEX": "true",
         "--EXPECTED_PAIR_ORIENTATIONS": "FR",
         "--HISTOGRAM_FILE": "fixture[1]",
         "--INPUT": "fixture[0]",
-        "--IS_BISULFITE_SEQUENCED": "false",
+        "--IS_BISULFITE_SEQUENCED": "true",
         "--MAX_INSERT_SIZE": "fixture[0]",
-        "--METRIC_ACCUMULATION_LEVEL": "READ_GROUP",
+        "--METRIC_ACCUMULATION_LEVEL": "SAMPLE",
         "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--ADAPTER_SEQUENCE=<absent>",
+        "--ADAPTER_SEQUENCE=null",
         "--ASSUME_SORTED=true",
         "--COLLECT_ALIGNMENT_INFORMATION=true",
         "--CREATE_INDEX=true",
         "--EXPECTED_PAIR_ORIENTATIONS=FR",
         "--HISTOGRAM_FILE=/work/out/histogram_other.pdf",
         "--INPUT=/work/fixtures/small.bam",
-        "--IS_BISULFITE_SEQUENCED=false",
+        "--IS_BISULFITE_SEQUENCED=true",
         "--MAX_INSERT_SIZE=100000",
-        "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
+        "--METRIC_ACCUMULATION_LEVEL=SAMPLE",
         "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
-      "row": 12,
+      "row": 11,
       "labels": {
         "--ADAPTER_SEQUENCE": "fixture[2]",
         "--ASSUME_SORTED": "true",
         "--COLLECT_ALIGNMENT_INFORMATION": "true",
         "--CREATE_INDEX": "true",
         "--EXPECTED_PAIR_ORIENTATIONS": "FR",
-        "--HISTOGRAM_FILE": "fixture[0]",
-        "--INPUT": "fixture[1]",
+        "--HISTOGRAM_FILE": "fixture[2]",
+        "--INPUT": "fixture[0]",
         "--IS_BISULFITE_SEQUENCED": "true",
-        "--MAX_INSERT_SIZE": "fixture[0]",
-        "--METRIC_ACCUMULATION_LEVEL": "LIBRARY",
+        "--MAX_INSERT_SIZE": "fixture[1]",
+        "--METRIC_ACCUMULATION_LEVEL": "ALL_READS",
         "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
@@ -509,13 +478,44 @@
         "--COLLECT_ALIGNMENT_INFORMATION=true",
         "--CREATE_INDEX=true",
         "--EXPECTED_PAIR_ORIENTATIONS=FR",
+        "--HISTOGRAM_FILE=None",
+        "--INPUT=/work/fixtures/small.bam",
+        "--IS_BISULFITE_SEQUENCED=true",
+        "--MAX_INSERT_SIZE=50",
+        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 12,
+      "labels": {
+        "--ADAPTER_SEQUENCE": "fixture[0]",
+        "--ASSUME_SORTED": "true",
+        "--COLLECT_ALIGNMENT_INFORMATION": "true",
+        "--CREATE_INDEX": "true",
+        "--EXPECTED_PAIR_ORIENTATIONS": "FR",
+        "--HISTOGRAM_FILE": "fixture[0]",
+        "--INPUT": "fixture[1]",
+        "--IS_BISULFITE_SEQUENCED": "true",
+        "--MAX_INSERT_SIZE": "fixture[0]",
+        "--METRIC_ACCUMULATION_LEVEL": "ALL_READS",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--ADAPTER_SEQUENCE=<absent>",
+        "--ASSUME_SORTED=true",
+        "--COLLECT_ALIGNMENT_INFORMATION=true",
+        "--CREATE_INDEX=true",
+        "--EXPECTED_PAIR_ORIENTATIONS=FR",
         "--HISTOGRAM_FILE=/work/out/histogram.pdf",
         "--INPUT=/work/fixtures/small.sam",
         "--IS_BISULFITE_SEQUENCED=true",
         "--MAX_INSERT_SIZE=100000",
-        "--METRIC_ACCUMULATION_LEVEL=LIBRARY",
+        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--STOP_AFTER=0",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -527,10 +527,10 @@
         "--CREATE_INDEX": "true",
         "--EXPECTED_PAIR_ORIENTATIONS": "RF",
         "--HISTOGRAM_FILE": "fixture[0]",
-        "--INPUT": "fixture[0]",
+        "--INPUT": "fixture[1]",
         "--IS_BISULFITE_SEQUENCED": "true",
         "--MAX_INSERT_SIZE": "fixture[0]",
-        "--METRIC_ACCUMULATION_LEVEL": "ALL_READS",
+        "--METRIC_ACCUMULATION_LEVEL": "READ_GROUP",
         "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
@@ -541,16 +541,47 @@
         "--CREATE_INDEX=true",
         "--EXPECTED_PAIR_ORIENTATIONS=RF",
         "--HISTOGRAM_FILE=/work/out/histogram.pdf",
-        "--INPUT=/work/fixtures/small.bam",
+        "--INPUT=/work/fixtures/small.sam",
         "--IS_BISULFITE_SEQUENCED=true",
         "--MAX_INSERT_SIZE=100000",
-        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
+        "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
         "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
       "row": 14,
+      "labels": {
+        "--ADAPTER_SEQUENCE": "fixture[2]",
+        "--ASSUME_SORTED": "true",
+        "--COLLECT_ALIGNMENT_INFORMATION": "true",
+        "--CREATE_INDEX": "true",
+        "--EXPECTED_PAIR_ORIENTATIONS": "FR",
+        "--HISTOGRAM_FILE": "fixture[1]",
+        "--INPUT": "fixture[0]",
+        "--IS_BISULFITE_SEQUENCED": "true",
+        "--MAX_INSERT_SIZE": "fixture[0]",
+        "--METRIC_ACCUMULATION_LEVEL": "LIBRARY",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--ADAPTER_SEQUENCE=null AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
+        "--ASSUME_SORTED=true",
+        "--COLLECT_ALIGNMENT_INFORMATION=true",
+        "--CREATE_INDEX=true",
+        "--EXPECTED_PAIR_ORIENTATIONS=FR",
+        "--HISTOGRAM_FILE=/work/out/histogram_other.pdf",
+        "--INPUT=/work/fixtures/small.bam",
+        "--IS_BISULFITE_SEQUENCED=true",
+        "--MAX_INSERT_SIZE=100000",
+        "--METRIC_ACCUMULATION_LEVEL=LIBRARY",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 15,
       "labels": {
         "--ADAPTER_SEQUENCE": "fixture[0]",
         "--ASSUME_SORTED": "true",
@@ -581,7 +612,7 @@
       ]
     },
     {
-      "row": 15,
+      "row": 16,
       "labels": {
         "--ADAPTER_SEQUENCE": "fixture[0]",
         "--ASSUME_SORTED": "true",
@@ -592,7 +623,7 @@
         "--INPUT": "fixture[0]",
         "--IS_BISULFITE_SEQUENCED": "true",
         "--MAX_INSERT_SIZE": "fixture[0]",
-        "--METRIC_ACCUMULATION_LEVEL": "ALL_READS",
+        "--METRIC_ACCUMULATION_LEVEL": "SAMPLE",
         "--STOP_AFTER": "fixture[0]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
@@ -606,15 +637,15 @@
         "--INPUT=/work/fixtures/small.bam",
         "--IS_BISULFITE_SEQUENCED=true",
         "--MAX_INSERT_SIZE=100000",
-        "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
+        "--METRIC_ACCUMULATION_LEVEL=SAMPLE",
         "--STOP_AFTER=0",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
-      "row": 16,
+      "row": 17,
       "labels": {
-        "--ADAPTER_SEQUENCE": "fixture[2]",
+        "--ADAPTER_SEQUENCE": "fixture[0]",
         "--ASSUME_SORTED": "true",
         "--COLLECT_ALIGNMENT_INFORMATION": "true",
         "--CREATE_INDEX": "true",
@@ -623,12 +654,12 @@
         "--INPUT": "fixture[0]",
         "--IS_BISULFITE_SEQUENCED": "true",
         "--MAX_INSERT_SIZE": "fixture[0]",
-        "--METRIC_ACCUMULATION_LEVEL": "SAMPLE",
+        "--METRIC_ACCUMULATION_LEVEL": "READ_GROUP",
         "--STOP_AFTER": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--ADAPTER_SEQUENCE=null AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC",
+        "--ADAPTER_SEQUENCE=<absent>",
         "--ASSUME_SORTED=true",
         "--COLLECT_ALIGNMENT_INFORMATION=true",
         "--CREATE_INDEX=true",
@@ -637,13 +668,13 @@
         "--INPUT=/work/fixtures/small.bam",
         "--IS_BISULFITE_SEQUENCED=true",
         "--MAX_INSERT_SIZE=100000",
-        "--METRIC_ACCUMULATION_LEVEL=SAMPLE",
+        "--METRIC_ACCUMULATION_LEVEL=READ_GROUP",
         "--STOP_AFTER=0",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
-      "row": 17,
+      "row": 18,
       "labels": {
         "--ADAPTER_SEQUENCE": "fixture[0]",
         "--ASSUME_SORTED": "true",
@@ -671,6 +702,37 @@
         "--METRIC_ACCUMULATION_LEVEL=ALL_READS",
         "--STOP_AFTER=5",
         "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 19,
+      "labels": {
+        "--ADAPTER_SEQUENCE": "fixture[0]",
+        "--ASSUME_SORTED": "true",
+        "--COLLECT_ALIGNMENT_INFORMATION": "true",
+        "--CREATE_INDEX": "true",
+        "--EXPECTED_PAIR_ORIENTATIONS": "FR",
+        "--HISTOGRAM_FILE": "fixture[0]",
+        "--INPUT": "fixture[0]",
+        "--IS_BISULFITE_SEQUENCED": "true",
+        "--MAX_INSERT_SIZE": "fixture[0]",
+        "--METRIC_ACCUMULATION_LEVEL": "SAMPLE",
+        "--STOP_AFTER": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--ADAPTER_SEQUENCE=<absent>",
+        "--ASSUME_SORTED=true",
+        "--COLLECT_ALIGNMENT_INFORMATION=true",
+        "--CREATE_INDEX=true",
+        "--EXPECTED_PAIR_ORIENTATIONS=FR",
+        "--HISTOGRAM_FILE=/work/out/histogram.pdf",
+        "--INPUT=/work/fixtures/small.bam",
+        "--IS_BISULFITE_SEQUENCED=true",
+        "--MAX_INSERT_SIZE=100000",
+        "--METRIC_ACCUMULATION_LEVEL=SAMPLE",
+        "--STOP_AFTER=0",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     }
   ]

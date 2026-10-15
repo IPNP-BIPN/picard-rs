@@ -199,6 +199,7 @@ fn check_of(record: &BamRecord, header: &SamHeader) -> MateCigarCheck {
             Some(htsjdk_bam::tag::TagValue::Str(text)) => Some(text.to_string()),
             _ => None,
         },
+        sam_string: picard_analysis::view_sam::sam_string(header, record),
     }
 }
 
