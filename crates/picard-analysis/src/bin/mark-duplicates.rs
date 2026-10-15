@@ -98,7 +98,7 @@ fn molecular_identifier(
         let Some(mate_cigar) = mate_cigar else {
             return Err(format!(
                 "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found: {}",
-                picard_analysis::mate_cigar_duplicates::describe_with_contig(marked, Some(&contig))
+                picard_analysis::view_sam::sam_string(header, record)
             ));
         };
         let mate = Record {

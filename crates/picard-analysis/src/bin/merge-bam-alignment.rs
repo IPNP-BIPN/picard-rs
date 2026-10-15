@@ -2346,6 +2346,9 @@ fn main() {
                     reference_bases,
                 )
             {
+                // `calculateMdAndNmTags` has set MD by the time the count throws, and the
+                // exception names the record with it.
+                picard_analysis::set_nm_md_and_uq_tags::set_md(rec, reference_bases);
                 thrown(&format!(
                     "htsjdk.samtools.SAMException: Exception counting mismatches for read {}",
                     describe(rec, &header)
