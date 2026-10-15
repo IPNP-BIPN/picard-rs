@@ -43,6 +43,6 @@ tracked work, not a settled question.
 ## Usage
 
 ```sh
-docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
-docker run --rm --platform linux/amd64 picard-rs-oracle:3.4.0     # prints the provenance record
+docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
+docker run --rm --platform linux/amd64 picard-rs-oracle:3.5.0     # prints the provenance record
 ```

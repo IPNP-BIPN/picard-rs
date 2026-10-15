@@ -11,13 +11,14 @@ in CI is a real difference in the environment rather than a difference in how it
 
 The oracle image must exist; build it with
 
-    docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
+    docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
 
 Goldens are only valid when produced on real x86-64 (docs/decisions/0004 and the README's
 bit-identity contract), so a local run on Apple Silicon is a smoke test, not a source of goldens.
 """
 
 import argparse
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -57,7 +58,7 @@ def build_fixtures(manifest, into):
     into.mkdir(parents=True, exist_ok=True)
     command = (
         'cp /harness/*.java . && javac -cp "$ORACLE_CP" -d . *.java '
-        '&& java -Dsamjdk.try_use_intel_deflater=false -cp ".:$ORACLE_CP" MakeFixtures /out'
+        '&& java -Dsamjdk.try_use_intel_deflater=false -Dsamjdk.use_libdeflate=false -cp ".:$ORACLE_CP" MakeFixtures /out'
     )
     return subprocess.run(
         [
@@ -178,6 +179,14 @@ def run_suite(manifest, suite, workdir):
         print(f"{'ok  ' if ok else 'FAIL'} {suite['id']}/{dump}: compared={compared}")
         for line in messages:
             print(line)
+        if not ok:
+            # A golden that no longer matches is a candidate replacement when the reference version
+            # moves, and the only valid source of one is this job's run (decision 0008). It is
+            # published at the golden's own path under pending/, so re-freezing is a copy, and the
+            # difference still has to be explained before it is accepted.
+            candidate = PENDING_DIR / case["golden"]
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(reals[dump], candidate)
         failed += 0 if ok else 1
 
     print(

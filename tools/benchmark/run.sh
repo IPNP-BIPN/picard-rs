@@ -14,7 +14,7 @@ mkdir -p "$OUT"
 
 echo "== generating $READS reads"
 docker run --rm --platform linux/amd64 \
-  -v "$PWD/tools/benchmark":/harness:ro -v "$OUT":/out -w /work picard-rs-oracle:3.4.0 \
+  -v "$PWD/tools/benchmark":/harness:ro -v "$OUT":/out -w /work picard-rs-oracle:3.5.0 \
   "cp /harness/MakeBenchmarkBam.java . && javac -cp \$PICARD_JAR -d . MakeBenchmarkBam.java \
    && java -cp .:\$PICARD_JAR MakeBenchmarkBam $READS /out/bench"
 
@@ -49,7 +49,7 @@ PICARD_RS_TIMING=1 /out/amd64/release/add-oa-tag I=bench.bam O=/out/rust_oa.sam
 INNER
 
 echo "== timing"
-docker run --rm --platform linux/amd64 -v "$OUT":/out -w /out picard-rs-oracle:3.4.0 'bash /out/bench.sh'
+docker run --rm --platform linux/amd64 -v "$OUT":/out -w /out picard-rs-oracle:3.5.0 'bash /out/bench.sh'
 
 echo "== byte-identity"
 python3 - "$OUT" <<'PY'

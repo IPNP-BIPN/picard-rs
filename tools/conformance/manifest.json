@@ -14,7 +14,7 @@
     "docs/decisions/0008 for what the unchecked goldens turned out to be."
   ],
   "oracle": {
-    "image": "picard-rs-oracle:3.4.0",
+    "image": "picard-rs-oracle:3.5.0",
     "context": "tools/oracle",
     "platform": "linux/amd64"
   },

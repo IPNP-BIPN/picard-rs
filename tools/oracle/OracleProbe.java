@@ -20,7 +20,7 @@ public class OracleProbe {
 
     private static final String EXPECTED_ARCH = "amd64";
     private static final String EXPECTED_JAVA_MAJOR = "17";
-    private static final String EXPECTED_PICARD_VERSION = "3.4.0";
+    private static final String EXPECTED_PICARD_VERSION = "3.5.0";
 
     /**
      * htsjdk-rs decision 0011: FormatUtil reaches NumberFormat.getNumberInstance(), which takes

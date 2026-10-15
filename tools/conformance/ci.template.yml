@@ -74,7 +74,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build the pinned oracle image
-        run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
+        run: docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
 
       - run: cargo build --release --bin collect-alignment-summary-metrics --bin add-oa-tag
 
@@ -82,9 +82,9 @@ jobs:
         run: |
           mkdir -p target/fixtures
           docker run --rm --platform linux/amd64 -v "$PWD/tools/coverage":/harness:ro \
-            -v "$PWD/target/fixtures":/out -w /work picard-rs-oracle:3.4.0 \
+            -v "$PWD/target/fixtures":/out -w /work picard-rs-oracle:3.5.0 \
             'cp /harness/*.java . && javac -cp "$ORACLE_CP" -d . *.java \
-             && java -Dsamjdk.try_use_intel_deflater=false -cp ".:$ORACLE_CP" MakeFixtures /out'
+             && java -Dsamjdk.try_use_intel_deflater=false -Dsamjdk.use_libdeflate=false -cp ".:$ORACLE_CP" MakeFixtures /out'
 
       - name: The same input twice, under three environments, is the same bytes
         # A byte-identity claim that only holds in one environment is not a byte-identity claim.
@@ -120,7 +120,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build the pinned oracle image
-        run: docker build --platform linux/amd64 -t picard-rs-oracle:3.4.0 tools/oracle
+        run: docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
 
       - run: cargo build --release --bin collect-alignment-summary-metrics
 
@@ -198,13 +198,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build the pinned oracle image
-        run: docker build -t picard-rs-oracle:3.4.0 tools/oracle
+        run: docker build -t picard-rs-oracle:3.5.0 tools/oracle
 
       - name: Generate the benchmark corpus
         run: |
           mkdir -p target/benchmark
           docker run --rm -v "$PWD/tools/benchmark":/harness:ro \
-            -v "$PWD/target/benchmark":/out -w /work picard-rs-oracle:3.4.0 \
+            -v "$PWD/target/benchmark":/out -w /work picard-rs-oracle:3.5.0 \
             'cp /harness/MakeBenchmarkBam.java . && javac -cp $PICARD_JAR -d . MakeBenchmarkBam.java \
              && java -cp .:$PICARD_JAR MakeBenchmarkBam 2000000 /out/bench'
           ls -la target/benchmark/bench.bam
@@ -229,7 +229,7 @@ jobs:
           echo "rust_phases"
           PICARD_RS_TIMING=1 /out/collect-alignment-summary-metrics I=bench.bam O=/out/rust.txt R=bench.fasta
           INNER
-          docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.4.0 'bash /out/bench.sh'
+          docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.5.0 'bash /out/bench.sh'
 
       - name: The fast output is also the identical output
         # A throughput number for output that does not match is worthless, so the two are
@@ -277,7 +277,7 @@ jobs:
           echo "rust_nt_phases"
           PICARD_RS_TIMING=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam
           INNER
-          docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.4.0 'bash /out/oabench.sh'
+          docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.5.0 'bash /out/oabench.sh'
 
       - name: The parallel AddOATag output is byte-identical to Picard
         # AddOATag adds no @PG and no timestamp and preserves the coordinate order, so the whole SAM
