@@ -16,6 +16,7 @@ fn arg(args: &[String], key: &str) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let mut inputs: Vec<String> = args
         .iter()

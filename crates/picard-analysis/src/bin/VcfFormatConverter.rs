@@ -108,7 +108,7 @@ fn write_block_compressed(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let text = write_records(header, records).map_err(|e| format!("{e:?}"))?;
     let header_length = header.write().len();
-    let mut writer = htsjdk_bgzf::BgzfWriter::new(Vec::new());
+    let mut writer = picard_analysis::output::bgzf_writer(Vec::new());
     writer.write_all(&text.as_bytes()[..header_length])?;
     let mut order = TabixOrder::default();
     for (record, line) in records
@@ -133,6 +133,7 @@ fn write_block_compressed(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

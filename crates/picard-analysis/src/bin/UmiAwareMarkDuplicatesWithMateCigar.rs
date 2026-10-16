@@ -12,7 +12,6 @@
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
-use htsjdk_bam::writer::BamWriter;
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::mark_duplicates::{Options, Record, ScoringStrategy};
 use picard_analysis::mate_cigar_duplicates::needs_mate_cigar;
@@ -34,6 +33,7 @@ fn tag_of(name: &str) -> Tag {
 }
 
 fn main() {
+    picard_analysis::output::install();
     // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
         std::env::args()
@@ -186,8 +186,8 @@ fn main() {
     for comment in std::env::args().filter_map(|a| a.strip_prefix("COMMENT=").map(str::to_string)) {
         header.comments.push(format!("@CO\t{comment}"));
     }
-    let mut writer =
-        BamWriter::new(Vec::new(), &header).unwrap_or_else(|e| fail(&format!("{e:?}")));
+    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)
+        .unwrap_or_else(|e| fail(&format!("{e:?}")));
     for (index, record) in records.iter().enumerate() {
         if base.remove_duplicates && result.duplicate[index] {
             continue;

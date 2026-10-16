@@ -886,6 +886,7 @@ impl CommandLine {
 }
 
 fn main() {
+    picard_analysis::output::install();
     let args = CommandLine::from_env();
     let inputs = args.all("INPUT");
     if inputs.len() != 2 {

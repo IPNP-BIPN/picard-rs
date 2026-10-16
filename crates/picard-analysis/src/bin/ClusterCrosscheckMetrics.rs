@@ -233,6 +233,7 @@ fn read_metrics(text: &str) -> Vec<Metric> {
 }
 
 fn main() {
+    picard_analysis::output::install();
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT"), ("LOD", "LOD_THRESHOLD")]);
     let input = args.required("INPUT");
     let output = args.get("OUTPUT").map(str::to_string);

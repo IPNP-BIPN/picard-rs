@@ -20,13 +20,12 @@ mod tests {
     use super::*;
     use htsjdk_bam::header::{SamHeader, SequenceRecord};
     use htsjdk_bam::record::BamRecord;
-    use htsjdk_bam::writer::BamWriter;
 
     fn coord_bam() -> Vec<u8> {
         let mut h = SamHeader::new();
         h.set_sort_order("coordinate");
         h.sequences.push(SequenceRecord::new("chr1", 100_000));
-        let mut w = BamWriter::new(Vec::new(), &h).unwrap();
+        let mut w = crate::output::bam_writer(Vec::new(), &h).unwrap();
         for (name, start) in [("a", 10), ("b", 500)] {
             let rec = BamRecord {
                 read_name: name.to_string(),

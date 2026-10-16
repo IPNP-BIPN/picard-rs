@@ -179,13 +179,12 @@ pub fn sort_sam(input_sam: &str, order: SortOrder) -> Result<String, ParseError>
 /// to Picard run with `USE_JDK_DEFLATER=true` (the BGZF blocks come from the port's zlib writer);
 /// Picard's default GKL deflater is a separate surface.
 pub fn sort_sam_to_bam(input_sam: &str, order: SortOrder) -> Result<Vec<u8>, ParseError> {
-    use htsjdk_bam::writer::BamWriter;
-
     let (mut header, mut records) = read_sam(input_sam)?;
     header.set_sort_order(order.name());
     records.sort_by(order.comparator());
 
-    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut writer =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &records {
         writer
             .write(rec)

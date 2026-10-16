@@ -92,10 +92,11 @@ none of them surprises you:
 - **A misspelled or unknown argument is ignored, not refused.** Picard stops on `SORT_ORDR=...`;
   picard-rs runs as if the argument were absent (and stops only if that leaves a required argument
   missing). Check your spelling against the Picard documentation.
-- **`COMPRESSION_LEVEL`, `MAX_RECORDS_IN_RAM`, `TMP_DIR`, `USE_JDK_DEFLATER`, `USE_JDK_INFLATER`,
-  `VERBOSITY` and `QUIET` are accepted and have no effect.** Output is always written the way Picard
-  writes it at its default compression level with the JDK deflater, and memory is not bounded by a
-  record count.
+- **`MAX_RECORDS_IN_RAM`, `TMP_DIR`, `USE_JDK_INFLATER`, `VERBOSITY` and `QUIET` are accepted and
+  have no effect.** None of them changes an output file in Picard either: the first two bound memory
+  and name where records spill (picard-rs keeps them in memory), the inflater only reads, and the
+  last two set how much Picard logs. `COMPRESSION_LEVEL` and `USE_JDK_DEFLATER` do take effect, as
+  below.
 - **Headers**: metrics files carry placeholder command-line and date lines, and no tool adds its
   own `@PG` record (see [Getting the same bytes as Picard](#getting-the-same-bytes-as-picard)).
 - On an error, the tool prints `Error: ...` on stderr and exits with status 1.
@@ -119,13 +120,13 @@ All 121 command-line programs of Picard 3.5.0, by Picard's own program groups:
 
 ## Getting the same bytes as Picard
 
-picard-rs reproduces Picard run with `USE_JDK_DEFLATER=true USE_JDK_INFLATER=true`. By default
-Picard compresses with the Intel deflater, which writes different bytes for the same data, so a
-BAM or a compressed VCF from a default Picard run decompresses to the same content but is not the
-same file. To compare file for file, run Picard with those two arguments:
+The same command writes the same file. Like Picard, picard-rs compresses every BAM, compressed VCF,
+FASTQ and tabix index with Intel's GKL deflater at `COMPRESSION_LEVEL` (5 unless given), and with
+libdeflate when `USE_JDK_DEFLATER=true` (despite its name, that is what Picard 3.5.0 uses then:
+htsjdk 5 picks libdeflate whenever it can). A run of each gives the same bytes:
 
 ```bash
-java -jar picard.jar SortSam I=in.bam O=picard.bam SORT_ORDER=coordinate USE_JDK_DEFLATER=true USE_JDK_INFLATER=true
+java -jar picard.jar SortSam I=in.bam O=picard.bam SORT_ORDER=coordinate
 SortSam I=in.bam O=picard-rs.bam SORT_ORDER=coordinate
 cmp picard.bam picard-rs.bam && echo identical
 ```

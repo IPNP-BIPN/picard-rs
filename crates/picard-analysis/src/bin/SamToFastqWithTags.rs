@@ -6,5 +6,6 @@
 //! `OUTPUT_DIR`, or beside `FASTQ`, prefixed with the read group under `OUTPUT_PER_RG`.
 
 fn main() {
+    picard_analysis::output::install();
     picard_analysis::sam_to_fastq_full::main_with(true)
 }

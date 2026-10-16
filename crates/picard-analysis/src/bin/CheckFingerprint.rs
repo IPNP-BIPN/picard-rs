@@ -117,6 +117,7 @@ fn compare_all(
 }
 
 fn main() {
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

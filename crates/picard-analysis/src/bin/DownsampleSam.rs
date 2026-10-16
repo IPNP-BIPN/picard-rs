@@ -22,7 +22,6 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::write_sam;
-use htsjdk_bam::writer::BamWriter;
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::downsample_sam::{keep_flags, Strategy, DEFAULT_SEED};
 use picard_analysis::quality_yield::{Options, QualityYieldMetricsCollector};
@@ -33,6 +32,7 @@ fn arg(args: &[String], key: &str) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -99,7 +99,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         out.flush()?;
     } else {
         // `SAMFileWriterFactory.makeWriter` again: anything that is not `.sam` is a BAM.
-        let mut writer = BamWriter::new(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
+        let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)
+            .map_err(|e| format!("{e:?}"))?;
         for record in &kept {
             writer.write(record).map_err(|e| format!("{e:?}"))?;
         }

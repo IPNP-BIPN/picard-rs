@@ -64,6 +64,7 @@ fn dictionary_of(text: &str) -> Vec<(String, i64)> {
 }
 
 fn main() {
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

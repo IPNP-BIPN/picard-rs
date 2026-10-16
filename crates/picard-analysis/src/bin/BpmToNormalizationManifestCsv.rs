@@ -23,6 +23,7 @@ fn raise(message: &str) -> ! {
 }
 
 fn main() {
+    picard_analysis::output::install();
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT"), ("CF", "CLUSTER_FILE")]);
     let input = args.required("INPUT");
     let cluster = args.required("CLUSTER_FILE");

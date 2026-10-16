@@ -428,7 +428,7 @@ impl OutputVcf {
                 OUTPUT_VCF_TRUTH_SAMPLE_NAME.to_string(),
             ],
         };
-        let mut bgzf = htsjdk_bgzf::BgzfWriter::new(Vec::new());
+        let mut bgzf = picard_analysis::output::bgzf_writer(Vec::new());
         bgzf.write_all(header.write().as_bytes())?;
         let lengths = dictionary(call)
             .into_iter()
@@ -559,7 +559,11 @@ impl OutputVcf {
             .index
             .finish(end)
             .map_err(|error| format!("{}: {}", error.java_class(), error.message()))?;
-        std::fs::write(format!("{}.tbi", self.path), index.write())?;
+        let (level, deflater) = picard_analysis::output::current();
+        std::fs::write(
+            format!("{}.tbi", self.path),
+            index.write_with_level(level, deflater),
+        )?;
         Ok(())
     }
 }
@@ -633,6 +637,7 @@ fn metrics_file<B: MetricBean>(beans: Vec<B>) -> String {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let truth_vcf = arg(&args, "TRUTH_VCF=").ok_or("TRUTH_VCF= is required")?;
     let call_vcf = arg(&args, "CALL_VCF=").ok_or("CALL_VCF= is required")?;

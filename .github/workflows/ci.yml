@@ -107,6 +107,92 @@ jobs:
           done
           echo "four runs, three environments, identical"
 
+  deflater:
+    name: "COMPRESSION_LEVEL and USE_JDK_DEFLATER: the BAM Picard writes, byte for byte"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: nasm, which is what makes GKL's igzip exact rather than merely valid
+        # GKL routes levels 0 to 2 through ISA-L igzip. Without an assembler ISA-L falls back to
+        # its readable C, which is valid deflate but not GKL's, and `gkl-deflate` refuses those
+        # levels rather than guess. The refresh may fail on a third-party apt source; the install
+        # is the gate.
+        run: |
+          sudo apt-get update -qq || echo "apt refresh incomplete; the install below is the gate"
+          sudo apt-get install -y -qq nasm
+          nasm -v
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the pinned oracle image
+        run: docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
+
+      - run: cargo build --release --bin SortSam --bin AddCommentsToBam --bin GatherBamFiles
+
+      - name: Build the fixture corpus
+        run: |
+          mkdir -p target/fixtures
+          docker run --rm --platform linux/amd64 -v "$PWD/tools/coverage":/harness:ro \
+            -v "$PWD/target/fixtures":/out -w /work picard-rs-oracle:3.5.0 \
+            'cp /harness/*.java . && javac -cp "$ORACLE_CP" -d . *.java \
+             && java -Dsamjdk.try_use_intel_deflater=false -Dsamjdk.use_libdeflate=false -cp ".:$ORACLE_CP" MakeFixtures /out'
+
+      - name: The same command line writes the same bytes, at every level and with either deflater
+        # Picard's CommandLineProgram installs Intel's GKL unless USE_JDK_DEFLATER=true, and sets
+        # every BGZF writer's level from COMPRESSION_LEVEL. With USE_JDK_DEFLATER htsjdk 5 picks
+        # libdeflate. The whole file is compared, framing included, so this is the deflater and the
+        # level and nothing else. SortSam writes through the BAM writer, AddCommentsToBam through
+        # the block-copy reheader and GatherBamFiles through the gather, which re-compress only the
+        # blocks they rewrite. Both sides run from the same directory layout, so a row's arguments
+        # are the same words on each; AddCommentsToBam refuses an input it cannot write, so it is
+        # given a copy.
+        run: |
+          set -eu
+          mkdir -p target/deflater
+          cp target/fixtures/small.bam target/deflater/comments_in.bam
+          F=fixtures
+          rows=(
+            "sort|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate"
+            "sort_l0|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate COMPRESSION_LEVEL=0"
+            "sort_l1|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate COMPRESSION_LEVEL=1"
+            "sort_l2|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate COMPRESSION_LEVEL=2"
+            "sort_l3|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate COMPRESSION_LEVEL=3"
+            "sort_l9|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate COMPRESSION_LEVEL=9"
+            "sort_jdk|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate USE_JDK_DEFLATER=true"
+            "sort_jdk1|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate USE_JDK_DEFLATER=true COMPRESSION_LEVEL=1"
+            "sort_jdk9|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate USE_JDK_DEFLATER=true COMPRESSION_LEVEL=9"
+            "comments|AddCommentsToBam|I=deflater/comments_in.bam C=one C=two"
+            "comments_jdk|AddCommentsToBam|I=deflater/comments_in.bam C=one USE_JDK_DEFLATER=true COMPRESSION_LEVEL=2"
+            "gather|GatherBamFiles|I=$F/small.bam I=$F/small.bam"
+            "gather_jdk|GatherBamFiles|I=$F/small.bam I=$F/small.bam USE_JDK_DEFLATER=true COMPRESSION_LEVEL=7"
+          )
+          script="cd /work"
+          for row in "${rows[@]}"; do
+            IFS="|" read -r name tool args <<< "$row"
+            script+=" && java -jar \$PICARD_JAR $tool $args O=deflater/picard_$name.bam >/dev/null 2>&1"
+            (cd target && "release/$tool" $args O=deflater/port_$name.bam) \
+              || echo "the port refused $name"
+          done
+          docker run --rm --platform linux/amd64 -v "$PWD/target/fixtures":/work/fixtures:ro \
+            -v "$PWD/target/deflater":/work/deflater picard-rs-oracle:3.5.0 "$script"
+          failed=0
+          for row in "${rows[@]}"; do
+            name="${row%%|*}"
+            test -s "target/deflater/picard_$name.bam" || { echo "Picard wrote nothing for $name"; failed=1; continue; }
+            test -s "target/deflater/port_$name.bam" || { echo "the port wrote nothing for $name"; failed=1; continue; }
+            if cmp -s "target/deflater/picard_$name.bam" "target/deflater/port_$name.bam"; then
+              echo "$name: identical"
+            else
+              echo "$name: DIFFERS"; failed=1
+            fi
+          done
+          exit $failed
+
   fuzz:
     name: "Coverage-guided fuzzing of the reference"
     runs-on: ubuntu-latest
@@ -1256,6 +1342,7 @@ jobs:
     needs:
       - guard
       - determinism
+      - deflater
       - fuzz
       - coverage
       - test

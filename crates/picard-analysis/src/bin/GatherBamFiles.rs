@@ -17,7 +17,6 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
-use htsjdk_bam::writer::BamWriter;
 use picard_analysis::gather_bam_files::gather_bam_files;
 
 /// `IOUtil.unrollFiles(inputs, ".bam", ".sam", ".cram")`.
@@ -60,6 +59,7 @@ fn read_any(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::erro
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let inputs: Vec<String> = args
         .iter()
@@ -99,7 +99,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let sam = write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?;
         std::fs::write(&output, sam)?;
     } else {
-        let mut writer = BamWriter::new(Vec::new(), &header)?;
+        let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)?;
         for record in &records {
             writer.write(record).map_err(|e| format!("{e:?}"))?;
         }

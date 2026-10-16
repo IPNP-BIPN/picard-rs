@@ -14,7 +14,6 @@ use htsjdk_bam::header::{ReadGroup, SamHeader};
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::write_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
-use htsjdk_bam::writer::BamWriter;
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::barcode_extractor::{finalize, parse_input_file, Distance, Extractor, Metric};
 use picard_analysis::basecalls_converter::{unexpected, ClusterData, Converter, Options};
@@ -83,6 +82,7 @@ fn iso8601(date: &str) -> String {
 }
 
 fn main() {
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("B", "BASECALLS_DIR"),
         ("L", "LANE"),
@@ -594,7 +594,7 @@ fn main() {
                 })
                 .into_bytes()
         } else {
-            let mut writer = BamWriter::new(Vec::new(), &w.header)
+            let mut writer = picard_analysis::output::bam_writer(Vec::new(), &w.header)
                 .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.SAMException: {e}")));
             for r in &w.records {
                 if let Err(e) = writer.write(r) {

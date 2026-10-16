@@ -23,7 +23,6 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
-use htsjdk_bam::writer::BamWriter;
 use picard_analysis::add_oa_tag::add_oa_records;
 
 fn arg(args: &[String], key: &str) -> Option<String> {
@@ -73,6 +72,7 @@ fn read_input(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::er
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::output::install();
     let mut t = std::time::Instant::now();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
@@ -124,7 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let mut writer = BamWriter::new(Vec::new(), &header)?;
+    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)?;
     for record in &records {
         writer.write(record).map_err(|e| format!("{e:?}"))?;
     }

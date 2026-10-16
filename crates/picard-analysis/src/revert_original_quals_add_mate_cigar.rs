@@ -335,9 +335,9 @@ fn sort_by_duplicate_order(header: &htsjdk_bam::header::SamHeader, records: &mut
 pub fn revert_original_base_qualities_and_add_mate_cigar_to_bam(
     input_sam: &str,
 ) -> Result<Vec<u8>, ParseError> {
-    use htsjdk_bam::writer::BamWriter;
     let (header, records) = revert_original_records(input_sam)?;
-    let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut w =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &records {
         w.write(rec).expect("record re-encodes as BAM");
     }

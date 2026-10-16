@@ -12,6 +12,7 @@ fn arg(args: &[String], key: &str) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let interval_list = arg(&args, "INTERVAL_LIST=").ok_or("INTERVAL_LIST= is required")?;
     let output = arg(&args, "OUTPUT=")

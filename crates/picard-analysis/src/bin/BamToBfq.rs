@@ -210,7 +210,7 @@ impl Codec {
             ))
         });
         Codec {
-            writer: BgzfWriter::new(file),
+            writer: picard_analysis::output::bgzf_writer(file),
         }
     }
 
@@ -451,6 +451,7 @@ fn java_floor_to_int(value: f64) -> i32 {
 }
 
 fn main() {
+    picard_analysis::output::install();
     let args = CommandLine::from_env();
     validate(&args);
 

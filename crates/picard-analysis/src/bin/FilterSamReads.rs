@@ -16,7 +16,6 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
-use htsjdk_bam::writer::BamWriter;
 use htsjdk_bam::{coordinate, query_name};
 use picard_analysis::filter_sam_reads::{
     keep_by_alignment_pairwise, keep_by_read_list, read_name_set, AlignedFilter, Filter,
@@ -50,6 +49,7 @@ fn check_inputs(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -229,7 +229,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut writer = BamWriter::new(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
+    let mut writer =
+        picard_analysis::output::bam_writer(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
     for record in &kept {
         writer.write(record).map_err(|e| format!("{e:?}"))?;
     }

@@ -15,7 +15,6 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
-use htsjdk_bam::writer::BamWriter;
 use picard_analysis::revert_sam::{revert_with, Options, RevertError, SortOrder};
 
 fn arg(args: &[String], key: &str) -> Option<String> {
@@ -24,7 +23,8 @@ fn arg(args: &[String], key: &str) -> Option<String> {
 }
 
 fn write_bam(path: &str, header: &SamHeader, records: &[BamRecord]) -> Result<(), String> {
-    let mut writer = BamWriter::new(Vec::new(), header).map_err(|e| format!("{e:?}"))?;
+    let mut writer =
+        picard_analysis::output::bam_writer(Vec::new(), header).map_err(|e| format!("{e:?}"))?;
     for record in records {
         writer.write(record).map_err(|e| format!("{e:?}"))?;
     }
@@ -123,6 +123,7 @@ fn write_records(path: &str, header: &SamHeader, records: &[BamRecord]) -> Resul
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

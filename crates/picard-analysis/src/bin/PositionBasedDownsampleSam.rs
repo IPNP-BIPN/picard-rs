@@ -19,7 +19,6 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
-use htsjdk_bam::writer::BamWriter;
 use picard_analysis::position_based_downsample_sam::{
     fraction_out_of_range_message, keep, PhysicalLocation, PG_PROGRAM_NAME,
 };
@@ -32,6 +31,7 @@ fn arg(args: &[String], key: &str) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::output::install();
     // `READ_NAME_REGEX`, which a name has to match whole for its tile and position to be read.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
         std::env::args()
@@ -130,7 +130,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mask = keep(&locations, fraction, stop_after);
 
-    let mut writer = BamWriter::new(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
+    let mut writer =
+        picard_analysis::output::bam_writer(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
     for (record, keep_it) in records.iter().zip(&mask) {
         if !keep_it {
             continue;

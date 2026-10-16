@@ -454,6 +454,7 @@ fn write_all(path: &str, header: &VcfHeader, records: &[Record], missing: Missin
 }
 
 fn main() {
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

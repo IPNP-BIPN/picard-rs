@@ -118,6 +118,7 @@ fn row(lane: i32, barcode: Option<&str>, c: &Counts, templates: i64, template_ba
 }
 
 fn main() {
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("B", "BASECALLS_DIR"),
         ("BARCODES_DIR", "BARCODES_DIR"),

@@ -250,6 +250,7 @@ fn instance(program: Program, s: &Shared) -> (Vec<String>, Vec<String>) {
 }
 
 fn main() {
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

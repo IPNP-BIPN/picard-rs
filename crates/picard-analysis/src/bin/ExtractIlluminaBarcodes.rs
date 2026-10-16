@@ -17,6 +17,7 @@ use picard_analysis::metrics_cli::{refuse_validation, thrown, Args};
 const TOOL: &str = "ExtractIlluminaBarcodes";
 
 fn main() {
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("B", "BASECALLS_DIR"),
         ("L", "LANE"),
@@ -207,7 +208,7 @@ fn main() {
             let written = if compress {
                 std::fs::File::create(&path).and_then(|file| {
                     use std::io::Write;
-                    let mut writer = htsjdk_bgzf::BgzfWriter::new(file);
+                    let mut writer = picard_analysis::output::bgzf_writer(file);
                     writer.write_all(text.as_bytes())?;
                     writer.finish().map(|_| ())
                 })
