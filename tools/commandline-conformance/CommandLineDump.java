@@ -36,7 +36,8 @@ import java.util.regex.Pattern;
  * * `mixed_help`: a `NAME=value` with `-h`, which Picard reads as Barclay syntax after warning.
  *
  * Two fields are a clock: the second htsjdk's `Log` stamps a line with, and the millisecond log4j
- * stamps one with. Both are replaced, and nothing else is.
+ * stamps one with. Both are replaced, and nothing else is. One is the heap, and the probes' JVM
+ * is given a fixed one instead.
  *
  * Rows: `run <tool> <probe> <exit> <stdout> <stderr>`, the streams with `\`, newline, tab and
  * carriage return escaped.
@@ -67,6 +68,11 @@ public class CommandLineDump {
                 jvm.add(flag);
             }
         }
+        // `EstimateLibraryComplexity`'s constructor sets the MAX_RECORDS_IN_RAM default from
+        // `Runtime.maxMemory()`, so its usage prints a number that is the machine's heap: this
+        // laptop and the CI runner printed 17863638 and 4450325. The heap is pinned, which makes
+        // the number a property of the dump.
+        jvm.add("-Xmx2g");
         jvm.add("-jar");
         jvm.add(System.getenv("PICARD_JAR"));
 
