@@ -1,7 +1,8 @@
 # picard-rs
 
 Native Rust reimplementation of [Picard](https://github.com/broadinstitute/picard), targeting
-**byte-identical** output against a pinned reference build. Work in progress.
+**byte-identical** output against a pinned reference build. Every one of Picard 3.5.0's 121
+command-line programs is ported; "Status" says what is measured, and on which paths.
 
 > **This is not the official Picard.** It is an independent reimplementation, not affiliated
 > with or endorsed by the Broad Institute.
