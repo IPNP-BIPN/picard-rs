@@ -3215,6 +3215,100 @@
           "why": "Four runs over manifests written record by record: four loci the reference carries, the same with an empty dbSNP, a locus on a contig the reference does not have, and a locus past the end of its contig. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
         }
       ]
+    },
+    {
+      "id": "headerlines",
+      "title": "the command line, Started on and @PG lines a tool writes about its own run",
+      "status": "golden-pending",
+      "harness": "tools/headerlines-conformance",
+      "tools": [
+        "AccumulateVariantCallingMetrics",
+        "CalculateFingerprintMetrics",
+        "CheckFingerprint",
+        "ClusterCrosscheckMetrics",
+        "CollectAlignmentSummaryMetrics",
+        "CollectArraysVariantCallingMetrics",
+        "CollectBaseDistributionByCycle",
+        "CollectDuplicateMetrics",
+        "CollectGcBiasMetrics",
+        "CollectHiSeqXPfFailMetrics",
+        "CollectIlluminaBasecallingMetrics",
+        "CollectIlluminaLaneMetrics",
+        "CollectIndependentReplicateMetrics",
+        "CollectInsertSizeMetrics",
+        "CollectJumpingLibraryMetrics",
+        "CollectMultipleMetrics",
+        "CollectOxoGMetrics",
+        "CollectQualityYieldMetrics",
+        "CollectQualityYieldMetricsFlow",
+        "CollectQualityYieldMetricsSNVQ",
+        "CollectRnaSeqMetrics",
+        "CollectRrbsMetrics",
+        "CollectSamErrorMetrics",
+        "CollectSequencingArtifactMetrics",
+        "CollectHsMetrics",
+        "CollectTargetedPcrMetrics",
+        "CollectUmiPrevalenceMetrics",
+        "CollectVariantCallingMetrics",
+        "CollectWgsMetrics",
+        "CollectRawWgsMetrics",
+        "CollectWgsMetricsWithNonZeroCoverage",
+        "CompareMetrics",
+        "CompareSAMs",
+        "ConvertSequencingArtifactToOxoG",
+        "CreateBafRegressMetricsFile",
+        "CreateVerifyIDIntensityContaminationMetricsFile",
+        "CrosscheckFingerprints",
+        "CrosscheckReadGroupFingerprints",
+        "DownsampleSam",
+        "EstimateLibraryComplexity",
+        "ExtractIlluminaBarcodes",
+        "IlluminaBasecallsToFastq",
+        "IlluminaBasecallsToSam",
+        "FindMendelianViolations",
+        "GenotypeConcordance",
+        "MarkDuplicates",
+        "MarkDuplicatesWithMateCigar",
+        "SimpleMarkDuplicatesWithMateCigar",
+        "UmiAwareMarkDuplicatesWithMateCigar",
+        "MarkIlluminaAdapters",
+        "MeanQualityByCycle",
+        "QualityScoreDistribution",
+        "PositionBasedDownsampleSam",
+        "IntervalListTools"
+      ],
+      "why": "Every other suite strips these lines (strip_line_prefixes, strip_pg) because they carry paths and a clock reading, so nothing compared them and picard-rs wrote the placeholders `<command line>` and `<timestamp>` and no @PG at all. A NAME=value command line is parsed by Barclay's LegacyCommandLineArgumentParser, whose line is the tool name, the set options in declaration order, three spaces, and every unset option with a non-null default: so what is measured is each tool's option table (order, names, defaults, types), the line itself for generated command lines that exercise short names, case, value normalisation, null and collections, and the @PG records and metrics headers of real runs of the seven tools that stamp one. The runs read and write under /work/hl, which the Rust side maps to its own directory; the Started on value is compared by its format only.",
+      "compare": {
+        "mode": "keyed",
+        "rules": [
+          {
+            "rule": "strip_line_prefixes",
+            "kinds": [
+              "metrics"
+            ],
+            "prefixes": [
+              "# Started on:"
+            ],
+            "why": "The one value no two runs share: new Date() at the start of the run. The golden keeps the line, and the Rust test checks the port writes it in Date.toString()'s format; only its value is left out of the oracle comparison."
+          }
+        ]
+      },
+      "expect_rows": 1859,
+      "expect_contains": [
+        "MarkDuplicates INPUT=[/work/hl/in.bam] OUTPUT=/work/hl/md.bam METRICS_FILE=/work/hl/md.metrics    MAX_SEQUENCES_FOR_DISK_READ_ENDS_MAP=50000",
+        "@PG\\tID:bwa.6\\tVN:9\\tCL:marked by hand\\tPN:MD\\tPP:samtools",
+        "rs:574583166",
+        "@PG\\tID:2\\tCL:IntervalListTools INPUT=[/work/hl/in.interval_list]",
+        "# Started on: "
+      ],
+      "$expect_why": "A row count is not evidence: these are the behaviours the suite exists for, the legacy line's three-space separator, the chain one @PG per program id the reads carried, DownsampleSam reseeding twice, IntervalListTools taking the first free integer id, and the Started on header.",
+      "cases": [
+        {
+          "dump": "HeaderLinesDump",
+          "golden": null,
+          "why": "No golden yet: CI publishes the dump from a real x86-64 runner, and the port that reads it lands with the freeze."
+        }
+      ]
     }
   ],
   "probes": [
