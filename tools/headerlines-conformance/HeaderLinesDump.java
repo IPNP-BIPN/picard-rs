@@ -31,7 +31,7 @@
  *
  * Output:
  *
- *     decl\t<Tool>/<index>\t<name>\t<short>\t<collection>\t<element type>\t<optional>\t<default>\t<collection class>
+ *     decl\t<Tool>/<index>\t<name>\t<short>\t<collection>\t<element type>\t<optional>\t<default>\t<collection class>\t<enum constants>
  *     positional\t<Tool>\t<element type>\t<min>\t<max>
  *     version\t<Tool>\t<getVersion()>
  *     argv\t<Tool>/<case>\t<the arguments, one per line>
@@ -296,6 +296,14 @@ public class HeaderLinesDump {
         return argv;
     }
 
+    /** An enum's constants in ordinal order, which is how an EnumSet iterates; empty otherwise. */
+    static String constants(final Class<?> type) {
+        if (!type.isEnum()) return "";
+        final List<String> names = new ArrayList<>();
+        for (final Object c : type.getEnumConstants()) names.add(((Enum<?>) c).name());
+        return String.join(",", names);
+    }
+
     static boolean required(final Option o) {
         return o.collection() ? o.minElements() > 0 : !o.optional();
     }
@@ -308,7 +316,7 @@ public class HeaderLinesDump {
             final Option o = options.get(i);
             emit("decl", name + "/" + i, String.join("\t", o.name(), o.shortName(),
                     String.valueOf(o.collection()), o.type().getName(), String.valueOf(o.optional()),
-                    o.defaultValue(), o.collectionClass()));
+                    o.defaultValue(), o.collectionClass(), constants(o.type())));
         }
         final Field positional = (Field) read(parser, "positionalArguments");
         if (positional != null) {
@@ -489,13 +497,13 @@ public class HeaderLinesDump {
         run("umi", "UmiAwareMarkDuplicatesWithMateCigar", DIR + "/umi.bam", in, "O=" + DIR + "/umi.bam",
                 "M=" + DIR + "/umi.metrics", "UMI_METRICS_FILE=" + DIR + "/umi-umi.metrics");
         run("downsample", "DownsampleSam", DIR + "/downsample.bam", in, "O=" + DIR + "/downsample.bam",
-                "P=0.5", "RANDOM_SEED=7", "METRICS_FILE=" + DIR + "/downsample.metrics");
+                "PROBABILITY=0.5", "RANDOM_SEED=7", "METRICS_FILE=" + DIR + "/downsample.metrics");
         // The output of the run above, read again with the same seed: its header now holds a
         // DownsampleSam record with no `rs` (the input's), which reseeds from that record's
         // hashCode, and the one just written, whose `rs` is the seed that reseeding lands on, so
         // the seed moves a second time.
         run("downsample-again", "DownsampleSam", DIR + "/downsample-again.bam", "I=" + DIR + "/downsample.bam",
-                "O=" + DIR + "/downsample-again.bam", "P=0.5", "RANDOM_SEED=7");
+                "O=" + DIR + "/downsample-again.bam", "PROBABILITY=0.5", "RANDOM_SEED=7");
         run("position", "PositionBasedDownsampleSam", DIR + "/position.bam", in,
                 "O=" + DIR + "/position.bam", "FRACTION=0.5");
         run("intervals", "IntervalListTools", DIR + "/out.interval_list", "I=" + DIR + "/in.interval_list",
