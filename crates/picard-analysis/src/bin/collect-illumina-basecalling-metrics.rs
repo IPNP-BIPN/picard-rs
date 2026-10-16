@@ -219,8 +219,11 @@ fn main() {
     let template_bases: i64 = templates.iter().map(|c| *c as i64).sum();
     let n_templates = templates.len() as i64;
     let mut file = MetricsFile::new();
-    file.add_header("CollectIlluminaBasecallingMetrics <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in
+        picard_analysis::command_line::default_headers("CollectIlluminaBasecallingMetrics")
+    {
+        file.add_header(&header);
+    }
     let mut all = Counts::default();
     for (barcode, c) in &counts {
         file.add_metric(&row(lane, Some(barcode), c, n_templates, template_bases));

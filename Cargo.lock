@@ -1033,6 +1033,7 @@ dependencies = [
  "htsjdk-tribble",
  "htsjdk-vcf",
  "jmath",
+ "libc",
  "md-5",
  "rayon",
  "regex",

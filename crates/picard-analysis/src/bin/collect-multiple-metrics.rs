@@ -483,12 +483,29 @@ fn main() {
             eprint!("{}", String::from_utf8_lossy(&result.stderr));
             std::process::exit(result.status.code().unwrap_or(1));
         }
-        // `setDefaultHeaders(getDefaultHeaders())`: this tool's command line heads every file.
-        let from = format!("\n# {tool} <command line>\n");
-        let to = format!("\n# {TOOL} <command line>\n");
+        // `setDefaultHeaders(getDefaultHeaders())`: this tool's command line and start head every
+        // file, in place of the ones the program would have written for itself.
+        let [command_line, started_on] = picard_analysis::command_line::default_headers(TOOL);
+        let own = format!("# {tool} ");
         for path in outputs {
             if let Ok(text) = std::fs::read_to_string(&path) {
-                let _ = std::fs::write(&path, text.replacen(&from, &to, 1));
+                let mut replaced_command = false;
+                let mut replaced_start = false;
+                let lines: Vec<String> = text
+                    .split('\n')
+                    .map(|line| {
+                        if !replaced_command && line.starts_with(&own) {
+                            replaced_command = true;
+                            format!("# {command_line}")
+                        } else if !replaced_start && line.starts_with("# Started on: ") {
+                            replaced_start = true;
+                            format!("# {started_on}")
+                        } else {
+                            line.to_string()
+                        }
+                    })
+                    .collect();
+                let _ = std::fs::write(&path, lines.join("\n"));
             }
         }
     }

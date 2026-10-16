@@ -306,8 +306,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     t = phase("decode_and_collect", t);
 
     let mut file = MetricsFile::new();
-    file.add_header("CollectAlignmentSummaryMetrics <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectAlignmentSummaryMetrics") {
+        file.add_header(&header);
+    }
     for (unit, collector) in units.iter().zip(collectors.iter_mut()) {
         for mut row in collector.rows() {
             row.sample = unit.sample.clone();

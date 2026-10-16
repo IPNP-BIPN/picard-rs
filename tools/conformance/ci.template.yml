@@ -61,6 +61,12 @@ jobs:
         # existed (docs/decisions/0008), so the condition is now an invariant rather than a habit.
         run: python3 tools/conformance/audit_goldens.py
 
+      - name: The option table is the one the header-lines golden records
+        # `tool_options.rs` is generated from the golden's decl rows, and the command line every
+        # metrics file and @PG carries is built from it, so an edit by hand or a re-frozen golden
+        # left ungenerated would change those lines with nothing else failing first.
+        run: python3 tools/headerlines-conformance/generate.py --check
+
   determinism:
     name: "Determinism: same input, different environment"
     runs-on: ubuntu-latest

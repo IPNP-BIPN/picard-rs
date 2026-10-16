@@ -38,8 +38,9 @@ const DUPLICATE: u16 = 0x400;
 
 fn new_metrics_file() -> MetricsFile {
     let mut file = MetricsFile::new();
-    file.add_header(&format!("{TOOL} <command line>"));
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers(TOOL) {
+        file.add_header(&header);
+    }
     file
 }
 

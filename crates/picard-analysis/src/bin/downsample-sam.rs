@@ -12,9 +12,8 @@
 //! `HighAccuracy` and `Chained` read in chunks of `ceil(1 / ACCURACY)` templates and shuffle each
 //! chunk with `java.util.Random(RANDOM_SEED)`. `METRICS_FILE` is the quality yield of what was kept.
 //!
-//! The `@PG` record `doWork` adds carries the command line, temporary paths and all, and is
-//! canonicalized away by the comparison exactly as the metrics tools' header is. This binary does
-//! not write one, and the claim is over the surviving records and the rest of the header.
+//! `doWork` adds its own `@PG` (`getPGRecord`) with the seed it used as `rs`, after moving the seed
+//! off any an earlier run recorded in the header (`downsample_sam::reseed`).
 
 use std::io::{Read, Write};
 
@@ -78,6 +77,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map_err(|e| format!("{e:?}"))?
     };
 
+    // The seed is moved off any an earlier run recorded, and this run's `@PG` records the one used.
+    let seed = picard_analysis::downsample_sam::reseed(&header, strategy, seed);
+    let mut header = header;
+    let mut pg = picard_analysis::command_line::pg_record(&header, "DownsampleSam");
+    pg.attributes.set(
+        picard_analysis::downsample_sam::RANDOM_SEED_TAG,
+        &seed.to_string(),
+    );
+    header.programs.push(pg);
+
     let names: Vec<String> = records.iter().map(|r| r.read_name.clone()).collect();
     let keep = match keep_flags(&names, strategy, probability, accuracy, seed) {
         Ok(keep) => keep,
@@ -114,8 +123,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         collector.finish();
         let mut file = MetricsFile::new();
-        file.add_header("DownsampleSam <command line>");
-        file.add_header("Started on: <timestamp>");
+        for header in picard_analysis::command_line::default_headers("DownsampleSam") {
+            file.add_header(&header);
+        }
         file.add_metric(collector.metrics());
         std::fs::write(path, file.write())?;
     }

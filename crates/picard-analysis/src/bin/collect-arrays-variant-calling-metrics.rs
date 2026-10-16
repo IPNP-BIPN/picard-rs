@@ -365,8 +365,9 @@ fn main() {
 
     // The control codes, each `control|category|red|green`.
     let mut controls = MetricsFile::new();
-    controls.add_header(&format!("{TOOL} <command line>"));
-    controls.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers(TOOL) {
+        controls.add_header(&header);
+    }
     for control in CONTROLS {
         let value = required(lines, control);
         let t: Vec<&str> = value.split('|').collect();
@@ -484,8 +485,9 @@ fn main() {
     }
 
     let header = |file: &mut MetricsFile| {
-        file.add_header(&format!("{TOOL} <command line>"));
-        file.add_header("Started on: <timestamp>");
+        for header in picard_analysis::command_line::default_headers(TOOL) {
+            file.add_header(&header);
+        }
     };
     let mut detail = MetricsFile::new();
     header(&mut detail);
