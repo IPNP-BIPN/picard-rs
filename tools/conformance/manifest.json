@@ -3221,6 +3221,13 @@
       "title": "the command line, Started on and @PG lines a tool writes about its own run",
       "status": "golden-pending",
       "harness": "tools/headerlines-conformance",
+      "java_props": [
+        "-Duser.language=en",
+        "-Duser.country=US",
+        "-Dsamjdk.use_libdeflate=false",
+        "-Xmx2g"
+      ],
+      "$java_props_why": "EstimateLibraryComplexity's constructor sets its MAX_RECORDS_IN_RAM default from Runtime.maxMemory(), so without a fixed heap the golden would hold the runner's memory: 17863638 in a 64 GB Docker VM, 4450325 on the CI runner. A fixed -Xmx makes the number the same everywhere; the Rust test compares that one value by its shape.",
       "tools": [
         "AccumulateVariantCallingMetrics",
         "CalculateFingerprintMetrics",
