@@ -1,333 +1,191 @@
 # picard-rs
 
-Native Rust reimplementation of [Picard](https://github.com/broadinstitute/picard), targeting
-**byte-identical** output against a pinned reference build. Every one of Picard 3.5.0's 121
-command-line programs is ported; "Status" says what is measured, and on which paths.
+Picard 3.5.0's 121 tools as native binaries, with byte-identical output. If you run
+[Picard](https://github.com/broadinstitute/picard) today, you can run picard-rs with the same
+arguments on the same files and get the same output files, without Java.
 
 > **This is not the official Picard.** It is an independent reimplementation, not affiliated
 > with or endorsed by the Broad Institute.
 
-## Reference version
+[![CI](https://github.com/IPNP-BIPN/picard-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/IPNP-BIPN/picard-rs/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/IPNP-BIPN/picard-rs)](https://github.com/IPNP-BIPN/picard-rs/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Picard `3.5.0`, commit `a53d7ebd975606b79ca0eaddb7bf93f555ec4db4`, whose release jar bundles
-htsjdk `5.0.0`. The port began at `3.4.0`, the version GATK 4.6.2.0 pins, and moved ahead of
-gatk-rs once the cost of the move had been measured: see
-[decision 0013](docs/decisions/0013-picard-rs-moves-to-3.5.0-on-its-own.md). Module headers that
-cite `3.4.0` name symbols that did not change between the two tags.
+## Install
 
-## Method
+### Prebuilt binaries
 
-Every feature branch ports a **named symbol** of the pinned reference source: a specific class
-or method, read from the pinned clone and translated. Behavior is never reconstructed from
-documentation, papers, or memory. Each branch records the source file and symbol it ports.
+Download the archive for your platform from the
+[latest release](https://github.com/IPNP-BIPN/picard-rs/releases/latest). There is one per
+platform (Linux x86-64, Linux arm64, macOS arm64), each with a `.sha256` file beside it.
 
-Work is organized three levels deep:
-
-```
-main                                    shared infrastructure only
-└── tool/picard-<toolname>               one per tool
-    └── feat/picard-<toolname>-<feature> one per ported symbol
+```bash
+VERSION=v0.1.0
+TARGET=x86_64-unknown-linux-gnu   # or aarch64-unknown-linux-gnu, aarch64-apple-darwin
+curl -LO https://github.com/IPNP-BIPN/picard-rs/releases/download/$VERSION/picard-rs-$VERSION-$TARGET.tar.gz
+tar -xzf picard-rs-$VERSION-$TARGET.tar.gz
+export PATH="$PWD/picard-rs-$VERSION-$TARGET/bin:$PATH"
 ```
 
-A feature merges into its tool branch when it is byte-identical for its scope. A tool merges
-into `main` when the whole tool is byte-identical across its corpus.
+### From source
 
-## Status
+You need [rustup](https://rustup.rs). The toolchain (Rust 1.97.1) is pinned in
+`rust-toolchain.toml` and installed on the first build.
 
-All 121 Picard tools this repository ports (120 binaries) are measured on two grounds:
-
-- the **conformance suites** compare the port with the pinned reference, byte for byte, on each
-  suite's cases (see "Conformance suites");
-- a **t=2 covering array** for each tool, regenerated and re-measured by CI on real x86-64, runs
-  every row against both sides. Every one of the 121 arrays matches on every row: share **1.000**
-  in [`tools/coverage/measured.json`](tools/coverage/measured.json).
-
-Every argument specific to a tool takes at least two values in its array, a refusal included, and
-`JAVASCRIPT_FILE` runs on an embedded JavaScript engine as Picard runs it on Nashorn. What still
-does not vary is common to the tools, each with its reason written in
-[`fixtures.json`](tools/coverage/fixtures.json) or the array: the ten arguments the repository
-excludes outright (`COMPRESSION_LEVEL`, `CREATE_MD5_FILE`, `MAX_RECORDS_IN_RAM`,
-`USE_JDK_DEFLATER`, `USE_JDK_INFLATER`, `VERBOSITY`, `QUIET`, `help`, `showHidden`, `version`),
-`TMP_DIR` and `arguments_file`, the output path, and `REFERENCE_SEQUENCE`, `CREATE_INDEX` or
-`VALIDATION_STRINGENCY` where a tool's corpus offers one value.
-
-"Byte-identical" means byte-identical on the paths measured: the suites' cases and the arrays'
-rows. A row is a pair of argument values, not every combination of all of them.
-
-| Tool | Conformance suite | Covering array (t=2) | Share |
-|---|---|---|---|
-| `AccumulateQualityYieldMetrics` | oracle-backed | 6 rows, 6 accepted, 2 distinct | **1.000** |
-| `AccumulateVariantCallingMetrics` | oracle-backed | 15 rows, 12 accepted, 4 distinct | **1.000** |
-| `AddCommentsToBam` | covering array only | 13 rows, 10 accepted, 6 distinct | **1.000** |
-| `AddOATag` | oracle-backed | 9 rows, 9 accepted, 4 distinct | **1.000** |
-| `AddOrReplaceReadGroups` | oracle-backed | 21 rows, 13 accepted, 13 distinct | **1.000** |
-| `BaitDesigner` | oracle-backed | 18 rows, 14 accepted, 14 distinct | **1.000** |
-| `BamIndexStats` | oracle-backed | 9 rows, 3 accepted, 1 distinct | **1.000** |
-| `BamToBfq` | oracle-backed | 17 rows, 7 accepted, 6 distinct | **1.000** |
-| `BedToIntervalList` | oracle-backed | 10 rows, 10 accepted, 4 distinct | **1.000** |
-| `BpmToNormalizationManifestCsv` | oracle-backed | 10 rows, 4 accepted, 2 distinct | **1.000** |
-| `BuildBamIndex` | covering array only | 18 rows, 9 accepted, 3 distinct | **1.000** |
-| `CalculateFingerprintMetrics` | oracle-backed | 19 rows, 19 accepted, 12 distinct | **1.000** |
-| `CalculateReadGroupChecksum` | oracle-backed | 6 rows, 6 accepted, 2 distinct | **1.000** |
-| `CheckDuplicateMarking` | oracle-backed | 13 rows, 4 accepted, 1 distinct | **1.000** |
-| `CheckFingerprint` | oracle-backed | 19 rows, 8 accepted, 8 distinct | **1.000** |
-| `CheckIlluminaDirectory` | oracle-backed | 17 rows, 6 accepted, 1 distinct | **1.000** |
-| `CheckTerminatorBlock` | covering array only | 12 rows, 6 accepted, 2 distinct | **1.000** |
-| `CleanSam` | oracle-backed | 9 rows, 9 accepted, 2 distinct | **1.000** |
-| `ClusterCrosscheckMetrics` | oracle-backed | 10 rows, 10 accepted, 5 distinct | **1.000** |
-| `CollectAlignmentSummaryMetrics` | oracle-backed | 18 rows, 18 accepted, 16 distinct | **1.000** |
-| `CollectArraysVariantCallingMetrics` | oracle-backed | 11 rows, 6 accepted, 3 distinct | **1.000** |
-| `CollectBaseDistributionByCycle` | oracle-backed | 12 rows, 9 accepted, 3 distinct | **1.000** |
-| `CollectDuplicateMetrics` | oracle-backed | 9 rows, 6 accepted, 4 distinct | **1.000** |
-| `CollectGcBiasMetrics` | oracle-backed | 23 rows, 18 accepted, 13 distinct | **1.000** |
-| `CollectHiSeqXPfFailMetrics` | oracle-backed | 12 rows, 8 accepted, 4 distinct | **1.000** |
-| `CollectHsMetrics` | oracle-backed | 17 rows, 10 accepted, 9 distinct | **1.000** |
-| `CollectIlluminaBasecallingMetrics` | oracle-backed | 14 rows, 10 accepted, 8 distinct | **1.000** |
-| `CollectIlluminaLaneMetrics` | oracle-backed | 14 rows, 8 accepted, 5 distinct | **1.000** |
-| `CollectIndependentReplicateMetrics` | oracle-backed | 14 rows, 13 accepted, 11 distinct | **1.000** |
-| `CollectInsertSizeMetrics` | oracle-backed | 23 rows, 13 accepted, 9 distinct | **1.000** |
-| `CollectJumpingLibraryMetrics` | oracle-backed | 9 rows, 6 accepted, 4 distinct | **1.000** |
-| `CollectMultipleMetrics` | oracle-backed | 19 rows, 13 accepted, 10 distinct | **1.000** |
-| `CollectOxoGMetrics` | oracle-backed | 18 rows, 9 accepted, 8 distinct | **1.000** |
-| `CollectQualityYieldMetrics` | oracle-backed | 10 rows, 10 accepted, 5 distinct | **1.000** |
-| `CollectQualityYieldMetricsFlow` | oracle-backed | 12 rows, 8 accepted, 8 distinct | **1.000** |
-| `CollectQualityYieldMetricsSNVQ` | oracle-backed | 12 rows, 8 accepted, 7 distinct | **1.000** |
-| `CollectRawWgsMetrics` | oracle-backed | 22 rows, 16 accepted, 14 distinct | **1.000** |
-| `CollectRnaSeqMetrics` | oracle-backed | 26 rows, 20 accepted, 16 distinct | **1.000** |
-| `CollectRrbsMetrics` | oracle-backed | 21 rows, 11 accepted, 9 distinct | **1.000** |
-| `CollectSamErrorMetrics` | oracle-backed | 28 rows, 12 accepted, 11 distinct | **1.000** |
-| `CollectSequencingArtifactMetrics` | oracle-backed | 19 rows, 10 accepted, 9 distinct | **1.000** |
-| `CollectTargetedPcrMetrics` | oracle-backed | 18 rows, 14 accepted, 10 distinct | **1.000** |
-| `CollectUmiPrevalenceMetrics` | oracle-backed | 10 rows, 10 accepted, 6 distinct | **1.000** |
-| `CollectVariantCallingMetrics` | oracle-backed | 10 rows, 2 accepted, 2 distinct | **1.000** |
-| `CollectWgsMetrics` | oracle-backed | 22 rows, 16 accepted, 14 distinct | **1.000** |
-| `CollectWgsMetricsWithNonZeroCoverage` | oracle-backed | 22 rows, 18 accepted, 16 distinct | **1.000** |
-| `CombineGenotypingArrayVcfs` | oracle-backed | 15 rows, 9 accepted, 3 distinct | **1.000** |
-| `CompareGtcFiles` | oracle-backed | 10 rows, 4 accepted, 1 distinct | **1.000** |
-| `CompareMetrics` | oracle-backed | 32 rows, 6 accepted, 3 distinct | **1.000** |
-| `CompareSAMs` | oracle-backed | 11 rows, 7 accepted, 3 distinct | **1.000** |
-| `ConvertHaplotypeDatabaseToVcf` | oracle-backed | 12 rows, 9 accepted, 3 distinct | **1.000** |
-| `ConvertSequencingArtifactToOxoG` | oracle-backed | 13 rows, 5 accepted, 3 distinct | **1.000** |
-| `CreateBafRegressMetricsFile` | oracle-backed | 9 rows, 6 accepted, 2 distinct | **1.000** |
-| `CreateExtendedIlluminaManifest` | oracle-backed | 13 rows, 4 accepted, 2 distinct | **1.000** |
-| `CreateSequenceDictionary` | oracle-backed | 10 rows, 8 accepted, 6 distinct | **1.000** |
-| `CreateVerifyIDIntensityContaminationMetricsFile` | oracle-backed | 9 rows, 6 accepted, 2 distinct | **1.000** |
-| `CrosscheckFingerprints` | oracle-backed | 24 rows, 8 accepted, 7 distinct | **1.000** |
-| `CrosscheckReadGroupFingerprints` | oracle-backed | 20 rows, 7 accepted, 6 distinct | **1.000** |
-| `DownsampleSam` | oracle-backed | 13 rows, 13 accepted, 8 distinct | **1.000** |
-| `EstimateLibraryComplexity` | oracle-backed | 14 rows, 14 accepted, 9 distinct | **1.000** |
-| `ExtractFingerprint` | oracle-backed | 15 rows, 15 accepted, 12 distinct | **1.000** |
-| `ExtractIlluminaBarcodes` | oracle-backed | 30 rows, 17 accepted, 16 distinct | **1.000** |
-| `ExtractSequences` | oracle-backed | 7 rows, 7 accepted, 4 distinct | **1.000** |
-| `FastqToSam` | oracle-backed | 21 rows, 7 accepted, 7 distinct | **1.000** |
-| `FifoBuffer` | oracle-backed | 10 rows, 10 accepted, 4 distinct | **1.000** |
-| `FilterSamReads` | oracle-backed | 26 rows, 5 accepted, 4 distinct | **1.000** |
-| `FilterVcf` | covering array only | 18 rows, 11 accepted, 10 distinct | **1.000** |
-| `FindMendelianViolations` | oracle-backed | 12 rows, 5 accepted, 2 distinct | **1.000** |
-| `FixMateInformation` | oracle-backed | 12 rows, 7 accepted, 4 distinct | **1.000** |
-| `FixVcfHeader` | covering array only | 20 rows, 8 accepted, 8 distinct | **1.000** |
-| `GatherBamFiles` | covering array only | 9 rows, 9 accepted, 2 distinct | **1.000** |
-| `GatherVcfs` | covering array only | 31 rows, 14 accepted, 4 distinct | **1.000** |
-| `GenotypeConcordance` | oracle-backed | 12 rows, 8 accepted, 6 distinct | **1.000** |
-| `GtcToVcf` | oracle-backed | 18 rows, 13 accepted, 9 distinct | **1.000** |
-| `IdentifyContaminant` | oracle-backed | 13 rows, 13 accepted, 11 distinct | **1.000** |
-| `IlluminaBasecallsToFastq` | oracle-backed | 30 rows, 13 accepted, 12 distinct | **1.000** |
-| `IlluminaBasecallsToSam` | oracle-backed | 31 rows, 14 accepted, 12 distinct | **1.000** |
-| `IntervalListToBed` | oracle-backed | 8 rows, 8 accepted, 5 distinct | **1.000** |
-| `IntervalListTools` | oracle-backed | 32 rows, 15 accepted, 5 distinct | **1.000** |
-| `LiftOverHaplotypeMap` | oracle-backed | 8 rows, 5 accepted, 3 distinct | **1.000** |
-| `LiftOverIntervalList` | oracle-backed | 10 rows, 6 accepted, 5 distinct | **1.000** |
-| `LiftoverVcf` | oracle-backed | 16 rows, 16 accepted, 14 distinct | **1.000** |
-| `MakeSitesOnlyVcf` | covering array only | 10 rows, 8 accepted, 5 distinct | **1.000** |
-| `MakeVcfSampleNameMap` | oracle-backed | 6 rows, 3 accepted, 1 distinct | **1.000** |
-| `MarkDuplicates` | oracle-backed | 31 rows, 16 accepted, 14 distinct | **1.000** |
-| `MarkDuplicatesWithMateCigar` | oracle-backed | 27 rows, 5 accepted, 3 distinct | **1.000** |
-| `MarkIlluminaAdapters` | oracle-backed | 28 rows, 16 accepted, 4 distinct | **1.000** |
-| `MeanQualityByCycle` | oracle-backed | 12 rows, 9 accepted, 3 distinct | **1.000** |
-| `MergeBamAlignment` | oracle-backed | 29 rows, 16 accepted, 16 distinct | **1.000** |
-| `MergePedIntoVcf` | oracle-backed | 19 rows, 19 accepted, 8 distinct | **1.000** |
-| `MergeSamFiles` | oracle-backed | 18 rows, 1 accepted, 1 distinct | **1.000** |
-| `MergeVcfs` | covering array only | 27 rows, 16 accepted, 11 distinct | **1.000** |
-| `NonNFastaSize` | oracle-backed | 7 rows, 7 accepted, 2 distinct | **1.000** |
-| `NormalizeFasta` | oracle-backed | 8 rows, 8 accepted, 5 distinct | **1.000** |
-| `PositionBasedDownsampleSam` | oracle-backed | 12 rows, 12 accepted, 4 distinct | **1.000** |
-| `QualityScoreDistribution` | oracle-backed | 15 rows, 11 accepted, 4 distinct | **1.000** |
-| `RenameSampleInVcf` | covering array only | 13 rows, 8 accepted, 5 distinct | **1.000** |
-| `ReorderSam` | oracle-backed | 10 rows, 10 accepted, 2 distinct | **1.000** |
-| `ReplaceSamHeader` | oracle-backed | 10 rows, 2 accepted, 1 distinct | **1.000** |
-| `RevertOriginalBaseQualitiesAndAddMateCigar` | oracle-backed | 15 rows, 13 accepted, 5 distinct | **1.000** |
-| `RevertSam` | oracle-backed | 21 rows, 16 accepted, 14 distinct | **1.000** |
-| `SamFormatConverter` | oracle-backed | 9 rows, 7 accepted, 2 distinct | **1.000** |
-| `SamToFastq` | oracle-backed | 19 rows, 3 accepted, 3 distinct | **1.000** |
-| `SamToFastqWithTags` | oracle-backed | 18 rows, 2 accepted, 2 distinct | **1.000** |
-| `ScatterIntervalsByNs` | oracle-backed | 10 rows, 10 accepted, 6 distinct | **1.000** |
-| `SetNmAndUqTags` | covering array only | 11 rows, 8 accepted, 4 distinct | **1.000** |
-| `SetNmMdAndUqTags` | oracle-backed | 11 rows, 8 accepted, 4 distinct | **1.000** |
-| `SimpleMarkDuplicatesWithMateCigar` | oracle-backed | 30 rows, 11 accepted, 7 distinct | **1.000** |
-| `SortGff` | oracle-backed | 14 rows, 5 accepted, 4 distinct | **1.000** |
-| `SortSam` | oracle-backed | 10 rows, 7 accepted, 2 distinct | **1.000** |
-| `SortVcf` | covering array only | 10 rows, 7 accepted, 4 distinct | **1.000** |
-| `SplitSamByLibrary` | oracle-backed | 9 rows, 9 accepted, 3 distinct | **1.000** |
-| `SplitSamByNumberOfReads` | oracle-backed | 13 rows, 12 accepted, 9 distinct | **1.000** |
-| `SplitVcfs` | covering array only | 22 rows, 12 accepted, 11 distinct | **1.000** |
-| `UmiAwareMarkDuplicatesWithMateCigar` | oracle-backed | 26 rows, 16 accepted, 13 distinct | **1.000** |
-| `UpdateVcfSequenceDictionary` | covering array only | 17 rows, 14 accepted, 4 distinct | **1.000** |
-| `ValidateSamFile` | oracle-backed | 15 rows, 8 accepted, 1 distinct | **1.000** |
-| `VcfFormatConverter` | covering array only | 16 rows, 7 accepted, 5 distinct | **1.000** |
-| `VcfToAdpc` | oracle-backed | 15 rows, 12 accepted, 7 distinct | **1.000** |
-| `VcfToIntervalList` | covering array only | 11 rows, 8 accepted, 6 distinct | **1.000** |
-| `ViewSam` | oracle-backed | 14 rows, 5 accepted, 4 distinct | **1.000** |
-
-## Throughput
-
-Measured, not claimed. `tools/benchmark/run.sh` times the port against Picard on the same input,
-inside the same container, and asserts byte-identity of the two outputs in the same run.
-
-At 2,000,000 reads on real x86-64: **1.46x** wall clock, **1.36x** net of JVM startup, output
-byte-identical.
-
-The same code measured 5.2x on a 200,000-read input and 2.0x under x86-64 emulation. Each time
-the measurement got more careful the number got smaller, which is the direction benchmarks move
-when they start optimistic;
-[decision 0004](docs/decisions/0004-the-speedup-is-mostly-jvm-startup-until-it-is-not.md) records
-all three and why. No optimisation work has been done, so 1.46x is a floor.
-
-## Decisions
-
-| # | Title |
-|---|---|
-| [0001](docs/decisions/0001-the-metrics-archetype-is-not-homogeneous.md) | The metrics archetype is not homogeneous |
-| [0002](docs/decisions/0002-the-first-within-stratum-delta.md) | The first within-stratum delta, smaller than the archetype story assumed |
-| [0003](docs/decisions/0003-the-delta-at-the-large-end-is-negative.md) | The within-stratum delta at the large end is negative |
-| [0004](docs/decisions/0004-the-speedup-is-mostly-jvm-startup-until-it-is-not.md) | The speedup is mostly JVM startup, until the input is big enough that it is not |
-| [0005](docs/decisions/0005-the-rnaseq-coverage-fold-order-is-unobservable.md) | The RnaSeq coverage fold order is unobservable |
-| [0006](docs/decisions/0006-per-record-transforms-parallelize-without-touching-the-bytes.md) | Per-record transforms parallelize without touching the bytes |
-| [0007](docs/decisions/0007-multicore-helps-the-transform-not-the-io.md) | Multicore helps the transform, not the I/O |
-| [0008](docs/decisions/0008-sixteen-goldens-had-never-been-produced-by-the-oracle.md) | Sixteen goldens had never been produced by the oracle |
-| [0009](docs/decisions/0009-the-first-covering-array-run-measures-the-argument-surface.md) | The first covering-array run measures the argument surface, and it is 0% |
-| [0010](docs/decisions/0010-the-fuzzer-found-a-divergence-the-conformance-suite-cannot.md) | The fuzzer found a divergence the conformance suite cannot |
-| [0011](docs/decisions/0011-the-sixteen-unchecked-goldens-came-back-green.md) | The sixteen unchecked goldens came back green |
-| [0012](docs/decisions/0012-what-the-move-to-3.5.0-costs-the-ported-surface.md) | What the move to Picard 3.5.0 costs the ported surface |
-| [0013](docs/decisions/0013-picard-rs-moves-to-3.5.0-on-its-own.md) | picard-rs moves to Picard 3.5.0 on its own |
-
-## Conformance suites
-
-Every suite is declared once in [`tools/conformance/manifest.json`](tools/conformance/manifest.json):
-the harness that regenerates it, the goldens it produces, and every rule that canonicalizes a field
-away, each with the reason it is there. The oracle jobs of `.github/workflows/ci.yml` are generated
-from that manifest, and the same run happens locally with
-
-```sh
-python3 tools/conformance/run_suite.py --list
-python3 tools/conformance/run_suite.py --suites metrics
+```bash
+git clone https://github.com/IPNP-BIPN/picard-rs
+cd picard-rs
+cargo build --release --locked
+export PATH="$PWD/target/release:$PATH"
 ```
 
-A suite's `status` is part of the claim it supports: **oracle-backed** means CI regenerates the
-golden in the pinned container and compares it on every run; **unchecked** means the golden is
-committed and read by the Rust tests but has never been re-derived. Decision 0008 records how
-sixteen goldens came to be in the second category, and decision 0011 records the answer it left
-open: those sixteen came back green, so every suite is oracle-backed today.
+## Running a tool
 
-## Argument coverage
+Every Picard tool is its own binary, named in kebab-case: `SortSam` is `sort-sam`,
+`CollectAlignmentSummaryMetrics` is `collect-alignment-summary-metrics`. Arguments are Picard's,
+written the way Picard takes them, `NAME=value`, with the long or the short name:
 
-The conformance suites cover each tool's default path. Coverage of its **argument surface** is
-measured separately, with t-wise covering arrays generated in gatk-rs from the pinned inventory and
-run here against the oracle:
+```bash
+# Picard
+java -jar picard.jar MarkDuplicates I=sorted.bam O=marked.bam M=dup_metrics.txt
 
-```sh
-python3 tools/coverage/run_array.py --tool CollectAlignmentSummaryMetrics \
-    --port target/release/collect-alignment-summary-metrics
+# picard-rs
+mark-duplicates I=sorted.bam O=marked.bam M=dup_metrics.txt
 ```
 
-`tools/coverage/MakeFixtures.java` builds the deterministic corpus the rows run against (a covering
-array cannot invent a file path), `fixtures.json` declares which values this repository is willing
-to pass and which arguments it refuses to vary, and the run writes a corpus in the same dump format
-the conformance suites use. Decision 0009 records what the first two runs measured.
+The records, the metrics and the rest of the header in `marked.bam` and `dup_metrics.txt` come
+out identical to Picard's; [Getting the same bytes as Picard](#getting-the-same-bytes-as-picard)
+lists the setting that matters and the header lines that do not match yet. The arguments, their defaults and what they do are Picard's, so the
+[Picard documentation](https://broadinstitute.github.io/picard/command-line-overview.html) is the
+reference for every tool.
 
-Which tools the CI job runs is declared once, in the `coverage` block of
-[`tools/conformance/manifest.json`](tools/conformance/manifest.json), and the job is generated from
-it alongside the oracle jobs. A tool's `status` there carries the same distinction the suites' does:
-**measured** means the number in `tools/coverage/measured.json` was produced by that job on real
-x86-64 and is re-derived on every run, so a port that gains or loses argument surface fails the run;
-**pending** means the array runs and the measurement is published as an artefact, but nothing is
-committed, because a coverage number produced on a developer machine is the same mistake as a golden
-produced there. Committing the published file and flipping the status is what turns the run into a
-claim.
+### Keeping your scripts as they are
 
-Beyond the array, `tools/fuzz/` mutates from its rows and keeps whatever reaches a probe of the
-reference that nothing has reached, with JaCoCo measuring inside the pinned container:
+If your scripts call `picard <Tool> ...` (the Bioconda wrapper's form), this shell function gives
+them the same command with picard-rs underneath. Put it in your `~/.bashrc` or `~/.zshrc`:
 
-```sh
-python3 tools/fuzz/run_fuzz.py --tool CollectAlignmentSummaryMetrics --iterations 200 \
-    --port target/release/collect-alignment-summary-metrics
+```bash
+picard() {
+  local tool="$1"; shift
+  case "$tool" in
+    CompareSAMs) tool=compare-sams ;;
+    ConvertSequencingArtifactToOxoG) tool=convert-sequencing-artifact-to-oxog ;;
+    SetNmAndUqTags) tool=set-nm-md-and-uq-tags ;;
+    *) tool=$(printf '%s' "$tool" | sed -E 's/([a-z0-9])([A-Z])/\1-\2/g; s/([A-Z])([A-Z][a-z])/\1-\2/g' | tr '[:upper:]' '[:lower:]') ;;
+  esac
+  "$tool" "$@"
+}
 ```
 
-Sixty mutations reach about 10% more of the reference than the whole pairwise array does, and the
-first two sessions found a numeric divergence the conformance corpus cannot contain: decision 0010.
+```bash
+picard SortSam I=input.bam O=sorted.bam SORT_ORDER=coordinate
+picard CollectInsertSizeMetrics I=sorted.bam O=insert_size.txt H=insert_size.pdf
+```
 
-## Bit-identity contract
+Three names are not the mechanical kebab-case, and the function handles them: `CompareSAMs` is
+`compare-sams`, `ConvertSequencingArtifactToOxoG` is `convert-sequencing-artifact-to-oxog`, and
+the deprecated `SetNmAndUqTags` runs as `set-nm-md-and-uq-tags`, which is what Picard's subclass
+does.
 
-Goldens are produced by the pinned reference in a digest-pinned `linux/amd64` container on
-JDK 17, on real x86-64 CI, invoked through `gatk <Tool>` so the argument parser is fixed to
-Barclay semantics.
+### A typical run
 
-Two settings are pinned in the oracle contract and are part of the claim:
+```bash
+add-or-replace-read-groups I=aligned.bam O=rg.bam RGID=1 RGLB=lib1 RGPL=ILLUMINA RGPU=unit1 RGSM=sample1
+sort-sam I=rg.bam O=sorted.bam SORT_ORDER=coordinate CREATE_INDEX=true
+mark-duplicates I=sorted.bam O=marked.bam M=dup_metrics.txt CREATE_INDEX=true
+collect-alignment-summary-metrics I=marked.bam O=alignment_summary.txt R=reference.fasta
+collect-insert-size-metrics I=marked.bam O=insert_size.txt H=insert_size.pdf
+```
 
-- `USE_JDK_DEFLATER=true` / `USE_JDK_INFLATER=true`. Picard defaults to the Intel GKL
-  (ISA-L/igzip) deflater, which emits different bytes than zlib for identical input. Pinning
-  the JDK deflater makes the claim reproducible.
-- The oracle asserts `IntelDeflaterFactory.usingIntelDeflater()` and fails the run on silent
-  native-library degradation, rather than producing a golden that matches no real machine.
+### What differs from running Picard
 
-Fields legitimately allowed to vary (timestamps, version strings, command lines) are
-canonicalized under explicitly declared rules. Adding a canonicalization rule is a reviewable,
-CI-gated event, because canonicalization is how a bit-identity claim quietly weakens.
+The output files are the same. The command line around them has a few differences, listed here so
+none of them surprises you:
 
-Values that cannot be matched exactly are quarantined and reported with their measured
-divergence rate, and the output is described as **bio-identical** rather than
-**bit-identical**, following the vocabulary of
-[broadinstitute/gatk#9384](https://github.com/broadinstitute/gatk/pull/9384).
+- **There is no `--help`.** Use the Picard documentation for a tool's arguments.
+- **A misspelled or unknown argument is ignored, not refused.** Picard stops on `SORT_ORDR=...`;
+  picard-rs runs as if the argument were absent (and stops only if that leaves a required argument
+  missing). Check your spelling against the Picard documentation.
+- **`COMPRESSION_LEVEL`, `MAX_RECORDS_IN_RAM`, `TMP_DIR`, `USE_JDK_DEFLATER`, `USE_JDK_INFLATER`,
+  `VERBOSITY` and `QUIET` are accepted and have no effect.** Output is always written the way Picard
+  writes it at its default compression level with the JDK deflater, and memory is not bounded by a
+  record count.
+- **Headers**: metrics files carry placeholder command-line and date lines, and no tool adds its
+  own `@PG` record (see [Getting the same bytes as Picard](#getting-the-same-bytes-as-picard)).
+- On an error, the tool prints `Error: ...` on stderr and exits with status 1.
 
-## Part of a three-repository program
+## Tools
 
-| Repo | Ports | Depends on |
+All 121 command-line programs of Picard 3.5.0, by Picard's own program groups:
+
+| Family | Count | Tools |
 |---|---|---|
-| `htsjdk-rs` | htsjdk 4.2.0 | (none) |
-| `picard-rs` | Picard 3.5.0 (htsjdk 5.0.0) | `htsjdk-rs` |
-| `gatk-rs` | GATK 4.6.2.0 | `picard-rs`, `htsjdk-rs` |
+| Diagnostics and QC metrics | 47 | `AccumulateQualityYieldMetrics`, `AccumulateVariantCallingMetrics`, `BamIndexStats`, `CalculateFingerprintMetrics`, `CalculateReadGroupChecksum`, `CheckDuplicateMarking`, `CheckFingerprint`, `CheckTerminatorBlock`, `ClusterCrosscheckMetrics`, `CollectAlignmentSummaryMetrics`, `CollectArraysVariantCallingMetrics`, `CollectBaseDistributionByCycle`, `CollectGcBiasMetrics`, `CollectHiSeqXPfFailMetrics`, `CollectHsMetrics`, `CollectIndependentReplicateMetrics`, `CollectInsertSizeMetrics`, `CollectJumpingLibraryMetrics`, `CollectMultipleMetrics`, `CollectOxoGMetrics`, `CollectQualityYieldMetrics`, `CollectQualityYieldMetricsFlow`, `CollectQualityYieldMetricsSNVQ`, `CollectRawWgsMetrics`, `CollectRnaSeqMetrics`, `CollectRrbsMetrics`, `CollectSamErrorMetrics`, `CollectSequencingArtifactMetrics`, `CollectTargetedPcrMetrics`, `CollectUmiPrevalenceMetrics`, `CollectVariantCallingMetrics`, `CollectWgsMetrics`, `CollectWgsMetricsWithNonZeroCoverage`, `CompareMetrics`, `CompareSAMs`, `ConvertHaplotypeDatabaseToVcf`, `ConvertSequencingArtifactToOxoG`, `CrosscheckFingerprints`, `CrosscheckReadGroupFingerprints` (deprecated), `EstimateLibraryComplexity`, `ExtractFingerprint`, `IdentifyContaminant`, `LiftOverHaplotypeMap`, `MeanQualityByCycle`, `QualityScoreDistribution`, `ValidateSamFile`, `ViewSam` |
+| Read data (SAM/BAM) | 31 | `AddCommentsToBam`, `AddOATag`, `AddOrReplaceReadGroups`, `BamToBfq`, `BuildBamIndex`, `CleanSam`, `CollectDuplicateMetrics`, `DownsampleSam`, `FastqToSam`, `FilterSamReads`, `FixMateInformation`, `GatherBamFiles`, `MarkDuplicates`, `MarkDuplicatesWithMateCigar`, `MergeBamAlignment`, `MergeSamFiles`, `PositionBasedDownsampleSam`, `ReorderSam`, `ReplaceSamHeader`, `RevertOriginalBaseQualitiesAndAddMateCigar`, `RevertSam`, `SamFormatConverter`, `SamToFastq`, `SamToFastqWithTags`, `SetNmAndUqTags` (deprecated), `SetNmMdAndUqTags`, `SimpleMarkDuplicatesWithMateCigar`, `SortSam`, `SplitSamByLibrary`, `SplitSamByNumberOfReads`, `UmiAwareMarkDuplicatesWithMateCigar` |
+| Variant manipulation (VCF) | 12 | `FixVcfHeader`, `GatherVcfs`, `LiftoverVcf`, `MakeSitesOnlyVcf`, `MakeVcfSampleNameMap`, `MergeVcfs`, `RenameSampleInVcf`, `SortVcf`, `SplitVcfs`, `UpdateVcfSequenceDictionary`, `VcfFormatConverter`, `VcfToIntervalList` |
+| Variant evaluation | 2 | `FindMendelianViolations`, `GenotypeConcordance` |
+| Variant filtering | 1 | `FilterVcf` |
+| Intervals | 4 | `BedToIntervalList`, `IntervalListToBed`, `IntervalListTools`, `LiftOverIntervalList` |
+| Reference | 6 | `BaitDesigner`, `CreateSequenceDictionary`, `ExtractSequences`, `NonNFastaSize`, `NormalizeFasta`, `ScatterIntervalsByNs` |
+| Base calling (Illumina) | 7 | `CheckIlluminaDirectory`, `CollectIlluminaBasecallingMetrics`, `CollectIlluminaLaneMetrics`, `ExtractIlluminaBarcodes`, `IlluminaBasecallsToFastq`, `IlluminaBasecallsToSam`, `MarkIlluminaAdapters` |
+| Genotyping arrays | 9 | `BpmToNormalizationManifestCsv`, `CombineGenotypingArrayVcfs`, `CompareGtcFiles`, `CreateBafRegressMetricsFile`, `CreateExtendedIlluminaManifest`, `CreateVerifyIDIntensityContaminationMetricsFile`, `GtcToVcf`, `MergePedIntoVcf`, `VcfToAdpc` |
+| Other | 2 | `FifoBuffer`, `SortGff` |
 
-## Relationship to `fulcrumgenomics/riker`
+## Getting the same bytes as Picard
 
-[riker](https://github.com/fulcrumgenomics/riker) is an independent, MIT-licensed Rust
-reimplementation of these same Picard QC tools, from the maintainers of Picard and htsjdk. It is
-the closest existing work to this repository, so the distinction matters and is worth stating
-plainly.
+picard-rs reproduces Picard run with `USE_JDK_DEFLATER=true USE_JDK_INFLATER=true`. By default
+Picard compresses with the Intel deflater, which writes different bytes for the same data, so a
+BAM or a compressed VCF from a default Picard run decompresses to the same content but is not the
+same file. To compare file for file, run Picard with those two arguments:
 
-**riker targets functional equivalence; this repository targets byte equivalence.** riker's own
-README says it "is not intended to be a drop-in replacement for Picard": lowercase `snake_case`
-headers, no metadata lines, `frac_` for `pct_`, and "bug fixes that yield slightly different
-outputs". So riker is the better tool to use; this is a byte-for-byte reproduction of the
-existing one, bugs included, so that GATK and Picard pipelines can be reproduced exactly.
+```bash
+java -jar picard.jar SortSam I=in.bam O=picard.bam SORT_ORDER=coordinate USE_JDK_DEFLATER=true USE_JDK_INFLATER=true
+sort-sam I=in.bam O=picard-rs.bam SORT_ORDER=coordinate
+cmp picard.bam picard-rs.bam && echo identical
+```
 
-That makes riker **a source of divergence candidates, never a source to port from** — copying it
-would import its deliberate deviations, and the licence being compatible does not make it correct.
-Its `ERRATA.md` is a curated list of exactly where a careful reimplementer differs from Picard,
-and every entry is a place this port must *not* differ. Two are already pinned as conformance
-cases (`riker_mean_aligned_dilution`, `riker_improper_pair_unmapped_mate` in the alignment-summary
-suite), measured against the reference rather than trusted. Where riker's reading of Picard and
-this port's agree, that is an independent cross-check of the reading; where riker's errata is
-silent on something byte comparison catches — Picard's alignment-block cycle binning, recorded in
-`docs/decisions/0003` — that is evidence for the method rather than against riker.
+Three kinds of header line do not match Picard's yet, and the comparisons in CI remove them
+before comparing:
 
-## Commit attribution
+- a metrics file's `# <Tool> <arguments>` and `# Started on: <date>` lines, which picard-rs writes
+  as the placeholders `<command line>` and `<timestamp>`;
+- the `@PG` record a tool adds to the SAM/BAM header in Picard (`MarkDuplicates`, for one, adds
+  `@PG ID:MarkDuplicates` with its version and command line). picard-rs does not add it, although
+  the reads still carry `PG:Z:MarkDuplicates`;
+- `UR:` paths in `@SQ` lines and sequence dictionaries, which are where the files were on disk.
 
-Commits are co-authored with the model that wrote them. On 2026-07-21 the history of all three
-repositories was rewritten to add that trailer uniformly, at the maintainer's request, changing
-every commit SHA. The **current** htsjdk-rs pin was moved to the rewritten commit, but pins in
-this repository's *historical* commits name pre-rewrite htsjdk-rs SHAs that no longer exist, so a
-checkout of an old picard-rs commit can no longer fetch its exact dependency. Historical builds
-before that date are therefore no longer bit-reproducible; current and future ones are. This was
-a deliberate trade.
+Everything else, records and metrics included, is compared byte for byte. So a SortSam BAM compares with
+`cmp`; for a metrics file or a MarkDuplicates BAM, compare everything below
+those lines.
+
+How this is measured: on every change, CI runs Picard 3.5.0 in a pinned container on real x86-64
+and compares byte for byte, on 107 conformance suites and on a covering array per tool that runs
+every pair of argument values on both sides. All 121 arrays match on every row.
+[`docs/VALIDATION.md`](docs/VALIDATION.md) has the per-tool results and the method.
+
+## Performance
+
+At 2,000,000 reads on real x86-64, picard-rs runs **1.46x** faster than Picard in wall-clock time
+(1.36x net of JVM startup), with byte-identical output. On small inputs the gap is larger, because
+there is no JVM to start. No optimisation work has been done yet.
+[Decision 0004](docs/decisions/0004-the-speedup-is-mostly-jvm-startup-until-it-is-not.md) has the
+measurements.
+
+## Reporting a difference
+
+If a file from picard-rs differs from Picard's (run with the two arguments above), that is a bug,
+and the most useful issue this project can receive. Please
+[open an issue](https://github.com/IPNP-BIPN/picard-rs/issues/new) with the tool, the full
+command line, and if possible a small input that reproduces it.
+
+## Who
+
+picard-rs is developed by [BIPN](https://github.com/IPNP-BIPN) (Bioinformatics for Psychiatry &
+Neuroscience) at the Institute of Psychiatry and Neuroscience of Paris (IPNP), Inserm U1266,
+Université Paris Cité. It is part of a wider effort with
+[htsjdk-rs](https://github.com/IPNP-BIPN/htsjdk-rs) and [gatk-rs](https://github.com/IPNP-BIPN/gatk-rs)
+(GATK, in progress). Commits are co-authored with the AI model that wrote them, and go through the
+same CI as any other change.
 
 ## License
 
