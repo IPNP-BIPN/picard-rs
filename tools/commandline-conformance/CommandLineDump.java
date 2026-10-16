@@ -95,7 +95,12 @@ public class CommandLineDump {
     static String run(final String tool, final String probe, final List<String> command) throws Exception {
         final Process process = new ProcessBuilder(command).start();
         process.getOutputStream().close();
-        final Future<byte[]> out = Executors.newSingleThreadExecutor().submit(() -> drain(process.getInputStream()));
+        // Both streams are drained at once, or a child that fills one pipe while the dump reads the
+        // other never exits. The executor is shut down here: its thread is not a daemon, and one
+        // left per probe keeps this JVM alive after the last row.
+        final ExecutorService drainer = Executors.newSingleThreadExecutor();
+        final Future<byte[]> out = drainer.submit(() -> drain(process.getInputStream()));
+        drainer.shutdown();
         final byte[] err = drain(process.getErrorStream());
         if (!process.waitFor(300, TimeUnit.SECONDS)) {
             process.destroyForcibly();
