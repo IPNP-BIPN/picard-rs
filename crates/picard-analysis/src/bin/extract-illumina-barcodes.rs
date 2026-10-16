@@ -17,6 +17,7 @@ use picard_analysis::metrics_cli::{refuse_validation, thrown, Args};
 const TOOL: &str = "ExtractIlluminaBarcodes";
 
 fn main() {
+    picard_analysis::command_line::check("ExtractIlluminaBarcodes");
     let args = Args::from_env(&[
         ("B", "BASECALLS_DIR"),
         ("L", "LANE"),

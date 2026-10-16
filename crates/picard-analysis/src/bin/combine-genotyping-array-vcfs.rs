@@ -132,6 +132,7 @@ fn merge(step: &[&VariantContext]) -> Result<VariantContext, String> {
 }
 
 fn main() {
+    picard_analysis::command_line::check("CombineGenotypingArrayVcfs");
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT")]);
     let inputs = unroll_paths(&args.collection("INPUT", &[])).unwrap_or_else(|e| thrown(&e));
     let output = args.required("OUTPUT");

@@ -24,6 +24,7 @@ regex = "1"
 # `JAVASCRIPT_FILE`: Picard runs the script on Nashorn, its bundled JavaScript engine; Boa is a
 # JavaScript engine in Rust, given the record as an object whose methods are the Java getters.
 boa_engine = "0.22"
-
-[dev-dependencies]
+# The command-line goldens every binary embeds, to refuse and to answer `--help` with Picard's own
+# text (`command_line`), are gzip.
 flate2 = { version = "1", default-features = false, features = ["zlib"] }
+

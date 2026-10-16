@@ -102,17 +102,17 @@ collect-insert-size-metrics I=marked.bam O=insert_size.txt H=insert_size.pdf
 The output files are the same. The command line around them has a few differences, listed here so
 none of them surprises you:
 
-- **There is no `--help`.** Use the Picard documentation for a tool's arguments.
-- **A misspelled or unknown argument is ignored, not refused.** Picard stops on `SORT_ORDR=...`;
-  picard-rs runs as if the argument were absent (and stops only if that leaves a required argument
-  missing). Check your spelling against the Picard documentation.
+- **Only `NAME=value` is read.** Picard's newer `--INPUT x` syntax is not: `-h`, `--help` and
+  `--version` work, and an argument the tool does not declare is refused, but a declared one written
+  that way is ignored.
 - **`COMPRESSION_LEVEL`, `MAX_RECORDS_IN_RAM`, `TMP_DIR`, `USE_JDK_DEFLATER`, `USE_JDK_INFLATER`,
   `VERBOSITY` and `QUIET` are accepted and have no effect.** Output is always written the way Picard
   writes it at its default compression level with the JDK deflater, and memory is not bounded by a
   record count.
 - **Headers**: metrics files carry placeholder command-line and date lines, and no tool adds its
   own `@PG` record (see [Getting the same bytes as Picard](#getting-the-same-bytes-as-picard)).
-- On an error, the tool prints `Error: ...` on stderr and exits with status 1.
+- An unknown or misspelled argument is refused with Picard's own message, usage and exit status.
+  Any other error prints `Error: ...` on stderr and exits with status 1.
 
 ## Tools
 

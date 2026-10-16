@@ -4,5 +4,6 @@
 //! `picard_analysis::wgs_cli` and `picard_analysis::wgs_walk`.
 
 fn main() {
+    picard_analysis::command_line::check("CollectWgsMetrics");
     picard_analysis::wgs_cli::main_for(picard_analysis::wgs_cli::Tool::Wgs);
 }

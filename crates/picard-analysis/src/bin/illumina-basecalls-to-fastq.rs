@@ -245,6 +245,7 @@ impl Settings {
 }
 
 fn main() {
+    picard_analysis::command_line::check("IlluminaBasecallsToFastq");
     let args = Args::from_env(&[
         ("B", "BASECALLS_DIR"),
         ("L", "LANE"),

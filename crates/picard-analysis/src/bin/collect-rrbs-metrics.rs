@@ -298,6 +298,7 @@ fn accept(
 }
 
 fn main() {
+    picard_analysis::command_line::check("CollectRrbsMetrics");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("M", "METRICS_FILE_PREFIX"),

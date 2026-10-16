@@ -82,6 +82,7 @@ fn tag_string(record: &BamRecord, name: &str) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::command_line::check("EstimateLibraryComplexity");
     // `READ_NAME_REGEX`, which a name has to match whole for its tile and position to be read.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
         std::env::args()

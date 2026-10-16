@@ -73,6 +73,7 @@ fn read_input(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::er
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::command_line::check("AddOATag");
     let mut t = std::time::Instant::now();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")

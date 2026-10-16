@@ -203,6 +203,7 @@ fn rows(
 }
 
 fn main() {
+    picard_analysis::command_line::check("CollectGcBiasMetrics");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

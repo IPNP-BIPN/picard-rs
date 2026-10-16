@@ -123,6 +123,7 @@ fn write_records(path: &str, header: &SamHeader, records: &[BamRecord]) -> Resul
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::command_line::check("RevertSam");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

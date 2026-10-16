@@ -35,6 +35,7 @@ fn samples_of(text: &str) -> Vec<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::command_line::check("MakeVcfSampleNameMap");
     let args: Vec<String> = std::env::args().collect();
     let mut inputs = args_all(&args, "INPUT=");
     inputs.extend(args_all(&args, "I="));

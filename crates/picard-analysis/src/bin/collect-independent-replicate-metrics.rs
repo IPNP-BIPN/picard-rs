@@ -385,6 +385,7 @@ fn byte_histogram(bin: &str, value: &str, counts: &BTreeMap<i64, f64>) -> Histog
 }
 
 fn main() {
+    picard_analysis::command_line::check("CollectIndependentReplicateMetrics");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

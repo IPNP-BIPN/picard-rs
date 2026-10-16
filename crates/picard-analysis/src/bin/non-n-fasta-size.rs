@@ -65,6 +65,7 @@ fn read_intervals(path: &str) -> Result<Vec<Interval>, String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::command_line::check("NonNFastaSize");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

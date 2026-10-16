@@ -7,5 +7,6 @@
 //! `RE_REVERSE`, trimmed, quality-trimmed and capped). The array compares every file a run leaves.
 
 fn main() {
+    picard_analysis::command_line::check("SamToFastq");
     picard_analysis::sam_to_fastq_full::main_with(false)
 }

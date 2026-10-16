@@ -886,6 +886,7 @@ impl CommandLine {
 }
 
 fn main() {
+    picard_analysis::command_line::check("CompareMetrics");
     let args = CommandLine::from_env();
     let inputs = args.all("INPUT");
     if inputs.len() != 2 {

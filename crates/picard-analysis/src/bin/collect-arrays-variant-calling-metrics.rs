@@ -305,6 +305,7 @@ fn parse_date(value: &str, key: &str, imaging: bool) -> String {
 }
 
 fn main() {
+    picard_analysis::command_line::check("CollectArraysVariantCallingMetrics");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

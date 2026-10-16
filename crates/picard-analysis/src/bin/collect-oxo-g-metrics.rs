@@ -132,6 +132,7 @@ fn library_of<'a>(header: &'a SamHeader, record: &htsjdk_bam::record::BamRecord)
 }
 
 fn main() {
+    picard_analysis::command_line::check("CollectOxoGMetrics");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),
