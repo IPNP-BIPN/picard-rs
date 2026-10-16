@@ -31,7 +31,7 @@
  *
  * Output:
  *
- *     decl\t<Tool>/<index>\t<name>\t<short>\t<collection>\t<element type>\t<optional>\t<default>
+ *     decl\t<Tool>/<index>\t<name>\t<short>\t<collection>\t<element type>\t<optional>\t<default>\t<collection class>
  *     positional\t<Tool>\t<element type>\t<min>\t<max>
  *     version\t<Tool>\t<getVersion()>
  *     argv\t<Tool>/<case>\t<the arguments, one per line>
@@ -55,6 +55,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.PrintStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -142,13 +143,15 @@ public class HeaderLinesDump {
     }
 
     record Option(String name, String shortName, boolean collection, Class<?> type,
-                  boolean optional, int minElements, String defaultValue, Set<String> mutex) { }
+                  boolean optional, int minElements, String defaultValue, Set<String> mutex,
+                  String collectionClass) { }
 
     @SuppressWarnings("unchecked")
     static List<Option> options(final CommandLineParser parser) throws Exception {
         final List<Option> out = new ArrayList<>();
         for (final Object def : (List<?>) read(parser, "optionDefinitions")) {
             final boolean collection = (Boolean) read(def, "isCollection");
+            final Object value = ((Field) read(def, "field")).get(read(def, "parent"));
             out.add(new Option(
                     (String) read(def, "name"),
                     (String) read(def, "shortName"),
@@ -157,7 +160,8 @@ public class HeaderLinesDump {
                     (Boolean) read(def, "optional"),
                     (Integer) read(def, "minElements"),
                     (String) read(def, "defaultValue"),
-                    (Set<String>) read(def, "mutuallyExclusive")));
+                    (Set<String>) read(def, "mutuallyExclusive"),
+                    collection && value != null ? value.getClass().getName() : ""));
         }
         return out;
     }
@@ -167,6 +171,47 @@ public class HeaderLinesDump {
         final CommandLineProgram program = tool(name);
         final String[] args = argv.toArray(new String[0]);
         final CommandLineParser parser = program.getCommandLineParserForArgs(args);
+        // Every Picard run is a fresh JVM, and this is one JVM for all of them: a default that is
+        // a shared static object (AdapterUtility.DEFAULT_ADAPTER_SEQUENCE, which the legacy parser
+        // appends to) or a static field (CollectArraysVariantCallingMetrics.CALL_RATE_PF_THRESHOLD)
+        // would carry one parse's values into the next. Both are put back after the parse.
+        final List<Runnable> restore = new ArrayList<>();
+        for (final Object def : (List<?>) read(parser, "optionDefinitions")) {
+            final Field field = (Field) read(def, "field");
+            final Object parent = read(def, "parent");
+            field.setAccessible(true);
+            final Object value = field.get(parent);
+            if (value instanceof Collection<?> c) {
+                final List<Object> copy = new ArrayList<>(c);
+                restore.add(() -> {
+                    try {
+                        @SuppressWarnings("unchecked") final Collection<Object> target = (Collection<Object>) c;
+                        target.clear();
+                        target.addAll(copy);
+                    } catch (final UnsupportedOperationException e) {
+                        // immutable, so nothing could have changed it
+                    }
+                });
+            }
+            if (Modifier.isStatic(field.getModifiers())) {
+                restore.add(() -> {
+                    try {
+                        field.set(null, value);
+                    } catch (final IllegalAccessException e) {
+                        throw new IllegalStateException(e);
+                    }
+                });
+            }
+        }
+        try {
+            return parseOnce(name, argv, parser, args);
+        } finally {
+            restore.forEach(Runnable::run);
+        }
+    }
+
+    static String parseOnce(final String name, final List<String> argv, final CommandLineParser parser,
+                            final String[] args) {
         final ByteArrayOutputStream messages = new ByteArrayOutputStream();
         final PrintStream sink = new PrintStream(messages);
         boolean ok;
@@ -190,6 +235,11 @@ public class HeaderLinesDump {
     static List<String> values(final Option o, final int flavour, final boolean plain) {
         final Class<?> t = o.type();
         final String lower = o.name().toLowerCase(Locale.ROOT);
+        if (t.isEnum() && o.collectionClass().equals("java.util.HashSet")) {
+            // An enum's hashCode is its identity hash, so a HashSet of two constants iterates in
+            // an order that changes from one JVM to the next: one constant, the default's own.
+            return List.of(((Enum<?>) t.getEnumConstants()[0]).name());
+        }
         if (t.isEnum()) {
             final Object[] constants = t.getEnumConstants();
             final String first = ((Enum<?>) constants[0]).name();
@@ -258,7 +308,7 @@ public class HeaderLinesDump {
             final Option o = options.get(i);
             emit("decl", name + "/" + i, String.join("\t", o.name(), o.shortName(),
                     String.valueOf(o.collection()), o.type().getName(), String.valueOf(o.optional()),
-                    o.defaultValue()));
+                    o.defaultValue(), o.collectionClass()));
         }
         final Field positional = (Field) read(parser, "positionalArguments");
         if (positional != null) {
