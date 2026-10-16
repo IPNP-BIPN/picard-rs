@@ -16,7 +16,7 @@ Three steps, and the third is the one that produces evidence:
 
     python3 tools/fuzz/run_fuzz.py --tool CollectQualityYieldMetrics --iterations 200
     python3 tools/fuzz/run_fuzz.py --tool CollectAlignmentSummaryMetrics --iterations 200 \\
-        --port target/release/collect-alignment-summary-metrics
+        --port target/release/CollectAlignmentSummaryMetrics
 
 Findings are written under tools/fuzz/findings/ and are not committed: they are produced in an
 emulated container here, and the bit-identity contract accepts results from real x86-64 CI

@@ -72,34 +72,11 @@ impl Program {
         }
     }
 
-    /// The port that runs it, and the tool name that port writes into its metrics headers.
-    fn port(self) -> (&'static str, &'static str) {
+    /// The port that runs it, whose name is also the tool name it writes into its metrics headers.
+    fn port(self) -> &'static str {
         match self {
-            Program::CollectAlignmentSummaryMetrics => (
-                "collect-alignment-summary-metrics",
-                "CollectAlignmentSummaryMetrics",
-            ),
-            Program::CollectInsertSizeMetrics => {
-                ("collect-insert-size-metrics", "CollectInsertSizeMetrics")
-            }
-            Program::QualityScoreDistribution => {
-                ("quality-score-distribution", "QualityScoreDistribution")
-            }
-            Program::MeanQualityByCycle => ("mean-quality-by-cycle", "MeanQualityByCycle"),
-            Program::CollectBaseDistributionByCycle => (
-                "collect-base-distribution-by-cycle",
-                "CollectBaseDistributionByCycle",
-            ),
-            Program::CollectGcBiasMetrics => ("collect-gc-bias-metrics", "CollectGcBiasMetrics"),
-            Program::RnaSeqMetrics => ("collect-rna-seq-metrics", "CollectRnaSeqMetrics"),
-            Program::CollectSequencingArtifactMetrics => (
-                "collect-sequencing-artifact-metrics",
-                "CollectSequencingArtifactMetrics",
-            ),
-            Program::CollectQualityYieldMetrics => (
-                "collect-quality-yield-metrics",
-                "CollectQualityYieldMetrics",
-            ),
+            Program::RnaSeqMetrics => "CollectRnaSeqMetrics",
+            other => other.name(),
         }
     }
 
@@ -443,7 +420,7 @@ fn main() {
         stop_after,
     };
     for program in &programs {
-        let (binary, tool) = program.port();
+        let binary = program.port();
         let (mut program_args, outputs) = instance(*program, &shared);
         // The program's own parser takes its extra arguments over what this tool set, except the
         // four `makeItSo` reads from this tool rather than from the program.
@@ -484,7 +461,7 @@ fn main() {
             std::process::exit(result.status.code().unwrap_or(1));
         }
         // `setDefaultHeaders(getDefaultHeaders())`: this tool's command line heads every file.
-        let from = format!("\n# {tool} <command line>\n");
+        let from = format!("\n# {binary} <command line>\n");
         let to = format!("\n# {TOOL} <command line>\n");
         for path in outputs {
             if let Ok(text) = std::fs::read_to_string(&path) {

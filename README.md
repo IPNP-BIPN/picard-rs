@@ -41,16 +41,16 @@ export PATH="$PWD/target/release:$PATH"
 
 ## Running a tool
 
-Every Picard tool is its own binary, named in kebab-case: `SortSam` is `sort-sam`,
-`CollectAlignmentSummaryMetrics` is `collect-alignment-summary-metrics`. Arguments are Picard's,
-written the way Picard takes them, `NAME=value`, with the long or the short name:
+Every Picard tool is its own binary, named exactly as in Picard: `MarkDuplicates`, `SortSam`,
+`CollectAlignmentSummaryMetrics`. Arguments are Picard's, written the way Picard takes them,
+`NAME=value`, with the long or the short name:
 
 ```bash
 # Picard
 java -jar picard.jar MarkDuplicates I=sorted.bam O=marked.bam M=dup_metrics.txt
 
 # picard-rs
-mark-duplicates I=sorted.bam O=marked.bam M=dup_metrics.txt
+MarkDuplicates I=sorted.bam O=marked.bam M=dup_metrics.txt
 ```
 
 The records, the metrics and the rest of the header in `marked.bam` and `dup_metrics.txt` come
@@ -65,16 +65,7 @@ If your scripts call `picard <Tool> ...` (the Bioconda wrapper's form), this she
 them the same command with picard-rs underneath. Put it in your `~/.bashrc` or `~/.zshrc`:
 
 ```bash
-picard() {
-  local tool="$1"; shift
-  case "$tool" in
-    CompareSAMs) tool=compare-sams ;;
-    ConvertSequencingArtifactToOxoG) tool=convert-sequencing-artifact-to-oxog ;;
-    SetNmAndUqTags) tool=set-nm-md-and-uq-tags ;;
-    *) tool=$(printf '%s' "$tool" | sed -E 's/([a-z0-9])([A-Z])/\1-\2/g; s/([A-Z])([A-Z][a-z])/\1-\2/g' | tr '[:upper:]' '[:lower:]') ;;
-  esac
-  "$tool" "$@"
-}
+picard() { "$@"; }
 ```
 
 ```bash
@@ -82,19 +73,14 @@ picard SortSam I=input.bam O=sorted.bam SORT_ORDER=coordinate
 picard CollectInsertSizeMetrics I=sorted.bam O=insert_size.txt H=insert_size.pdf
 ```
 
-Three names are not the mechanical kebab-case, and the function handles them: `CompareSAMs` is
-`compare-sams`, `ConvertSequencingArtifactToOxoG` is `convert-sequencing-artifact-to-oxog`, and
-the deprecated `SetNmAndUqTags` runs as `set-nm-md-and-uq-tags`, which is what Picard's subclass
-does.
-
 ### A typical run
 
 ```bash
-add-or-replace-read-groups I=aligned.bam O=rg.bam RGID=1 RGLB=lib1 RGPL=ILLUMINA RGPU=unit1 RGSM=sample1
-sort-sam I=rg.bam O=sorted.bam SORT_ORDER=coordinate CREATE_INDEX=true
-mark-duplicates I=sorted.bam O=marked.bam M=dup_metrics.txt CREATE_INDEX=true
-collect-alignment-summary-metrics I=marked.bam O=alignment_summary.txt R=reference.fasta
-collect-insert-size-metrics I=marked.bam O=insert_size.txt H=insert_size.pdf
+AddOrReplaceReadGroups I=aligned.bam O=rg.bam RGID=1 RGLB=lib1 RGPL=ILLUMINA RGPU=unit1 RGSM=sample1
+SortSam I=rg.bam O=sorted.bam SORT_ORDER=coordinate CREATE_INDEX=true
+MarkDuplicates I=sorted.bam O=marked.bam M=dup_metrics.txt CREATE_INDEX=true
+CollectAlignmentSummaryMetrics I=marked.bam O=alignment_summary.txt R=reference.fasta
+CollectInsertSizeMetrics I=marked.bam O=insert_size.txt H=insert_size.pdf
 ```
 
 ### What differs from running Picard
@@ -140,7 +126,7 @@ same file. To compare file for file, run Picard with those two arguments:
 
 ```bash
 java -jar picard.jar SortSam I=in.bam O=picard.bam SORT_ORDER=coordinate USE_JDK_DEFLATER=true USE_JDK_INFLATER=true
-sort-sam I=in.bam O=picard-rs.bam SORT_ORDER=coordinate
+SortSam I=in.bam O=picard-rs.bam SORT_ORDER=coordinate
 cmp picard.bam picard-rs.bam && echo identical
 ```
 

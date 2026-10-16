@@ -27,7 +27,7 @@ fn arg(args: &[String], key: &str) -> Option<String> {
         .find_map(|a| a.strip_prefix(key).map(str::to_string))
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

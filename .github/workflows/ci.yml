@@ -76,7 +76,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
 
-      - run: cargo build --release --bin collect-alignment-summary-metrics --bin add-oa-tag
+      - run: cargo build --release --bin CollectAlignmentSummaryMetrics --bin AddOATag
 
       - name: Build the fixture corpus
         run: |
@@ -94,7 +94,7 @@ jobs:
         # where a locale-sensitive formatter would write "0,333333".
         run: |
           set -eux
-          B=target/release/collect-alignment-summary-metrics
+          B=target/release/CollectAlignmentSummaryMetrics
           F=target/fixtures
           $B I=$F/small.bam O=/tmp/run1.txt R=$F/ref.fasta
           $B I=$F/small.bam O=/tmp/run2.txt R=$F/ref.fasta
@@ -122,7 +122,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
 
-      - run: cargo build --release --bin collect-alignment-summary-metrics
+      - run: cargo build --release --bin CollectAlignmentSummaryMetrics
 
       - name: Fuzz, seeded from the covering array, and replay against the port
         # The covering arrays cover interactions between arguments; they say nothing about which
@@ -133,7 +133,7 @@ jobs:
         run: |
           python3 tools/fuzz/run_fuzz.py --tool CollectQualityYieldMetrics --iterations 60
           python3 tools/fuzz/run_fuzz.py --tool CollectAlignmentSummaryMetrics --iterations 60 \
-            --port target/release/collect-alignment-summary-metrics
+            --port target/release/CollectAlignmentSummaryMetrics
 
       - name: Publish the findings
         # Findings are evidence, not goldens: they say what the reference did and where the port
@@ -161,7 +161,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
 
-      - run: cargo build --release --bin add-oa-tag --bin collect-alignment-summary-metrics --bin collect-quality-yield-metrics --bin sort-sam --bin clean-sam --bin sam-format-converter --bin bed-to-interval-list --bin interval-list-to-bed --bin normalize-fasta --bin add-or-replace-read-groups --bin merge-sam-files --bin replace-sam-header --bin calculate-read-group-checksum --bin non-n-fasta-size --bin scatter-intervals-by-ns --bin view-sam --bin bam-index-stats --bin reorder-sam --bin create-sequence-dictionary --bin downsample-sam --bin fix-mate-information --bin mean-quality-by-cycle --bin collect-base-distribution-by-cycle --bin quality-score-distribution --bin set-nm-md-and-uq-tags --bin revert-sam --bin extract-sequences --bin interval-list-tools --bin position-based-downsample-sam --bin validate-sam-file --bin filter-sam-reads --bin mark-duplicates --bin fastq-to-sam --bin split-sam-by-number-of-reads --bin split-sam-by-library --bin make-vcf-sample-name-map --bin sam-to-fastq --bin collect-duplicate-metrics --bin mark-duplicates-with-mate-cigar --bin simple-mark-duplicates-with-mate-cigar --bin check-duplicate-marking --bin accumulate-quality-yield-metrics --bin genotype-concordance --bin estimate-library-complexity --bin collect-umi-prevalence-metrics --bin revert-original-base-qualities-and-add-mate-cigar --bin collect-variant-calling-metrics --bin collect-jumping-library-metrics --bin mark-illumina-adapters --bin sam-to-fastq-with-tags --bin find-mendelian-violations --bin lift-over-interval-list --bin compare-sams --bin collect-insert-size-metrics --bin build-bam-index --bin add-comments-to-bam --bin gather-bam-files --bin lift-over-haplotype-map --bin make-sites-only-vcf --bin rename-sample-in-vcf --bin vcf-to-interval-list --bin sort-vcf --bin update-vcf-sequence-dictionary --bin merge-vcfs --bin gather-vcfs --bin split-vcfs --bin vcf-format-converter --bin fix-vcf-header --bin collect-wgs-metrics --bin collect-raw-wgs-metrics --bin collect-wgs-metrics-with-non-zero-coverage --bin collect-hs-metrics --bin collect-targeted-pcr-metrics --bin collect-sequencing-artifact-metrics --bin convert-sequencing-artifact-to-oxog --bin collect-oxo-g-metrics --bin collect-gc-bias-metrics --bin collect-rrbs-metrics --bin collect-rna-seq-metrics --bin collect-independent-replicate-metrics --bin liftover-vcf --bin collect-multiple-metrics --bin sort-gff --bin merge-ped-into-vcf --bin bam-to-bfq --bin compare-metrics --bin merge-bam-alignment --bin collect-sam-error-metrics --bin accumulate-variant-calling-metrics --bin bait-designer --bin collect-quality-yield-metrics-flow --bin collect-quality-yield-metrics-snvq --bin fifo-buffer --bin umi-aware-mark-duplicates-with-mate-cigar --bin convert-haplotype-database-to-vcf --bin cluster-crosscheck-metrics --bin set-nm-md-and-uq-tags --bin check-terminator-block --bin filter-vcf --bin check-fingerprint --bin crosscheck-fingerprints --bin crosscheck-read-group-fingerprints --bin calculate-fingerprint-metrics --bin extract-fingerprint --bin identify-contaminant --bin create-baf-regress-metrics-file --bin create-verify-id-intensity-contamination-metrics-file --bin bpm-to-normalization-manifest-csv --bin compare-gtc-files --bin gtc-to-vcf --bin vcf-to-adpc --bin combine-genotyping-array-vcfs --bin collect-arrays-variant-calling-metrics --bin create-extended-illumina-manifest --bin check-illumina-directory --bin collect-illumina-lane-metrics --bin collect-hi-seq-x-pf-fail-metrics --bin collect-illumina-basecalling-metrics --bin extract-illumina-barcodes --bin illumina-basecalls-to-fastq --bin illumina-basecalls-to-sam
+      - run: cargo build --release --bin AddOATag --bin CollectAlignmentSummaryMetrics --bin CollectQualityYieldMetrics --bin SortSam --bin CleanSam --bin SamFormatConverter --bin BedToIntervalList --bin IntervalListToBed --bin NormalizeFasta --bin AddOrReplaceReadGroups --bin MergeSamFiles --bin ReplaceSamHeader --bin CalculateReadGroupChecksum --bin NonNFastaSize --bin ScatterIntervalsByNs --bin ViewSam --bin BamIndexStats --bin ReorderSam --bin CreateSequenceDictionary --bin DownsampleSam --bin FixMateInformation --bin MeanQualityByCycle --bin CollectBaseDistributionByCycle --bin QualityScoreDistribution --bin SetNmMdAndUqTags --bin RevertSam --bin ExtractSequences --bin IntervalListTools --bin PositionBasedDownsampleSam --bin ValidateSamFile --bin FilterSamReads --bin MarkDuplicates --bin FastqToSam --bin SplitSamByNumberOfReads --bin SplitSamByLibrary --bin MakeVcfSampleNameMap --bin SamToFastq --bin CollectDuplicateMetrics --bin MarkDuplicatesWithMateCigar --bin SimpleMarkDuplicatesWithMateCigar --bin CheckDuplicateMarking --bin AccumulateQualityYieldMetrics --bin GenotypeConcordance --bin EstimateLibraryComplexity --bin CollectUmiPrevalenceMetrics --bin RevertOriginalBaseQualitiesAndAddMateCigar --bin CollectVariantCallingMetrics --bin CollectJumpingLibraryMetrics --bin MarkIlluminaAdapters --bin SamToFastqWithTags --bin FindMendelianViolations --bin LiftOverIntervalList --bin CompareSAMs --bin CollectInsertSizeMetrics --bin BuildBamIndex --bin AddCommentsToBam --bin GatherBamFiles --bin LiftOverHaplotypeMap --bin MakeSitesOnlyVcf --bin RenameSampleInVcf --bin VcfToIntervalList --bin SortVcf --bin UpdateVcfSequenceDictionary --bin MergeVcfs --bin GatherVcfs --bin SplitVcfs --bin VcfFormatConverter --bin FixVcfHeader --bin CollectWgsMetrics --bin CollectRawWgsMetrics --bin CollectWgsMetricsWithNonZeroCoverage --bin CollectHsMetrics --bin CollectTargetedPcrMetrics --bin CollectSequencingArtifactMetrics --bin ConvertSequencingArtifactToOxoG --bin CollectOxoGMetrics --bin CollectGcBiasMetrics --bin CollectRrbsMetrics --bin CollectRnaSeqMetrics --bin CollectIndependentReplicateMetrics --bin LiftoverVcf --bin CollectMultipleMetrics --bin SortGff --bin MergePedIntoVcf --bin BamToBfq --bin CompareMetrics --bin MergeBamAlignment --bin CollectSamErrorMetrics --bin AccumulateVariantCallingMetrics --bin BaitDesigner --bin CollectQualityYieldMetricsFlow --bin CollectQualityYieldMetricsSNVQ --bin FifoBuffer --bin UmiAwareMarkDuplicatesWithMateCigar --bin ConvertHaplotypeDatabaseToVcf --bin ClusterCrosscheckMetrics --bin SetNmAndUqTags --bin CheckTerminatorBlock --bin FilterVcf --bin CheckFingerprint --bin CrosscheckFingerprints --bin CrosscheckReadGroupFingerprints --bin CalculateFingerprintMetrics --bin ExtractFingerprint --bin IdentifyContaminant --bin CreateBafRegressMetricsFile --bin CreateVerifyIDIntensityContaminationMetricsFile --bin BpmToNormalizationManifestCsv --bin CompareGtcFiles --bin GtcToVcf --bin VcfToAdpc --bin CombineGenotypingArrayVcfs --bin CollectArraysVariantCallingMetrics --bin CreateExtendedIlluminaManifest --bin CheckIlluminaDirectory --bin CollectIlluminaLaneMetrics --bin CollectHiSeqXPfFailMetrics --bin CollectIlluminaBasecallingMetrics --bin ExtractIlluminaBarcodes --bin IlluminaBasecallsToFastq --bin IlluminaBasecallsToSam
 
       - name: Build the corpus once, for every array to share
         # `MakeFixtures` is deterministic, so one build is every array's corpus. Building it per
@@ -182,487 +182,487 @@ jobs:
         run: |
           python3 tools/coverage/run_array.py --tool AddOATag --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/add-oa-tag \
+            --port target/release/AddOATag \
             | tee /tmp/AddOATag.log
           python3 tools/coverage/run_array.py --tool CollectAlignmentSummaryMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-alignment-summary-metrics \
+            --port target/release/CollectAlignmentSummaryMetrics \
             | tee /tmp/CollectAlignmentSummaryMetrics.log
           python3 tools/coverage/run_array.py --tool CollectQualityYieldMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-quality-yield-metrics \
+            --port target/release/CollectQualityYieldMetrics \
             | tee /tmp/CollectQualityYieldMetrics.log
           python3 tools/coverage/run_array.py --tool SortSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/sort-sam \
+            --port target/release/SortSam \
             | tee /tmp/SortSam.log
           python3 tools/coverage/run_array.py --tool CleanSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/clean-sam \
+            --port target/release/CleanSam \
             | tee /tmp/CleanSam.log
           python3 tools/coverage/run_array.py --tool SamFormatConverter --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/sam-format-converter \
+            --port target/release/SamFormatConverter \
             | tee /tmp/SamFormatConverter.log
           python3 tools/coverage/run_array.py --tool BedToIntervalList --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/bed-to-interval-list \
+            --port target/release/BedToIntervalList \
             | tee /tmp/BedToIntervalList.log
           python3 tools/coverage/run_array.py --tool IntervalListToBed --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/interval-list-to-bed \
+            --port target/release/IntervalListToBed \
             | tee /tmp/IntervalListToBed.log
           python3 tools/coverage/run_array.py --tool NormalizeFasta --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/normalize-fasta \
+            --port target/release/NormalizeFasta \
             | tee /tmp/NormalizeFasta.log
           python3 tools/coverage/run_array.py --tool AddOrReplaceReadGroups --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/add-or-replace-read-groups \
+            --port target/release/AddOrReplaceReadGroups \
             | tee /tmp/AddOrReplaceReadGroups.log
           python3 tools/coverage/run_array.py --tool MergeSamFiles --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/merge-sam-files \
+            --port target/release/MergeSamFiles \
             | tee /tmp/MergeSamFiles.log
           python3 tools/coverage/run_array.py --tool ReplaceSamHeader --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/replace-sam-header \
+            --port target/release/ReplaceSamHeader \
             | tee /tmp/ReplaceSamHeader.log
           python3 tools/coverage/run_array.py --tool CalculateReadGroupChecksum --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/calculate-read-group-checksum \
+            --port target/release/CalculateReadGroupChecksum \
             | tee /tmp/CalculateReadGroupChecksum.log
           python3 tools/coverage/run_array.py --tool NonNFastaSize --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/non-n-fasta-size \
+            --port target/release/NonNFastaSize \
             | tee /tmp/NonNFastaSize.log
           python3 tools/coverage/run_array.py --tool ScatterIntervalsByNs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/scatter-intervals-by-ns \
+            --port target/release/ScatterIntervalsByNs \
             | tee /tmp/ScatterIntervalsByNs.log
           python3 tools/coverage/run_array.py --tool ViewSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/view-sam --stdout \
+            --port target/release/ViewSam --stdout \
             | tee /tmp/ViewSam.log
           python3 tools/coverage/run_array.py --tool BamIndexStats --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/bam-index-stats --stdout \
+            --port target/release/BamIndexStats --stdout \
             | tee /tmp/BamIndexStats.log
           python3 tools/coverage/run_array.py --tool ReorderSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/reorder-sam \
+            --port target/release/ReorderSam \
             | tee /tmp/ReorderSam.log
           python3 tools/coverage/run_array.py --tool CreateSequenceDictionary --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/create-sequence-dictionary \
+            --port target/release/CreateSequenceDictionary \
             | tee /tmp/CreateSequenceDictionary.log
           python3 tools/coverage/run_array.py --tool DownsampleSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/downsample-sam --strip-program-records --output-name output.txt,metrics.txt \
+            --port target/release/DownsampleSam --strip-program-records --output-name output.txt,metrics.txt \
             | tee /tmp/DownsampleSam.log
           python3 tools/coverage/run_array.py --tool FixMateInformation --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/fix-mate-information \
+            --port target/release/FixMateInformation \
             | tee /tmp/FixMateInformation.log
           python3 tools/coverage/run_array.py --tool MeanQualityByCycle --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/mean-quality-by-cycle \
+            --port target/release/MeanQualityByCycle \
             | tee /tmp/MeanQualityByCycle.log
           python3 tools/coverage/run_array.py --tool CollectBaseDistributionByCycle --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-base-distribution-by-cycle \
+            --port target/release/CollectBaseDistributionByCycle \
             | tee /tmp/CollectBaseDistributionByCycle.log
           python3 tools/coverage/run_array.py --tool QualityScoreDistribution --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/quality-score-distribution \
+            --port target/release/QualityScoreDistribution \
             | tee /tmp/QualityScoreDistribution.log
           python3 tools/coverage/run_array.py --tool SetNmMdAndUqTags --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/set-nm-md-and-uq-tags \
+            --port target/release/SetNmMdAndUqTags \
             | tee /tmp/SetNmMdAndUqTags.log
           python3 tools/coverage/run_array.py --tool RevertSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/revert-sam --output-name output.txt,rg1.bam,rg2.bam,rg1.sam,rg2.sam,rg1.cram,rg2.cram,mapped_rg1.bam,mapped_rg2.sam \
+            --port target/release/RevertSam --output-name output.txt,rg1.bam,rg2.bam,rg1.sam,rg2.sam,rg1.cram,rg2.cram,mapped_rg1.bam,mapped_rg2.sam \
             | tee /tmp/RevertSam.log
           python3 tools/coverage/run_array.py --tool ExtractSequences --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/extract-sequences \
+            --port target/release/ExtractSequences \
             | tee /tmp/ExtractSequences.log
           python3 tools/coverage/run_array.py --tool IntervalListTools --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/interval-list-tools --strip-program-records --output-name @all \
+            --port target/release/IntervalListTools --strip-program-records --output-name @all \
             | tee /tmp/IntervalListTools.log
           python3 tools/coverage/run_array.py --tool PositionBasedDownsampleSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/position-based-downsample-sam --strip-program-records \
+            --port target/release/PositionBasedDownsampleSam --strip-program-records \
             | tee /tmp/PositionBasedDownsampleSam.log
           python3 tools/coverage/run_array.py --tool ValidateSamFile --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/validate-sam-file --exit-code-is-a-result \
+            --port target/release/ValidateSamFile --exit-code-is-a-result \
             | tee /tmp/ValidateSamFile.log
           python3 tools/coverage/run_array.py --tool FilterSamReads --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/filter-sam-reads \
+            --port target/release/FilterSamReads \
             | tee /tmp/FilterSamReads.log
           python3 tools/coverage/run_array.py --tool MarkDuplicates --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/mark-duplicates --strip-program-records --output-name output.txt,metrics.txt,metrics_b.txt \
+            --port target/release/MarkDuplicates --strip-program-records --output-name output.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/MarkDuplicates.log
           python3 tools/coverage/run_array.py --tool FastqToSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/fastq-to-sam \
+            --port target/release/FastqToSam \
             | tee /tmp/FastqToSam.log
           python3 tools/coverage/run_array.py --tool SplitSamByNumberOfReads --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/split-sam-by-number-of-reads --output-name shard_0001.bam,shard_0002.bam,shard_0003.bam,shard_0004.bam,shard_0005.bam,shard_0001.sam,shard_0002.sam,shard_0003.sam,shard_0004.sam,shard_0005.sam,part_0001.bam,part_0002.bam,part_0003.bam,part_0004.bam,part_0005.bam,part_0001.sam,part_0002.sam,part_0003.sam,part_0004.sam,part_0005.sam \
+            --port target/release/SplitSamByNumberOfReads --output-name shard_0001.bam,shard_0002.bam,shard_0003.bam,shard_0004.bam,shard_0005.bam,shard_0001.sam,shard_0002.sam,shard_0003.sam,shard_0004.sam,shard_0005.sam,part_0001.bam,part_0002.bam,part_0003.bam,part_0004.bam,part_0005.bam,part_0001.sam,part_0002.sam,part_0003.sam,part_0004.sam,part_0005.sam \
             | tee /tmp/SplitSamByNumberOfReads.log
           python3 tools/coverage/run_array.py --tool SplitSamByLibrary --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/split-sam-by-library --output-name lib1.bam \
+            --port target/release/SplitSamByLibrary --output-name lib1.bam \
             | tee /tmp/SplitSamByLibrary.log
           python3 tools/coverage/run_array.py --tool MakeVcfSampleNameMap --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/make-vcf-sample-name-map \
+            --port target/release/MakeVcfSampleNameMap \
             | tee /tmp/MakeVcfSampleNameMap.log
           python3 tools/coverage/run_array.py --tool SamToFastq --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/sam-to-fastq --output-name @all \
+            --port target/release/SamToFastq --output-name @all \
             | tee /tmp/SamToFastq.log
           python3 tools/coverage/run_array.py --tool CollectDuplicateMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-duplicate-metrics --output-name metrics.txt,metrics_b.txt \
+            --port target/release/CollectDuplicateMetrics --output-name metrics.txt,metrics_b.txt \
             | tee /tmp/CollectDuplicateMetrics.log
           python3 tools/coverage/run_array.py --tool MarkDuplicatesWithMateCigar --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/mark-duplicates-with-mate-cigar --strip-program-records --output-name output.txt,metrics.txt,metrics_b.txt \
+            --port target/release/MarkDuplicatesWithMateCigar --strip-program-records --output-name output.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/MarkDuplicatesWithMateCigar.log
           python3 tools/coverage/run_array.py --tool SimpleMarkDuplicatesWithMateCigar --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/simple-mark-duplicates-with-mate-cigar --strip-program-records --output-name output.txt,metrics.txt,metrics_b.txt \
+            --port target/release/SimpleMarkDuplicatesWithMateCigar --strip-program-records --output-name output.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/SimpleMarkDuplicatesWithMateCigar.log
           python3 tools/coverage/run_array.py --tool CheckDuplicateMarking --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/check-duplicate-marking --exit-code-is-a-result \
+            --port target/release/CheckDuplicateMarking --exit-code-is-a-result \
             | tee /tmp/CheckDuplicateMarking.log
           python3 tools/coverage/run_array.py --tool AccumulateQualityYieldMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/accumulate-quality-yield-metrics \
+            --port target/release/AccumulateQualityYieldMetrics \
             | tee /tmp/AccumulateQualityYieldMetrics.log
           python3 tools/coverage/run_array.py --tool GenotypeConcordance --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/genotype-concordance --output-name output.txt.genotype_concordance_summary_metrics,output.txt.genotype_concordance.vcf.gz \
+            --port target/release/GenotypeConcordance --output-name output.txt.genotype_concordance_summary_metrics,output.txt.genotype_concordance.vcf.gz \
             | tee /tmp/GenotypeConcordance.log
           python3 tools/coverage/run_array.py --tool EstimateLibraryComplexity --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/estimate-library-complexity \
+            --port target/release/EstimateLibraryComplexity \
             | tee /tmp/EstimateLibraryComplexity.log
           python3 tools/coverage/run_array.py --tool CollectUmiPrevalenceMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-umi-prevalence-metrics \
+            --port target/release/CollectUmiPrevalenceMetrics \
             | tee /tmp/CollectUmiPrevalenceMetrics.log
           python3 tools/coverage/run_array.py --tool RevertOriginalBaseQualitiesAndAddMateCigar --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/revert-original-base-qualities-and-add-mate-cigar \
+            --port target/release/RevertOriginalBaseQualitiesAndAddMateCigar \
             | tee /tmp/RevertOriginalBaseQualitiesAndAddMateCigar.log
           python3 tools/coverage/run_array.py --tool CollectVariantCallingMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-variant-calling-metrics --output-name output.txt.variant_calling_summary_metrics \
+            --port target/release/CollectVariantCallingMetrics --output-name output.txt.variant_calling_summary_metrics \
             | tee /tmp/CollectVariantCallingMetrics.log
           python3 tools/coverage/run_array.py --tool CollectJumpingLibraryMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-jumping-library-metrics \
+            --port target/release/CollectJumpingLibraryMetrics \
             | tee /tmp/CollectJumpingLibraryMetrics.log
           python3 tools/coverage/run_array.py --tool MarkIlluminaAdapters --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/mark-illumina-adapters --output-name output.txt,metrics.txt,metrics_b.txt \
+            --port target/release/MarkIlluminaAdapters --output-name output.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/MarkIlluminaAdapters.log
           python3 tools/coverage/run_array.py --tool SamToFastqWithTags --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/sam-to-fastq-with-tags --output-name @all \
+            --port target/release/SamToFastqWithTags --output-name @all \
             | tee /tmp/SamToFastqWithTags.log
           python3 tools/coverage/run_array.py --tool FindMendelianViolations --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/find-mendelian-violations --output-name @all \
+            --port target/release/FindMendelianViolations --output-name @all \
             | tee /tmp/FindMendelianViolations.log
           python3 tools/coverage/run_array.py --tool LiftOverIntervalList --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/lift-over-interval-list --exit-code-is-a-result --output-name output.txt,reject.interval_list \
+            --port target/release/LiftOverIntervalList --exit-code-is-a-result --output-name output.txt,reject.interval_list \
             | tee /tmp/LiftOverIntervalList.log
           python3 tools/coverage/run_array.py --tool CompareSAMs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/compare-sams --exit-code-is-a-result \
+            --port target/release/CompareSAMs --exit-code-is-a-result \
             | tee /tmp/CompareSAMs.log
           python3 tools/coverage/run_array.py --tool CollectInsertSizeMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-insert-size-metrics \
+            --port target/release/CollectInsertSizeMetrics \
             | tee /tmp/CollectInsertSizeMetrics.log
           python3 tools/coverage/run_array.py --tool BuildBamIndex --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/build-bam-index \
+            --port target/release/BuildBamIndex \
             | tee /tmp/BuildBamIndex.log
           python3 tools/coverage/run_array.py --tool AddCommentsToBam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/add-comments-to-bam \
+            --port target/release/AddCommentsToBam \
             | tee /tmp/AddCommentsToBam.log
           python3 tools/coverage/run_array.py --tool GatherBamFiles --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/gather-bam-files \
+            --port target/release/GatherBamFiles \
             | tee /tmp/GatherBamFiles.log
           python3 tools/coverage/run_array.py --tool LiftOverHaplotypeMap --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/lift-over-haplotype-map --exit-code-is-a-result \
+            --port target/release/LiftOverHaplotypeMap --exit-code-is-a-result \
             | tee /tmp/LiftOverHaplotypeMap.log
           python3 tools/coverage/run_array.py --tool MakeSitesOnlyVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/make-sites-only-vcf --output-name output.vcf \
+            --port target/release/MakeSitesOnlyVcf --output-name output.vcf \
             | tee /tmp/MakeSitesOnlyVcf.log
           python3 tools/coverage/run_array.py --tool RenameSampleInVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/rename-sample-in-vcf --output-name output.vcf \
+            --port target/release/RenameSampleInVcf --output-name output.vcf \
             | tee /tmp/RenameSampleInVcf.log
           python3 tools/coverage/run_array.py --tool VcfToIntervalList --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/vcf-to-interval-list \
+            --port target/release/VcfToIntervalList \
             | tee /tmp/VcfToIntervalList.log
           python3 tools/coverage/run_array.py --tool SortVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/sort-vcf --output-name output.vcf \
+            --port target/release/SortVcf --output-name output.vcf \
             | tee /tmp/SortVcf.log
           python3 tools/coverage/run_array.py --tool UpdateVcfSequenceDictionary --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/update-vcf-sequence-dictionary --output-name output.vcf \
+            --port target/release/UpdateVcfSequenceDictionary --output-name output.vcf \
             | tee /tmp/UpdateVcfSequenceDictionary.log
           python3 tools/coverage/run_array.py --tool MergeVcfs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/merge-vcfs --output-name output.vcf \
+            --port target/release/MergeVcfs --output-name output.vcf \
             | tee /tmp/MergeVcfs.log
           python3 tools/coverage/run_array.py --tool GatherVcfs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/gather-vcfs --output-name output.vcf \
+            --port target/release/GatherVcfs --output-name output.vcf \
             | tee /tmp/GatherVcfs.log
           python3 tools/coverage/run_array.py --tool SplitVcfs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/split-vcfs --output-name snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf \
+            --port target/release/SplitVcfs --output-name snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf \
             | tee /tmp/SplitVcfs.log
           python3 tools/coverage/run_array.py --tool VcfFormatConverter --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/vcf-format-converter --output-name output.vcf,output.vcf.gz \
+            --port target/release/VcfFormatConverter --output-name output.vcf,output.vcf.gz \
             | tee /tmp/VcfFormatConverter.log
           python3 tools/coverage/run_array.py --tool FixVcfHeader --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/fix-vcf-header --output-name output.vcf \
+            --port target/release/FixVcfHeader --output-name output.vcf \
             | tee /tmp/FixVcfHeader.log
           python3 tools/coverage/run_array.py --tool CollectWgsMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-wgs-metrics --output-name output.txt,theoretical.txt \
+            --port target/release/CollectWgsMetrics --output-name output.txt,theoretical.txt \
             | tee /tmp/CollectWgsMetrics.log
           python3 tools/coverage/run_array.py --tool CollectRawWgsMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-raw-wgs-metrics --output-name output.txt,theoretical.txt \
+            --port target/release/CollectRawWgsMetrics --output-name output.txt,theoretical.txt \
             | tee /tmp/CollectRawWgsMetrics.log
           python3 tools/coverage/run_array.py --tool CollectWgsMetricsWithNonZeroCoverage --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-wgs-metrics-with-non-zero-coverage --output-name output.txt,theoretical.txt \
+            --port target/release/CollectWgsMetricsWithNonZeroCoverage --output-name output.txt,theoretical.txt \
             | tee /tmp/CollectWgsMetricsWithNonZeroCoverage.log
           python3 tools/coverage/run_array.py --tool CollectHsMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-hs-metrics --output-name output.txt,per_target.txt,per_base.txt,theoretical.txt \
+            --port target/release/CollectHsMetrics --output-name output.txt,per_target.txt,per_base.txt,theoretical.txt \
             | tee /tmp/CollectHsMetrics.log
           python3 tools/coverage/run_array.py --tool CollectTargetedPcrMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-targeted-pcr-metrics --output-name output.txt,per_target.txt,per_base.txt,theoretical.txt \
+            --port target/release/CollectTargetedPcrMetrics --output-name output.txt,per_target.txt,per_base.txt,theoretical.txt \
             | tee /tmp/CollectTargetedPcrMetrics.log
           python3 tools/coverage/run_array.py --tool CollectSequencingArtifactMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-sequencing-artifact-metrics --output-name output.pre_adapter_summary_metrics,output.pre_adapter_detail_metrics,output.bait_bias_summary_metrics,output.bait_bias_detail_metrics,output.error_summary_metrics,output.pre_adapter_summary_metrics.txt,output.pre_adapter_detail_metrics.txt,output.bait_bias_summary_metrics.txt,output.bait_bias_detail_metrics.txt,output.error_summary_metrics.txt \
+            --port target/release/CollectSequencingArtifactMetrics --output-name output.pre_adapter_summary_metrics,output.pre_adapter_detail_metrics,output.bait_bias_summary_metrics,output.bait_bias_detail_metrics,output.error_summary_metrics,output.pre_adapter_summary_metrics.txt,output.pre_adapter_detail_metrics.txt,output.bait_bias_summary_metrics.txt,output.bait_bias_detail_metrics.txt,output.error_summary_metrics.txt \
             | tee /tmp/CollectSequencingArtifactMetrics.log
           python3 tools/coverage/run_array.py --tool ConvertSequencingArtifactToOxoG --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/convert-sequencing-artifact-to-oxog --output-name output.oxog_metrics,oxog.txt \
+            --port target/release/ConvertSequencingArtifactToOxoG --output-name output.oxog_metrics,oxog.txt \
             | tee /tmp/ConvertSequencingArtifactToOxoG.log
           python3 tools/coverage/run_array.py --tool CollectOxoGMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-oxo-g-metrics \
+            --port target/release/CollectOxoGMetrics \
             | tee /tmp/CollectOxoGMetrics.log
           python3 tools/coverage/run_array.py --tool CollectGcBiasMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-gc-bias-metrics --output-name output.txt,summary.txt,summary_b.txt \
+            --port target/release/CollectGcBiasMetrics --output-name output.txt,summary.txt,summary_b.txt \
             | tee /tmp/CollectGcBiasMetrics.log
           python3 tools/coverage/run_array.py --tool CollectRrbsMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-rrbs-metrics --output-name output.rrbs_summary_metrics,output.rrbs_detail_metrics \
+            --port target/release/CollectRrbsMetrics --output-name output.rrbs_summary_metrics,output.rrbs_detail_metrics \
             | tee /tmp/CollectRrbsMetrics.log
           python3 tools/coverage/run_array.py --tool CollectRnaSeqMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-rna-seq-metrics \
+            --port target/release/CollectRnaSeqMetrics \
             | tee /tmp/CollectRnaSeqMetrics.log
           python3 tools/coverage/run_array.py --tool CollectIndependentReplicateMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-independent-replicate-metrics --output-name output.txt,matrix.txt \
+            --port target/release/CollectIndependentReplicateMetrics --output-name output.txt,matrix.txt \
             | tee /tmp/CollectIndependentReplicateMetrics.log
           python3 tools/coverage/run_array.py --tool LiftoverVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/liftover-vcf --output-name output.vcf,reject.vcf,reject_b.vcf \
+            --port target/release/LiftoverVcf --output-name output.vcf,reject.vcf,reject_b.vcf \
             | tee /tmp/LiftoverVcf.log
           python3 tools/coverage/run_array.py --tool CollectMultipleMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-multiple-metrics --output-name output.alignment_summary_metrics,output.base_distribution_by_cycle_metrics,output.insert_size_metrics,output.quality_by_cycle_metrics,output.quality_distribution_metrics,output.gc_bias.detail_metrics,output.gc_bias.summary_metrics,output.rna_metrics,output.quality_yield_metrics,output.pre_adapter_summary_metrics,output.pre_adapter_detail_metrics,output.bait_bias_summary_metrics,output.bait_bias_detail_metrics,output.error_summary_metrics,output.alignment_summary_metrics.txt,output.base_distribution_by_cycle_metrics.txt,output.insert_size_metrics.txt,output.quality_by_cycle_metrics.txt,output.quality_distribution_metrics.txt,output.gc_bias.detail_metrics.txt,output.gc_bias.summary_metrics.txt,output.rna_metrics.txt,output.quality_yield_metrics.txt,output.pre_adapter_summary_metrics.txt,output.pre_adapter_detail_metrics.txt,output.bait_bias_summary_metrics.txt,output.bait_bias_detail_metrics.txt,output.error_summary_metrics.txt \
+            --port target/release/CollectMultipleMetrics --output-name output.alignment_summary_metrics,output.base_distribution_by_cycle_metrics,output.insert_size_metrics,output.quality_by_cycle_metrics,output.quality_distribution_metrics,output.gc_bias.detail_metrics,output.gc_bias.summary_metrics,output.rna_metrics,output.quality_yield_metrics,output.pre_adapter_summary_metrics,output.pre_adapter_detail_metrics,output.bait_bias_summary_metrics,output.bait_bias_detail_metrics,output.error_summary_metrics,output.alignment_summary_metrics.txt,output.base_distribution_by_cycle_metrics.txt,output.insert_size_metrics.txt,output.quality_by_cycle_metrics.txt,output.quality_distribution_metrics.txt,output.gc_bias.detail_metrics.txt,output.gc_bias.summary_metrics.txt,output.rna_metrics.txt,output.quality_yield_metrics.txt,output.pre_adapter_summary_metrics.txt,output.pre_adapter_detail_metrics.txt,output.bait_bias_summary_metrics.txt,output.bait_bias_detail_metrics.txt,output.error_summary_metrics.txt \
             | tee /tmp/CollectMultipleMetrics.log
           python3 tools/coverage/run_array.py --tool SortGff --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/sort-gff --output-name output.gff3,output.gff3.gz \
+            --port target/release/SortGff --output-name output.gff3,output.gff3.gz \
             | tee /tmp/SortGff.log
           python3 tools/coverage/run_array.py --tool MergePedIntoVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/merge-ped-into-vcf --output-name output.vcf \
+            --port target/release/MergePedIntoVcf --output-name output.vcf \
             | tee /tmp/MergePedIntoVcf.log
           python3 tools/coverage/run_array.py --tool BamToBfq --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/bam-to-bfq --output-name @all \
+            --port target/release/BamToBfq --output-name @all \
             | tee /tmp/BamToBfq.log
           python3 tools/coverage/run_array.py --tool CompareMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/compare-metrics --exit-code-is-a-result --output-name output.txt,table.txt \
+            --port target/release/CompareMetrics --exit-code-is-a-result --output-name output.txt,table.txt \
             | tee /tmp/CompareMetrics.log
           python3 tools/coverage/run_array.py --tool MergeBamAlignment --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/merge-bam-alignment --output-name output.bam \
+            --port target/release/MergeBamAlignment --output-name output.bam \
             | tee /tmp/MergeBamAlignment.log
           python3 tools/coverage/run_array.py --tool CollectSamErrorMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-sam-error-metrics --output-name @all \
+            --port target/release/CollectSamErrorMetrics --output-name @all \
             | tee /tmp/CollectSamErrorMetrics.log
           python3 tools/coverage/run_array.py --tool AccumulateVariantCallingMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/accumulate-variant-calling-metrics --output-name output.txt.variant_calling_detail_metrics,output.txt.variant_calling_summary_metrics \
+            --port target/release/AccumulateVariantCallingMetrics --output-name output.txt.variant_calling_detail_metrics,output.txt.variant_calling_summary_metrics \
             | tee /tmp/AccumulateVariantCallingMetrics.log
           python3 tools/coverage/run_array.py --tool BaitDesigner --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/bait-designer --output-name @all \
+            --port target/release/BaitDesigner --output-name @all \
             | tee /tmp/BaitDesigner.log
           python3 tools/coverage/run_array.py --tool CollectQualityYieldMetricsFlow --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-quality-yield-metrics-flow \
+            --port target/release/CollectQualityYieldMetricsFlow \
             | tee /tmp/CollectQualityYieldMetricsFlow.log
           python3 tools/coverage/run_array.py --tool CollectQualityYieldMetricsSNVQ --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-quality-yield-metrics-snvq \
+            --port target/release/CollectQualityYieldMetricsSNVQ \
             | tee /tmp/CollectQualityYieldMetricsSNVQ.log
           python3 tools/coverage/run_array.py --tool FifoBuffer --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/fifo-buffer --stdout \
+            --port target/release/FifoBuffer --stdout \
             | tee /tmp/FifoBuffer.log
           python3 tools/coverage/run_array.py --tool UmiAwareMarkDuplicatesWithMateCigar --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/umi-aware-mark-duplicates-with-mate-cigar --strip-program-records --output-name output.txt,umi_metrics.txt,umi_metrics_b.txt,metrics.txt,metrics_b.txt \
+            --port target/release/UmiAwareMarkDuplicatesWithMateCigar --strip-program-records --output-name output.txt,umi_metrics.txt,umi_metrics_b.txt,metrics.txt,metrics_b.txt \
             | tee /tmp/UmiAwareMarkDuplicatesWithMateCigar.log
           python3 tools/coverage/run_array.py --tool ConvertHaplotypeDatabaseToVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/convert-haplotype-database-to-vcf --output-name output.vcf \
+            --port target/release/ConvertHaplotypeDatabaseToVcf --output-name output.vcf \
             | tee /tmp/ConvertHaplotypeDatabaseToVcf.log
           python3 tools/coverage/run_array.py --tool ClusterCrosscheckMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/cluster-crosscheck-metrics \
+            --port target/release/ClusterCrosscheckMetrics \
             | tee /tmp/ClusterCrosscheckMetrics.log
           python3 tools/coverage/run_array.py --tool SetNmAndUqTags --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/set-nm-md-and-uq-tags \
+            --port target/release/SetNmAndUqTags \
             | tee /tmp/SetNmAndUqTags.log
           python3 tools/coverage/run_array.py --tool CheckTerminatorBlock --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/check-terminator-block --stderr --exit-code-is-a-result \
+            --port target/release/CheckTerminatorBlock --stderr --exit-code-is-a-result \
             | tee /tmp/CheckTerminatorBlock.log
           python3 tools/coverage/run_array.py --tool FilterVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/filter-vcf --output-name output.vcf \
+            --port target/release/FilterVcf --output-name output.vcf \
             | tee /tmp/FilterVcf.log
           python3 tools/coverage/run_array.py --tool CheckFingerprint --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/check-fingerprint --exit-code-is-a-result --output-name @all \
+            --port target/release/CheckFingerprint --exit-code-is-a-result --output-name @all \
             | tee /tmp/CheckFingerprint.log
           python3 tools/coverage/run_array.py --tool CrosscheckFingerprints --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/crosscheck-fingerprints --exit-code-is-a-result --output-name @all \
+            --port target/release/CrosscheckFingerprints --exit-code-is-a-result --output-name @all \
             | tee /tmp/CrosscheckFingerprints.log
           python3 tools/coverage/run_array.py --tool CrosscheckReadGroupFingerprints --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/crosscheck-read-group-fingerprints --exit-code-is-a-result --output-name @all \
+            --port target/release/CrosscheckReadGroupFingerprints --exit-code-is-a-result --output-name @all \
             | tee /tmp/CrosscheckReadGroupFingerprints.log
           python3 tools/coverage/run_array.py --tool CalculateFingerprintMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/calculate-fingerprint-metrics --exit-code-is-a-result --output-name @all \
+            --port target/release/CalculateFingerprintMetrics --exit-code-is-a-result --output-name @all \
             | tee /tmp/CalculateFingerprintMetrics.log
           python3 tools/coverage/run_array.py --tool ExtractFingerprint --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/extract-fingerprint --strip-line-prefix='##fileDate=' --output-name output.vcf \
+            --port target/release/ExtractFingerprint --strip-line-prefix='##fileDate=' --output-name output.vcf \
             | tee /tmp/ExtractFingerprint.log
           python3 tools/coverage/run_array.py --tool IdentifyContaminant --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/identify-contaminant --strip-line-prefix='##fileDate=' --output-name output.vcf \
+            --port target/release/IdentifyContaminant --strip-line-prefix='##fileDate=' --output-name output.vcf \
             | tee /tmp/IdentifyContaminant.log
           python3 tools/coverage/run_array.py --tool CreateBafRegressMetricsFile --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/create-baf-regress-metrics-file --output-name @all \
+            --port target/release/CreateBafRegressMetricsFile --output-name @all \
             | tee /tmp/CreateBafRegressMetricsFile.log
           python3 tools/coverage/run_array.py --tool CreateVerifyIDIntensityContaminationMetricsFile --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/create-verify-id-intensity-contamination-metrics-file --output-name @all \
+            --port target/release/CreateVerifyIDIntensityContaminationMetricsFile --output-name @all \
             | tee /tmp/CreateVerifyIDIntensityContaminationMetricsFile.log
           python3 tools/coverage/run_array.py --tool BpmToNormalizationManifestCsv --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/bpm-to-normalization-manifest-csv --output-name output.csv \
+            --port target/release/BpmToNormalizationManifestCsv --output-name output.csv \
             | tee /tmp/BpmToNormalizationManifestCsv.log
           python3 tools/coverage/run_array.py --tool CompareGtcFiles --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/compare-gtc-files --output-name @all \
+            --port target/release/CompareGtcFiles --output-name @all \
             | tee /tmp/CompareGtcFiles.log
           python3 tools/coverage/run_array.py --tool GtcToVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/gtc-to-vcf --strip-line-prefix='##fileDate=' --output-name output.vcf \
+            --port target/release/GtcToVcf --strip-line-prefix='##fileDate=' --output-name output.vcf \
             | tee /tmp/GtcToVcf.log
           python3 tools/coverage/run_array.py --tool VcfToAdpc --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/vcf-to-adpc --exit-code-is-a-result --output-name @all \
+            --port target/release/VcfToAdpc --exit-code-is-a-result --output-name @all \
             | tee /tmp/VcfToAdpc.log
           python3 tools/coverage/run_array.py --tool CombineGenotypingArrayVcfs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/combine-genotyping-array-vcfs --exit-code-is-a-result --output-name output.vcf \
+            --port target/release/CombineGenotypingArrayVcfs --exit-code-is-a-result --output-name output.vcf \
             | tee /tmp/CombineGenotypingArrayVcfs.log
           python3 tools/coverage/run_array.py --tool CollectArraysVariantCallingMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-arrays-variant-calling-metrics --output-name @all \
+            --port target/release/CollectArraysVariantCallingMetrics --output-name @all \
             | tee /tmp/CollectArraysVariantCallingMetrics.log
           python3 tools/coverage/run_array.py --tool CreateExtendedIlluminaManifest --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/create-extended-illumina-manifest --strip-line-prefix='Generated on:' --output-name @all \
+            --port target/release/CreateExtendedIlluminaManifest --strip-line-prefix='Generated on:' --output-name @all \
             | tee /tmp/CreateExtendedIlluminaManifest.log
           python3 tools/coverage/run_array.py --tool CheckIlluminaDirectory --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/check-illumina-directory --stderr --exit-code-is-a-result \
+            --port target/release/CheckIlluminaDirectory --stderr --exit-code-is-a-result \
             | tee /tmp/CheckIlluminaDirectory.log
           python3 tools/coverage/run_array.py --tool CollectIlluminaLaneMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-illumina-lane-metrics --output-name @all \
+            --port target/release/CollectIlluminaLaneMetrics --output-name @all \
             | tee /tmp/CollectIlluminaLaneMetrics.log
           python3 tools/coverage/run_array.py --tool CollectHiSeqXPfFailMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-hi-seq-x-pf-fail-metrics --output-name @all \
+            --port target/release/CollectHiSeqXPfFailMetrics --output-name @all \
             | tee /tmp/CollectHiSeqXPfFailMetrics.log
           python3 tools/coverage/run_array.py --tool CollectIlluminaBasecallingMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/collect-illumina-basecalling-metrics --output-name @all \
+            --port target/release/CollectIlluminaBasecallingMetrics --output-name @all \
             | tee /tmp/CollectIlluminaBasecallingMetrics.log
           python3 tools/coverage/run_array.py --tool ExtractIlluminaBarcodes --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/extract-illumina-barcodes --output-name @all \
+            --port target/release/ExtractIlluminaBarcodes --output-name @all \
             | tee /tmp/ExtractIlluminaBarcodes.log
           python3 tools/coverage/run_array.py --tool IlluminaBasecallsToFastq --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/illumina-basecalls-to-fastq --output-name @all \
+            --port target/release/IlluminaBasecallsToFastq --output-name @all \
             | tee /tmp/IlluminaBasecallsToFastq.log
           python3 tools/coverage/run_array.py --tool IlluminaBasecallsToSam --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/illumina-basecalls-to-sam --output-name @all \
+            --port target/release/IlluminaBasecallsToSam --output-name @all \
             | tee /tmp/IlluminaBasecallsToSam.log
           python3 tools/coverage/measure.py --log /tmp/AddOATag.log \
             --log /tmp/CollectAlignmentSummaryMetrics.log \
@@ -1160,13 +1160,13 @@ jobs:
           ls -la target/benchmark/bench.bam
 
       - name: Build the port
-        run: cargo build --release --bin collect-alignment-summary-metrics --bin add-oa-tag
+        run: cargo build --release --bin CollectAlignmentSummaryMetrics --bin AddOATag
 
       - name: Time both, on the same hardware, neither emulated
         # The runner is real x86-64, so this is the authoritative figure; the numbers in
         # decision 0004 come from an emulated container and say so.
         run: |
-          cp target/release/collect-alignment-summary-metrics target/benchmark/
+          cp target/release/CollectAlignmentSummaryMetrics target/benchmark/
           cat > target/benchmark/bench.sh <<'INNER'
           cd /out
           TIMEFORMAT='%3R'
@@ -1175,9 +1175,9 @@ jobs:
           echo "picard_gkl_default_s"
           for i in 1 2 3; do { time java -jar $PICARD_JAR CollectAlignmentSummaryMetrics I=bench.bam O=/out/picard.txt R=bench.fasta >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_s"
-          for i in 1 2 3; do { time /out/collect-alignment-summary-metrics I=bench.bam O=/out/rust.txt R=bench.fasta >/dev/null 2>&1 ; } 2>&1; done
+          for i in 1 2 3; do { time /out/CollectAlignmentSummaryMetrics I=bench.bam O=/out/rust.txt R=bench.fasta >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_phases"
-          PICARD_RS_TIMING=1 /out/collect-alignment-summary-metrics I=bench.bam O=/out/rust.txt R=bench.fasta
+          PICARD_RS_TIMING=1 /out/CollectAlignmentSummaryMetrics I=bench.bam O=/out/rust.txt R=bench.fasta
           INNER
           docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.5.0 'bash /out/bench.sh'
 
@@ -1208,24 +1208,24 @@ jobs:
         # RAYON_NUM_THREADS=1 to expose the single-thread floor, rust_nt leaves rayon on all cores,
         # and the gap between them is the multicore win, isolated from the Rust-vs-JVM baseline.
         run: |
-          cp target/release/add-oa-tag target/benchmark/
+          cp target/release/AddOATag target/benchmark/
           cat > target/benchmark/oabench.sh <<'INNER'
           cd /out
           TIMEFORMAT='%3R'
           echo "picard_addoatag_s"
           for i in 1 2 3; do { time java -jar $PICARD_JAR AddOATag I=bench.bam O=/out/picard_oa.sam VALIDATION_STRINGENCY=SILENT >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_1t_s"
-          for i in 1 2 3; do { time env RAYON_NUM_THREADS=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
+          for i in 1 2 3; do { time env RAYON_NUM_THREADS=1 /out/AddOATag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_nt_s"
-          for i in 1 2 3; do { time /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
+          for i in 1 2 3; do { time /out/AddOATag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
           # The whole-program numbers above are I/O-bound; these phase lines isolate the transform
           # itself, where the add_oa step is the only thing rayon parallelizes. Compare add_oa across
           # the two: that ratio is the multicore speedup on the work, before decode/encode/write dilute
           # it end to end.
           echo "rust_1t_phases"
-          PICARD_RS_TIMING=1 RAYON_NUM_THREADS=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam
+          PICARD_RS_TIMING=1 RAYON_NUM_THREADS=1 /out/AddOATag I=bench.bam O=/out/rust_oa.sam
           echo "rust_nt_phases"
-          PICARD_RS_TIMING=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam
+          PICARD_RS_TIMING=1 /out/AddOATag I=bench.bam O=/out/rust_oa.sam
           INNER
           docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.5.0 'bash /out/oabench.sh'
 
