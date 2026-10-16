@@ -263,8 +263,9 @@ plainly.
 **riker targets functional equivalence; this repository targets byte equivalence.** riker's own
 README says it "is not intended to be a drop-in replacement for Picard": lowercase `snake_case`
 headers, no metadata lines, `frac_` for `pct_`, and "bug fixes that yield slightly different
-outputs". So riker is the better tool to use; this is a byte-for-byte reproduction of the
-existing one, bugs included, so that GATK and Picard pipelines can be reproduced exactly.
+outputs". So riker is the better tool for new work. picard-rs is a byte-for-byte reproduction
+of Picard itself, bugs included, so that existing GATK and Picard pipelines can be reproduced
+exactly.
 
 That makes riker **a source of divergence candidates, never a source to port from**: copying it
 would import its deliberate deviations, and the licence being compatible does not make it correct.
