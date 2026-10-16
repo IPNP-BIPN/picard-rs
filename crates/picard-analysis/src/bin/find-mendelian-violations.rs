@@ -387,8 +387,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut by_family: std::collections::HashMap<String, Vec<(usize, &'static str)>> =
         std::collections::HashMap::new();
     let mut file = MetricsFile::new();
-    file.add_header("FindMendelianViolations <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("FindMendelianViolations") {
+        file.add_header(&header);
+    }
     for trio in &pedigree {
         // "Removing trio due to the following missing samples in VCF": a pedigree row naming a
         // parent the file does not have is dropped, which is what the placeholder `0` rows are.

@@ -127,9 +127,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .take_while(|line| line.starts_with('@'))
         .map(|line| line.len() + 1)
         .sum::<usize>();
+    // `doWork` "decides on a PG ID": the first integer from 1 that no `@PG` of the header has, with
+    // the command line and the tool's name and no version. The text codec writes every `@PG`
+    // before every `@CO`, so the new one goes after the input's records and before its comments.
+    let program_end = text
+        .lines()
+        .take_while(|line| line.starts_with('@') && !line.starts_with("@CO"))
+        .map(|line| line.len() + 1)
+        .sum::<usize>();
+    let taken: Vec<&str> = text[..program_end]
+        .lines()
+        .filter(|line| line.starts_with("@PG\t"))
+        .filter_map(|line| line.split('\t').find_map(|field| field.strip_prefix("ID:")))
+        .collect();
+    let id = (1..i32::MAX)
+        .map(|i| i.to_string())
+        .find(|i| !taken.contains(&i.as_str()))
+        .expect("a free id");
+    let program = format!(
+        "@PG\tID:{id}\tCL:{}\tPN:IntervalListTools\n",
+        picard_analysis::command_line::command_line("IntervalListTools")
+    );
     let text = format!(
-        "{}{}{}",
-        &text[..header_end],
+        "{}{}{}{}{}",
+        &text[..program_end],
+        program,
+        &text[program_end..header_end],
         comments.concat(),
         &text[header_end..]
     );

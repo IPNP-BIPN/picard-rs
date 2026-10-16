@@ -322,8 +322,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut file = MetricsFile::new();
-    file.add_header("EstimateLibraryComplexity <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("EstimateLibraryComplexity") {
+        file.add_header(&header);
+    }
     // `for (final String library : duplicationHistosByLibrary.keySet())`: the rows and the
     // histogram columns come out in the map's own order, not in the order the libraries were met.
     let libraries: Vec<(String, LibraryHistograms)> = histograms

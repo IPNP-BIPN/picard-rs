@@ -1199,8 +1199,9 @@ pub fn duplication_metrics_text(
         bins: bins.iter().map(|&(k, v)| (key(k), v)).collect(),
     };
     let mut file = MetricsFile::new();
-    file.add_header(&format!("{tool} <command line>"));
-    file.add_header("Started on: <timestamp>");
+    for header in crate::command_line::default_headers(tool) {
+        file.add_header(&header);
+    }
     // `new LibraryIdGenerator(header)` makes a row for every library the header's read groups
     // name, so a library with no record left is a row of zeroes.
     let mut all: Vec<Metrics> = metrics.to_vec();

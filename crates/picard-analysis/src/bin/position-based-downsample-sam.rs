@@ -54,7 +54,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("FRACTION= is required")?
         .parse()?;
     let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
-    let remove_duplicate_information = flag("REMOVE_DUPLICATE_INFORMATION=", false);
+    // `public boolean REMOVE_DUPLICATE_INFORMATION = true`.
+    let remove_duplicate_information = flag("REMOVE_DUPLICATE_INFORMATION=", true);
     let allow_multiple = flag("ALLOW_MULTIPLE_DOWNSAMPLING_DESPITE_WARNINGS=", false);
     let stop_after = arg(&args, "STOP_AFTER=")
         .map(|v| v.parse::<usize>())
@@ -130,6 +131,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mask = keep(&locations, fraction, stop_after);
 
+    // `outputSamRecords`: the tool's own `@PG`, id made unique against the input's.
+    let mut header = header;
+    let pg = picard_analysis::command_line::pg_record(&header, PG_PROGRAM_NAME);
+    header.programs.push(pg);
     let mut writer = BamWriter::new(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
     for (record, keep_it) in records.iter().zip(&mask) {
         if !keep_it {

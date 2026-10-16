@@ -165,8 +165,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut file = MetricsFile::new();
-    file.add_header("CollectUmiPrevalenceMetrics <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectUmiPrevalenceMetrics") {
+        file.add_header(&header);
+    }
     file.histograms.push(Histogram {
         bin_label: "numUmis".to_string(),
         value_label: "duplicateSets".to_string(),

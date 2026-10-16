@@ -216,8 +216,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         out_header.comments.push(format!("@CO\t{comment}"));
     }
-    let add_pg_tag = flag("ADD_PG_TAG_TO_READS=", true);
 
+    let program_group =
+        picard_analysis::command_line::ProgramGroup::of("SimpleMarkDuplicatesWithMateCigar");
     let mut writer = BamWriter::new(Vec::new(), &out_header).map_err(|e| format!("{e:?}"))?;
     for (index, record) in records.iter().enumerate() {
         if !marking.written[index] {
@@ -240,18 +241,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .tags
                 .insert(Tag::new(b"DT"), TagValue::Str(code.clone()));
         }
-        // `updateProgramRecord` only CHAINS: a record that already carries a `PG` gets the new id,
-        // and a record with none gets a warning and nothing else. That is the opposite of
-        // `MarkDuplicates`, which fills its chain from the records themselves and so stamps every
-        // one of them; here the chain comes from the HEADER's program records, and this corpus has
-        // none, so `ADD_PG_TAG_TO_READS` changes not a byte.
-        if add_pg_tag {
-            if let Some(TagValue::Str(existing)) = written.tags.get(Tag::new(b"PG")) {
-                let chained = existing.clone();
-                if header.programs.iter().any(|pg| pg.id == chained) {
-                    written.tags.insert(Tag::new(b"PG"), TagValue::Str(chained));
-                }
-            }
+        // `record.setAttribute(PG, chainedPgIds.get(...))` whenever PROGRAM_RECORD_ID is set, and
+        // `ADD_PG_TAG_TO_READS` is not read. Nothing here fills `pgIdsSeen` (that is
+        // `MarkDuplicates.buildSortedReadEndLists`, which this one-pass tool never calls), so the chain
+        // is empty, no `@PG` is added, and the lookup is `null` for every record: its `PG` is removed.
+        if program_group.record_id.is_some() {
+            written.tags.remove(Tag::new(b"PG"));
         }
         writer.write(&written).map_err(|e| format!("{e:?}"))?;
     }

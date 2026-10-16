@@ -45,14 +45,18 @@ fn main() {
     let (details, summary) = run(&inputs).unwrap_or_else(|message| thrown(&message));
 
     let mut detail_file = MetricsFile::new();
-    detail_file.add_header("AccumulateVariantCallingMetrics <command line>");
-    detail_file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("AccumulateVariantCallingMetrics")
+    {
+        detail_file.add_header(&header);
+    }
     for row in &details {
         detail_file.add_metric(row);
     }
     let mut summary_file = MetricsFile::new();
-    summary_file.add_header("AccumulateVariantCallingMetrics <command line>");
-    summary_file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("AccumulateVariantCallingMetrics")
+    {
+        summary_file.add_header(&header);
+    }
     summary_file.add_metric(&summary);
     for (path, text) in [
         (&detail_path, detail_file.write()),

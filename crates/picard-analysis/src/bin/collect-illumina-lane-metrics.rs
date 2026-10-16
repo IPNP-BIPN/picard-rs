@@ -215,8 +215,9 @@ fn main() {
     });
 
     let header = |file: &mut MetricsFile| {
-        file.add_header("CollectIlluminaLaneMetrics <command line>");
-        file.add_header("Started on: <timestamp>");
+        for header in picard_analysis::command_line::default_headers("CollectIlluminaLaneMetrics") {
+            file.add_header(&header);
+        }
     };
     let mut lane_file = MetricsFile::new();
     header(&mut lane_file);

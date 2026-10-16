@@ -130,8 +130,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut file = MetricsFile::new();
-    file.add_header("QualityScoreDistribution <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("QualityScoreDistribution") {
+        file.add_header(&header);
+    }
     let (q_bins, oq_bins) = collector.finish();
     let histogram = |label: &str, bins: &[(u8, f64)]| OutHistogram {
         bin_label: "QUALITY".to_string(),

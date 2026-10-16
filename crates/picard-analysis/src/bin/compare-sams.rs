@@ -74,8 +74,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     .map_err(|e| format!("{e:?}"))?;
     if let Some(output) = arg(&args, "OUTPUT=").or_else(|| arg(&args, "O=")) {
         let mut file = MetricsFile::new();
-        file.add_header("CompareSAMs <command line>");
-        file.add_header("Started on: <timestamp>");
+        for header in picard_analysis::command_line::default_headers("CompareSAMs") {
+            file.add_header(&header);
+        }
         file.add_metric(&metric);
         // `COMPARE_MQ`'s concordance histogram, keyed `mq1,mq2`, which the writer drops when empty.
         if !metric.mq_histogram.is_empty() {

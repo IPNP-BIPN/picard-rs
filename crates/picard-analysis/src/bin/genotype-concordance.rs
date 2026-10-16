@@ -624,8 +624,9 @@ fn genotype(
 
 fn metrics_file<B: MetricBean>(beans: Vec<B>) -> String {
     let mut file = MetricsFile::new();
-    file.add_header("GenotypeConcordance <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("GenotypeConcordance") {
+        file.add_header(&header);
+    }
     for bean in beans {
         file.add_metric(&bean);
     }

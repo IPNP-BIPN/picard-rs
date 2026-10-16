@@ -37,8 +37,9 @@ fn main() {
     let (metrics, histograms) = collector.finish();
 
     let mut file = MetricsFile::new();
-    file.add_header("CollectQualityYieldMetricsFlow <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectQualityYieldMetricsFlow") {
+        file.add_header(&header);
+    }
     file.add_metric(&metrics);
     file.histograms = histograms;
     if let Err(e) = std::fs::write(&output, file.write()) {

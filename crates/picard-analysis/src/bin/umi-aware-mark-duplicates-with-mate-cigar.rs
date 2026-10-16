@@ -180,7 +180,8 @@ fn main() {
         .collect();
     let result = run(&marked_records, &umis, &contigs, &options).unwrap_or_else(|m| thrown(&m));
 
-    let add_pg_tag = args.bool("ADD_PG_TAG_TO_READS", true);
+    let program_group =
+        picard_analysis::command_line::ProgramGroup::of("UmiAwareMarkDuplicatesWithMateCigar");
     let molecular_identifier_tag = args.get("MOLECULAR_IDENTIFIER_TAG").map(tag_of);
     // `COMMENT.forEach(outputHeader::addComment)`, inherited from SimpleMarkDuplicatesWithMateCigar.
     for comment in std::env::args().filter_map(|a| a.strip_prefix("COMMENT=").map(str::to_string)) {
@@ -206,15 +207,12 @@ fn main() {
         ) {
             written.tags.insert(tag, TagValue::Str(identifier.clone()));
         }
-        // `updateProgramRecord` only CHAINS: a record that already carries a `PG` gets the new
-        // id, and a record with none gets nothing.
-        if add_pg_tag {
-            if let Some(TagValue::Str(existing)) = written.tags.get(Tag::new(b"PG")) {
-                let chained = existing.clone();
-                if header.programs.iter().any(|pg| pg.id == chained) {
-                    written.tags.insert(Tag::new(b"PG"), TagValue::Str(chained));
-                }
-            }
+        // `record.setAttribute(PG, chainedPgIds.get(...))`, inherited from
+        // SimpleMarkDuplicatesWithMateCigar: whenever PROGRAM_RECORD_ID is set, `ADD_PG_TAG_TO_READS`
+        // unread. Nothing fills `pgIdsSeen` in this one-pass tool, so the chain is empty, no `@PG` is
+        // added, and every record's `PG` is removed.
+        if program_group.record_id.is_some() {
+            written.tags.remove(Tag::new(b"PG"));
         }
         writer
             .write(&written)
@@ -227,8 +225,11 @@ fn main() {
 
     // The UMI metrics: one row per library, in the order the reference's map iterates them.
     let mut file = MetricsFile::new();
-    file.add_header("UmiAwareMarkDuplicatesWithMateCigar <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in
+        picard_analysis::command_line::default_headers("UmiAwareMarkDuplicatesWithMateCigar")
+    {
+        file.add_header(&header);
+    }
     for row in &result.metrics {
         file.add_metric(row);
     }

@@ -40,6 +40,7 @@ pub mod collect_variant_calling_metrics;
 pub mod collect_wgs_metrics;
 pub mod collect_wgs_metrics_with_non_zero_coverage;
 pub mod combine_genotyping_array_vcfs;
+pub mod command_line;
 pub mod compare_metrics;
 pub mod compare_sams;
 pub mod convert_artifact_to_oxog;
@@ -134,6 +135,8 @@ pub mod split_sam_by_number_of_reads;
 pub mod targeted_cli;
 pub mod targeted_metrics;
 pub mod theoretical_sensitivity;
+#[rustfmt::skip]
+pub mod tool_options;
 pub mod umi_aware;
 pub mod umi_duplicates;
 pub mod validate_sam_file;

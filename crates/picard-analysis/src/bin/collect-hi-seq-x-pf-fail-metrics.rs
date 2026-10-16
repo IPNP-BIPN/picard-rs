@@ -172,8 +172,9 @@ fn main() {
         per_tile.push((tile, s, detailed));
     }
     let header = |file: &mut MetricsFile| {
-        file.add_header(&format!("{TOOL} <command line>"));
-        file.add_header("Started on: <timestamp>");
+        for header in picard_analysis::command_line::default_headers(TOOL) {
+            file.add_header(&header);
+        }
     };
     if probability > 0.0 {
         let mut detail = MetricsFile::new();
