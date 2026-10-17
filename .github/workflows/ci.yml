@@ -1031,61 +1031,58 @@ jobs:
             suites: "rgchecksum downsamplesam filtersamreads createdict samformatconverter"
           - group: oracle-backed
             index: "5/22"
-            suites: "sortsam-bam setnmmduq addoatag-bam validatesam comparesams"
+            suites: "sortsam-bam sortsam-spill setnmmduq addoatag-bam validatesam"
           - group: oracle-backed
             index: "6/22"
-            suites: "split bamindexstats merge rejections qualityscoredistribution"
+            suites: "comparesams split bamindexstats merge rejections"
           - group: oracle-backed
             index: "7/22"
-            suites: "gcbias accumulatequalityyield bedtointervallist intervallisttobed intervallisttools"
+            suites: "qualityscoredistribution gcbias accumulatequalityyield bedtointervallist intervallisttobed"
           - group: oracle-backed
             index: "8/22"
-            suites: "intervallisttoolspadbreak liftoverintervallist extractsequences scatterintervalsbyns nonnfastasize"
+            suites: "intervallisttools intervallisttoolspadbreak liftoverintervallist extractsequences scatterintervalsbyns"
           - group: oracle-backed
             index: "9/22"
-            suites: "normalizefasta samtofastqwithtags mergebamalignment mergebamalignment-full mergebamalignment-header"
+            suites: "nonnfastasize normalizefasta samtofastqwithtags mergebamalignment mergebamalignment-full"
           - group: oracle-backed
             index: "10/22"
-            suites: "mergebamalignment-pair mergebamalignment-clip mergebamalignment-hits jumpinglibrary comparemetrics"
+            suites: "mergebamalignment-header mergebamalignment-pair mergebamalignment-clip mergebamalignment-hits jumpinglibrary"
           - group: oracle-backed
             index: "11/22"
-            suites: "sortgff checkdupmarking qualityyieldflow vcfsamplenamemap haplotypedbtovcf"
+            suites: "comparemetrics sortgff checkdupmarking qualityyieldflow vcfsamplenamemap"
           - group: oracle-backed
             index: "12/22"
-            suites: "liftoverhaplotypemap positiondownsample duplicatemetrics verifyidintensity bafregress"
+            suites: "haplotypedbtovcf liftoverhaplotypemap positiondownsample duplicatemetrics verifyidintensity"
           - group: oracle-backed
             index: "13/22"
-            suites: "wgsmetrics rawwgsmetrics umiprevalence artifacttooxog clustercrosscheck"
+            suites: "bafregress wgsmetrics rawwgsmetrics umiprevalence artifacttooxog"
           - group: oracle-backed
             index: "14/22"
-            suites: "extractfingerprint identifycontaminant mergepedintovcf accumulatevcm variantcallingmetrics"
+            suites: "clustercrosscheck extractfingerprint identifycontaminant mergepedintovcf accumulatevcm"
           - group: oracle-backed
             index: "15/22"
-            suites: "nonzerowgs oxog artifactmetrics hsmetrics pcrmetrics"
+            suites: "variantcallingmetrics nonzerowgs oxog artifactmetrics hsmetrics"
           - group: oracle-backed
             index: "16/22"
-            suites: "libcomplexity genotypeconcordance multiplemetrics rrbsmetrics replicatemetrics"
+            suites: "pcrmetrics libcomplexity genotypeconcordance multiplemetrics rrbsmetrics"
           - group: oracle-backed
             index: "17/22"
-            suites: "arraysmetrics combinearrays bamtobfq vcftoadpc markadapters"
+            suites: "replicatemetrics arraysmetrics combinearrays bamtobfq vcftoadpc"
           - group: oracle-backed
             index: "18/22"
-            suites: "checkfingerprint markduplicates matecigarduplicates umiduplicates crosscheckfingerprints"
+            suites: "markadapters checkfingerprint markduplicates matecigarduplicates umiduplicates"
           - group: oracle-backed
             index: "19/22"
-            suites: "fingerprintmetrics samerrormetrics checkilluminadirectory illuminalanemetrics extractilluminabarcodes"
+            suites: "crosscheckfingerprints fingerprintmetrics samerrormetrics checkilluminadirectory illuminalanemetrics"
           - group: oracle-backed
             index: "20/22"
-            suites: "basecallstofastq basecallingmetrics basecallstosam pffailmetrics fifobuffer"
+            suites: "extractilluminabarcodes basecallstofastq basecallingmetrics basecallstosam pffailmetrics"
           - group: oracle-backed
             index: "21/22"
-            suites: "liftovervcf mendelianviolations baitdesigner bpmtocsv comparegtc"
+            suites: "fifobuffer liftovervcf mendelianviolations baitdesigner bpmtocsv"
           - group: oracle-backed
             index: "22/22"
-            suites: "gtctovcf createextendedmanifest headerlines"
-          - group: golden-pending
-            index: "1/1"
-            suites: "sortsam-spill"
+            suites: "comparegtc gtctovcf createextendedmanifest headerlines"
     steps:
       - uses: actions/checkout@v7
 
