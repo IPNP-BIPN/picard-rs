@@ -199,6 +199,7 @@ fn write_file(path: &std::path::Path, text: &str) {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("BaitDesigner");
     let args = Args::from_env(&[
         ("T", "TARGETS"),
         ("O", "OUTPUT_DIRECTORY"),

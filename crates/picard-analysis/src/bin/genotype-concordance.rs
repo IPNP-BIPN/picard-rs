@@ -634,6 +634,7 @@ fn metrics_file<B: MetricBean>(beans: Vec<B>) -> String {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("GenotypeConcordance");
     let args: Vec<String> = std::env::args().collect();
     let truth_vcf = arg(&args, "TRUTH_VCF=").ok_or("TRUTH_VCF= is required")?;
     let call_vcf = arg(&args, "CALL_VCF=").ok_or("CALL_VCF= is required")?;

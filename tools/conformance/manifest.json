@@ -1574,6 +1574,63 @@
       ]
     },
     {
+      "id": "commandline-declarations",
+      "title": "The names each of Picard's two parsers accepts, per tool",
+      "status": "oracle-backed",
+      "harness": "tools/commandline-conformance",
+      "tools": [],
+      "why": "A binary refuses a NAME=value its tool does not declare, so the list of what a tool declares decides which command lines run at all, and a name missing from it refuses a valid one. The list is read from the parsers' own tables, not from documentation: the legacy parser's optionMap holds BedToIntervalList's hidden DROP_MISSING_CONTIGS, which no inventory lists, and lacks MarkDuplicatesWithMateCigar's TAGGING_POLICY, which MarkDuplicates has. Every binary embeds this golden.",
+      "compare": {
+        "mode": "lines",
+        "skip_comment_lines": true
+      },
+      "expect_rows": null,
+      "expect_contains": [
+        "legacy\tBedToIntervalList\tDROP_MISSING_CONTIGS\tDROP_MISSING_CONTIGS",
+        "legacy\tCollectInsertSizeMetrics\tH\tHISTOGRAM_FILE",
+        "barclay\tBuildBamIndex\thelp",
+        "positional\tCompareSAMs\t2\t2"
+      ],
+      "$expect_why": "Each phrase is a fact a wrong dump would lose: a hidden argument the legacy parser still takes, a short name that differs between the two parsers, a Barclay-only name, and the one tool with positional words.",
+      "cases": [
+        {
+          "dump": "CommandLineDeclarationsDump",
+          "golden": "crates/picard-analysis/tests/data/command_line_declarations.txt.gz",
+          "why": "Frozen from the candidate artefact of run 38940205055 (real x86-64), byte for byte the local dump."
+        }
+      ]
+    },
+    {
+      "id": "commandline",
+      "title": "What Picard prints and exits with for a command line it does not run",
+      "status": "oracle-backed",
+      "harness": "tools/commandline-conformance",
+      "tools": [],
+      "why": "An unknown or misspelled argument is refused, and -h, --help and --version are answered, before a tool runs. What the user sees is the whole process: the syntax banner, the parser's message, the usage after it, which stream each goes to, and the exit status, so each probe is a real `java -jar picard.jar` process. The binaries embed this golden and print its texts with the user's words put in, so the comparison is of the reference's bytes against the port's. Two fields are a clock, the second htsjdk's Log stamps a line with and log4j's millisecond, and the dump replaces both with a fixed value; nothing else is canonicalized. One text depends on the machine: EstimateLibraryComplexity's MAX_RECORDS_IN_RAM default is computed from the JVM's heap, so the probes run with a fixed -Xmx2g.",
+      "compare": {
+        "mode": "lines",
+        "skip_comment_lines": true
+      },
+      "expect_rows": null,
+      "expect_contains": [
+        "run\tSortSam\tlegacy_unknown\t1",
+        "ERROR: Unrecognized option: PICARD_RS_PROBE",
+        "ERROR: Invalid argument 'picard_rs_probe'.",
+        "PICARD_RS_PROBE is not a recognized option",
+        "Can't parse option name containing an embedded '=' (PICARD_RS_PROBE=1)",
+        "USAGE: BuildBamIndex [arguments]",
+        "Version:3.5.0"
+      ],
+      "$expect_why": "A row count is not evidence: a dump whose processes never started a JVM would still print one row per probe. Each phrase is one answer the binaries reproduce.",
+      "cases": [
+        {
+          "dump": "CommandLineDump",
+          "golden": "crates/picard-analysis/tests/data/command_line.txt.gz",
+          "why": "Frozen from the candidate artefact of run 38940205055 (real x86-64). The local dump matched it byte for byte except EstimateLibraryComplexity's heap-derived MAX_RECORDS_IN_RAM default, which is why the probes now run on a fixed heap."
+        }
+      ]
+    },
+    {
       "id": "qualityscoredistribution",
       "tools": [
         "QualityScoreDistribution"

@@ -391,6 +391,7 @@ fn run(args: &Args, output: &str) -> Result<(), String> {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("MergePedIntoVcf");
     let args = Args::from_env(&[
         ("VCF", "ORIGINAL_VCF"),
         ("PED", "PED_FILE"),
