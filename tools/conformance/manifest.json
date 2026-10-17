@@ -3316,6 +3316,40 @@
           "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 38938155720 on PR 365, and identical to the local smoke run but for the Started on values. 54 tools' option tables, 216 command lines Picard parsed and recorded, and 12 real runs: the @PG lines and every read's PG tag of the seven tools that stamp one, and their metrics headers."
         }
       ]
+    },
+    {
+      "id": "filterandmerge",
+      "title": "the FilterSamReads filters and the MergeBamAlignment inputs the port used to refuse",
+      "status": "golden-pending",
+      "harness": "tools/filterandmerge-conformance",
+      "tools": [
+        "FilterSamReads",
+        "MergeBamAlignment"
+      ],
+      "why": "FilterSamReads with includePairedIntervals keeps a paired, primary read for its own overlap or its mate's, read from the MC tag, and WRITE_READS_FILES leaves a .reads file holding each record's toString(), which htsjdk 5 makes the SAM line. Its iterator runs one kept record ahead of a presorted writer that checks the order, so which of a filter's exception and the writer's is reported depends on where each falls. MergeBamAlignment takes ALIGNED_BAM, READ1_ALIGNED_BAM and READ2_ALIGNED_BAM more than once and reads each set as one stream through a MergingSamRecordIterator: queryname order for the aligned files and coordinate order for each end, under one header merger that renames colliding program ids and refuses dictionaries that disagree. Each case records its command line with its directory as <dir>, so the port can replay it on the same files; several data-line rows share one (kind, case) key, so the full line sequence is compared.",
+      "compare": {
+        "mode": "lines",
+        "skip_comment_lines": false
+      },
+      "expect_rows": 295,
+      "expect_contains": [
+        "Mate CIGAR (Tag MC) not found:mateInside",
+        "Input must be coordinate sorted to use includePairedIntervals",
+        "Alignments added out of order in SAMFileWriterImpl.addAlignment for file://<dir>/out.bam",
+        "intervals_reads_files\tout.reads",
+        "Second record is not marked as second of pair: a\\t355",
+        "SAM dictionaries are not the same",
+        "SequenceUtil$SequenceListsDifferException:Sequences at index 0 don't match",
+        "PG:Z:bwa.1"
+      ],
+      "$expect_why": "A row count is not evidence: these are the behaviours the suite exists for, a mapped mate without MC, the order check after SORT_ORDER, the presorted writer's refusal naming a BAM by its URI, the .reads file of the output, an aligned filter meeting a secondary after a first of pair, both dictionary refusals, and a program id the header merger renamed.",
+      "cases": [
+        {
+          "dump": "FilterAndMergeDump",
+          "golden": null,
+          "why": "No golden yet: CI publishes the dump from a real x86-64 runner, and the port test that replays it lands with the freeze."
+        }
+      ]
     }
   ],
   "probes": [
