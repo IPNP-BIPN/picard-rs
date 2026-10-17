@@ -1357,7 +1357,7 @@
         "SortSam"
       ],
       "title": "SortSam spilling to TMP_DIR",
-      "status": "oracle-backed",
+      "status": "golden-pending",
       "harness": "tools/sortsam-spill-conformance",
       "why": "SortSam sorts through htsjdk's SortingCollection, which spills every MAX_RECORDS_IN_RAM records to TMP_DIR as a sorted run and merges the runs. 600 records, most of them equal under the comparator, sorted with MAX_RECORDS_IN_RAM=50 (twelve runs): coordinate to an indexed BAM, queryname to a BAM and a SAM. The dump refuses to emit unless the same sorts in memory write the same bytes and the small threshold really spills, so the golden also records that where the runs end changes nothing that is written.",
       "compare": {
@@ -1371,8 +1371,8 @@
       "cases": [
         {
           "dump": "SortSamSpillDump",
-          "golden": "crates/picard-analysis/tests/data/sort_sam_spill.txt.gz",
-          "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 39035640426 on PR 384, and identical to the local smoke run: the input, a coordinate BAM and its BAI, a queryname BAM and a queryname SAM, each written after twelve spills."
+          "golden": null,
+          "why": "Remeasured under Picard's default command line: the BAMs are deflated by GKL, which instanceMain installs, as the port's binary deflates them without USE_JDK_DEFLATER. The earlier golden came from USE_JDK_DEFLATER=true under -Dsamjdk.use_libdeflate=false, which wrote java.util.zip blocks that no Picard command line writes by default."
         }
       ]
     },
