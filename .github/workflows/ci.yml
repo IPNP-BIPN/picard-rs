@@ -1191,13 +1191,10 @@ jobs:
             suites: "basecallstofastq basecallingmetrics basecallstosam pffailmetrics fifobuffer"
           - group: oracle-backed
             index: "21/22"
-            suites: "liftovervcf mendelianviolations baitdesigner bpmtocsv comparegtc"
+            suites: "liftovervcf vcfgz mendelianviolations baitdesigner bpmtocsv"
           - group: oracle-backed
             index: "22/22"
-            suites: "gtctovcf createextendedmanifest"
-          - group: golden-pending
-            index: "1/1"
-            suites: "vcfgz"
+            suites: "comparegtc gtctovcf createextendedmanifest"
     steps:
       - uses: actions/checkout@v7
 

@@ -3099,7 +3099,7 @@
     {
       "id": "vcfgz",
       "title": "every VCF writer asked for a .vcf.gz: the BGZF bytes and the tabix index beside them",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "harness": "tools/vcfgz-conformance",
       "java_props": [
         "-Duser.language=en",
@@ -3138,8 +3138,8 @@
       "cases": [
         {
           "dump": "VcfGzDump",
-          "golden": null,
-          "why": "Twenty-nine runs over eleven tools: the plain sort, its index off, three levels, libdeflate at two levels, the .bgz name and a .vcf.gz input; then each other writer to a .vcf.gz, the two indexes without a dictionary, the out-of-order and missing-contig refusals, both rejects and accepted records of LiftoverVcf, the converter both ways, and GatherVcfs by block copy and conventionally."
+          "golden": "crates/picard-analysis/tests/data/vcfgz.txt.gz",
+          "why": "Twenty-nine runs over eleven tools: the plain sort, its index off, three levels, libdeflate at two levels, the .bgz name and a .vcf.gz input; then each other writer to a .vcf.gz, the two indexes without a dictionary, the out-of-order and missing-contig refusals, both rejects and accepted records of LiftoverVcf, the converter both ways, and GatherVcfs by block copy and conventionally. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 39029131787 on PR 374, and identical to the port side (tools/vcfgz-conformance/port_side.py) row for row. Both sides work in /tmp/picard-rs-vcfgz, because LiftoverVcf writes R's absolute path into its header."
         }
       ]
     },
