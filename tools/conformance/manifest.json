@@ -3449,6 +3449,82 @@
           "why": "No golden yet: CI publishes the dump from a real x86-64 runner, and the Rust test that reads it lands with the freeze."
         }
       ]
+    },
+    {
+      "id": "inputshapes",
+      "title": "input shapes the tools' own suites never carried: secondary, supplementary, mate cigars, missing mates, unsorted input, malformed tags, a run that throws after a flush",
+      "status": "oracle-backed",
+      "harness": "tools/inputshapes-conformance",
+      "tools": [
+        "CleanSam",
+        "CollectSamErrorMetrics",
+        "RevertOriginalBaseQualitiesAndAddMateCigar"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "expect_contains": [
+        "Missing second read of pair: m1",
+        "Value for tag MC is not a String",
+        "Unrecognized CigarOperator: 81",
+        "Alignments added out of order",
+        "MC:Z:40M10S",
+        "Inappropriate call if not paired read",
+        "file:error_by_homopolymer_and_following_ref_base"
+      ],
+      "cases": [
+        {
+          "dump": "InputShapesDump",
+          "golden": "crates/picard-analysis/tests/data/inputshapes.txt.gz",
+          "why": "Frozen from the candidate artefact of run 39024046351 (real x86-64), byte for byte the local dump."
+        }
+      ]
+    },
+    {
+      "id": "nonbamshapes",
+      "title": "what a screen of the non-BAM tools on large inputs found answered differently: CollectVariantCallingMetrics' variant types, dbSNP spans and sample order, the .idx beside every plain .vcf and its Double.toString properties, ##fileDate and Generated on dates, BaitDesigner's grouped bait numbers, CheckFingerprint's indexed genotypes, CreateSequenceDictionary's default and existing output, CollectIndependentReplicateMetrics without MC tags, ExtractIlluminaBarcodes' gzip member",
+      "status": "oracle-backed",
+      "harness": "tools/nonbamshapes-conformance",
+      "needs_fixtures": true,
+      "tools": [
+        "BaitDesigner",
+        "CheckFingerprint",
+        "CollectIndependentReplicateMetrics",
+        "CollectVariantCallingMetrics",
+        "CombineGenotypingArrayVcfs",
+        "ConvertHaplotypeDatabaseToVcf",
+        "CreateExtendedIlluminaManifest",
+        "CreateSequenceDictionary",
+        "ExtractFingerprint",
+        "ExtractIlluminaBarcodes",
+        "GtcToVcf",
+        "IdentifyContaminant",
+        "LiftoverVcf",
+        "SortVcf"
+      ],
+      "compare": {
+        "mode": "keyed",
+        "skip_kinds": [
+          "input"
+        ]
+      },
+      "expect_rows": 158,
+      "expect_contains": [
+        "MEAN_FEATURE_VARIANCE=8.159997333377955E-4",
+        "big_bait#1,200",
+        "Mate CIGAR (Tag MC) not found: rep0_15_1",
+        "already exists.  Delete this file and try again",
+        "Unknown problem. Partial dictionary file was deleted.",
+        "IntervalTreeIndex",
+        "a date"
+      ],
+      "cases": [
+        {
+          "dump": "NonBamShapesDump",
+          "golden": "crates/picard-analysis/tests/data/nonbam_shapes.txt.gz",
+          "why": "Frozen from the candidate artefact of run 39035124841 (real x86-64); every row but the inputs, whose .idx files carry a temporary path and a time, is the local dump's."
+        }
+      ]
     }
   ],
   "probes": [

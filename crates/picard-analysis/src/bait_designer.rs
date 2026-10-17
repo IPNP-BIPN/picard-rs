@@ -89,10 +89,29 @@ impl Default for Options {
     }
 }
 
-/// A bait's name: the target's, and the index padded to the width of the count.
+/// `NumberFormat.getIntegerInstance()` in the en_US locale: the digits in groups of three, joined
+/// by commas.
+fn integer_instance(value: i32) -> String {
+    let digits = value.unsigned_abs().to_string();
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3 + 1);
+    if value < 0 {
+        out.push('-');
+    }
+    for (at, digit) in digits.chars().enumerate() {
+        if at > 0 && (digits.len() - at).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(digit);
+    }
+    out
+}
+
+/// A bait's name: the target's, and the index padded to the width of the count, both written by
+/// the tool's `NumberFormat.getIntegerInstance()`, so a target of a thousand baits or more names
+/// them `t_bait#01,200` and pads with the comma counted.
 pub fn make_bait_name(target: &str, index: i32, total: i32) -> String {
-    let total = total.to_string();
-    let mut bait = index.to_string();
+    let total = integer_instance(total);
+    let mut bait = integer_instance(index);
     while bait.len() < total.len() {
         bait.insert(0, '0');
     }

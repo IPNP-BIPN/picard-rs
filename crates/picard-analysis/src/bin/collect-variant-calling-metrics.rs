@@ -16,15 +16,15 @@
 //! The dbSNP answer is two answers: a bitset of SNP sites and another of indel sites, each asked
 //! for the site's own type.
 
-use std::collections::HashSet;
-
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use htsjdk_vcf::reader::read_vcf;
 use htsjdk_vcf::variant::VariantContext;
 use picard_analysis::args::arg;
 use picard_analysis::collect_variant_calling_metrics::{
-    accumulate_detail, accumulate_site, file_names, Call, Counts, HiddenCounts, Site,
+    accumulate_detail, accumulate_site, file_names, kind_of, Call, Counts, HiddenCounts, Kind, Site,
 };
+use picard_analysis::java_hash_map::JavaHashMap;
+use picard_analysis::overlap::{PositionSet, Spans};
 
 /// One interval of an interval list, uniqued the way `IntervalList.uniqued` does.
 struct Interval {
@@ -80,35 +80,28 @@ fn read_intervals(text: &str) -> Vec<Interval> {
     merged
 }
 
-fn within(record: &VariantContext, intervals: &[Interval]) -> bool {
-    intervals.iter().any(|interval| {
-        record.contig == interval.contig
-            && record.start <= interval.end
-            && record.stop >= interval.start
-    })
-}
-
-/// `VariantContext.isSNP()` over a decoded record.
-fn record_is_snp(record: &VariantContext) -> bool {
+/// `VariantContext.getType()` over a decoded record.
+fn record_kind(record: &VariantContext) -> Kind {
     let reference = record
         .alleles
         .iter()
         .find(|allele| allele.is_reference())
         .map(|allele| allele.base_string())
         .unwrap_or_default();
-    reference.len() == 1
-        && record
-            .alleles
-            .iter()
-            .filter(|allele| !allele.is_reference())
-            .all(|allele| allele.base_string().len() == 1)
+    let alternates: Vec<String> = record
+        .alleles
+        .iter()
+        .filter(|allele| !allele.is_reference() && !allele.is_no_call())
+        .map(|allele| allele.base_string())
+        .collect();
+    kind_of(&reference, &alternates)
 }
 
 fn site_of(
     record: &VariantContext,
     samples: &[String],
-    snps: &HashSet<(String, i64)>,
-    indels: &HashSet<(String, i64)>,
+    snps: &PositionSet,
+    indels: &PositionSet,
 ) -> Site {
     let reference = record
         .alleles
@@ -154,13 +147,12 @@ fn site_of(
             }
         })
         .collect();
-    let key = (record.contig.clone(), record.start);
     Site {
         reference,
         alternates,
         filtered: record.filters.as_ref().is_some_and(|f| !f.is_empty()),
-        in_db_snp_snps: snps.contains(&key),
-        in_db_snp_indels: indels.contains(&key),
+        in_db_snp_snps: snps.contains(&record.contig, record.start),
+        in_db_snp_indels: indels.contains(&record.contig, record.start),
         calls,
     }
 }
@@ -378,18 +370,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // `createSnpAndIndelBitSets`: one set of SNP sites and one of indel sites, over the intervals.
-    let mut snp_sites: HashSet<(String, i64)> = HashSet::new();
-    let mut indel_sites: HashSet<(String, i64)> = HashSet::new();
+    // A record sets every position from its start to its end, and only a SNP or an INDEL sets
+    // anything: an MNP, a mixed or a symbolic record is in neither set.
+    let targets = Spans::new(intervals.iter().map(|i| (i.contig.clone(), i.start, i.end)));
+    let within = |r: &VariantContext| targets.overlaps(r.contig.as_str(), r.start, r.stop);
+    let mut snp_sites = PositionSet::default();
+    let mut indel_sites = PositionSet::default();
     for record in &known.records {
-        if !intervals.is_empty() && !within(record, &intervals) {
+        if !intervals.is_empty() && !within(record) {
             continue;
         }
-        let key = (record.contig.clone(), record.start);
-        if record_is_snp(record) {
-            snp_sites.insert(key);
-        } else {
-            indel_sites.insert(key);
-        }
+        let sites = match record_kind(record) {
+            Kind::Snp => &mut snp_sites,
+            Kind::Indel => &mut indel_sites,
+            _ => continue,
+        };
+        sites.set_range(&record.contig, record.start, record.stop);
     }
 
     let samples = vcf.header.samples.clone();
@@ -399,7 +395,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         samples.iter().map(|_| Default::default()).collect();
 
     for record in &vcf.records {
-        if !intervals.is_empty() && !within(record, &intervals) {
+        if !intervals.is_empty() && !within(record) {
             continue;
         }
         let site = site_of(record, &samples, &snp_sites, &indel_sites);
@@ -443,7 +439,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for header in picard_analysis::command_line::default_headers("CollectVariantCallingMetrics") {
         detail_file.add_header(&header);
     }
+    // `sampleMetricsMap`, and `Result.merge`'s `groupingBy` after it: a `HashMap` by sample name,
+    // which is the order the rows come out in.
+    let mut order: JavaHashMap<usize> = JavaHashMap::new();
     for (index, sample) in samples.iter().enumerate() {
+        order.put(sample, index);
+    }
+    for (sample, &index) in order.iter() {
+        let sample = sample.to_string();
         let (counts, hidden) = details[index].clone();
         detail_file.add_metric(&DetailRow {
             sample: sample.clone(),
