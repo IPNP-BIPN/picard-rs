@@ -23,12 +23,8 @@
 
 use std::io::Write;
 
+use picard_analysis::args::arg;
 use picard_analysis::bam_index_stats::bam_index_stats_with_index;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();

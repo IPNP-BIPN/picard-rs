@@ -4,12 +4,8 @@
 //! so the array varies that and the interval list. The reference is read as text, which is what
 //! `ReferenceSequenceFile` does for an unindexed FASTA.
 
+use picard_analysis::args::arg;
 use picard_analysis::extract_sequences::{extract_sequences, ExtractError, Options};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();

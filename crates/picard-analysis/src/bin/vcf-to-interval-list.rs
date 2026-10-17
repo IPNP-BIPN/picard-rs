@@ -8,13 +8,9 @@
 //! header codec asking the missing dictionary for its sequences: a `NullPointerException`, not a
 //! message of Picard's.
 
+use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{die, header_dictionary, read_path};
 use picard_analysis::vcf_to_interval_list::{merge_intervals, render, to_intervals, Site};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
@@ -26,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("OUTPUT= is required")?;
     let include_filtered = arg(&args, "INCLUDE_FILTERED=")
         .or_else(|| arg(&args, "IF="))
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(false);
     let concatenate_ids = match arg(&args, "VARIANT_ID_METHOD=").as_deref() {
         None | Some("CONCAT_ALL") => true,

@@ -20,14 +20,10 @@ use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
 use htsjdk_bam::writer::BamWriter;
+use picard_analysis::args::arg;
 use picard_analysis::revert_original_quals_add_mate_cigar::{
     can_skip, revert_original_records_with, Options, SortOrder,
 };
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// The order the writer will be given: the argument, or the input header's when there is none.
 fn resolved_order(text: &str, options: &Options) -> Option<SortOrder> {
@@ -55,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let options = Options {
         restore_original_qualities: arg(&args, "RESTORE_ORIGINAL_QUALITIES=")
-            .map(|value| value == "true")
+            .map(|value| picard_analysis::args::is_true(&value))
             .unwrap_or(true),
         sort_order,
         max_records_to_examine: arg(&args, "MAX_RECORDS_TO_EXAMINE=")

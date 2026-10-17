@@ -30,11 +30,7 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
 use htsjdk_bam::writer::BamWriter;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
+use picard_analysis::args::arg;
 
 /// `BAMFileWriter.createBamIndex`: the `.bam` suffix is dropped, anything else is kept.
 fn index_path(output: &str) -> String {
@@ -53,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
     let create_index = arg(&args, "CREATE_INDEX=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(false);
     // `SamReaderFactory.setDefaultValidationStringency(VALIDATION_STRINGENCY)`, which
     // `CommandLineProgram` calls before `doWork`: this tool asks for no downgrade, unlike

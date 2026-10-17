@@ -21,21 +21,12 @@
 
 use std::io::Write;
 
+use picard_analysis::args::arg;
 use picard_analysis::normalize_fasta::{normalize_fasta, Options};
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
-/// A Barclay `boolean` argument, which is `true`/`false` and nothing else.
-fn flag(args: &[String], key: &str, default: bool) -> Result<bool, String> {
-    match arg(args, key).as_deref() {
-        None => Ok(default),
-        Some("true") => Ok(true),
-        Some("false") => Ok(false),
-        Some(other) => Err(format!("unknown value for {key}{other}")),
-    }
+/// A boolean argument, which the legacy parser builds as `new Boolean(value)`.
+fn flag(args: &[String], key: &str, default: bool) -> bool {
+    arg(args, key).map_or(default, |value| picard_analysis::args::is_true(&value))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -61,7 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(value) => value.parse().map_err(|_| format!("LINE_LENGTH: {value}"))?,
             None => 100,
         },
-        truncate_names_at_whitespace: flag(&args, "TRUNCATE_SEQUENCE_NAMES_AT_WHITESPACE=", false)?,
+        truncate_names_at_whitespace: flag(&args, "TRUNCATE_SEQUENCE_NAMES_AT_WHITESPACE=", false),
     };
 
     let fasta = std::fs::read_to_string(&input)?;

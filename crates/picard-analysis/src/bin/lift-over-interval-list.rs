@@ -12,14 +12,10 @@
 //! it lifts when that part is at least this fraction of it, and is rejected otherwise, so the same
 //! interval list against the same chain is two different files at 0.95 and at 0.3.
 
+use picard_analysis::args::arg;
 use picard_analysis::lift_over_interval_list::{
     lift_over_interval_list, LiftOverIntervalListError,
 };
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// `SAMSequenceDictionaryExtractor.extractDictionary`, for the two shapes the corpus has.
 ///

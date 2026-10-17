@@ -25,15 +25,13 @@ use std::io::{Read, Write};
 
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::sam_file::write_sam;
+use picard_analysis::args::arg;
 use picard_analysis::view_sam::{view_sam, AlignmentStatus, Options, PfStatus};
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn flag(args: &[String], key: &str) -> bool {
-    arg(args, key).map(|v| v == "true").unwrap_or(false)
+    arg(args, key)
+        .map(|v| picard_analysis::args::is_true(&v))
+        .unwrap_or(false)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

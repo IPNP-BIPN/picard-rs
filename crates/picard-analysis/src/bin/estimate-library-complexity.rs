@@ -29,6 +29,7 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{Histogram as OutHistogram, MetricsFile};
+use picard_analysis::args::arg;
 use picard_analysis::collect_duplicate_metrics::DuplicationMetrics;
 use picard_analysis::estimate_library_complexity::{
     groups, metrics, passes_quality_check, search_duplicates, seed_order, LibraryHistograms,
@@ -44,11 +45,6 @@ const FIRST_OF_PAIR_FLAG: u16 = 0x40;
 const SECOND_OF_PAIR_FLAG: u16 = 0x80;
 const SECONDARY_FLAG: u16 = 0x100;
 const SUPPLEMENTARY_FLAG: u16 = 0x800;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn args_of(args: &[String], key: &str) -> Vec<String> {
     args.iter()

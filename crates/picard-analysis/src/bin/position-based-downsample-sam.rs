@@ -20,16 +20,12 @@ use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::writer::BamWriter;
+use picard_analysis::args::arg;
 use picard_analysis::position_based_downsample_sam::{
     fraction_out_of_range_message, keep, PhysicalLocation, PG_PROGRAM_NAME,
 };
 
 const DUPLICATE_READ: u16 = 0x400;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `READ_NAME_REGEX`, which a name has to match whole for its tile and position to be read.
@@ -53,7 +49,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "F="))
         .ok_or("FRACTION= is required")?
         .parse()?;
-    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
+    let flag = |key: &str, default: bool| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(default)
+    };
     // `public boolean REMOVE_DUPLICATE_INFORMATION = true`.
     let remove_duplicate_information = flag("REMOVE_DUPLICATE_INFORMATION=", true);
     let allow_multiple = flag("ALLOW_MULTIPLE_DOWNSAMPLING_DESPITE_WARNINGS=", false);

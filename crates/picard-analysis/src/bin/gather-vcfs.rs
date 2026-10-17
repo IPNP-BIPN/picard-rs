@@ -22,15 +22,11 @@
 
 use htsjdk_vcf::comparator::VariantContextComparator;
 use htsjdk_vcf::variant::VariantContext;
+use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
     add_other_meta_data_line, assert_same_dictionary, die, header_dictionary, java_compare,
     log_error, read_path, unroll_paths, write_output, LazyVcf, Record,
 };
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// A collection argument: every occurrence appends, and the value `null` empties it (Barclay).
 fn collection(args: &[String], keys: &[&str]) -> Vec<String> {
@@ -228,10 +224,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let comments = collection(&args, &["COMMENT=", "CO="]);
     let reorder = arg(&args, "REORDER_INPUT_BY_FIRST_VARIANT=")
         .or_else(|| arg(&args, "RI="))
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(false);
     let create_index = arg(&args, "CREATE_INDEX=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(true);
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {

@@ -14,17 +14,13 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
+use picard_analysis::args::arg;
 use picard_analysis::mark_duplicates::{Options, Record, ScoringStrategy, TaggingPolicy};
 use picard_analysis::mate_cigar_duplicates::{
     simple_mark_with_mate_cigar, SortOrder as MateSortOrder,
 };
 
 const DUPLICATE_READ: u16 = 0x400;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
     match record.tags.get(Tag::new(name)) {
@@ -45,14 +41,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     });
     let args: Vec<String> = std::env::args().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
+    let input = picard_analysis::args::single_input(&args)?;
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
     let metrics_file = arg(&args, "METRICS_FILE=").or_else(|| arg(&args, "M="));
-    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
+    let flag = |key: &str, default: bool| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(default)
+    };
 
     let options = Options {
         scoring: match arg(&args, "DUPLICATE_SCORING_STRATEGY=").as_deref() {
@@ -117,11 +115,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let assumed = arg(&args, "ASSUME_SORT_ORDER=")
         .or_else(|| arg(&args, "ASO="))
         .or_else(|| {
-            (arg(&args, "ASSUME_SORTED=")
+            arg(&args, "ASSUME_SORTED=")
                 .or_else(|| arg(&args, "AS="))
-                .as_deref()
-                == Some("true"))
-            .then(|| "coordinate".to_string())
+                .is_some_and(|v| picard_analysis::args::is_true(&v))
+                .then(|| "coordinate".to_string())
         });
     if let Some(order) = assumed {
         header.set_sort_order(&order);

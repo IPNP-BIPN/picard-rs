@@ -9,12 +9,8 @@
 //! With no `OUTPUT` the index goes to the working directory, named after the input's FILE NAME
 //! rather than beside it: `x.bai` for `x.bam`, `<name>.bai` otherwise.
 
+use picard_analysis::args::arg;
 use picard_analysis::build_bam_index::build_bam_index;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn refuse(message: &str) -> ! {
     eprintln!("Exception in thread \"main\" htsjdk.samtools.SAMException: {message}");

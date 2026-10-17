@@ -22,11 +22,7 @@ use htsjdk_bam::read_group_checksum::calculate_read_group_record_checksum;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::sam_file::read_sam_with;
 use htsjdk_bam::text_parse::ValidationStringency;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
+use picard_analysis::args::arg;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();

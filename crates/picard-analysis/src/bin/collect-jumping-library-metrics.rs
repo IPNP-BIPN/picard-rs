@@ -16,6 +16,7 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::MetricsFile;
+use picard_analysis::args::arg;
 use picard_analysis::jumping_library::{collect, unsorted_message, Arguments, Pair};
 
 const READ_PAIRED: u16 = 0x1;
@@ -26,16 +27,9 @@ const MATE_REVERSE: u16 = 0x20;
 const FIRST_OF_PAIR: u16 = 0x40;
 const DUPLICATE: u16 = 0x400;
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
+    let input = picard_analysis::args::single_input(&args)?;
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;

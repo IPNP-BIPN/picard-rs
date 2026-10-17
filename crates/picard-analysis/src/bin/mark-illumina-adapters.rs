@@ -26,6 +26,7 @@ use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
 use htsjdk_metrics::file::{Histogram, MetricsFile};
+use picard_analysis::args::arg;
 use picard_analysis::mark_illumina_adapters::{
     read_bases_in_read_order, trim_paired_reads, trim_single_read, Adapter, ADAPTER_PAIRS,
     DEFAULT_ADAPTER_LENGTH, MAX_ERROR_RATE, MAX_PE_ERROR_RATE, MIN_MATCH_BASES, MIN_MATCH_PE_BASES,
@@ -35,11 +36,6 @@ const READ_PAIRED_FLAG: u16 = 0x1;
 const READ_STRAND_FLAG: u16 = 0x10;
 const FIRST_OF_PAIR_FLAG: u16 = 0x40;
 const SECOND_OF_PAIR_FLAG: u16 = 0x80;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// Every value given for a repeatable argument, in the order the command line gives them.
 fn args_of(args: &[String], key: &str) -> Vec<String> {

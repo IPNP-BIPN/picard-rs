@@ -16,12 +16,8 @@ use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::writer::BamWriter;
+use picard_analysis::args::arg;
 use picard_analysis::revert_sam::{revert_with, Options, RevertError, SortOrder};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn write_bam(path: &str, header: &SamHeader, records: &[BamRecord]) -> Result<(), String> {
     let mut writer = BamWriter::new(Vec::new(), header).map_err(|e| format!("{e:?}"))?;
@@ -129,7 +125,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("INPUT= is required")?;
     let output = arg(&args, "OUTPUT=").or_else(|| arg(&args, "O="));
     let output_map = arg(&args, "OUTPUT_MAP=");
-    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
+    let flag = |key: &str, default: bool| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(default)
+    };
     let by_read_group = flag("OUTPUT_BY_READGROUP=", false) || flag("OBR=", false);
     let sort_order = match arg(&args, "SORT_ORDER=").as_deref() {
         None | Some("queryname") => SortOrder::Queryname,

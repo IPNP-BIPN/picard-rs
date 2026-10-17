@@ -13,12 +13,8 @@
 //!   corpus's `reads_1.fastq` does not, and the refusal quotes the whole list it expected.
 
 use picard_analysis::add_or_replace_read_groups::iso8601;
+use picard_analysis::args::arg;
 use picard_analysis::fastq_to_sam::{fastq_to_bam_full, FullOptions};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// `FastqQualityFormat`'s range check, as `QualityEncodingDetector` applies it: a Standard file
 /// read as Illumina or Solexa has quality bytes below those encodings' floor.
@@ -44,7 +40,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
     let sample = arg(&args, "SAMPLE_NAME=").ok_or("SAMPLE_NAME= is required")?;
-    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
+    let flag = |key: &str, default: bool| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(default)
+    };
 
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {
