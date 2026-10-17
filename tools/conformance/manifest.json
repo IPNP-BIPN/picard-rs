@@ -3320,7 +3320,7 @@
     {
       "id": "inputshapes",
       "title": "input shapes the tools' own suites never carried: secondary, supplementary, mate cigars, missing mates, unsorted input, malformed tags, a run that throws after a flush",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "harness": "tools/inputshapes-conformance",
       "tools": [
         "CleanSam",
@@ -3342,7 +3342,8 @@
       "cases": [
         {
           "dump": "InputShapesDump",
-          "golden": null
+          "golden": "crates/picard-analysis/tests/data/inputshapes.txt.gz",
+          "why": "Frozen from the candidate artefact of run 39024046351 (real x86-64), byte for byte the local dump."
         }
       ]
     }
