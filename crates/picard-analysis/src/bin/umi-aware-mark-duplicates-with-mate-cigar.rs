@@ -54,7 +54,10 @@ fn main() {
         ("UMI_METRICS", "UMI_METRICS_FILE"),
         ("R", "REFERENCE_SEQUENCE"),
     ]);
-    let input = args.required("INPUT");
+    let inputs = args.all("INPUT");
+    if inputs.is_empty() {
+        fail("Argument 'INPUT' is required");
+    }
     let output = args.required("OUTPUT");
     let metrics_path = args.required("METRICS_FILE");
     let umi_metrics_path = args.required("UMI_METRICS_FILE");
@@ -93,16 +96,21 @@ fn main() {
         duplex_umi: args.bool("DUPLEX_UMI", false),
     };
 
-    let (mut header, records) = read_input(&input);
     // ASSUME_SORT_ORDER is written into the header by `openInputs`, so it decides the check below
     // as surely as the file does.
     // `ASSUME_SORTED=true` stands for `ASSUME_SORT_ORDER=coordinate`.
-    if let Some(order) = args
-        .get("ASSUME_SORT_ORDER")
-        .or_else(|| (args.get("ASSUME_SORTED") == Some("true")).then_some("coordinate"))
-    {
-        header.set_sort_order(order);
-    }
+    let assumed = args.get("ASSUME_SORT_ORDER").or_else(|| {
+        args.get("ASSUME_SORTED")
+            .is_some_and(picard_analysis::args::is_true)
+            .then_some("coordinate")
+    });
+    let (mut header, records) = picard_analysis::merge_sam_files::open_inputs(
+        inputs.iter().map(|input| read_input(input)).collect(),
+        assumed,
+    )
+    .unwrap_or_else(|message| thrown(&message));
+    // Only an order this tool refuses before reading a record makes reading one throw.
+    let records = records.unwrap_or_default();
     if header.attributes.get("SO") != Some("coordinate") {
         thrown("picard.PicardException: This program requires inputs in coordinate SortOrder");
     }
