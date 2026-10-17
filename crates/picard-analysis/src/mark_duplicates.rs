@@ -190,7 +190,8 @@ pub struct Record {
     pub alignment_start: i32,
     /// The record's own cigar, as [`Span::of`] reads it.
     pub span: Span,
-    /// The number of bases, which is `SAMRecord.getReadLength` and what `toString` prints.
+    /// The number of BASES, which is `SAMRecord.getReadLength` and what `toString` prints. Not the
+    /// number of qualities: a read whose `QUAL` is `*` has none and still has its length.
     pub read_length: u32,
     /// [`base_quality_score`] of the record's qualities.
     pub base_quality_score: i16,

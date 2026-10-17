@@ -61,7 +61,11 @@ fn record(line: &str) -> Record {
         reference_index: 0,
         alignment_start: columns[3].parse().expect("the position"),
         span: Span::of(&parse_cigar(columns[5]).expect("the cigar")),
-        read_length: columns[10].len() as u32,
+        read_length: if columns[9] == "*" {
+            0
+        } else {
+            columns[9].len() as u32
+        },
         base_quality_score: base_quality_score(
             &columns[10]
                 .bytes()

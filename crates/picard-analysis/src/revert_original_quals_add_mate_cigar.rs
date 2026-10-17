@@ -287,7 +287,7 @@ fn sort_by_duplicate_order(header: &htsjdk_bam::header::SamHeader, records: &mut
             reference_index: record.reference_index,
             alignment_start: record.alignment_start,
             span: Span::of(&record.cigar),
-            read_length: record.base_qualities.len() as u32,
+            read_length: record.read_bases.len() as u32,
             base_quality_score: base_quality_score(&record.base_qualities),
             mate_reference_index: record.mate_reference_index,
             library: library.into(),

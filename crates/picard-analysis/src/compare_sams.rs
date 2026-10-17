@@ -402,7 +402,7 @@ fn duplicate_record(header: &SamHeader, rec: &BamRecord) -> crate::mark_duplicat
         reference_index: rec.reference_index,
         alignment_start: rec.alignment_start,
         span: crate::mark_duplicates::Span::of(&rec.cigar),
-        read_length: rec.base_qualities.len() as u32,
+        read_length: rec.read_bases.len() as u32,
         base_quality_score: crate::mark_duplicates::base_quality_score(&rec.base_qualities),
         mate_reference_index: rec.mate_reference_index,
         library: library.into(),
@@ -685,6 +685,26 @@ mod tests {
     use super::*;
 
     const H: &str = "@HD\tVN:1.6\tSO:queryname\n@SQ\tSN:chr1\tLN:100\n";
+
+    /// A read whose `QUAL` is `*` has bases and no qualities: its length is `getReadLength`, the
+    /// bases, which is what the mate-cigar window and `toString` read, and its quality score is
+    /// the sum over none.
+    #[test]
+    fn a_read_without_qualities_keeps_its_length() {
+        let rec = htsjdk_bam::text_parse::parse_line(
+            "a\t0\tchr1\t10\t60\t6M\t*\t0\t0\tACGTAC\t*",
+            |name| (name == "chr1").then_some(0),
+        )
+        .unwrap();
+        assert!(rec.base_qualities.is_empty());
+        let record = duplicate_record(&SamHeader::new(), &rec);
+        assert_eq!(record.read_length, 6);
+        assert_eq!(record.base_quality_score, 0);
+        assert_eq!(
+            crate::mate_cigar_duplicates::describe_with_contig(&record, Some("chr1")),
+            "a 6b aligned to chr1:10-15."
+        );
+    }
 
     #[test]
     fn identical_files_match() {
