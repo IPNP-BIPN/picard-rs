@@ -36,6 +36,7 @@ fn quality_out_of_range(text: &str, format: &str) -> bool {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("FastqToSam");
     let args: Vec<String> = std::env::args().collect();
     let fastq = arg(&args, "FASTQ=")
         .or_else(|| arg(&args, "F1="))

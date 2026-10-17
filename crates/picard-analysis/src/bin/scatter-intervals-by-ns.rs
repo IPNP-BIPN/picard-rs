@@ -34,6 +34,7 @@ fn dictionary_path(reference: &str) -> String {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("ScatterIntervalsByNs");
     let args: Vec<String> = std::env::args().collect();
     let reference = arg(&args, "REFERENCE=")
         .or_else(|| arg(&args, "R="))

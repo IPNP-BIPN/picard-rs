@@ -99,6 +99,7 @@ fn assert_same_samples(reader: &VcfHeader, input: &VcfHeader) {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("FixVcfHeader");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
