@@ -16,16 +16,13 @@ use std::io::{Read, Write};
 
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::sam_file::write_sam;
+use picard_analysis::args::arg;
 use picard_analysis::fix_mate_information::{
     fix_mate_information_to_bam_with, fix_mate_information_with, Options, SortOrder,
 };
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("FixMateInformation");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
@@ -41,7 +38,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("queryname") => Some(SortOrder::Queryname),
         Some(other) => return Err(format!("unknown SORT_ORDER: {other}").into()),
     };
-    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
+    let flag = |key: &str, default: bool| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(default)
+    };
     let options = Options {
         sort_order,
         assume_sorted: flag("ASSUME_SORTED=", false),

@@ -28,24 +28,16 @@
 
 use std::io::Write;
 
+use picard_analysis::args::arg;
 use picard_analysis::bed_to_interval_list::{bed_to_interval_list, Options};
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
-/// A Barclay `Boolean` argument, which is `true`/`false` and nothing else.
-fn flag(args: &[String], key: &str, default: bool) -> Result<bool, String> {
-    match arg(args, key).as_deref() {
-        None => Ok(default),
-        Some("true") => Ok(true),
-        Some("false") => Ok(false),
-        Some(other) => Err(format!("unknown value for {key}{other}")),
-    }
+/// A boolean argument, which the legacy parser builds as `new Boolean(value)`.
+fn flag(args: &[String], key: &str, default: bool) -> bool {
+    arg(args, key).map_or(default, |value| picard_analysis::args::is_true(&value))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("BedToIntervalList");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
@@ -59,10 +51,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("SEQUENCE_DICTIONARY= is required")?;
 
     let opts = Options {
-        sort: flag(&args, "SORT=", true)?,
-        unique: flag(&args, "UNIQUE=", false)?,
-        keep_length_zero_intervals: flag(&args, "KEEP_LENGTH_ZERO_INTERVALS=", false)?,
-        drop_missing_contigs: flag(&args, "DROP_MISSING_CONTIGS=", false)?,
+        sort: flag(&args, "SORT=", true),
+        unique: flag(&args, "UNIQUE=", false),
+        keep_length_zero_intervals: flag(&args, "KEEP_LENGTH_ZERO_INTERVALS=", false),
+        drop_missing_contigs: flag(&args, "DROP_MISSING_CONTIGS=", false),
     };
 
     // `SAMSequenceDictionaryExtractor`: a FASTA's dictionary is the `.dict` beside it.

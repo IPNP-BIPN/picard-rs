@@ -24,11 +24,7 @@ use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
 use picard_analysis::add_oa_tag::add_oa_records;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
+use picard_analysis::args::arg;
 
 /// Coarse phase timing to stderr when `PICARD_RS_TIMING=1`, matching the metrics bench binary.
 fn phase(label: &str, start: std::time::Instant) -> std::time::Instant {
@@ -72,6 +68,7 @@ fn read_input(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::er
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("AddOATag");
     picard_analysis::output::install();
     let mut t = std::time::Instant::now();
     let args: Vec<String> = std::env::args().collect();
@@ -82,7 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
     let create_index = arg(&args, "CREATE_INDEX=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(false);
     // The stringency is read so that a row naming it is not refused for naming it. The array's
     // three fixtures are valid under all three levels, so none of them makes the levels differ,

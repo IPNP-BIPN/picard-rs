@@ -59,6 +59,7 @@ fn read_any(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::erro
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("GatherBamFiles");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let inputs: Vec<String> = args

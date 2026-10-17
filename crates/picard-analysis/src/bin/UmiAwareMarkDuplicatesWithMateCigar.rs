@@ -33,6 +33,7 @@ fn tag_of(name: &str) -> Tag {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("UmiAwareMarkDuplicatesWithMateCigar");
     picard_analysis::output::install();
     // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
@@ -52,7 +53,10 @@ fn main() {
         ("UMI_METRICS", "UMI_METRICS_FILE"),
         ("R", "REFERENCE_SEQUENCE"),
     ]);
-    let input = args.required("INPUT");
+    let inputs = args.all("INPUT");
+    if inputs.is_empty() {
+        fail("Argument 'INPUT' is required");
+    }
     let output = args.required("OUTPUT");
     let metrics_path = args.required("METRICS_FILE");
     let umi_metrics_path = args.required("UMI_METRICS_FILE");
@@ -91,16 +95,21 @@ fn main() {
         duplex_umi: args.bool("DUPLEX_UMI", false),
     };
 
-    let (mut header, records) = read_input(&input);
     // ASSUME_SORT_ORDER is written into the header by `openInputs`, so it decides the check below
     // as surely as the file does.
     // `ASSUME_SORTED=true` stands for `ASSUME_SORT_ORDER=coordinate`.
-    if let Some(order) = args
-        .get("ASSUME_SORT_ORDER")
-        .or_else(|| (args.get("ASSUME_SORTED") == Some("true")).then_some("coordinate"))
-    {
-        header.set_sort_order(order);
-    }
+    let assumed = args.get("ASSUME_SORT_ORDER").or_else(|| {
+        args.get("ASSUME_SORTED")
+            .is_some_and(picard_analysis::args::is_true)
+            .then_some("coordinate")
+    });
+    let (mut header, records) = picard_analysis::merge_sam_files::open_inputs(
+        inputs.iter().map(|input| read_input(input)).collect(),
+        assumed,
+    )
+    .unwrap_or_else(|message| thrown(&message));
+    // Only an order this tool refuses before reading a record makes reading one throw.
+    let records = records.unwrap_or_default();
     if header.attributes.get("SO") != Some("coordinate") {
         thrown("picard.PicardException: This program requires inputs in coordinate SortOrder");
     }
@@ -180,7 +189,8 @@ fn main() {
         .collect();
     let result = run(&marked_records, &umis, &contigs, &options).unwrap_or_else(|m| thrown(&m));
 
-    let add_pg_tag = args.bool("ADD_PG_TAG_TO_READS", true);
+    let program_group =
+        picard_analysis::command_line::ProgramGroup::of("UmiAwareMarkDuplicatesWithMateCigar");
     let molecular_identifier_tag = args.get("MOLECULAR_IDENTIFIER_TAG").map(tag_of);
     // `COMMENT.forEach(outputHeader::addComment)`, inherited from SimpleMarkDuplicatesWithMateCigar.
     for comment in std::env::args().filter_map(|a| a.strip_prefix("COMMENT=").map(str::to_string)) {
@@ -206,15 +216,12 @@ fn main() {
         ) {
             written.tags.insert(tag, TagValue::Str(identifier.clone()));
         }
-        // `updateProgramRecord` only CHAINS: a record that already carries a `PG` gets the new
-        // id, and a record with none gets nothing.
-        if add_pg_tag {
-            if let Some(TagValue::Str(existing)) = written.tags.get(Tag::new(b"PG")) {
-                let chained = existing.clone();
-                if header.programs.iter().any(|pg| pg.id == chained) {
-                    written.tags.insert(Tag::new(b"PG"), TagValue::Str(chained));
-                }
-            }
+        // `record.setAttribute(PG, chainedPgIds.get(...))`, inherited from
+        // SimpleMarkDuplicatesWithMateCigar: whenever PROGRAM_RECORD_ID is set, `ADD_PG_TAG_TO_READS`
+        // unread. Nothing fills `pgIdsSeen` in this one-pass tool, so the chain is empty, no `@PG` is
+        // added, and every record's `PG` is removed.
+        if program_group.record_id.is_some() {
+            written.tags.remove(Tag::new(b"PG"));
         }
         writer
             .write(&written)
@@ -227,8 +234,11 @@ fn main() {
 
     // The UMI metrics: one row per library, in the order the reference's map iterates them.
     let mut file = MetricsFile::new();
-    file.add_header("UmiAwareMarkDuplicatesWithMateCigar <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in
+        picard_analysis::command_line::default_headers("UmiAwareMarkDuplicatesWithMateCigar")
+    {
+        file.add_header(&header);
+    }
     for row in &result.metrics {
         file.add_metric(row);
     }

@@ -166,10 +166,29 @@ pub fn classify(
 /// The pass stops after `SAMPLE_FOR_MODE` outward pairs, and it applies the quality floor and the
 /// orientation test but NOT the chimera one: the mode is what the chimera test is built from.
 pub fn outward_mode(pairs: &[(Pair, bool)], arguments: &Arguments) -> f64 {
+    outward_mode_of_files(&[pairs], arguments)
+}
+
+/// The same pass over several files, as `getOutieMode` takes them: each file samples at most
+/// `SAMPLE_FOR_MODE / INPUT.size()` pairs, in integer division, into one shared histogram.
+pub fn outward_mode_of_files(files: &[&[(Pair, bool)]], arguments: &Arguments) -> f64 {
     let mut histogram: BTreeMap<i64, i64> = BTreeMap::new();
+    let per_file = SAMPLE_FOR_MODE / files.len().max(1);
+    for pairs in files {
+        sample_outward(pairs, per_file, arguments, &mut histogram);
+    }
+    mode(&histogram)
+}
+
+fn sample_outward(
+    pairs: &[(Pair, bool)],
+    per_file: usize,
+    arguments: &Arguments,
+    histogram: &mut BTreeMap<i64, i64>,
+) {
     let mut sampled = 0usize;
     for (pair, mate_is_to_the_right) in pairs {
-        if sampled >= SAMPLE_FOR_MODE {
+        if sampled >= per_file {
             break;
         }
         if pair.unmapped && pair.reference_index < 0 {
@@ -189,7 +208,6 @@ pub fn outward_mode(pairs: &[(Pair, bool)], arguments: &Arguments) -> f64 {
         *histogram.entry(pair.insert_size.abs()).or_insert(0) += 1;
         sampled += 1;
     }
-    mode(&histogram)
 }
 
 /// `Histogram.getMode`, which is the id of the bin with the largest count.
@@ -387,31 +405,40 @@ impl htsjdk_metrics::file::MetricBean for JumpingLibraryMetrics {
 /// Every ratio answers zero when its denominator is zero rather than a NaN, which is the one
 /// place the metric departs from the histogram's own conventions.
 pub fn collect(pairs: &[(Pair, bool)], arguments: &Arguments) -> JumpingLibraryMetrics {
-    let threshold = chimera_threshold(outward_mode(pairs, arguments), arguments);
+    collect_files(&[pairs], arguments)
+}
+
+/// One run over several files: one threshold from all of them, one set of counters, and each
+/// file's own unmapped tail ending only that file.
+pub fn collect_files(files: &[&[(Pair, bool)]], arguments: &Arguments) -> JumpingLibraryMetrics {
+    let threshold = chimera_threshold(outward_mode_of_files(files, arguments), arguments);
     let mut jump_histogram: BTreeMap<i64, i64> = BTreeMap::new();
     let mut nonjump_histogram: BTreeMap<i64, i64> = BTreeMap::new();
     let (mut jumps, mut nonjumps, mut chimeras, mut fragments) = (0i64, 0i64, 0i64, 0i64);
     let (mut jump_duplicates, mut nonjump_duplicates) = (0i64, 0i64);
-    for (pair, mate_is_to_the_right) in pairs {
-        match classify(pair, threshold, *mate_is_to_the_right, arguments) {
-            Bucket::Terminator => break,
-            Bucket::Fragment => fragments += 1,
-            Bucket::Chimera => chimeras += 1,
-            Bucket::Jump => {
-                jumps += 1;
-                *jump_histogram.entry(pair.insert_size.abs()).or_insert(0) += 1;
-                if pair.duplicate {
-                    jump_duplicates += 1;
+    for pairs in files {
+        for (pair, mate_is_to_the_right) in *pairs {
+            match classify(pair, threshold, *mate_is_to_the_right, arguments) {
+                // The unmapped tail ends only the file it is in.
+                Bucket::Terminator => break,
+                Bucket::Fragment => fragments += 1,
+                Bucket::Chimera => chimeras += 1,
+                Bucket::Jump => {
+                    jumps += 1;
+                    *jump_histogram.entry(pair.insert_size.abs()).or_insert(0) += 1;
+                    if pair.duplicate {
+                        jump_duplicates += 1;
+                    }
                 }
-            }
-            Bucket::NonJump => {
-                nonjumps += 1;
-                *nonjump_histogram.entry(pair.insert_size.abs()).or_insert(0) += 1;
-                if pair.duplicate {
-                    nonjump_duplicates += 1;
+                Bucket::NonJump => {
+                    nonjumps += 1;
+                    *nonjump_histogram.entry(pair.insert_size.abs()).or_insert(0) += 1;
+                    if pair.duplicate {
+                        nonjump_duplicates += 1;
+                    }
                 }
+                Bucket::Skipped => {}
             }
-            Bucket::Skipped => {}
         }
     }
     let jump_trimmed = trim_by_tail_limit(&jump_histogram, arguments.tail_limit);

@@ -15,14 +15,11 @@
 //! column of no-calls for the new sample; but give it an `OLD_SAMPLE_NAME` and the check reads
 //! the first of zero samples, which is the JVM's index-out-of-bounds.
 
+use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{die, header_dictionary, read_path, write_output};
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("RenameSampleInVcf");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
@@ -35,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Barclay reads the value `null` as no value, which is this argument's default.
     let old_sample_name = arg(&args, "OLD_SAMPLE_NAME=").filter(|value| value != "null");
     let create_index = arg(&args, "CREATE_INDEX=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(false);
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {

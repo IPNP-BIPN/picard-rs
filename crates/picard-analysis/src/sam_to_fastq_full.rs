@@ -688,7 +688,7 @@ pub fn main_with(with_tags: bool) -> ! {
             .filter_map(|a| a.strip_prefix(&format!("{key}=")).map(str::to_string))
             .collect()
     };
-    let flag = |key: &str, default: bool| one(key).map_or(default, |v| v == "true");
+    let flag = |key: &str, default: bool| one(key).map_or(default, |v| crate::args::is_true(&v));
     let int = |key: &str| one(key).and_then(|v| v.parse::<i32>().ok());
     let Some(input) = one("INPUT").or_else(|| one("I")) else {
         eprintln!("INPUT= is required");

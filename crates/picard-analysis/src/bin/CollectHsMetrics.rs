@@ -4,6 +4,7 @@
 //! `picard_analysis::targeted_cli` and `picard_analysis::targeted_metrics`.
 
 fn main() {
+    picard_analysis::argument_check::check("CollectHsMetrics");
     picard_analysis::output::install();
     picard_analysis::targeted_cli::main_for(picard_analysis::targeted_cli::Tool::Hs);
 }

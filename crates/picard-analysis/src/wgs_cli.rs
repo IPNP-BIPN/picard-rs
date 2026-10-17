@@ -397,8 +397,9 @@ pub fn main_for(tool: Tool) {
     columns.extend(WGS_COLUMNS);
 
     let mut file = MetricsFile::new();
-    file.add_header(&format!("{} <command line>", tool.name()));
-    file.add_header("Started on: <timestamp>");
+    for header in crate::command_line::default_headers(tool.name()) {
+        file.add_header(&header);
+    }
     let mut histograms: Vec<(&str, Vec<(usize, i64)>)> = Vec::new();
     if tool == Tool::NonZero {
         let whole = wgs_metrics(
@@ -488,8 +489,9 @@ pub fn main_for(tool: Tool) {
         )
         .unwrap_or_else(|e| thrown(&e));
         let mut sensitivity = MetricsFile::new();
-        sensitivity.add_header(&format!("{} <command line>", tool.name()));
-        sensitivity.add_header("Started on: <timestamp>");
+        for header in crate::command_line::default_headers(tool.name()) {
+            sensitivity.add_header(&header);
+        }
         for row in &rows {
             sensitivity.add_metric(&SensitivityMetric(row));
         }

@@ -26,14 +26,10 @@
 use htsjdk_vcf::encoder::EncodeError;
 use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::standard_header_lines::{standard_format_line, PRIMARY_KEYS};
+use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
     die, header_dictionary, read_path, sample_names_in_order, write_output, write_records,
 };
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 const MISSING: &str = "Missing description: this {} line was added by Picard's FixVCFHeader";
 
@@ -99,6 +95,7 @@ fn assert_same_samples(reader: &VcfHeader, input: &VcfHeader) {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("FixVcfHeader");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
@@ -116,7 +113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "H="))
         .filter(|value| value != "null");
     let enforce_same_samples = arg(&args, "ENFORCE_SAME_SAMPLES=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(true);
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {

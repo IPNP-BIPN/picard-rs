@@ -12,16 +12,16 @@ repository = "https://github.com/IPNP-BIPN/picard-rs"
 # here (decision 0013). A floating dependency would let the I/O layer change under a
 # byte-identity claim without anything failing.
 [workspace.dependencies]
-htsjdk-bam = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "3960c99e19d57bb1a57addbe429cb036a4b08fb8" }
+htsjdk-bam = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "a15b88e079ee881d6a6113237bc6e44780e9c1ab" }
 # `gkl-igzip` because Picard's default deflater is Intel's GKL, which routes COMPRESSION_LEVEL 1
 # and 2 through ISA-L igzip rather than zlib. Without the feature those levels refuse rather than
 # answer with zlib's bytes.
-htsjdk-bgzf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "3960c99e19d57bb1a57addbe429cb036a4b08fb8", features = ["gkl-igzip"] }
-htsjdk-metrics = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "3960c99e19d57bb1a57addbe429cb036a4b08fb8" }
-htsjdk-vcf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "3960c99e19d57bb1a57addbe429cb036a4b08fb8" }
+htsjdk-bgzf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "a15b88e079ee881d6a6113237bc6e44780e9c1ab", features = ["gkl-igzip"] }
+htsjdk-metrics = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "a15b88e079ee881d6a6113237bc6e44780e9c1ab" }
+htsjdk-vcf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "a15b88e079ee881d6a6113237bc6e44780e9c1ab" }
 # The `.idx` a VCF writer indexing on the fly puts beside its output.
-htsjdk-tribble = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "3960c99e19d57bb1a57addbe429cb036a4b08fb8" }
+htsjdk-tribble = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "a15b88e079ee881d6a6113237bc6e44780e9c1ab" }
 # jmath, for the Math.log10 that QualityUtil.getPhredScoreFromObsAndErrors runs through, and for
 # Math.round, which is not floor(x + 0.5): see htsjdk-rs PR 50.
-jmath = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "3960c99e19d57bb1a57addbe429cb036a4b08fb8" }
+jmath = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "a15b88e079ee881d6a6113237bc6e44780e9c1ab" }
 

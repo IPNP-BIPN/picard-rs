@@ -70,6 +70,58 @@ pub enum Strategy {
     Chained,
 }
 
+/// `DownsampleSam.RANDOM_SEED_TAG`: the attribute of the tool's `@PG` that records the seed used.
+pub const RANDOM_SEED_TAG: &str = "rs";
+
+/// `SAMProgramRecord.hashCode`: the id's hash, times 31, plus the attribute map's, which is the sum
+/// of `key.hashCode() ^ value.hashCode()` over its entries (`ID` is not one of them).
+pub fn program_record_hash(pg: &htsjdk_bam::header::ProgramRecord) -> i32 {
+    use crate::java_hash_map::string_hash_code;
+    let attributes = pg.attributes.iter().fold(0i32, |sum, (key, value)| {
+        sum.wrapping_add(string_hash_code(key) ^ string_hash_code(value))
+    });
+    string_hash_code(&pg.id)
+        .wrapping_mul(31)
+        .wrapping_add(attributes)
+}
+
+/// The seed `doWork` ends up with after looking for earlier runs in the header, for the two
+/// strategies that can repeat one (`ConstantMemory` and `Chained`).
+///
+/// A `DownsampleSam` record with no `rs` means an earlier run whose seed is unknown, so the seed
+/// becomes `new Random(pg.hashCode()).nextInt()`, the last such record winning. Then, while the
+/// seed is one an earlier run recorded, it steps through `new Random(seed)`.
+pub fn reseed(header: &htsjdk_bam::header::SamHeader, strategy: Strategy, seed: i32) -> i32 {
+    if !matches!(strategy, Strategy::ConstantMemory | Strategy::Chained) {
+        return seed;
+    }
+    let mut seed = seed;
+    let mut previous = Vec::new();
+    for pg in &header.programs {
+        if pg.attributes.get("PN") != Some("DownsampleSam") {
+            continue;
+        }
+        match pg.attributes.get(RANDOM_SEED_TAG) {
+            None => {
+                seed = crate::theoretical_sensitivity::JavaRandom::new(i64::from(
+                    program_record_hash(pg),
+                ))
+                .next_int_unbounded();
+            }
+            Some(recorded) => {
+                if let Ok(recorded) = recorded.parse::<i32>() {
+                    previous.push(recorded);
+                }
+            }
+        }
+    }
+    let mut random = crate::theoretical_sensitivity::JavaRandom::new(i64::from(seed));
+    while previous.contains(&seed) {
+        seed = random.next_int_unbounded();
+    }
+    seed
+}
+
 /// `Math.min(a, b)` for doubles, which returns NaN when either side is NaN (Rust's `f64::min`
 /// returns the other side).
 fn java_min(a: f64, b: f64) -> f64 {
@@ -298,6 +350,24 @@ mod tests {
             .filter(|l| !l.starts_with('@'))
             .map(|l| l.split('\t').next().unwrap().to_string())
             .collect()
+    }
+
+    #[test]
+    fn an_earlier_run_without_a_seed_reseeds_from_its_record() {
+        // From the header-lines dump: the input's `@PG ID:DownsampleSam PN:DownsampleSam` moved
+        // RANDOM_SEED=7 to 1748926559, and on the next run that recorded seed moved it again.
+        let (header, _) = htsjdk_bam::sam_file::read_sam(
+            "@HD\tVN:1.6\n@PG\tID:DownsampleSam\tPN:DownsampleSam\n",
+        )
+        .unwrap();
+        assert_eq!(reseed(&header, Strategy::ConstantMemory, 7), 1748926559);
+        assert_eq!(reseed(&header, Strategy::HighAccuracy, 7), 7);
+        let (again, _) = htsjdk_bam::sam_file::read_sam(
+            "@HD\tVN:1.6\n@PG\tID:DownsampleSam\tPN:DownsampleSam\n\
+             @PG\tID:DownsampleSam.5\tPN:DownsampleSam\tCL:x\tVN:3.5.0\trs:1748926559\n",
+        )
+        .unwrap();
+        assert_eq!(reseed(&again, Strategy::ConstantMemory, 7), 574583166);
     }
 
     #[test]

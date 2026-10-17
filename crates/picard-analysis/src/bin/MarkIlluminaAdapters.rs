@@ -25,6 +25,7 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{Histogram, MetricsFile};
+use picard_analysis::args::arg;
 use picard_analysis::mark_illumina_adapters::{
     read_bases_in_read_order, trim_paired_reads, trim_single_read, Adapter, ADAPTER_PAIRS,
     DEFAULT_ADAPTER_LENGTH, MAX_ERROR_RATE, MAX_PE_ERROR_RATE, MIN_MATCH_BASES, MIN_MATCH_PE_BASES,
@@ -34,11 +35,6 @@ const READ_PAIRED_FLAG: u16 = 0x1;
 const READ_STRAND_FLAG: u16 = 0x10;
 const FIRST_OF_PAIR_FLAG: u16 = 0x40;
 const SECOND_OF_PAIR_FLAG: u16 = 0x80;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// Every value given for a repeatable argument, in the order the command line gives them.
 fn args_of(args: &[String], key: &str) -> Vec<String> {
@@ -151,6 +147,7 @@ fn throw(message: &str) -> ! {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("MarkIlluminaAdapters");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
@@ -411,8 +408,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut file = MetricsFile::new();
-    file.add_header("MarkIlluminaAdapters <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("MarkIlluminaAdapters") {
+        file.add_header(&header);
+    }
     file.histograms.push(Histogram {
         bin_label: "clipped_bases".to_string(),
         value_label: "read_count".to_string(),

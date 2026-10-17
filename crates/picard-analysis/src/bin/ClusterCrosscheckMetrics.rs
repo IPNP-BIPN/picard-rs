@@ -233,6 +233,7 @@ fn read_metrics(text: &str) -> Vec<Metric> {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("ClusterCrosscheckMetrics");
     picard_analysis::output::install();
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT"), ("LOD", "LOD_THRESHOLD")]);
     let input = args.required("INPUT");
@@ -272,8 +273,9 @@ fn main() {
     let ordered = in_hash_order(met, |cluster| *cluster as i32);
 
     let mut file = MetricsFile::new();
-    file.add_header(&format!("{TOOL} <command line>"));
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers(TOOL) {
+        file.add_header(&header);
+    }
     for cluster in ordered {
         let members: Vec<&String> = graph
             .nodes()

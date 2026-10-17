@@ -23,6 +23,7 @@ fn raise(message: &str) -> ! {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("BpmToNormalizationManifestCsv");
     picard_analysis::output::install();
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT"), ("CF", "CLUSTER_FILE")]);
     let input = args.required("INPUT");

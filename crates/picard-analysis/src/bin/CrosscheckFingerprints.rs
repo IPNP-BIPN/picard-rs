@@ -7,6 +7,7 @@ use picard_analysis::crosscheck_run::{run, write_outcome, DataType, Options};
 use picard_analysis::metrics_cli::{thrown, Args};
 
 fn main() {
+    picard_analysis::argument_check::check("CrosscheckFingerprints");
     picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),

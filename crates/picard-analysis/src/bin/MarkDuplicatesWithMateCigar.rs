@@ -14,24 +14,15 @@
 //! The corpus gained `mate_cigar.bam` for this: without a file that carries the tag, every row
 //! measured the refusal and nothing else.
 
-use std::io::Read;
-
-use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
+use picard_analysis::args::arg;
 use picard_analysis::mark_duplicates::{Options, Record, ScoringStrategy, TaggingPolicy};
 use picard_analysis::mate_cigar_duplicates::{
     mark_with_mate_cigar, MateCigarOptions, SortOrder as MateSortOrder,
 };
 
 const DUPLICATE_READ: u16 = 0x400;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
     match record.tags.get(Tag::new(name)) {
@@ -41,6 +32,7 @@ fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("MarkDuplicatesWithMateCigar");
     picard_analysis::output::install();
     // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
@@ -53,19 +45,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     });
     let args: Vec<String> = std::env::args().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
+    let inputs = picard_analysis::args::inputs(&args)?;
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
     let metrics_file = arg(&args, "METRICS_FILE=").or_else(|| arg(&args, "M="));
-    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
+    let flag = |key: &str, default: bool| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(default)
+    };
 
     let options = Options {
         scoring: match arg(&args, "DUPLICATE_SCORING_STRATEGY=").as_deref() {
-            None | Some("SUM_OF_BASE_QUALITIES") => ScoringStrategy::SumOfBaseQualities,
-            Some("TOTAL_MAPPED_REFERENCE_LENGTH") => ScoringStrategy::TotalMappedReferenceLength,
+            // `AbstractMarkDuplicatesCommandLineProgram.DUPLICATE_SCORING_STRATEGY =
+            // TOTAL_MAPPED_REFERENCE_LENGTH`: an unset one is the one strategy this tool accepts.
+            Some("SUM_OF_BASE_QUALITIES") => ScoringStrategy::SumOfBaseQualities,
+            None | Some("TOTAL_MAPPED_REFERENCE_LENGTH") => {
+                ScoringStrategy::TotalMappedReferenceLength
+            }
             Some("RANDOM") => ScoringStrategy::Random,
             Some(other) => {
                 return Err(format!("unknown DUPLICATE_SCORING_STRATEGY: {other}").into())
@@ -102,38 +100,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let (header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
-
     // ASSUME_SORT_ORDER is written into the header by `openInputs`, so it decides this check as
     // surely as the file does: a coordinate-sorted file assumed to be anything else is refused,
     // and the message says nothing about the assumption.
-    let mut header = header;
     // `ASSUME_SORTED=true` stands for `ASSUME_SORT_ORDER=coordinate`.
     let assumed = arg(&args, "ASSUME_SORT_ORDER=")
         .or_else(|| arg(&args, "ASO="))
         .or_else(|| {
-            (arg(&args, "ASSUME_SORTED=")
+            arg(&args, "ASSUME_SORTED=")
                 .or_else(|| arg(&args, "AS="))
-                .as_deref()
-                == Some("true"))
-            .then(|| "coordinate".to_string())
+                .is_some_and(|v| picard_analysis::args::is_true(&v))
+                .then(|| "coordinate".to_string())
         });
-    if let Some(order) = assumed {
-        header.set_sort_order(&order);
-    }
+    let read = |input: &String| picard_analysis::metrics_cli::read_input(input);
+    let (header, records) = picard_analysis::merge_sam_files::open_inputs(
+        inputs.iter().map(read).collect(),
+        assumed.as_deref(),
+    )
+    .unwrap_or_else(|thrown| picard_analysis::metrics_cli::thrown(&thrown));
+    // Only an order this tool refuses before reading a record makes reading one throw.
+    let records = records.unwrap_or_default();
     let header_order = header
         .attributes
         .get("SO")
@@ -230,6 +216,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         out_header.comments.push(format!("@CO\t{comment}"));
     }
     let add_pg_tag = flag("ADD_PG_TAG_TO_READS=", true);
+    // `setPGIdsSeen`: one pass cannot know which program ids the reads carry, so the chain is
+    // built from the header's, less every id another record names as its `PP`.
+    let previous: Vec<&str> = out_header
+        .programs
+        .iter()
+        .filter_map(|pg| pg.attributes.get("PP"))
+        .collect();
+    let mut seen: Vec<Option<String>> = Vec::new();
+    for pg in &out_header.programs {
+        let id = Some(pg.id.clone());
+        if !previous.contains(&pg.id.as_str()) && !seen.contains(&id) {
+            seen.push(id);
+        }
+    }
+    let chained = picard_analysis::command_line::chained_pg_ids(
+        &mut out_header,
+        &picard_analysis::command_line::hash_set_order(seen),
+        &picard_analysis::command_line::ProgramGroup::of("MarkDuplicatesWithMateCigar"),
+        "MarkDuplicatesWithMateCigar",
+    );
 
     let mut writer = picard_analysis::output::bam_writer(Vec::new(), &out_header)
         .map_err(|e| format!("{e:?}"))?;
@@ -248,17 +254,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .tags
                 .insert(Tag::new(b"DT"), TagValue::Str(code.clone()));
         }
-        // `updateProgramRecord` only CHAINS: a record that already carries a `PG` gets the new id,
-        // and a record with none gets a warning and nothing else. That is the opposite of
-        // `MarkDuplicates`, which fills its chain from the records themselves and so stamps every
-        // one of them; here the chain comes from the HEADER's program records, and this corpus has
-        // none, so `ADD_PG_TAG_TO_READS` changes not a byte.
-        if add_pg_tag {
-            if let Some(TagValue::Str(existing)) = written.tags.get(Tag::new(b"PG")) {
-                let chained = existing.clone();
-                if header.programs.iter().any(|pg| pg.id == chained) {
-                    written.tags.insert(Tag::new(b"PG"), TagValue::Str(chained));
-                }
+        // `updateProgramRecord` only CHAINS: a record with no `PG`, or with one the chain does
+        // not hold (an id some other record follows), is left as it is, with a warning.
+        if let (true, Some(chained)) = (add_pg_tag, &chained) {
+            let old = string_tag(&written, b"PG");
+            if let Some(id) = old
+                .as_deref()
+                .and_then(|old| picard_analysis::command_line::chained_id(chained, Some(old)))
+            {
+                written
+                    .tags
+                    .insert(Tag::new(b"PG"), TagValue::Str(id.to_string()));
             }
         }
         writer.write(&written).map_err(|e| format!("{e:?}"))?;

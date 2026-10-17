@@ -491,6 +491,14 @@
       ]
     },
     "MarkDuplicatesWithMateCigar": {
+      "$why": [
+        "INPUT is a list ($lists): two files are one stream through a SamFileHeaderMerger and a",
+        "MergingSamRecordIterator, here mate_cigar.bam beside small.bam, whose pairs carry no MC, and",
+        "mate_cigar.bam twice, whose identical records meet at the head of the queue."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
       "--ASSUME_SORTED": [
         "<absent>",
         "true",
@@ -499,7 +507,9 @@
       "--TAG_DUPLICATE_SET_MEMBERS": [],
       "--INPUT": [
         "/work/fixtures/mate_cigar.bam",
-        "/work/fixtures/small.bam"
+        "/work/fixtures/small.bam",
+        "/work/fixtures/mate_cigar.bam /work/fixtures/small.bam",
+        "/work/fixtures/mate_cigar.bam /work/fixtures/mate_cigar.bam"
       ],
       "--OPTICAL_DUPLICATE_PIXEL_DISTANCE": [
         "100",
@@ -557,6 +567,14 @@
       ]
     },
     "SimpleMarkDuplicatesWithMateCigar": {
+      "$why": [
+        "INPUT is a list ($lists): two files are one stream through a SamFileHeaderMerger and a",
+        "MergingSamRecordIterator, here mate_cigar.bam beside small.bam, whose pairs carry no MC, and",
+        "mate_cigar.bam twice, whose identical records meet at the head of the queue."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
       "--ASSUME_SORTED": [
         "<absent>",
         "true",
@@ -568,7 +586,9 @@
       ],
       "--INPUT": [
         "/work/fixtures/mate_cigar.bam",
-        "/work/fixtures/small.bam"
+        "/work/fixtures/small.bam",
+        "/work/fixtures/mate_cigar.bam /work/fixtures/small.bam",
+        "/work/fixtures/mate_cigar.bam /work/fixtures/mate_cigar.bam"
       ],
       "--OPTICAL_DUPLICATE_PIXEL_DISTANCE": [
         "100",
@@ -780,6 +800,16 @@
       ]
     },
     "MarkDuplicates": {
+      "$why": [
+        "INPUT is a list ($lists): two files are one stream through a SamFileHeaderMerger and a",
+        "MergingSamRecordIterator. tiled.bam holds small.bam's reads under Illumina names, so every read",
+        "has a duplicate in the other file; one_read_group.bam holds the same reads again, all rg1, so",
+        "identical records meet at the head of the queue; and a queryname file before a coordinate one",
+        "is the merger's sort-order refusal unless an order is assumed."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
       "--ASSUME_SORTED": [
         "<absent>",
         "true",
@@ -878,6 +908,14 @@
       "--METRICS_FILE": [
         "/work/out/metrics.txt",
         "/work/out/metrics_b.txt"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/small.bam /work/fixtures/tiled.bam",
+        "/work/fixtures/small.bam /work/fixtures/one_read_group.bam",
+        "/work/fixtures/queryname.bam /work/fixtures/small.bam"
       ]
     },
     "FilterSamReads": {
@@ -921,9 +959,19 @@
       ]
     },
     "IntervalListTools": {
+      "$why": [
+        "INPUT and SECOND_INPUT are lists ($lists): each file is padded and the files reduced by the",
+        "action's reduceEach, a concatenation for every action but INTERSECT, which intersects them."
+      ],
+      "$lists": [
+        "--INPUT",
+        "--SECOND_INPUT"
+      ],
       "--INPUT": [
         "/work/fixtures/targets.interval_list",
-        "/work/fixtures/targets_mixed.interval_list"
+        "/work/fixtures/targets_mixed.interval_list",
+        "/work/fixtures/targets.interval_list /work/fixtures/targets_mixed.interval_list",
+        "/work/fixtures/targets_mixed.interval_list /work/fixtures/targets.interval_list"
       ],
       "--BREAK_BANDS_AT_MULTIPLES_OF": [
         "0",
@@ -943,7 +991,8 @@
       ],
       "--SECOND_INPUT": [
         "<absent>",
-        "/work/fixtures/targets_mixed.interval_list"
+        "/work/fixtures/targets_mixed.interval_list",
+        "/work/fixtures/targets_mixed.interval_list /work/fixtures/targets.interval_list"
       ],
       "--SCATTER_COUNT": [
         "1",
@@ -3228,12 +3277,17 @@
         "run before a record is read, which the parent's own array measures, and ASSUME_SORTED, the other",
         "side of its mutex, is excluded for it. METRICS_FILE and the duplication metrics it holds are",
         "written and not compared, as in the parent's array; UMI_METRICS_FILE, which is this tool's own",
-        "answer, is."
+        "answer, is.",
+        "INPUT is a list ($lists): umi_dup.bam and umi_partial.bam, one library, merged into one stream."
+      ],
+      "$lists": [
+        "--INPUT"
       ],
       "--INPUT": [
         "/work/fixtures/umi_dup.bam",
         "/work/fixtures/umi_duplex.bam",
-        "/work/fixtures/umi_partial.bam"
+        "/work/fixtures/umi_partial.bam",
+        "/work/fixtures/umi_dup.bam /work/fixtures/umi_partial.bam"
       ],
       "--UMI_METRICS_FILE": [
         "/work/out/umi_metrics.txt",
@@ -4872,6 +4926,14 @@
       ]
     },
     "CollectJumpingLibraryMetrics": {
+      "$why": [
+        "INPUT is a list ($lists): every file is read in turn into one set of counters, after a mode",
+        "pass that samples SAMPLE_FOR_MODE / INPUT.size() pairs from each; a queryname file second is",
+        "refused by name after the first was read."
+      ],
+      "$lists": [
+        "--INPUT"
+      ],
       "--CHIMERA_KB_MIN": [
         "100000",
         "1"
@@ -4883,6 +4945,13 @@
       "--TAIL_LIMIT": [
         "10000",
         "100"
+      ],
+      "--INPUT": [
+        "/work/fixtures/small.bam",
+        "/work/fixtures/small.sam",
+        "/work/fixtures/queryname.bam",
+        "/work/fixtures/small.bam /work/fixtures/tiled.bam",
+        "/work/fixtures/small.bam /work/fixtures/queryname.bam"
       ]
     },
     "FastqToSam": {

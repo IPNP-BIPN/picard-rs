@@ -13,14 +13,10 @@
 
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use htsjdk_vcf::reader::read_vcf;
+use picard_analysis::args::arg;
 use picard_analysis::find_mendelian_violations::{
     collect, Genotype, Interval, Metrics, Options, Sex, Site, Trio,
 };
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn args_of(args: &[String], key: &str) -> Vec<String> {
     args.iter()
@@ -280,6 +276,7 @@ fn genotype_of(record: &htsjdk_vcf::variant::VariantContext, sample: &str) -> Op
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("FindMendelianViolations");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
@@ -381,15 +378,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
     let vcf = read_vcf(&std::fs::read_to_string(&input)?).map_err(|e| format!("{e:?}"))?;
-    let tab_mode = arg(&args, "TAB_MODE=").is_some_and(|value| value == "true");
+    let tab_mode =
+        arg(&args, "TAB_MODE=").is_some_and(|value| picard_analysis::args::is_true(&value));
     let pedigree = read_pedigree(&std::fs::read_to_string(&trios)?, tab_mode);
     let samples = &vcf.header.samples;
 
     let mut by_family: std::collections::HashMap<String, Vec<(usize, &'static str)>> =
         std::collections::HashMap::new();
     let mut file = MetricsFile::new();
-    file.add_header("FindMendelianViolations <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("FindMendelianViolations") {
+        file.add_header(&header);
+    }
     for trio in &pedigree {
         // "Removing trio due to the following missing samples in VCF": a pedigree row naming a
         // parent the file does not have is dropped, which is what the placeholder `0` rows are.

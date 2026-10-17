@@ -19,18 +19,15 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
+use picard_analysis::args::arg;
 use picard_analysis::position_based_downsample_sam::{
     fraction_out_of_range_message, keep, PhysicalLocation, PG_PROGRAM_NAME,
 };
 
 const DUPLICATE_READ: u16 = 0x400;
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("PositionBasedDownsampleSam");
     picard_analysis::output::install();
     // `READ_NAME_REGEX`, which a name has to match whole for its tile and position to be read.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
@@ -53,8 +50,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "F="))
         .ok_or("FRACTION= is required")?
         .parse()?;
-    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
-    let remove_duplicate_information = flag("REMOVE_DUPLICATE_INFORMATION=", false);
+    let flag = |key: &str, default: bool| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(default)
+    };
+    // `public boolean REMOVE_DUPLICATE_INFORMATION = true`.
+    let remove_duplicate_information = flag("REMOVE_DUPLICATE_INFORMATION=", true);
     let allow_multiple = flag("ALLOW_MULTIPLE_DOWNSAMPLING_DESPITE_WARNINGS=", false);
     let stop_after = arg(&args, "STOP_AFTER=")
         .map(|v| v.parse::<usize>())
@@ -130,6 +132,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mask = keep(&locations, fraction, stop_after);
 
+    // `outputSamRecords`: the tool's own `@PG`, id made unique against the input's.
+    let mut header = header;
+    let pg = picard_analysis::command_line::pg_record(&header, PG_PROGRAM_NAME);
+    header.programs.push(pg);
     let mut writer =
         picard_analysis::output::bam_writer(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
     for (record, keep_it) in records.iter().zip(&mask) {

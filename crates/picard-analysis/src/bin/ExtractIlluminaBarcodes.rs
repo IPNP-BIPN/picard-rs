@@ -17,6 +17,7 @@ use picard_analysis::metrics_cli::{refuse_validation, thrown, Args};
 const TOOL: &str = "ExtractIlluminaBarcodes";
 
 fn main() {
+    picard_analysis::argument_check::check("ExtractIlluminaBarcodes");
     picard_analysis::output::install();
     let args = Args::from_env(&[
         ("B", "BASECALLS_DIR"),
@@ -222,8 +223,9 @@ fn main() {
     }
     finalize(&mut metrics, &mut no_match);
     let mut file = MetricsFile::new();
-    file.add_header(&format!("{TOOL} <command line>"));
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers(TOOL) {
+        file.add_header(&header);
+    }
     for m in &metrics {
         file.add_metric(m);
     }
