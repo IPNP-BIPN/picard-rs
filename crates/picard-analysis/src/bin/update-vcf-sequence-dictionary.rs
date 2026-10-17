@@ -14,16 +14,13 @@
 //! genotype blocks copied as read.
 
 use htsjdk_vcf::vcf_file::reject_vcf_v43_headers;
+use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
     die, extract_dictionary, read_path, set_sequence_dictionary, write_output,
 };
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("UpdateVcfSequenceDictionary");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -35,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "SD="))
         .ok_or("SEQUENCE_DICTIONARY= is required")?;
     let create_index = arg(&args, "CREATE_INDEX=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(false);
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {

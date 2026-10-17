@@ -14,6 +14,8 @@ pub mod add_oa_tag;
 pub mod add_or_replace_read_groups;
 pub mod alignment_summary;
 pub mod annotation;
+pub mod args;
+pub mod argument_check;
 pub mod bait_designer;
 pub mod bam_index_stats;
 pub mod bam_to_bfq;

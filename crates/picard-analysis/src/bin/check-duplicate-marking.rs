@@ -19,6 +19,7 @@ use htsjdk_bam::query_name;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
+use picard_analysis::args::arg;
 use picard_analysis::check_duplicate_marking::{check, Mode, Record};
 
 const READ_PAIRED_FLAG: u16 = 0x1;
@@ -28,12 +29,8 @@ const DUPLICATE_FLAG: u16 = 0x400;
 const SECONDARY_FLAG: u16 = 0x100;
 const SUPPLEMENTARY_FLAG: u16 = 0x800;
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("CheckDuplicateMarking");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

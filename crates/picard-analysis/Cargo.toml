@@ -36,6 +36,7 @@ regex = "1"
 boa_engine = "0.22"
 # `Started on:` is `java.util.Date.toString()` in the local zone, named the way `localtime_r` names it.
 libc = "0.2.190"
-
-[dev-dependencies]
+# The command-line goldens every binary embeds, to refuse and to answer `--help` with Picard's own
+# text (`argument_check`), are gzip.
 flate2 = { version = "1", default-features = false, features = ["zlib"] }
+
