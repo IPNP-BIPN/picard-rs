@@ -28,12 +28,12 @@ use htsjdk_bam::interval::Interval;
 use htsjdk_bam::liftover::LiftOver;
 use htsjdk_vcf::allele::Allele;
 use htsjdk_vcf::attributes::{as_double, as_string};
-use htsjdk_vcf::encoder::{EncodeError, MissingFields, VcfEncoder};
+use htsjdk_vcf::encoder::{MissingFields, VcfEncoder};
 use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
 use picard_analysis::metrics_cli::{absolute, Args};
 use picard_analysis::vcf_io::{
-    add_other_meta_data_line, die, log_error, parse_sam_dictionary, read_path,
+    add_other_meta_data_line, die, encode_exception, log_error, parse_sam_dictionary, read_path,
     set_sequence_dictionary, Record,
 };
 
@@ -51,22 +51,6 @@ const ATTEMPTED_ALLELES: &str = "AttemptedAlleles";
 const SWAPPED_ALLELES: &str = "SwappedAlleles";
 const REV_COMPED_ALLELES: &str = "ReverseComplementedAlleles";
 const END_KEY: &str = "END";
-
-fn encode_error(error: &EncodeError) -> String {
-    match error {
-        EncodeError::MissingFromHeader {
-            key,
-            field,
-            contig,
-            start,
-        } => format!(
-            "java.lang.IllegalStateException: Key {key} found in VariantContext field {field} at \
-             {contig}:{start} but this key isn't defined in the VCFHeader.  We require all VCFs \
-             to have complete VCF headers by default."
-        ),
-        other => format!("{other:?}"),
-    }
-}
 
 fn has_attribute(vc: &VariantContext, key: &str) -> bool {
     vc.attributes.iter().any(|(k, _)| k == key)
@@ -452,7 +436,7 @@ fn write_all(path: &str, header: &VcfHeader, records: &[Record], missing: Missin
             None => encoder.encode_into(&record.variant, &mut out),
         };
         if let Err(e) = result {
-            die(&encode_error(&e));
+            die(&encode_exception(&e));
         }
         out.push('\n');
     }

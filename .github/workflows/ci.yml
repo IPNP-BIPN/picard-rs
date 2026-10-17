@@ -1159,10 +1159,10 @@ jobs:
             suites: "basecallstofastq basecallingmetrics basecallstosam pffailmetrics fifobuffer"
           - group: oracle-backed
             index: "21/22"
-            suites: "liftovervcf bcf mendelianviolations baitdesigner bpmtocsv"
+            suites: "liftovervcf bcf bcf-partial mendelianviolations baitdesigner"
           - group: oracle-backed
             index: "22/22"
-            suites: "comparegtc gtctovcf createextendedmanifest"
+            suites: "bpmtocsv comparegtc gtctovcf createextendedmanifest"
     steps:
       - uses: actions/checkout@v7
 
