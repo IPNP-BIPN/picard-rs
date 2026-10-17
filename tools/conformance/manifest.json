@@ -3420,6 +3420,49 @@
           "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 38938155720 on PR 365, and identical to the local smoke run but for the Started on values. 54 tools' option tables, 216 command lines Picard parsed and recorded, and 12 real runs: the @PG lines and every read's PG tag of the seven tools that stamp one, and their metrics headers."
         }
       ]
+    },
+    {
+      "id": "bcf",
+      "status": "oracle-backed",
+      "title": "the VCF tools with a .bcf on either side",
+      "harness": "tools/bcf-conformance",
+      "tools": [
+        "VcfFormatConverter",
+        "SortVcf",
+        "MergeVcfs",
+        "MakeSitesOnlyVcf"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "Picard takes a .bcf wherever it takes a .vcf, by name: VCFFileReader picks the BCF2 codec and VariantContextWriterBuilder picks BCF2Writer, and picard-rs refused both. htsjdk's BCF is BCF 2.1 and uncompressed, and its bytes depend on the hash order of the maps a record's attributes passed through, on fullyDecode typing every value of a VCF record by its header line before writing, on GQ being capped at 99, and on a BCF record's genotype block being copied into the BCF written from it. Each case is converted VCF to BCF, back to VCF and to BCF again by VcfFormatConverter, the BCF is read by SortVcf and MergeVcfs and written again, and MakeSitesOnlyVcf writes a BCF from the VCF, so the shared reader and writer are measured through four tools. Nine refusals are the writer's own, named by class and message: a missing contig, filter or header line, a discordant count, a false flag, an unparseable integer, an integer list with a missing element, and a header with no contig lines.",
+      "cases": [
+        {
+          "dump": "BcfDump",
+          "golden": "crates/picard-analysis/tests/data/bcf_tools.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as the candidate-goldens-golden-pending-22 artefact of run 39031026457 on picard-rs #378, identical to the local run. 60 rows: 15 input VCFs, 36 outputs of four tools with a .bcf on one side or both, and 9 refusals of the BCF writer by class and message."
+        }
+      ]
+    },
+    {
+      "id": "bcf-partial",
+      "status": "oracle-backed",
+      "title": "what a VCF writer leaves on disk when it refuses a record partway through",
+      "harness": "tools/bcf-conformance",
+      "tools": [
+        "VcfFormatConverter"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "VariantContextWriterBuilder writes through IOUtil.maybeBufferOutputStream at Defaults.BUFFER_SIZE, a 128 KiB BufferedOutputStream that BCF2Writer and VCFWriter never flush before close(), and a refused record throws before close(). So the file holds what the buffer had flushed: nothing on a small file, and on a large one every buffer up to the last write call that did not fit, which is not a multiple of 128 KiB. picard-rs left an empty file (BCF) or none at all (VCF). Each case is a generated VCF converted to .bcf and to .vcf by VcfFormatConverter, with a late undeclared INFO key, a discordant count, a contig missing from the header and an integer list with a missing element, a header larger than the buffer, which bypasses it, and a small file; the undeclared case is also indexed on the fly, and no .idx appears.",
+      "cases": [
+        {
+          "dump": "PartialOutputDump",
+          "golden": "crates/picard-analysis/tests/data/bcf_partial.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as the candidate-goldens-golden-pending-22 artefact of run 39032733443 on picard-rs #380, identical to the local run. 24 rows: 6 generated inputs by length and MD5, and 18 runs of VcfFormatConverter, each with the length and MD5 of what it left on disk, whether an .idx appeared, and its exception."
+        }
+      ]
     }
   ],
   "probes": [

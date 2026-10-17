@@ -530,11 +530,11 @@ jobs:
             | tee /tmp/LiftOverHaplotypeMap.log
           python3 tools/coverage/run_array.py --tool MakeSitesOnlyVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/MakeSitesOnlyVcf --output-name output.vcf \
+            --port target/release/MakeSitesOnlyVcf --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/MakeSitesOnlyVcf.log
           python3 tools/coverage/run_array.py --tool RenameSampleInVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/RenameSampleInVcf --output-name output.vcf \
+            --port target/release/RenameSampleInVcf --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/RenameSampleInVcf.log
           python3 tools/coverage/run_array.py --tool VcfToIntervalList --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -542,31 +542,31 @@ jobs:
             | tee /tmp/VcfToIntervalList.log
           python3 tools/coverage/run_array.py --tool SortVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/SortVcf --output-name output.vcf \
+            --port target/release/SortVcf --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/SortVcf.log
           python3 tools/coverage/run_array.py --tool UpdateVcfSequenceDictionary --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/UpdateVcfSequenceDictionary --output-name output.vcf \
+            --port target/release/UpdateVcfSequenceDictionary --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/UpdateVcfSequenceDictionary.log
           python3 tools/coverage/run_array.py --tool MergeVcfs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/MergeVcfs --output-name output.vcf \
+            --port target/release/MergeVcfs --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/MergeVcfs.log
           python3 tools/coverage/run_array.py --tool GatherVcfs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/GatherVcfs --output-name output.vcf \
+            --port target/release/GatherVcfs --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/GatherVcfs.log
           python3 tools/coverage/run_array.py --tool SplitVcfs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/SplitVcfs --output-name snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf \
+            --port target/release/SplitVcfs --output-name snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf,snp.vcf.gz,snp.vcf.gz.tbi,indel.vcf.gz,indel.vcf.gz.tbi \
             | tee /tmp/SplitVcfs.log
           python3 tools/coverage/run_array.py --tool VcfFormatConverter --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/VcfFormatConverter --output-name output.vcf,output.vcf.gz \
+            --port target/release/VcfFormatConverter --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/VcfFormatConverter.log
           python3 tools/coverage/run_array.py --tool FixVcfHeader --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/FixVcfHeader --output-name output.vcf \
+            --port target/release/FixVcfHeader --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/FixVcfHeader.log
           python3 tools/coverage/run_array.py --tool CollectWgsMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -618,7 +618,7 @@ jobs:
             | tee /tmp/CollectIndependentReplicateMetrics.log
           python3 tools/coverage/run_array.py --tool LiftoverVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/LiftoverVcf --output-name output.vcf,reject.vcf,reject_b.vcf \
+            --port target/release/LiftoverVcf --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi,reject.vcf,reject_b.vcf \
             | tee /tmp/LiftoverVcf.log
           python3 tools/coverage/run_array.py --tool CollectMultipleMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -690,7 +690,7 @@ jobs:
             | tee /tmp/CheckTerminatorBlock.log
           python3 tools/coverage/run_array.py --tool FilterVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/FilterVcf --output-name output.vcf \
+            --port target/release/FilterVcf --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/FilterVcf.log
           python3 tools/coverage/run_array.py --tool CheckFingerprint --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -1136,71 +1136,74 @@ jobs:
       matrix:
         include:
           - group: oracle-backed
-            index: "1/22"
+            index: "1/23"
             suites: "metrics rnaseq snvq samtofastq fastqtosam"
           - group: oracle-backed
-            index: "2/22"
+            index: "2/23"
             suites: "sortsam addreplacerg cleansam fixmate addoatag"
           - group: oracle-backed
-            index: "3/22"
+            index: "3/23"
             suites: "reordersam replacesamheader revertsam revertorigmatecigar viewsam"
           - group: oracle-backed
-            index: "4/22"
+            index: "4/23"
             suites: "rgchecksum downsamplesam filtersamreads createdict samformatconverter"
           - group: oracle-backed
-            index: "5/22"
+            index: "5/23"
             suites: "sortsam-bam setnmmduq addoatag-bam validatesam comparesams"
           - group: oracle-backed
-            index: "6/22"
+            index: "6/23"
             suites: "split bamindexstats merge rejections commandline-declarations"
           - group: oracle-backed
-            index: "7/22"
+            index: "7/23"
             suites: "commandline qualityscoredistribution gcbias accumulatequalityyield bedtointervallist"
           - group: oracle-backed
-            index: "8/22"
+            index: "8/23"
             suites: "intervallisttobed intervallisttools intervallisttoolspadbreak liftoverintervallist extractsequences"
           - group: oracle-backed
-            index: "9/22"
+            index: "9/23"
             suites: "scatterintervalsbyns nonnfastasize normalizefasta samtofastqwithtags mergebamalignment"
           - group: oracle-backed
-            index: "10/22"
+            index: "10/23"
             suites: "mergebamalignment-full mergebamalignment-header mergebamalignment-pair mergebamalignment-clip mergebamalignment-hits"
           - group: oracle-backed
-            index: "11/22"
+            index: "11/23"
             suites: "jumpinglibrary comparemetrics sortgff checkdupmarking qualityyieldflow"
           - group: oracle-backed
-            index: "12/22"
+            index: "12/23"
             suites: "vcfsamplenamemap haplotypedbtovcf liftoverhaplotypemap positiondownsample duplicatemetrics"
           - group: oracle-backed
-            index: "13/22"
+            index: "13/23"
             suites: "verifyidintensity bafregress wgsmetrics rawwgsmetrics umiprevalence"
           - group: oracle-backed
-            index: "14/22"
+            index: "14/23"
             suites: "artifacttooxog clustercrosscheck extractfingerprint identifycontaminant mergepedintovcf"
           - group: oracle-backed
-            index: "15/22"
+            index: "15/23"
             suites: "accumulatevcm variantcallingmetrics nonzerowgs oxog artifactmetrics"
           - group: oracle-backed
-            index: "16/22"
+            index: "16/23"
             suites: "hsmetrics pcrmetrics libcomplexity genotypeconcordance multiplemetrics"
           - group: oracle-backed
-            index: "17/22"
+            index: "17/23"
             suites: "rrbsmetrics replicatemetrics arraysmetrics combinearrays bamtobfq"
           - group: oracle-backed
-            index: "18/22"
+            index: "18/23"
             suites: "vcftoadpc markadapters checkfingerprint markduplicates matecigarduplicates"
           - group: oracle-backed
-            index: "19/22"
+            index: "19/23"
             suites: "umiduplicates crosscheckfingerprints fingerprintmetrics samerrormetrics checkilluminadirectory"
           - group: oracle-backed
-            index: "20/22"
+            index: "20/23"
             suites: "illuminalanemetrics extractilluminabarcodes basecallstofastq basecallingmetrics basecallstosam"
           - group: oracle-backed
-            index: "21/22"
-            suites: "pffailmetrics fifobuffer liftovervcf mendelianviolations baitdesigner"
+            index: "21/23"
+            suites: "pffailmetrics fifobuffer liftovervcf vcfgz mendelianviolations"
           - group: oracle-backed
-            index: "22/22"
-            suites: "bpmtocsv comparegtc gtctovcf createextendedmanifest headerlines"
+            index: "22/23"
+            suites: "baitdesigner bpmtocsv comparegtc gtctovcf createextendedmanifest"
+          - group: oracle-backed
+            index: "23/23"
+            suites: "headerlines bcf bcf-partial"
     steps:
       - uses: actions/checkout@v7
 

@@ -49,6 +49,10 @@ pub struct Record {
     /// `parts[8]` while the context is still lazy; `None` once it has been decoded, or when the
     /// line had no genotype columns at all.
     pub lazy_genotypes: Option<String>,
+    /// `isFullyDecoded()`: true for a record the BCF2 codec made, whose values are already typed
+    /// and whose attributes are already in the order the record iterates them. A BCF writer runs
+    /// `fullyDecode` on any other record first, and that decides the INFO order it writes.
+    pub fully_decoded: bool,
 }
 
 impl Record {
@@ -113,6 +117,7 @@ pub fn read_lazy(text: &str) -> Result<LazyVcf, ReadFailure> {
             Record {
                 variant: variant.clone(),
                 lazy_genotypes,
+                fully_decoded: false,
             }
         })
         .collect();
@@ -130,12 +135,74 @@ pub fn write_records_with(
     records: &[Record],
     missing: MissingFields,
 ) -> Result<String, EncodeError> {
+    match written(header, records, missing) {
+        (text, None) => Ok(text),
+        (_, Some(error)) => Err(error),
+    }
+}
+
+/// [`write_records_with`] up to the first refusal: the header and every whole line before it, and
+/// the refusal. A refused line never leaves `VCFWriter`'s line buffer.
+fn written(
+    header: &VcfHeader,
+    records: &[Record],
+    missing: MissingFields,
+) -> (String, Option<EncodeError>) {
     let encoders = Encoders::new(header, missing);
     let mut out = header.write();
     for record in records {
-        encoders.encode(record, &mut out)?;
+        let start = out.len();
+        if let Err(error) = encoders.encode(record, &mut out) {
+            out.truncate(start);
+            return (out, Some(error));
+        }
     }
-    Ok(out)
+    (out, None)
+}
+
+/// The exception `VCFEncoder` throws for a refusal.
+pub fn encode_exception(error: &EncodeError) -> String {
+    match error {
+        EncodeError::MissingFromHeader {
+            key,
+            field,
+            contig,
+            start,
+        } => format!(
+            "java.lang.IllegalStateException: Key {key} found in VariantContext field {field} at \
+             {contig}:{start} but this key isn't defined in the VCFHeader.  We require all VCFs \
+             to have complete VCF headers by default."
+        ),
+        other => format!("{other:?}"),
+    }
+}
+
+/// What reaches the file through `IOUtil.maybeBufferOutputStream(out, Defaults.BUFFER_SIZE)`,
+/// counted per `write` call as the writer makes them: a write that does not fit flushes what is
+/// buffered first, and one at least as large as the buffer goes straight through. Nothing else
+/// flushes before `close()`, which a run that throws never reaches, so a refusal leaves exactly
+/// `flushed` bytes on disk -- none on a small file, whole buffers' worth on a large one.
+#[derive(Default)]
+struct Buffered {
+    buffered: usize,
+    flushed: usize,
+}
+
+impl Buffered {
+    /// `samjdk.buffer_size`'s default.
+    const SIZE: usize = 128 * 1024;
+
+    fn write(&mut self, len: usize) {
+        if len > Self::SIZE - self.buffered {
+            self.flushed += self.buffered;
+            self.buffered = 0;
+        }
+        if len >= Self::SIZE {
+            self.flushed += len;
+        } else {
+            self.buffered += len;
+        }
+    }
 }
 
 /// The two encoders one record line goes through: the full one, and one over the same lines with
@@ -210,27 +277,33 @@ pub fn write_indexed(
     indexed: Option<Indexed>,
 ) -> Result<(String, Option<Vec<u8>>), EncodeError> {
     let text = write_records(header, records)?;
-    let index = indexed.and_then(|indexed| tribble_index(header, records, &text, indexed));
+    let Some(indexed) = indexed else {
+        return Ok((text, None));
+    };
+    let header_length = header.write().len();
+    let mut at = header_length as i64;
+    let mut positions = Vec::with_capacity(records.len());
+    for line in text[header_length..].split_terminator('\n') {
+        positions.push(at);
+        at += line.len() as i64 + 1;
+    }
+    let index = tribble_index(records, &positions, text.len() as i64, &indexed);
     Ok((text, index))
 }
 
-/// The `.idx` of a written text.
+/// The `.idx` `IndexingVariantContextWriter` writes at `close()`: each record's feature at the
+/// position its bytes start at, and the file's length as the end.
 fn tribble_index(
-    header: &VcfHeader,
     records: &[Record],
-    text: &str,
-    indexed: Indexed,
+    positions: &[i64],
+    file_length: i64,
+    indexed: &Indexed,
 ) -> Option<Vec<u8>> {
     use htsjdk_tribble::index::{TribbleIndex, INTERVAL_TREE, LINEAR, VERSION};
     use htsjdk_tribble::index_write::{BalanceApproach, BuiltIndex, DynamicIndexCreator, Feature};
 
     let mut creator = DynamicIndexCreator::new(BalanceApproach::ForSeekTime);
-    let header_length = header.write().len();
-    let mut at = header_length as i64;
-    for (record, line) in records
-        .iter()
-        .zip(text[header_length..].split_terminator('\n'))
-    {
+    for (record, &at) in records.iter().zip(positions) {
         creator.add_feature(
             &Feature {
                 contig: record.variant.contig.clone(),
@@ -239,7 +312,6 @@ fn tribble_index(
             },
             at,
         );
-        at += line.len() as i64 + 1;
     }
     let mut properties: Vec<(String, String)> = indexed
         .dictionary
@@ -255,7 +327,7 @@ fn tribble_index(
     // The creator starts a new per-contig index whenever the contig changes, so a contig that
     // comes back after another is two of them; the index then puts each into a `LinkedHashMap` by
     // name, where the second REPLACES the first and keeps the first's place.
-    let (index_type, contigs, interval_contigs) = match creator.finalize(text.len() as i64) {
+    let (index_type, contigs, interval_contigs) = match creator.finalize(file_length) {
         Ok(BuiltIndex::Linear(contigs)) => (LINEAR, by_name(contigs, |c| &c.name), Vec::new()),
         Ok(BuiltIndex::IntervalTree(intervals)) => {
             (INTERVAL_TREE, Vec::new(), by_name(intervals, |c| &c.name))
@@ -268,7 +340,7 @@ fn tribble_index(
         index_type,
         version: VERSION,
         indexed_path: format!("file://{}", absolute.display()),
-        indexed_file_size: text.len() as i64,
+        indexed_file_size: file_length,
         indexed_file_timestamp: indexed.timestamp,
         indexed_file_md5: String::new(),
         flags: 0,
@@ -314,7 +386,9 @@ pub fn write_output(
     )?)
 }
 
-/// [`write_output`] under the writer's `ALLOW_MISSING_FIELDS_IN_HEADER` option.
+/// [`write_output`] under the writer's `ALLOW_MISSING_FIELDS_IN_HEADER` option. A `.bcf` is written
+/// by `BCF2Writer`, a block-compressed name through BGZF with its `.tbi`, anything else as text with
+/// its `.idx`; a record the text writer refuses leaves what the buffered stream had flushed.
 pub fn write_output_with(
     path: &str,
     header: &VcfHeader,
@@ -322,24 +396,34 @@ pub fn write_output_with(
     index_dictionary: Option<&[Sequence]>,
     missing: MissingFields,
 ) -> Result<(), WriteError> {
+    if is_bcf(path) {
+        return write_bcf(path, header, records, index_dictionary).map_err(WriteError::Other);
+    }
     if is_compressed_vcf(path) {
         return write_block_compressed(path, header, records, index_dictionary, missing);
     }
     let output = std::path::Path::new(path);
-    let text = write_records_with(header, records, missing)?;
+    let (text, refused) = written(header, records, missing);
+    if let Some(error) = refused {
+        // `VCFWriter` writes the header, then each line, as one call each.
+        let header_length = header.write().len();
+        let mut stream = Buffered::default();
+        stream.write(header_length);
+        for line in text[header_length..].split_inclusive('\n') {
+            stream.write(line.len());
+        }
+        std::fs::write(output, &text.as_bytes()[..stream.flushed])?;
+        die(&encode_exception(&error));
+    }
     std::fs::write(output, &text)?;
     if let Some(dictionary) = index_dictionary {
-        let timestamp = std::fs::metadata(output)?
-            .modified()?
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_millis() as i64)
-            .unwrap_or(0);
         let indexed = Indexed {
             dictionary,
             path: output,
-            timestamp,
+            timestamp: modified_millis(output)?,
         };
-        if let Some(index) = tribble_index(header, records, &text, indexed) {
+        let (_, index) = write_indexed(header, records, Some(indexed))?;
+        if let Some(index) = index {
             std::fs::write(format!("{path}.idx"), index)?;
         }
     }
@@ -436,6 +520,8 @@ const MISSING_SEQUENCE: &str = "java.lang.NullPointerException: Cannot invoke \
 pub enum WriteError {
     Encode(EncodeError),
     Io(std::io::Error),
+    /// What the BCF2 writer refused with.
+    Other(Box<dyn std::error::Error>),
 }
 
 impl From<EncodeError> for WriteError {
@@ -455,6 +541,7 @@ impl std::fmt::Display for WriteError {
         match self {
             WriteError::Encode(error) => write!(f, "{error:?}"),
             WriteError::Io(error) => write!(f, "{error}"),
+            WriteError::Other(error) => write!(f, "{error}"),
         }
     }
 }
@@ -491,10 +578,130 @@ pub fn read_text(path: &str) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|e| format!("java.io.IOException: {e}"))
 }
 
+/// `VCFFileReader.isBCF` and `VariantContextWriterBuilder.isBCF`: the name decides, not the bytes.
+pub fn is_bcf(path: &str) -> bool {
+    std::path::Path::new(path)
+        .file_name()
+        .is_some_and(|name| name.to_string_lossy().ends_with(".bcf"))
+}
+
+/// The modification time `IndexingVariantContextWriter` records, in milliseconds.
+fn modified_millis(path: &std::path::Path) -> std::io::Result<i64> {
+    Ok(std::fs::metadata(path)?
+        .modified()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0))
+}
+
+/// `BCF2Writer`, with its `.idx` when indexing on the fly.
+///
+/// The builder opens the file before the writer exists, so a refusal from `writeHeader` leaves an
+/// empty file behind, and one from a record leaves what the [`Buffered`] stream had flushed.
+pub fn write_bcf(
+    path: &str,
+    header: &VcfHeader,
+    records: &[Record],
+    index_dictionary: Option<&[Sequence]>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use htsjdk_vcf::bcf2::writer::{Bcf2Writer, Origin};
+
+    let output = std::path::Path::new(path);
+    std::fs::write(output, [])?;
+    let mut writer = Bcf2Writer::new(header, false).unwrap_or_else(|e| die(&e.to_string()));
+    let mut bytes = writer.header_bytes();
+    // `BCFVersion.write` is the magic as one call and each version byte as another, and
+    // `BCF2Type.INT32.write` is four single bytes.
+    let mut stream = Buffered::default();
+    for len in [3, 1, 1, 1, 1, 1, 1, bytes.len() - 9] {
+        stream.write(len);
+    }
+    let mut positions = Vec::with_capacity(records.len());
+    for record in records {
+        positions.push(bytes.len() as i64);
+        let origin = if record.fully_decoded {
+            Origin::Bcf2Codec
+        } else {
+            Origin::VcfCodec
+        };
+        match writer.encode(&record.variant, origin) {
+            Ok(encoded) => {
+                // `writeBlock`: two INT32 lengths, then the site block and the genotype block.
+                let sites = u32::from_le_bytes(encoded[..4].try_into().expect("a length")) as usize;
+                for len in [1, 1, 1, 1, 1, 1, 1, 1, sites, encoded.len() - 8 - sites] {
+                    stream.write(len);
+                }
+                bytes.extend_from_slice(&encoded);
+            }
+            Err(e) => {
+                std::fs::write(output, &bytes[..stream.flushed])?;
+                die(&e.to_string())
+            }
+        }
+    }
+    std::fs::write(output, &bytes)?;
+    if let Some(dictionary) = index_dictionary {
+        let indexed = Indexed {
+            dictionary,
+            path: output,
+            timestamp: modified_millis(output)?,
+        };
+        if let Some(index) = tribble_index(records, &positions, bytes.len() as i64, &indexed) {
+            std::fs::write(format!("{path}.idx"), index)?;
+        }
+    }
+    Ok(())
+}
+
+/// `VCFFileReader` on a `.bcf`: the BCF2 codec, every record fully decoded.
+pub fn read_bcf_path(path: &str) -> Result<LazyVcf, String> {
+    let file = read_bcf_file(path)?;
+    let records = file
+        .records
+        .iter()
+        .map(|variant| Record {
+            variant: variant.clone(),
+            lazy_genotypes: None,
+            fully_decoded: true,
+        })
+        .collect();
+    Ok(LazyVcf { file, records })
+}
+
+/// The BCF2 codec's whole file, with a refusal as `VCFFileReader` surfaces it.
+fn read_bcf_file(path: &str) -> Result<VcfFile, String> {
+    use htsjdk_vcf::bcf2::codec::read_bcf;
+
+    let bytes = std::fs::read(path).map_err(|e| format!("java.io.IOException: {e}"))?;
+    let absolute = std::path::absolute(path).unwrap_or_else(|_| path.into());
+    let source = format!("file://{}", absolute.display());
+    let file = read_bcf(&bytes).map_err(|failure| failure.reader_exception(&source).to_string())?;
+    Ok(VcfFile {
+        header: file.header,
+        codec_version: file.codec_version,
+        header_version: file.header_version,
+        records: file.records,
+        skipped: Vec::new(),
+    })
+}
+
+/// The whole file as [`read_vcf`] gives it, for a tool that reads the records and writes none:
+/// a `.bcf` through the BCF2 codec, anything else as VCF text.
+pub fn read_vcf_file(path: &str) -> Result<VcfFile, Box<dyn std::error::Error>> {
+    if is_bcf(path) {
+        return Ok(read_bcf_file(path)?);
+    }
+    Ok(read_vcf(&read_to_string(path)?).map_err(|e| format!("{e:?}"))?)
+}
+
 /// `VCFFileReader(file, false)` on a path, with a read failure as the exception it was upstream.
 ///
-/// A gzip file is a `.vcf.gz`, which the reader inflates whatever its name.
+/// A gzip file is a `.vcf.gz`, which the reader inflates whatever its name, and a `.bcf` is read
+/// by the BCF2 codec whatever its contents.
 pub fn read_path(path: &str) -> Result<LazyVcf, String> {
+    if is_bcf(path) {
+        return read_bcf_path(path);
+    }
     let text = read_text(path)?;
     read_lazy(&text)
         .map_err(|failure| format!("{}: {}", failure.error.class(), failure.error.message()))

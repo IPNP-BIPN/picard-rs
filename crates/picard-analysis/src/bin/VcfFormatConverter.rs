@@ -1,13 +1,14 @@
 //! `VcfFormatConverter` as a runnable binary: the covering array's port side.
 //!
-//! Ports `picard.vcf.VcfFormatConverter.doWork` at tag 3.4.0 for VCF and block-compressed VCF,
-//! read and written. BCF is not ported: htsjdk-rs has no BCF codec, so a `.bcf` on either side is
-//! refused here with a message of the port's own.
+//! Ports `picard.vcf.VcfFormatConverter.doWork` at tag 3.4.0 for VCF, block-compressed VCF and BCF,
+//! read and written.
 //!
 //! The records are copied under a copy of the input's header, so the conversion is the shared
 //! round trip (`picard_analysis::vcf_io`) and what varies is the container. The output's format
 //! is the writer builder's guess from the name: `.vcf.gz` and `.vcf.bgz` are BGZF, `.vcf` is text,
-//! and any other name is the builder's `IllegalArgumentException`.
+//! `.bcf` is htsjdk's uncompressed BCF 2.1, and any other name is the builder's
+//! `IllegalArgumentException`. A `.bcf` input is read by the BCF2 codec, so its records arrive fully
+//! decoded and a BCF written from one copies their genotype blocks.
 //!
 //! # `REQUIRE_INDEX` looks for the index the reader would use
 //!
@@ -23,12 +24,8 @@
 //! each line is written. Both are `vcf_io::write_output`, which writes the `.tbi` beside a
 //! `.vcf.gz` and the `.idx` beside a `.vcf`.
 
-use std::io::Write;
-
 use picard_analysis::args::arg;
-use picard_analysis::vcf_io::{
-    die, header_dictionary, is_compressed_vcf, read_path, write_output, write_records, Record,
-};
+use picard_analysis::vcf_io::{die, header_dictionary, is_compressed_vcf, read_path, write_output};
 
 /// `IOUtil.hasBlockCompressedExtension`.
 fn has_block_compressed_extension(path: &str) -> bool {
@@ -58,10 +55,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if input.ends_with(".bcf") || output.ends_with(".bcf") {
-        return Err("BCF is not ported: htsjdk-rs has no BCF codec".into());
-    }
-
     // `new VCFFileReader(INPUT, REQUIRE_INDEX)`: the header is read before the index is looked for.
     let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
     if require_index {
@@ -92,7 +85,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    if output.ends_with(".vcf") || is_compressed_vcf(&output) {
+    if output.ends_with(".vcf")
+        || is_compressed_vcf(&output)
+        || picard_analysis::vcf_io::is_bcf(&output)
+    {
         write_output(&output, &header, &vcf.records, index_dictionary)?;
     } else {
         die(

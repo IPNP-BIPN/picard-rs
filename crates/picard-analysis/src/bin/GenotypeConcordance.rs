@@ -38,7 +38,6 @@ use htsjdk_tribble::tabix::{FeatureRef, TabixFormat, TabixIndexCreator};
 use htsjdk_vcf::allele::Allele;
 use htsjdk_vcf::encoder::{MissingFields, VcfEncoder};
 use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
-use htsjdk_vcf::reader::read_vcf;
 use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
 use picard_analysis::args::arg;
 use picard_analysis::genotype_concordance::{
@@ -665,10 +664,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let truth = read_vcf(&picard_analysis::vcf_io::read_to_string(&truth_vcf)?)
-        .map_err(|e| format!("{e:?}"))?;
-    let call = read_vcf(&picard_analysis::vcf_io::read_to_string(&call_vcf)?)
-        .map_err(|e| format!("{e:?}"))?;
+    let truth = picard_analysis::vcf_io::read_vcf_file(&truth_vcf)?;
+    let call = picard_analysis::vcf_io::read_vcf_file(&call_vcf)?;
 
     // `TRUTH_SAMPLE is required when the TRUTH_VCF has more than one sample`, and the same for the
     // call side: a one-sample file names its own sample, and a two-sample file refuses.

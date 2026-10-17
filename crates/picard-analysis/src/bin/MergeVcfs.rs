@@ -84,8 +84,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if !output.ends_with(".vcf") && !is_compressed_vcf(&output) {
-        return Err("only a .vcf or .vcf.gz OUTPUT is ported".into());
+    if !output.ends_with(".vcf")
+        && !is_compressed_vcf(&output)
+        && !picard_analysis::vcf_io::is_bcf(&output)
+    {
+        return Err("only a .vcf, .vcf.gz or .bcf OUTPUT is ported".into());
     }
 
     // Read through `SamReaderFactory`, as a SAM header: a `.dict`'s `@SQ` lines.

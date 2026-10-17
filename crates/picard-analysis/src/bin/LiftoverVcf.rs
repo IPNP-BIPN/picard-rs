@@ -28,12 +28,12 @@ use htsjdk_bam::interval::Interval;
 use htsjdk_bam::liftover::LiftOver;
 use htsjdk_vcf::allele::Allele;
 use htsjdk_vcf::attributes::{as_double, as_string};
-use htsjdk_vcf::encoder::{EncodeError, MissingFields};
+use htsjdk_vcf::encoder::MissingFields;
 use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
 use picard_analysis::metrics_cli::{absolute, Args};
 use picard_analysis::vcf_io::{
-    add_other_meta_data_line, die, log_error, parse_sam_dictionary, read_path,
+    add_other_meta_data_line, die, encode_exception, log_error, parse_sam_dictionary, read_path,
     set_sequence_dictionary, write_output_with, Record, Sequence, WriteError,
 };
 
@@ -51,22 +51,6 @@ const ATTEMPTED_ALLELES: &str = "AttemptedAlleles";
 const SWAPPED_ALLELES: &str = "SwappedAlleles";
 const REV_COMPED_ALLELES: &str = "ReverseComplementedAlleles";
 const END_KEY: &str = "END";
-
-fn encode_error(error: &EncodeError) -> String {
-    match error {
-        EncodeError::MissingFromHeader {
-            key,
-            field,
-            contig,
-            start,
-        } => format!(
-            "java.lang.IllegalStateException: Key {key} found in VariantContext field {field} at \
-             {contig}:{start} but this key isn't defined in the VCFHeader.  We require all VCFs \
-             to have complete VCF headers by default."
-        ),
-        other => format!("{other:?}"),
-    }
-}
 
 fn has_attribute(vc: &VariantContext, key: &str) -> bool {
     vc.attributes.iter().any(|(k, _)| k == key)
@@ -432,8 +416,10 @@ fn write_all(
 ) {
     match write_output_with(path, header, records, index_dictionary, missing) {
         Ok(()) => {}
-        Err(WriteError::Encode(e)) => die(&encode_error(&e)),
+        Err(WriteError::Encode(e)) => die(&encode_exception(&e)),
         Err(WriteError::Io(e)) => die(&format!("htsjdk.tribble.TribbleException: {e}")),
+        // The BCF2 writer's own failure, which it reports as an I/O one.
+        Err(WriteError::Other(e)) => die(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")),
     }
 }
 
@@ -708,6 +694,7 @@ fn main() {
                     Record {
                         variant: swap_ref_alt(&vc, &tags_to_reverse, &tags_to_drop),
                         lazy_genotypes: None,
+                        fully_decoded: false,
                     },
                     &mut lifted,
                 );
@@ -750,6 +737,7 @@ fn main() {
                 Record {
                     variant: vc,
                     lazy_genotypes,
+                    fully_decoded: false,
                 },
                 &mut lifted,
             );

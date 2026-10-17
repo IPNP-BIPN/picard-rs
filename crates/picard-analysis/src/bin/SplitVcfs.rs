@@ -72,9 +72,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    let ported = |path: &str| path.ends_with(".vcf") || is_compressed_vcf(path);
+    let ported = |path: &str| {
+        path.ends_with(".vcf") || is_compressed_vcf(path) || picard_analysis::vcf_io::is_bcf(path)
+    };
     if !ported(&snp_output) || !ported(&indel_output) {
-        return Err("only .vcf and .vcf.gz outputs are ported".into());
+        return Err("only .vcf, .vcf.gz and .bcf outputs are ported".into());
     }
 
     let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
