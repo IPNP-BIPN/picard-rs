@@ -18,9 +18,10 @@ use std::collections::BTreeMap;
 use std::io::Read;
 
 use picard_analysis::jumping_library::{
-    chimera_threshold, classify, collect, estimate_library_size, histogram_mean, mode, orientation,
-    outward_mode, passes_quality, trim_by_tail_limit, unsorted_message, Arguments, Bucket,
-    JumpingLibraryMetrics, Orientation, Pair, COLUMNS, DEFAULT_CHIMERA_KB_MIN, DEFAULT_TAIL_LIMIT,
+    chimera_threshold, classify, collect, collect_files, estimate_library_size, histogram_mean,
+    mode, orientation, outward_mode, passes_quality, trim_by_tail_limit, unsorted_message,
+    Arguments, Bucket, JumpingLibraryMetrics, Orientation, Pair, COLUMNS, DEFAULT_CHIMERA_KB_MIN,
+    DEFAULT_TAIL_LIMIT,
 };
 
 fn corpus() -> String {
@@ -581,4 +582,21 @@ fn the_columns_and_the_refusal_are_the_references() {
         format!("picard.PicardException:{}", unsorted_message("in.bam"))
     );
     assert!(message.contains("coordintate"), "{message}");
+}
+
+/// Several files are one set of counters, and a file's unmapped tail ends only that file.
+#[test]
+fn a_files_unmapped_tail_ends_only_that_file() {
+    let tail = Pair {
+        reference_index: -1,
+        unmapped: true,
+        mate_unmapped: true,
+        ..jump(0)
+    };
+    let first = vec![(jump(-2000), true), (tail, true), (jump(-1900), true)];
+    let second = vec![(jump(-2100), true)];
+    let arguments = Arguments::default();
+    assert_eq!(collect_files(&[&first, &second], &arguments).jump_pairs, 2);
+    let joined: Vec<(Pair, bool)> = first.iter().chain(&second).cloned().collect();
+    assert_eq!(collect(&joined, &arguments).jump_pairs, 1);
 }
