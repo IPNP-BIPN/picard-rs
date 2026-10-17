@@ -441,7 +441,10 @@ pub fn track_sets(sets: &[Vec<usize>], records: &[Record], options: &Options) ->
 
 pub fn mark_duplicate_sets_tracked(records: &[Record], options: &Options) -> SetMarking {
     let mut marking = SetMarking {
-        duplicate: vec![false; records.len()],
+        // `DuplicateSet.sort` only ever SETS the flag, and clears it on the set's first record, so
+        // every other record keeps the flag it was read with: a read named as the representative
+        // is not marked, and not unmarked either.
+        duplicate: records.iter().map(|r| r.flags & 0x400 != 0).collect(),
         optical: vec![false; records.len()],
         all_sets: Vec::new(),
         optical_sets: Vec::new(),

@@ -12,16 +12,12 @@
 //! The dictionary file is read through `SamReaderFactory`, as a SAM header: a `.dict`, whose
 //! `@SQ` lines are the sequences.
 
+use picard_analysis::args::arg;
 use picard_analysis::sort_vcf::{smart_merge_header_lines, sort_records};
 use picard_analysis::vcf_io::{
     assert_same_dictionary, die, header_dictionary, parse_sam_dictionary, read_path,
     sample_names_in_order, set_sequence_dictionary, write_output,
 };
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SortVcf");
@@ -37,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "SD="))
         .filter(|value| value != "null");
     let create_index = arg(&args, "CREATE_INDEX=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(true);
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {

@@ -22,6 +22,7 @@ use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::text::write_alignment;
 use htsjdk_bam::writer::BamWriter;
 use htsjdk_bgzf::read::BgzfReader;
+use picard_analysis::args::arg;
 use picard_analysis::sort_sam::{
     mate_cigar_refusal, MateCigarCheck, RequestedOrder, SortingCollection,
     DEFAULT_MAX_RECORDS_IN_RAM,
@@ -31,11 +32,6 @@ const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
 const MATE_UNMAPPED: u16 = 0x8;
 const FIRST_OF_PAIR: u16 = 0x40;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// The name htsjdk gives the index it writes beside an output.
 fn index_path(output: &str) -> String {
@@ -101,7 +97,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let order = RequestedOrder::parse(&requested)
         .ok_or_else(|| format!("unknown SORT_ORDER: {requested}"))?;
     let create_index = arg(&args, "CREATE_INDEX=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(false);
     // Read so that a row naming it is not refused for naming it; the corpus's fixtures are valid
     // under all three levels.
