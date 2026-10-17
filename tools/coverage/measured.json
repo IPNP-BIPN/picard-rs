@@ -671,12 +671,12 @@
       "share": 1.0
     },
     "FilterVcf": {
-      "rows": 18,
-      "accepted": 11,
+      "rows": 20,
+      "accepted": 13,
       "rejected": 7,
-      "distinct_outputs": 10,
-      "distinct_rejections": 2,
-      "matched": 18,
+      "distinct_outputs": 12,
+      "distinct_rejections": 3,
+      "matched": 20,
       "t": 2,
       "share": 1.0
     },
@@ -701,12 +701,12 @@
       "share": 1.0
     },
     "FixVcfHeader": {
-      "rows": 20,
-      "accepted": 8,
+      "rows": 21,
+      "accepted": 9,
       "rejected": 12,
-      "distinct_outputs": 8,
+      "distinct_outputs": 9,
       "distinct_rejections": 5,
-      "matched": 20,
+      "matched": 21,
       "t": 2,
       "share": 1.0
     },
@@ -721,12 +721,12 @@
       "share": 1.0
     },
     "GatherVcfs": {
-      "rows": 31,
-      "accepted": 14,
+      "rows": 33,
+      "accepted": 16,
       "rejected": 17,
-      "distinct_outputs": 4,
+      "distinct_outputs": 7,
       "distinct_rejections": 7,
-      "matched": 31,
+      "matched": 33,
       "t": 2,
       "share": 1.0
     },
@@ -821,22 +821,22 @@
       "share": 1.0
     },
     "LiftoverVcf": {
-      "rows": 16,
+      "rows": 17,
       "accepted": 16,
-      "rejected": 0,
-      "distinct_outputs": 14,
-      "distinct_rejections": 0,
-      "matched": 16,
+      "rejected": 1,
+      "distinct_outputs": 16,
+      "distinct_rejections": 1,
+      "matched": 11,
       "t": 2,
-      "share": 1.0
+      "share": 0.6470588235294118
     },
     "MakeSitesOnlyVcf": {
-      "rows": 10,
+      "rows": 12,
       "accepted": 8,
-      "rejected": 2,
+      "rejected": 4,
       "distinct_outputs": 5,
-      "distinct_rejections": 1,
-      "matched": 10,
+      "distinct_rejections": 2,
+      "matched": 12,
       "t": 2,
       "share": 1.0
     },
@@ -921,12 +921,12 @@
       "share": 1.0
     },
     "MergeVcfs": {
-      "rows": 27,
-      "accepted": 16,
+      "rows": 28,
+      "accepted": 17,
       "rejected": 11,
-      "distinct_outputs": 11,
+      "distinct_outputs": 13,
       "distinct_rejections": 5,
-      "matched": 27,
+      "matched": 28,
       "t": 2,
       "share": 1.0
     },
@@ -971,12 +971,12 @@
       "share": 1.0
     },
     "RenameSampleInVcf": {
-      "rows": 13,
+      "rows": 14,
       "accepted": 8,
-      "rejected": 5,
-      "distinct_outputs": 5,
+      "rejected": 6,
+      "distinct_outputs": 7,
       "distinct_rejections": 3,
-      "matched": 13,
+      "matched": 14,
       "t": 2,
       "share": 1.0
     },
@@ -1111,12 +1111,12 @@
       "share": 1.0
     },
     "SortVcf": {
-      "rows": 10,
+      "rows": 12,
       "accepted": 7,
-      "rejected": 3,
-      "distinct_outputs": 4,
+      "rejected": 5,
+      "distinct_outputs": 5,
       "distinct_rejections": 2,
-      "matched": 10,
+      "matched": 12,
       "t": 2,
       "share": 1.0
     },
@@ -1141,14 +1141,14 @@
       "share": 1.0
     },
     "SplitVcfs": {
-      "rows": 22,
+      "rows": 25,
       "accepted": 12,
-      "rejected": 10,
-      "distinct_outputs": 11,
-      "distinct_rejections": 3,
-      "matched": 22,
+      "rejected": 13,
+      "distinct_outputs": 12,
+      "distinct_rejections": 9,
+      "matched": 19,
       "t": 2,
-      "share": 1.0
+      "share": 0.76
     },
     "UmiAwareMarkDuplicatesWithMateCigar": {
       "rows": 26,
@@ -1162,10 +1162,10 @@
     },
     "UpdateVcfSequenceDictionary": {
       "rows": 17,
-      "accepted": 14,
-      "rejected": 3,
-      "distinct_outputs": 4,
-      "distinct_rejections": 2,
+      "accepted": 11,
+      "rejected": 6,
+      "distinct_outputs": 5,
+      "distinct_rejections": 4,
       "matched": 17,
       "t": 2,
       "share": 1.0
@@ -1184,7 +1184,7 @@
       "rows": 16,
       "accepted": 7,
       "rejected": 9,
-      "distinct_outputs": 5,
+      "distinct_outputs": 6,
       "distinct_rejections": 5,
       "matched": 16,
       "t": 2,
