@@ -15,12 +15,8 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
+use picard_analysis::args::arg;
 use picard_analysis::validate_sam_file::{validate_records, Options};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// Every occurrence of a repeatable argument, which is how `IGNORE` is given.
 fn args_all(args: &[String], key: &str) -> Vec<String> {
@@ -30,12 +26,17 @@ fn args_all(args: &[String], key: &str) -> Vec<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("ValidateSamFile");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
         .ok_or("INPUT= is required")?;
     let output = arg(&args, "OUTPUT=").or_else(|| arg(&args, "O="));
-    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
+    let flag = |key: &str, default: bool| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(default)
+    };
     let validate_index = flag("VALIDATE_INDEX=", true);
     let index_stringency =
         arg(&args, "INDEX_VALIDATION_STRINGENCY=").unwrap_or_else(|| "EXHAUSTIVE".to_string());

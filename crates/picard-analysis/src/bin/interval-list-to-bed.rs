@@ -20,24 +20,16 @@
 
 use std::io::Write;
 
+use picard_analysis::args::arg;
 use picard_analysis::interval_list_to_bed::{interval_list_to_bed, Options};
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
-/// A Barclay `boolean` argument, which is `true`/`false` and nothing else.
-fn flag(args: &[String], key: &str, default: bool) -> Result<bool, String> {
-    match arg(args, key).as_deref() {
-        None => Ok(default),
-        Some("true") => Ok(true),
-        Some("false") => Ok(false),
-        Some(other) => Err(format!("unknown value for {key}{other}")),
-    }
+/// A boolean argument, which the legacy parser builds as `new Boolean(value)`.
+fn flag(args: &[String], key: &str, default: bool) -> bool {
+    arg(args, key).map_or(default, |value| picard_analysis::args::is_true(&value))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("IntervalListToBed");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -50,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(value) => value.parse().map_err(|_| format!("SCORE: {value}"))?,
             None => 500,
         },
-        sort: flag(&args, "SORT=", true)?,
+        sort: flag(&args, "SORT=", true),
     };
 
     let list = std::fs::read_to_string(&input)?;

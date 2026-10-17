@@ -117,6 +117,7 @@ fn compare_all(
 }
 
 fn main() {
+    picard_analysis::argument_check::check("CheckFingerprint");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

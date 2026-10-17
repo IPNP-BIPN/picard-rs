@@ -53,6 +53,7 @@ fn write(path: &str, file: &MetricsFile) {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("CollectSequencingArtifactMetrics");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

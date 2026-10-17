@@ -12,6 +12,7 @@ use picard_analysis::single_pass_driver;
 use picard_analysis::snvq::SnvqCollector;
 
 fn main() {
+    picard_analysis::argument_check::check("CollectQualityYieldMetricsSNVQ");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

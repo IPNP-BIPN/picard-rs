@@ -23,15 +23,12 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::write_sam;
 use htsjdk_bam::writer::BamWriter;
 use htsjdk_metrics::file::MetricsFile;
+use picard_analysis::args::arg;
 use picard_analysis::downsample_sam::{keep_flags, Strategy, DEFAULT_SEED};
 use picard_analysis::quality_yield::{Options, QualityYieldMetricsCollector};
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("DownsampleSam");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

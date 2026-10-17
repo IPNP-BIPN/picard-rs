@@ -20,13 +20,9 @@
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_metrics::file::MetricsFile;
+use picard_analysis::args::arg;
 use picard_analysis::insert_size::{InsertSizeMetricsCollector, Options};
 use picard_analysis::single_pass_rejections::{check_sort_order, walk_reference, SortOrder};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// `MultiLevelCollector`'s distributors, in output order: all reads, then one collector per
 /// sample, library and platform unit the header names, in header order, plus an `unknown` one
@@ -132,6 +128,7 @@ impl Distributors {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("CollectInsertSizeMetrics");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

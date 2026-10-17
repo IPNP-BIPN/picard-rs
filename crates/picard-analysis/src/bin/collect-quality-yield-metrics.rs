@@ -12,14 +12,11 @@
 //! array's fixtures are one of each.
 
 use htsjdk_metrics::file::MetricsFile;
+use picard_analysis::args::arg;
 use picard_analysis::quality_yield::{Options, QualityYieldMetricsCollector};
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("CollectQualityYieldMetrics");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -30,19 +27,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut options = Options::default();
     if let Some(value) = arg(&args, "USE_ORIGINAL_QUALITIES=") {
-        options.use_original_qualities = value == "true";
+        options.use_original_qualities = picard_analysis::args::is_true(&value);
     }
     if let Some(value) = arg(&args, "INCLUDE_SECONDARY_ALIGNMENTS=") {
-        options.include_secondary_alignments = value == "true";
+        options.include_secondary_alignments = picard_analysis::args::is_true(&value);
     }
     if let Some(value) = arg(&args, "INCLUDE_SUPPLEMENTAL_ALIGNMENTS=") {
-        options.include_supplemental_alignments = value == "true";
+        options.include_supplemental_alignments = picard_analysis::args::is_true(&value);
     }
     // The flow-mode collector is a different tool in the reference, and asking this one for it is
     // refused rather than answered. The array holds the argument at `false` for that reason, and
     // a row that ever asks for `true` should be refused here too.
     if let Some(value) = arg(&args, "FLOW_MODE=") {
-        if value == "true" {
+        if picard_analysis::args::is_true(&value) {
             return Err("FLOW_MODE is obsolete. Flow support now provided by \
                  CollectQualityYieldMetricsFlow"
                 .into());

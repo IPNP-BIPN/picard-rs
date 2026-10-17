@@ -8,12 +8,8 @@
 //! The path in the output is the argument, never a resolved or absolute one, so the same file
 //! named twice differently is two lines.
 
+use picard_analysis::args::arg;
 use picard_analysis::make_vcf_sample_name_map::{build, render, wrong_sample_count_message, Entry};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn args_all(args: &[String], key: &str) -> Vec<String> {
     args.iter()
@@ -35,6 +31,7 @@ fn samples_of(text: &str) -> Vec<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("MakeVcfSampleNameMap");
     let args: Vec<String> = std::env::args().collect();
     let mut inputs = args_all(&args, "INPUT=");
     inputs.extend(args_all(&args, "I="));

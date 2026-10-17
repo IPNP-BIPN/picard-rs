@@ -791,13 +791,27 @@ fn best(list: &[ReadEnds]) -> usize {
 /// the writing pass walks. The reference sorts its read ends and cuts chunks on equal keys; the
 /// port groups by the same key, which is the same partition without the spill to disk.
 pub fn mark(records: &[Record], options: &Options) -> Marking {
+    mark_sorted(records, options, false)
+}
+
+/// [`mark`], with the header's sort order. Under `queryname` every read end takes the index of the
+/// FIRST record of its run of one read name rather than its own, and the second pass flags the
+/// whole run (see [`queryname_pass`]).
+pub fn mark_sorted(records: &[Record], options: &Options, queryname: bool) -> Marking {
     let mut pairs: Vec<ReadEnds> = Vec::new();
     let mut fragments: Vec<ReadEnds> = Vec::new();
-    // `tmp`, the map from a read group and a name to the first end of a pair seen. A name is in it
+    // `tmp`, the map from a read group and a name to the first end of a pair seen. A key is in it
     // at most once: its second record takes it out.
-    let mut pending: HashMap<String, ReadEnds> = HashMap::with_capacity(records.len() / 2);
+    let mut pending: HashMap<(i32, String), ReadEnds> = HashMap::with_capacity(records.len() / 2);
+    // `duplicateIndex`, the index of the first record of the current run of one name.
+    let mut run_start = 0;
 
-    for (index, record) in records.iter().enumerate() {
+    for (record_index, record) in records.iter().enumerate() {
+        if queryname && (record_index == 0 || record.name != records[record_index - 1].name) {
+            run_start = record_index;
+        }
+        // `indexForRead`.
+        let index = if queryname { run_start } else { record_index };
         if record.unmapped() || record.secondary_or_supplementary() {
             continue;
         }
@@ -806,9 +820,11 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
         if !record.paired() || record.mate_unmapped() {
             continue;
         }
-        match pending.remove(&record.name) {
+        // The read group's id and the name: one name in two groups is two templates.
+        let name = (record.read_group, record.name.clone());
+        match pending.remove(&name) {
             None => {
-                pending.insert(record.name.clone(), fragment);
+                pending.insert(name, fragment);
             }
             Some(mut paired) => {
                 let mates_reference_index = fragment.read1_reference_index;
@@ -855,9 +871,14 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
         }
     }
 
-    let mut duplicate = vec![false; records.len()];
-    let mut optical = vec![false; records.len()];
-    let mut duplicate_set = vec![None; records.len()];
+    // `duplicateIndexes`, `opticalDuplicateIndexes` and `representativeReadIndicesForDuplicates`:
+    // under queryname both ends of a pair share an index, which then goes in once, and two runs
+    // can still put one index in twice.
+    let mut duplicate_indexes: Vec<usize> = Vec::new();
+    let mut optical_indexes: Vec<usize> = Vec::new();
+    let mut representatives: Vec<(usize, usize, usize)> = Vec::new();
+    // `opticalDuplicatesByLibraryId`, counted per end in a set, not per record written.
+    let mut optical_pairs: Vec<(String, i64)> = Vec::new();
     let mut all_sets: Vec<(f64, f64)> = Vec::new();
     let mut optical_sets: Vec<(f64, f64)> = Vec::new();
     let mut non_optical_sets: Vec<(f64, f64)> = Vec::new();
@@ -878,8 +899,10 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
         // `addRepresentativeReadIndex`, whose best is chosen by the same rule as the keeper.
         let representative = chunk[keeper].read1_index_in_file;
         for ends in &chunk {
-            duplicate_set[ends.read1_index_in_file] = Some((representative, chunk.len()));
-            duplicate_set[ends.read2_index_in_file] = Some((representative, chunk.len()));
+            representatives.push((ends.read1_index_in_file, representative, chunk.len()));
+            if ends.read2_index_in_file != ends.read1_index_in_file {
+                representatives.push((ends.read2_index_in_file, representative, chunk.len()));
+            }
         }
         let flags = if options.parse_read_names {
             optical_flags(&chunk, keeper, options)
@@ -890,11 +913,25 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
             if position == keeper {
                 continue;
             }
-            duplicate[ends.read1_index_in_file] = true;
-            duplicate[ends.read2_index_in_file] = true;
+            duplicate_indexes.push(ends.read1_index_in_file);
+            if ends.read2_index_in_file != ends.read1_index_in_file {
+                duplicate_indexes.push(ends.read2_index_in_file);
+            }
             if flags[position] {
-                optical[ends.read1_index_in_file] = true;
-                optical[ends.read2_index_in_file] = true;
+                optical_indexes.push(ends.read1_index_in_file);
+                if ends.read2_index_in_file != ends.read1_index_in_file {
+                    optical_indexes.push(ends.read2_index_in_file);
+                }
+            }
+        }
+        let optical_ends = flags.iter().filter(|flag| **flag).count() as i64;
+        if optical_ends > 0 {
+            match optical_pairs
+                .iter_mut()
+                .find(|(library, _)| *library == chunk[0].library)
+            {
+                Some((_, count)) => *count += optical_ends,
+                None => optical_pairs.push((chunk[0].library.clone(), optical_ends)),
             }
         }
         // `trackDuplicateCounts`, which is reached THROUGH `trackOpticalDuplicates` and so does
@@ -930,25 +967,102 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
         if contains_pairs {
             for ends in &chunk {
                 if !ends.is_paired() {
-                    duplicate[ends.read1_index_in_file] = true;
+                    duplicate_indexes.push(ends.read1_index_in_file);
                 }
             }
         } else {
             let keeper = best(&chunk);
             for (position, ends) in chunk.iter().enumerate() {
                 if position != keeper {
-                    duplicate[ends.read1_index_in_file] = true;
+                    duplicate_indexes.push(ends.read1_index_in_file);
                 }
             }
         }
     }
 
-    let mut marking = write(records, options, &duplicate, &optical);
+    let (duplicate, optical, duplicate_set) = if queryname {
+        queryname_pass(records, duplicate_indexes, optical_indexes, representatives)
+    } else {
+        let mut duplicate = vec![false; records.len()];
+        let mut optical = vec![false; records.len()];
+        let mut duplicate_set = vec![None; records.len()];
+        duplicate_indexes.iter().for_each(|&i| duplicate[i] = true);
+        optical_indexes.iter().for_each(|&i| optical[i] = true);
+        for (index, representative, size) in representatives {
+            duplicate_set[index] = Some((representative, size));
+        }
+        (duplicate, optical, duplicate_set)
+    };
+    let mut marking = write(records, options, &duplicate, &optical, Some(&optical_pairs));
     marking.all_sets = all_sets;
     marking.optical_sets = optical_sets;
     marking.non_optical_sets = non_optical_sets;
     marking.duplicate_set = duplicate_set;
     marking
+}
+
+/// Per record: duplicate, optical, and the `DI`/`DS` pair.
+type Flags = (Vec<bool>, Vec<bool>, Vec<Option<(usize, usize)>>);
+
+/// The second pass under queryname, which walks the sorted index collections the way the
+/// reference does: the next index is drawn only once the record is past it AND its name differs
+/// from the last one marked, and a record past the index with that same name is marked too. So
+/// the secondary, supplementary and unmapped records of a duplicate's run are flagged, and a run
+/// of one name that a merge put beside another run of it is flagged with it.
+fn queryname_pass(
+    records: &[Record],
+    mut duplicate_indexes: Vec<usize>,
+    mut optical_indexes: Vec<usize>,
+    mut representatives: Vec<(usize, usize, usize)>,
+) -> Flags {
+    // `NO_SUCH_INDEX`.
+    const NONE: i64 = i64::MAX;
+    duplicate_indexes.sort_unstable();
+    optical_indexes.sort_unstable();
+    // A stable sort, as the in-memory `SortingCollection` is, on the read's index alone.
+    representatives.sort_by_key(|&(index, _, _)| index);
+    let mut duplicates = duplicate_indexes.into_iter().map(|i| i as i64);
+    let mut opticals = optical_indexes.into_iter().map(|i| i as i64);
+    let mut sets = representatives.into_iter();
+    let mut next_duplicate = duplicates.next().unwrap_or(NONE);
+    let mut next_optical = opticals.next().unwrap_or(NONE);
+    // An empty collection leaves the set index at -1, which no record equals.
+    let (mut next_in_set, mut representative, mut size) =
+        sets.next().map_or((-1, 0, 0), |(i, r, s)| (i as i64, r, s));
+    let mut duplicate_name: Option<&str> = None;
+    let mut representative_name: Option<&str> = None;
+
+    let mut duplicate = vec![false; records.len()];
+    let mut optical = vec![false; records.len()];
+    let mut duplicate_set = vec![None; records.len()];
+    for (index, record) in records.iter().enumerate() {
+        let i = index as i64;
+        let name = Some(record.name.as_str());
+        // `nextIndexIfNeeded`.
+        if i > next_duplicate && name != duplicate_name {
+            next_duplicate = duplicates.next().unwrap_or(NONE);
+        }
+        duplicate[index] = i == next_duplicate || (i > next_duplicate && name == duplicate_name);
+        if i > next_optical && name != duplicate_name {
+            next_optical = opticals.next().unwrap_or(NONE);
+        }
+        optical[index] = i == next_optical || (i > next_optical && name == duplicate_name);
+        if i > next_in_set && name != representative_name {
+            if let Some((next, r, s)) = sets.next() {
+                (next_in_set, representative, size) = (next as i64, r, s);
+            }
+        }
+        let in_set = i == next_in_set || (i > next_in_set && name == representative_name);
+        if in_set && !record.secondary_or_supplementary() && !record.unmapped() {
+            duplicate_set[index] = Some((representative, size));
+            representative_name = name;
+        }
+        // Moved only after both flags, as the reference does.
+        if duplicate[index] {
+            duplicate_name = name;
+        }
+    }
+    (duplicate, optical, duplicate_set)
 }
 
 /// The records at one position, grouped the way a set is cut: by library, barcode, reference,
@@ -985,6 +1099,28 @@ fn chunks(list: &[ReadEnds], compare_read2: bool) -> Vec<Vec<ReadEnds>> {
             groups.push(Vec::new());
         }
         groups[position].push(ends.clone());
+    }
+    // `ReadEndsMDComparator` past the key: the mate's position, then the physical location (-1
+    // where none was parsed), then the indexes in the file. Within one file the location rarely
+    // ties apart from the index; two merged files with different name styles do.
+    let location = |ends: &ReadEnds| {
+        let l = ends.location;
+        if l.known {
+            (i32::from(l.tile), l.x, l.y)
+        } else {
+            (-1, -1, -1)
+        }
+    };
+    for group in &mut groups {
+        group.sort_by_key(|ends| {
+            (
+                ends.read2_reference_index,
+                ends.read2_coordinate,
+                location(ends),
+                ends.read1_index_in_file,
+                ends.read2_index_in_file,
+            )
+        });
     }
     groups
 }
@@ -1039,10 +1175,18 @@ pub fn marking_from(
     duplicate: &[bool],
     optical: &[bool],
 ) -> Marking {
-    write(records, options, duplicate, optical)
+    write(records, options, duplicate, optical, None)
 }
 
-fn write(records: &[Record], options: &Options, duplicate: &[bool], optical: &[bool]) -> Marking {
+/// `optical_pairs` is `MarkDuplicates`' own optical count per library, in pairs; without it the
+/// count is the records flagged optical, halved.
+fn write(
+    records: &[Record],
+    options: &Options,
+    duplicate: &[bool],
+    optical: &[bool],
+    optical_pairs: Option<&[(String, i64)]>,
+) -> Marking {
     let mut metrics: Vec<Metrics> = Vec::new();
     let mut duplicate_type: Vec<Option<String>> = Vec::new();
     let mut written = Vec::with_capacity(records.len());
@@ -1106,7 +1250,13 @@ fn write(records: &[Record], options: &Options, duplicate: &[bool], optical: &[b
         // Both counters counted a pair twice, once per end.
         row.read_pairs_examined /= 2;
         row.read_pair_duplicates /= 2;
-        row.read_pair_optical_duplicates /= 2;
+        row.read_pair_optical_duplicates = match optical_pairs {
+            Some(pairs) => pairs
+                .iter()
+                .find(|(library, _)| *library == row.library)
+                .map_or(0, |(_, count)| *count),
+            None => row.read_pair_optical_duplicates / 2,
+        };
         row.estimated_library_size = estimate_library_size(
             row.read_pairs_examined - row.read_pair_optical_duplicates,
             row.read_pairs_examined - row.read_pair_duplicates,
@@ -1241,4 +1391,48 @@ pub fn duplication_metrics_text(
     file.histograms
         .push(histogram("non_optical_sets", "set_size", &non_optical));
     file.write()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn named(name: &str, flags: u16) -> Record {
+        Record {
+            name: name.to_string(),
+            flags,
+            reference_index: 0,
+            alignment_start: 1,
+            cigar: Default::default(),
+            qualities: Vec::new(),
+            mate_reference_index: -1,
+            library: String::new(),
+            read_group: 0,
+            barcode: None,
+            existing_dt: None,
+            mate_cigar: None,
+            mate_alignment_start: 0,
+        }
+    }
+
+    #[test]
+    fn queryname_pass_flags_the_run_and_lags_on_a_repeated_index() {
+        // A secondary of a duplicate's run is flagged and a later run of the same name is not,
+        // but the set tag, whose collection has run dry, still matches that later run by name.
+        let records = [
+            named("a", 0),
+            named("a", 0x100),
+            named("b", 0),
+            named("a", 0),
+        ];
+        let (duplicate, _, set) = queryname_pass(&records, vec![0], vec![], vec![(0, 0, 2)]);
+        assert_eq!(duplicate, [true, true, false, false]);
+        assert_eq!(set, [Some((0, 2)), None, None, Some((0, 2))]);
+
+        // One index in twice holds the walk back a record, so the reference misses index 1.
+        let records = [named("a", 0), named("b", 0), named("c", 0)];
+        let (duplicate, optical, _) = queryname_pass(&records, vec![1, 0, 0], vec![0], vec![]);
+        assert_eq!(duplicate, [true, false, false]);
+        assert_eq!(optical, [true, false, false]);
+    }
 }

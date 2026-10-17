@@ -9,6 +9,7 @@
 use picard_analysis::check_terminator_block::check_terminator_block;
 
 fn main() {
+    picard_analysis::argument_check::check("CheckTerminatorBlock");
     let args: Vec<String> = std::env::args().skip(1).collect();
     let input = args
         .iter()

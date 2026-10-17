@@ -273,6 +273,7 @@ fn instance(program: Program, s: &Shared) -> (Vec<String>, Vec<String>) {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("CollectMultipleMetrics");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

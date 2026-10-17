@@ -18,12 +18,8 @@
 
 use std::io::Write;
 
+use picard_analysis::args::arg;
 use picard_analysis::scatter_intervals_by_ns::{scatter_intervals_by_ns, Options, OutputType};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// The `.dict` beside a reference, which is where its dictionary lives.
 fn dictionary_path(reference: &str) -> String {
@@ -34,6 +30,7 @@ fn dictionary_path(reference: &str) -> String {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("ScatterIntervalsByNs");
     let args: Vec<String> = std::env::args().collect();
     let reference = arg(&args, "REFERENCE=")
         .or_else(|| arg(&args, "R="))
