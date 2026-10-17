@@ -3350,7 +3350,7 @@
     {
       "id": "nonbamshapes",
       "title": "what a screen of the non-BAM tools on large inputs found answered differently: CollectVariantCallingMetrics' variant types, dbSNP spans and sample order, the .idx beside every plain .vcf and its Double.toString properties, ##fileDate and Generated on dates, BaitDesigner's grouped bait numbers, CheckFingerprint's indexed genotypes, CreateSequenceDictionary's default and existing output, CollectIndependentReplicateMetrics without MC tags, ExtractIlluminaBarcodes' gzip member",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "harness": "tools/nonbamshapes-conformance",
       "needs_fixtures": true,
       "tools": [
@@ -3388,7 +3388,8 @@
       "cases": [
         {
           "dump": "NonBamShapesDump",
-          "golden": null
+          "golden": "crates/picard-analysis/tests/data/nonbam_shapes.txt.gz",
+          "why": "Frozen from the candidate artefact of run 39035124841 (real x86-64); every row but the inputs, whose .idx files carry a temporary path and a time, is the local dump's."
         }
       ]
     }

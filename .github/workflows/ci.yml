@@ -1082,10 +1082,7 @@ jobs:
             suites: "liftovervcf mendelianviolations baitdesigner bpmtocsv comparegtc"
           - group: oracle-backed
             index: "22/22"
-            suites: "gtctovcf createextendedmanifest headerlines inputshapes"
-          - group: golden-pending
-            index: "1/1"
-            suites: "nonbamshapes"
+            suites: "gtctovcf createextendedmanifest headerlines inputshapes nonbamshapes"
     steps:
       - uses: actions/checkout@v7
 
