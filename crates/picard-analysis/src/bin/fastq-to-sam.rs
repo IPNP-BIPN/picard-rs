@@ -161,7 +161,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         allow_and_ignore_empty_lines: flag("ALLOW_AND_IGNORE_EMPTY_LINES=", false),
     };
     match fastq_to_bam_full(&text, second_text.as_deref(), &options) {
-        Ok(bam) => std::fs::write(&output, bam)?,
+        Ok(bam) => picard_analysis::cram_output::write(&output, bam)?,
         Err(thrown) => {
             eprintln!("Exception in thread \"main\" {thrown}");
             std::process::exit(1);

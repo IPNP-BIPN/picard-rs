@@ -34,6 +34,7 @@ fn flag(args: &[String], key: &str) -> bool {
 fn read_as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
     let mut raw = Vec::new();
     std::fs::File::open(path)?.read_to_end(&mut raw)?;
+    let raw = picard_analysis::cram_input::uncram(raw);
     if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
@@ -91,6 +92,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let bam = reorder_sam_to_bam(&text, &dict, &options).map_err(|e| format!("{e:?}"))?;
-    std::fs::write(&output, &bam)?;
+    picard_analysis::cram_output::write(&output, bam)?;
     Ok(())
 }

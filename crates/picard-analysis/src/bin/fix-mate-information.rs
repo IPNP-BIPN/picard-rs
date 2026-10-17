@@ -51,6 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut raw = Vec::new();
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+    let raw = picard_analysis::cram_input::uncram(raw);
     let text = if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
@@ -94,6 +95,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             unreachable!()
         }
     };
-    std::fs::write(&output, &bam)?;
+    picard_analysis::cram_output::write(&output, bam)?;
     Ok(())
 }

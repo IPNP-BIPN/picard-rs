@@ -239,6 +239,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
+name = "bzip2"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3a53fac24f34a81bc9954b5d6cfce0c21e18ec6959f44f56e8e90e4bb7c346c"
+dependencies = [
+ "libbz2-rs-sys",
+]
+
+[[package]]
 name = "calendrical_calculations"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -583,7 +592,7 @@ dependencies = [
 [[package]]
 name = "gkl-deflate"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=aeb8df9a8a502bbc89d252482bf3926a9e5f290d#aeb8df9a8a502bbc89d252482bf3926a9e5f290d"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=e7f83cecf99b40e38f472c24015160953fea8053#e7f83cecf99b40e38f472c24015160953fea8053"
 
 [[package]]
 name = "hashbrown"
@@ -611,7 +620,7 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 [[package]]
 name = "htsjdk-bam"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=aeb8df9a8a502bbc89d252482bf3926a9e5f290d#aeb8df9a8a502bbc89d252482bf3926a9e5f290d"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=e7f83cecf99b40e38f472c24015160953fea8053#e7f83cecf99b40e38f472c24015160953fea8053"
 dependencies = [
  "htsjdk-bgzf",
  "jmath",
@@ -621,7 +630,7 @@ dependencies = [
 [[package]]
 name = "htsjdk-bgzf"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=aeb8df9a8a502bbc89d252482bf3926a9e5f290d#aeb8df9a8a502bbc89d252482bf3926a9e5f290d"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=e7f83cecf99b40e38f472c24015160953fea8053#e7f83cecf99b40e38f472c24015160953fea8053"
 dependencies = [
  "flate2",
  "gkl-deflate",
@@ -630,9 +639,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "htsjdk-cram"
+version = "0.2.0"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=e7f83cecf99b40e38f472c24015160953fea8053#e7f83cecf99b40e38f472c24015160953fea8053"
+dependencies = [
+ "bzip2",
+ "flate2",
+ "htsjdk-bam",
+ "jmath",
+ "libdeflate-sys",
+ "md-5",
+]
+
+[[package]]
 name = "htsjdk-metrics"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=aeb8df9a8a502bbc89d252482bf3926a9e5f290d#aeb8df9a8a502bbc89d252482bf3926a9e5f290d"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=e7f83cecf99b40e38f472c24015160953fea8053#e7f83cecf99b40e38f472c24015160953fea8053"
 dependencies = [
  "jmath",
 ]
@@ -640,7 +662,7 @@ dependencies = [
 [[package]]
 name = "htsjdk-tribble"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=aeb8df9a8a502bbc89d252482bf3926a9e5f290d#aeb8df9a8a502bbc89d252482bf3926a9e5f290d"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=e7f83cecf99b40e38f472c24015160953fea8053#e7f83cecf99b40e38f472c24015160953fea8053"
 dependencies = [
  "flate2",
  "htsjdk-bam",
@@ -650,7 +672,7 @@ dependencies = [
 [[package]]
 name = "htsjdk-vcf"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=aeb8df9a8a502bbc89d252482bf3926a9e5f290d#aeb8df9a8a502bbc89d252482bf3926a9e5f290d"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=e7f83cecf99b40e38f472c24015160953fea8053#e7f83cecf99b40e38f472c24015160953fea8053"
 dependencies = [
  "htsjdk-tribble",
  "jmath",
@@ -835,7 +857,13 @@ checksum = "4d3667095d64c3ecffc96463a21157b04bf3e252f6e8d5750b20c02e33c194e3"
 [[package]]
 name = "jmath"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=aeb8df9a8a502bbc89d252482bf3926a9e5f290d#aeb8df9a8a502bbc89d252482bf3926a9e5f290d"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=e7f83cecf99b40e38f472c24015160953fea8053#e7f83cecf99b40e38f472c24015160953fea8053"
+
+[[package]]
+name = "libbz2-rs-sys"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34b357333733e8260735ba5894eb928c02ecc69c78715f01a8019e7fa7f2db4c"
 
 [[package]]
 name = "libc"
@@ -845,18 +873,18 @@ checksum = "ce5d3ddc6d3fa000eb1536d85e147bfe31aacaba692ed6a876f95cb7c855be78"
 
 [[package]]
 name = "libdeflate-sys"
-version = "1.26.1"
+version = "1.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7870e5fbd2766179a937c725fb11f4ca0ef025d982beb61bd3ce755425bd19c"
+checksum = "72753e0008ea87963d2f0770042d0df7abe51fafbb8dcaf618ac440f2f1fec0a"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "libdeflater"
-version = "1.26.1"
+version = "1.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cbb8285d2e2bd4b8d4155840ae81929354b4ba0d7b3c272c84761ffa2141e1f"
+checksum = "d1ee41cf6fb1bb6030dfb59ffb7bc01ab26aade44142084c87f0fc7a1658fe71"
 dependencies = [
  "libdeflate-sys",
 ]
@@ -1094,6 +1122,7 @@ dependencies = [
  "foldhash",
  "htsjdk-bam",
  "htsjdk-bgzf",
+ "htsjdk-cram",
  "htsjdk-metrics",
  "htsjdk-tribble",
  "htsjdk-vcf",

@@ -174,6 +174,11 @@ fn main() {
         ("H", "HAPLOTYPE_MAP"),
         ("R", "REFERENCE_SEQUENCE"),
     ]);
+    // Its `FingerprintChecker` is never handed the reference, so a CRAM has none.
+    picard_analysis::cram_input::set_reader_reference(None);
+    // The checker reads every file in an `ExecutorService`, so a CRAM that cannot be decoded is
+    // reported as the pool's failure.
+    picard_analysis::cram_input::wrap_failures_as("picard.PicardException: Failed to fingerprint");
     let inputs = args.collection("INPUT", &[]);
     let output = args.required("OUTPUT");
     let by = DataType::parse(args.get("CALCULATE_BY").unwrap_or("READGROUP"))

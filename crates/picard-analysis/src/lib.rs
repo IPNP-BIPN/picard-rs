@@ -50,6 +50,8 @@ pub mod command_line;
 pub mod compare_metrics;
 pub mod compare_sams;
 pub mod convert_artifact_to_oxog;
+pub mod cram_input;
+pub mod cram_output;
 pub mod create_baf_regress_metrics;
 pub mod create_extended_illumina_manifest;
 pub mod create_sequence_dictionary;

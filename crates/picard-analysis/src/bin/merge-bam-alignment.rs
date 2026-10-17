@@ -2376,7 +2376,7 @@ fn main() {
     let bytes = writer
         .finish()
         .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")));
-    if let Err(e) = std::fs::write(&output, bytes) {
+    if let Err(e) = picard_analysis::cram_output::write(&output, bytes) {
         thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}"));
     }
 }

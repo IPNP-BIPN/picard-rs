@@ -3316,6 +3316,46 @@
           "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 38938155720 on PR 365, and identical to the local smoke run but for the Started on values. 54 tools' option tables, 216 command lines Picard parsed and recorded, and 12 real runs: the @PG lines and every read's PG tag of the seven tools that stamp one, and their metrics headers."
         }
       ]
+    },
+    {
+      "id": "cram-io",
+      "title": "CRAM 3.1 read and written as Picard 3.5.0 does",
+      "status": "golden-pending",
+      "harness": "tools/cram-conformance",
+      "tools": [
+        "SamFormatConverter",
+        "SortSam",
+        "CollectAlignmentSummaryMetrics",
+        "SplitSamByNumberOfReads"
+      ],
+      "java_props": [
+        "-Duser.language=en",
+        "-Duser.country=US"
+      ],
+      "$java_props_why": "Without -Dsamjdk.use_libdeflate=false: htsjdk 5.0.0's DeflaterFactory gives a CRAM GZIP block libdeflate on Picard's command line, and that is what the port writes. The BGZF of a BAM is not involved in any row.",
+      "why": "Every other suite reads and writes BAM or SAM, so nothing measured CRAM, and Picard 3.5.0's htsjdk 5.0.0 writes CRAM 3.1: rANS Nx16, fqzcomp, the name tokeniser and libdeflate GZIP blocks, slices whose MD and NM are dropped when a reader would regenerate them, pairs attached within a slice, and a .bai for CREATE_INDEX. The dump runs Picard under /work/cram, a fixed directory, because a CRAM's file definition carries its output's URI; the Rust side maps its own directory there. The rows are the input, the CRAM SamFormatConverter writes, the CRAM and index SortSam writes, the SAM read back with its regenerated MD and NM, a metrics file read from the CRAM without its # lines, the names SplitSamByNumberOfReads gives a CRAM's shards, and the refusals: reading without a reference (ReferenceSource with no file, which answers nothing) and writing without one (CRAMLazyReferenceSource, which throws its own message), reading with the wrong reference twice, once on a multi-reference slice that is never checked against its MD5 and once on a single-reference one that is, and indexing a CRAM that is not coordinate-sorted.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "expect_rows": 12,
+      "expect_contains": [
+        "cram\tsam-to-cram\t4352414d0301",
+        "bai\tsortsam\t42414901",
+        "MD:Z:",
+        "shard_0001.cram",
+        "java.lang.IllegalArgumentException: Failure getting reference bases for sequence chr1",
+        "java.lang.IllegalArgumentException: A reference must be supplied that includes the reference sequence for chr1.",
+        "The MD5 for the reference failed to validate against the expected value",
+        "htsjdk.samtools.SAMException: CRAM file mut be coordinate-sorted for indexing."
+      ],
+      "$expect_why": "A row count is not evidence: these are the behaviours the suite exists for, a CRAM 3.1 file definition, a BAI beside a CRAM, MD regenerated on read, CRAM-named shards, and each of the four refusals.",
+      "cases": [
+        {
+          "dump": "CramIoDump",
+          "golden": null,
+          "why": "No golden yet: CI publishes the dump from a real x86-64 runner, and the Rust test that reads it lands with the freeze."
+        }
+      ]
     }
   ],
   "probes": [

@@ -22,6 +22,7 @@ fn arg(args: &[String], key: &str) -> Option<String> {
 fn as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
     let mut raw = Vec::new();
     std::fs::File::open(path)?.read_to_end(&mut raw)?;
+    let raw = picard_analysis::cram_input::uncram(raw);
     if !raw.starts_with(&[0x1f, 0x8b]) {
         return Ok(String::from_utf8(raw)?);
     }

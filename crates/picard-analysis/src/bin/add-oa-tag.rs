@@ -58,6 +58,7 @@ fn index_path(output: &str) -> String {
 fn read_input(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::error::Error>> {
     let mut raw = Vec::new();
     std::fs::File::open(path)?.read_to_end(&mut raw)?;
+    let raw = picard_analysis::cram_input::uncram(raw);
     if !is_bgzf(&raw) {
         let text = String::from_utf8(raw)?;
         let (header, records) = read_sam(&text).map_err(|e| format!("{e:?}"))?;
@@ -131,6 +132,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bam = writer.finish()?;
     t = phase("encode_bam", t);
 
+    if picard_analysis::cram_output::is_cram(&output) {
+        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
+        return Ok(());
+    }
     std::fs::write(&output, &bam)?;
     if create_index {
         let index = build_bam_index(&bam).map_err(|e| format!("{e:?}"))?;
