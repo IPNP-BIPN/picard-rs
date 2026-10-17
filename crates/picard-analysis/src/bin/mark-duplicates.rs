@@ -20,7 +20,9 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
-use picard_analysis::mark_duplicates::{mark, Options, Record, ScoringStrategy, TaggingPolicy};
+use picard_analysis::mark_duplicates::{
+    mark_sorted, Options, Record, ScoringStrategy, TaggingPolicy,
+};
 
 const DUPLICATE_READ: u16 = 0x400;
 
@@ -262,7 +264,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
 
-    let marking = mark(&marked_records, &options);
+    let marking = mark_sorted(&marked_records, &options, header_order == "queryname");
 
     // `createOutHeader`: assuming queryname says the file is queryname GROUPED, which is not a
     // sort order, so the output says so.
