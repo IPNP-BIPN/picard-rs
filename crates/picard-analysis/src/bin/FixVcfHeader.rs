@@ -28,7 +28,8 @@ use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::standard_header_lines::{standard_format_line, PRIMARY_KEYS};
 use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
-    die, header_dictionary, read_path, sample_names_in_order, write_output, write_records,
+    die, header_dictionary, is_compressed_vcf, read_path, sample_names_in_order, write_output,
+    write_records,
 };
 
 const MISSING: &str = "Missing description: this {} line was added by Picard's FixVCFHeader";
@@ -120,8 +121,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if !output.ends_with(".vcf") {
-        return Err("only a .vcf OUTPUT is ported".into());
+    if !output.ends_with(".vcf") && !is_compressed_vcf(&output) {
+        return Err("only a .vcf or .vcf.gz OUTPUT is ported".into());
     }
 
     // `customCommandLineValidation`: printed after the usage, and the program exits 1.

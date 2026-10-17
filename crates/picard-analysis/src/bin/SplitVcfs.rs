@@ -16,7 +16,7 @@
 use htsjdk_vcf::variant::VariantContext;
 use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
-    die, header_dictionary, parse_sam_dictionary, read_path, write_output,
+    die, header_dictionary, is_compressed_vcf, parse_sam_dictionary, read_path, write_output,
 };
 
 /// `VariantContext.getType()`'s name.
@@ -72,8 +72,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if !snp_output.ends_with(".vcf") || !indel_output.ends_with(".vcf") {
-        return Err("only .vcf outputs are ported".into());
+    let ported = |path: &str| path.ends_with(".vcf") || is_compressed_vcf(path);
+    if !ported(&snp_output) || !ported(&indel_output) {
+        return Err("only .vcf and .vcf.gz outputs are ported".into());
     }
 
     let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));

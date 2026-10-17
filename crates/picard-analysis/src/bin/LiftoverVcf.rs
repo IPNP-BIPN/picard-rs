@@ -28,13 +28,13 @@ use htsjdk_bam::interval::Interval;
 use htsjdk_bam::liftover::LiftOver;
 use htsjdk_vcf::allele::Allele;
 use htsjdk_vcf::attributes::{as_double, as_string};
-use htsjdk_vcf::encoder::{EncodeError, MissingFields, VcfEncoder};
+use htsjdk_vcf::encoder::{EncodeError, MissingFields};
 use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
 use picard_analysis::metrics_cli::{absolute, Args};
 use picard_analysis::vcf_io::{
     add_other_meta_data_line, die, log_error, parse_sam_dictionary, read_path,
-    set_sequence_dictionary, Record,
+    set_sequence_dictionary, write_output_with, Record, Sequence, WriteError,
 };
 
 const TOOL: &str = "LiftoverVcf";
@@ -423,33 +423,17 @@ fn add_line(header: &mut VcfHeader, line: HeaderLine) {
 /// `VCFWriter.writeHeader` then `add` per record: a record still lazy has its site columns
 /// encoded and its genotype block copied, as `vcf_io::write_records` does, and every encode
 /// refuses an INFO key the header lacks unless missing fields are allowed.
-fn write_all(path: &str, header: &VcfHeader, records: &[Record], missing: MissingFields) {
-    let encoder = VcfEncoder::new(header).with_missing_fields(missing);
-    let sites_header = VcfHeader {
-        lines: header.lines.clone(),
-        samples: Vec::new(),
-    };
-    let sites_encoder = VcfEncoder::new(&sites_header).with_missing_fields(missing);
-    let mut out = header.write();
-    for record in records {
-        let result = match &record.lazy_genotypes {
-            Some(block) => {
-                let mut site = record.variant.clone();
-                site.genotypes.clear();
-                let r = sites_encoder.encode_into(&site, &mut out);
-                out.push('\t');
-                out.push_str(block);
-                r
-            }
-            None => encoder.encode_into(&record.variant, &mut out),
-        };
-        if let Err(e) = result {
-            die(&encode_error(&e));
-        }
-        out.push('\n');
-    }
-    if let Err(e) = std::fs::write(path, out) {
-        die(&format!("htsjdk.tribble.TribbleException: {e}"));
+fn write_all(
+    path: &str,
+    header: &VcfHeader,
+    records: &[Record],
+    missing: MissingFields,
+    index_dictionary: Option<&[Sequence]>,
+) {
+    match write_output_with(path, header, records, index_dictionary, missing) {
+        Ok(()) => {}
+        Err(WriteError::Encode(e)) => die(&encode_error(&e)),
+        Err(WriteError::Io(e)) => die(&format!("htsjdk.tribble.TribbleException: {e}")),
     }
 }
 
@@ -659,6 +643,7 @@ fn main() {
                 &out_header,
                 std::slice::from_ref(&record),
                 missing,
+                None,
             );
         }
         lifted.push(record);
@@ -771,7 +756,8 @@ fn main() {
         }
     }
 
-    write_all(&reject, &reject_header, &rejected, missing);
+    // `unsetOption(INDEX_ON_THE_FLY)`: the rejects are never indexed.
+    write_all(&reject, &reject_header, &rejected, missing, None);
     if !disable_sort {
         let index_of = |name: &str| dictionary.iter().position(|s| s.name == name).unwrap_or(0);
         lifted.sort_by(|a, b| {
@@ -780,5 +766,7 @@ fn main() {
                 .then(a.variant.start.cmp(&b.variant.start))
         });
     }
-    write_all(&output, &out_header, &lifted, missing);
+    // `modifyOption(INDEX_ON_THE_FLY, !DISABLE_SORT)` over the target reference's dictionary.
+    let index_dictionary = (!disable_sort).then_some(dictionary.as_slice());
+    write_all(&output, &out_header, &lifted, missing, index_dictionary);
 }

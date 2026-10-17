@@ -377,7 +377,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         std::process::exit(1);
     }
-    let vcf = read_vcf(&std::fs::read_to_string(&input)?).map_err(|e| format!("{e:?}"))?;
+    let vcf = read_vcf(&picard_analysis::vcf_io::read_to_string(&input)?)
+        .map_err(|e| format!("{e:?}"))?;
     let tab_mode =
         arg(&args, "TAB_MODE=").is_some_and(|value| picard_analysis::args::is_true(&value));
     let pedigree = read_pedigree(&std::fs::read_to_string(&trios)?, tab_mode);

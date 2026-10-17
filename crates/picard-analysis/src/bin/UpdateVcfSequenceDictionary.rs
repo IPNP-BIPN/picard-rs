@@ -16,7 +16,7 @@
 use htsjdk_vcf::vcf_file::reject_vcf_v43_headers;
 use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
-    die, extract_dictionary, read_path, set_sequence_dictionary, write_output,
+    die, extract_dictionary, is_compressed_vcf, read_path, set_sequence_dictionary, write_output,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -46,7 +46,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // A VCF without contig lines extracts to `null`. The builder takes that happily unless it is
     // to index, and then refuses; otherwise the refusal is `setSequenceDictionary`'s.
-    if create_index && dictionary.is_none() {
+    // The builder's refusal is `VCF`'s alone: a `BLOCK_COMPRESSED_VCF` gets a tabix creator with
+    // or without a dictionary.
+    if create_index && dictionary.is_none() && !is_compressed_vcf(&output) {
         die(
             "java.lang.IllegalArgumentException: A reference dictionary is required for creating \
              Tribble indices on the fly",

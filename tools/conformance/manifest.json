@@ -428,14 +428,14 @@
         "port": "MakeSitesOnlyVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "RenameSampleInVcf",
         "port": "RenameSampleInVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "VcfToIntervalList",
@@ -448,49 +448,49 @@
         "port": "SortVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "UpdateVcfSequenceDictionary",
         "port": "UpdateVcfSequenceDictionary",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "MergeVcfs",
         "port": "MergeVcfs",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "GatherVcfs",
         "port": "GatherVcfs",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "SplitVcfs",
         "port": "SplitVcfs",
         "t": 2,
         "status": "measured",
-        "output_name": "snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf"
+        "output_name": "snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf,snp.vcf.gz,snp.vcf.gz.tbi,indel.vcf.gz,indel.vcf.gz.tbi"
       },
       {
         "tool": "VcfFormatConverter",
         "port": "VcfFormatConverter",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf,output.vcf.gz"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "FixVcfHeader",
         "port": "FixVcfHeader",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "CollectWgsMetrics",
@@ -579,7 +579,7 @@
         "port": "LiftoverVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf,reject.vcf,reject_b.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi,reject.vcf,reject_b.vcf"
       },
       {
         "tool": "CollectMultipleMetrics",
@@ -704,7 +704,7 @@
         "port": "FilterVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "CheckFingerprint",
@@ -3150,6 +3150,53 @@
           "dump": "LiftoverVcfDump",
           "golden": "crates/picard-analysis/tests/data/liftover_vcf.txt.gz",
           "why": "Ten runs over a chain with one forward block offset by twelve and one reversed block: a variant inside a block, between the blocks, inside the reversed one, a reference mismatch with no recovery available, a swapped reference and alternate with and without the argument that recovers it, the two arguments that record where a variant came from, and three variants at once to see the order the output is written in. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
+        }
+      ]
+    },
+    {
+      "id": "vcfgz",
+      "title": "every VCF writer asked for a .vcf.gz: the BGZF bytes and the tabix index beside them",
+      "status": "oracle-backed",
+      "harness": "tools/vcfgz-conformance",
+      "java_props": [
+        "-Duser.language=en",
+        "-Duser.country=US"
+      ],
+      "$java_props_why": "No -Dsamjdk.use_libdeflate=false here: USE_JDK_DEFLATER=true means libdeflate in Picard 3.5.0, and the sort-jdk-deflater cases measure exactly that. Every other case runs under GKL, which instanceMain installs.",
+      "tools": [
+        "SortVcf",
+        "MakeSitesOnlyVcf",
+        "RenameSampleInVcf",
+        "UpdateVcfSequenceDictionary",
+        "FilterVcf",
+        "FixVcfHeader",
+        "MergeVcfs",
+        "SplitVcfs",
+        "LiftoverVcf",
+        "VcfFormatConverter",
+        "GatherVcfs"
+      ],
+      "why": "A .vcf.gz is a BLOCK_COMPRESSED_VCF: a VCFWriter over a BlockCompressedOutputStream at the installed level and deflater, and a TabixIndexCreator that the builder always attaches and that indexes under INDEX_ON_THE_FLY. So the deflater, the level, the 64 KiB block boundaries and every chunk of the .tbi decide the bytes, and the tabix creator, unlike the .idx one, needs no dictionary and refuses records out of order. GatherVcfs over .vcf.gz inputs copies blocks and writes no index. The inputs are written by a formula the port side repeats (tools/vcfgz-conformance/port_side.py), and each input's MD5 is a row.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "expect_rows": 121,
+      "expect_contains": [
+        "exit\tsort\t0",
+        "file\tsort/out.vcf.gz.tbi",
+        "file\tsort-jdk-deflater/out.vcf.gz.tbi",
+        "file\tfilter-no-dictionary/out.vcf.gz.tbi",
+        "file\tliftover/reject.vcf.gz",
+        "file\tgather-block-copy/out.vcf.gz",
+        "Features added out of order",
+        "getSequenceLength()"
+      ],
+      "$expect_why": "A row count is not evidence: these are the behaviours the suite exists for, a .tbi beside a GKL and a libdeflate output, one indexed without a dictionary, the rejects compressed too, a block-copied gather, and the two refusals only the tabix creator makes.",
+      "cases": [
+        {
+          "dump": "VcfGzDump",
+          "golden": "crates/picard-analysis/tests/data/vcfgz.txt.gz",
+          "why": "Twenty-nine runs over eleven tools: the plain sort, its index off, three levels, libdeflate at two levels, the .bgz name and a .vcf.gz input; then each other writer to a .vcf.gz, the two indexes without a dictionary, the out-of-order and missing-contig refusals, both rejects and accepted records of LiftoverVcf, the converter both ways, and GatherVcfs by block copy and conventionally. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 39029131787 on PR 374, and identical to the port side (tools/vcfgz-conformance/port_side.py) row for row. Both sides work in /tmp/picard-rs-vcfgz, because LiftoverVcf writes R's absolute path into its header."
         }
       ]
     },

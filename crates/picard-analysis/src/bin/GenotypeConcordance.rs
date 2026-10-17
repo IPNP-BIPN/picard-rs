@@ -665,8 +665,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let truth = read_vcf(&std::fs::read_to_string(&truth_vcf)?).map_err(|e| format!("{e:?}"))?;
-    let call = read_vcf(&std::fs::read_to_string(&call_vcf)?).map_err(|e| format!("{e:?}"))?;
+    let truth = read_vcf(&picard_analysis::vcf_io::read_to_string(&truth_vcf)?)
+        .map_err(|e| format!("{e:?}"))?;
+    let call = read_vcf(&picard_analysis::vcf_io::read_to_string(&call_vcf)?)
+        .map_err(|e| format!("{e:?}"))?;
 
     // `TRUTH_SAMPLE is required when the TRUTH_VCF has more than one sample`, and the same for the
     // call side: a one-sample file names its own sample, and a two-sample file refuses.

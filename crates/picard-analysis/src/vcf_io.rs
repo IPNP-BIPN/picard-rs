@@ -35,7 +35,7 @@
 //! Anything that touches the genotypes decodes them (`MakeSitesOnlyVcf`'s `subsetToSamples`), and a
 //! decoded record is re-encoded whatever the sample order was.
 
-use htsjdk_vcf::encoder::{EncodeError, VcfEncoder};
+use htsjdk_vcf::encoder::{EncodeError, MissingFields, VcfEncoder};
 use htsjdk_vcf::header::{HeaderLine, VcfHeader};
 use htsjdk_vcf::reader::{read_vcf, ReadFailure, VcfFile};
 use htsjdk_vcf::record_parse::{split_condensed, NUM_STANDARD_FIELDS};
@@ -121,22 +121,53 @@ pub fn read_lazy(text: &str) -> Result<LazyVcf, ReadFailure> {
 
 /// `VCFWriter.writeHeader` and then `add` per record: the whole file.
 pub fn write_records(header: &VcfHeader, records: &[Record]) -> Result<String, EncodeError> {
-    let encoder = VcfEncoder::new(header);
-    // The site columns of a lazy record go through the same encoder with no samples in its header,
-    // so it writes no FORMAT of its own; the copied block supplies it.
-    let sites_header = VcfHeader {
-        lines: header.lines.clone(),
-        samples: Vec::new(),
-    };
-    let sites_encoder = VcfEncoder::new(&sites_header);
+    write_records_with(header, records, MissingFields::default())
+}
 
+/// [`write_records`] under the writer's `ALLOW_MISSING_FIELDS_IN_HEADER` option.
+pub fn write_records_with(
+    header: &VcfHeader,
+    records: &[Record],
+    missing: MissingFields,
+) -> Result<String, EncodeError> {
+    let encoders = Encoders::new(header, missing);
     let mut out = header.write();
     for record in records {
+        encoders.encode(record, &mut out)?;
+    }
+    Ok(out)
+}
+
+/// The two encoders one record line goes through: the full one, and one over the same lines with
+/// no samples for the site columns of a lazy record, which writes no FORMAT of its own because the
+/// copied block supplies it.
+struct Encoders {
+    header: VcfHeader,
+    sites_header: VcfHeader,
+    missing: MissingFields,
+}
+
+impl Encoders {
+    fn new(header: &VcfHeader, missing: MissingFields) -> Self {
+        Self {
+            missing,
+            header: header.clone(),
+            sites_header: VcfHeader {
+                lines: header.lines.clone(),
+                samples: Vec::new(),
+            },
+        }
+    }
+
+    /// One record's line, newline included, appended to `out`.
+    fn encode(&self, record: &Record, out: &mut String) -> Result<(), EncodeError> {
         match &record.lazy_genotypes {
             Some(block) => {
                 let mut site = record.variant.clone();
                 site.genotypes.clear();
-                sites_encoder.encode_into(&site, &mut out)?;
+                VcfEncoder::new(&self.sites_header)
+                    .with_missing_fields(self.missing)
+                    .encode_into(&site, out)?;
                 out.push('\t');
                 out.push_str(block);
             }
@@ -144,12 +175,14 @@ pub fn write_records(header: &VcfHeader, records: &[Record]) -> Result<String, E
             // this module decoded is marked decoded there too, or the encoder would copy it.
             None => {
                 record.variant.genotypes.decode();
-                encoder.encode_into(&record.variant, &mut out)?
+                VcfEncoder::new(&self.header)
+                    .with_missing_fields(self.missing)
+                    .encode_into(&record.variant, out)?
             }
         }
         out.push('\n');
+        Ok(())
     }
-    Ok(out)
 }
 
 /// `VCFWriter` with `INDEX_ON_THE_FLY`, and the `.idx` it leaves beside the file at `close()`.
@@ -176,13 +209,21 @@ pub fn write_indexed(
     records: &[Record],
     indexed: Option<Indexed>,
 ) -> Result<(String, Option<Vec<u8>>), EncodeError> {
+    let text = write_records(header, records)?;
+    let index = indexed.and_then(|indexed| tribble_index(header, records, &text, indexed));
+    Ok((text, index))
+}
+
+/// The `.idx` of a written text.
+fn tribble_index(
+    header: &VcfHeader,
+    records: &[Record],
+    text: &str,
+    indexed: Indexed,
+) -> Option<Vec<u8>> {
     use htsjdk_tribble::index::{TribbleIndex, INTERVAL_TREE, LINEAR, VERSION};
     use htsjdk_tribble::index_write::{BalanceApproach, BuiltIndex, DynamicIndexCreator, Feature};
 
-    let text = write_records(header, records)?;
-    let Some(indexed) = indexed else {
-        return Ok((text, None));
-    };
     let mut creator = DynamicIndexCreator::new(BalanceApproach::ForSeekTime);
     let header_length = header.write().len();
     let mut at = header_length as i64;
@@ -220,7 +261,7 @@ pub fn write_indexed(
             (INTERVAL_TREE, Vec::new(), by_name(intervals, |c| &c.name))
         }
         // Only an empty linear index refuses, and a VCF always has a header.
-        Err(_) => return Ok((text, None)),
+        Err(_) => return None,
     };
     let absolute = std::path::absolute(indexed.path).unwrap_or_else(|_| indexed.path.into());
     let index = TribbleIndex {
@@ -235,7 +276,7 @@ pub fn write_indexed(
         contigs,
         interval_contigs,
     };
-    Ok((text, index.write().ok()))
+    index.write().ok()
 }
 
 /// `LinkedHashMap.put` over a list: a repeated key keeps its first position and its last value.
@@ -250,15 +291,42 @@ fn by_name<T>(items: Vec<T>, name: impl Fn(&T) -> &String) -> Vec<T> {
     kept
 }
 
-/// Write the file, and its `.idx` beside it when there is one.
+/// `VariantContextWriterBuilder.determineOutputTypeFromFile`: a name in
+/// `FileExtensions.COMPRESSED_VCF_LIST` is a `BLOCK_COMPRESSED_VCF`.
+pub fn is_compressed_vcf(path: &str) -> bool {
+    path.ends_with(".vcf.gz") || path.ends_with(".vcf.bgz")
+}
+
+/// Write the file, and its index beside it when there is one: a `.tbi` for a block-compressed
+/// name, a `.idx` for any other.
 pub fn write_output(
     path: &str,
     header: &VcfHeader,
     records: &[Record],
     index_dictionary: Option<&[Sequence]>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    Ok(write_output_with(
+        path,
+        header,
+        records,
+        index_dictionary,
+        MissingFields::default(),
+    )?)
+}
+
+/// [`write_output`] under the writer's `ALLOW_MISSING_FIELDS_IN_HEADER` option.
+pub fn write_output_with(
+    path: &str,
+    header: &VcfHeader,
+    records: &[Record],
+    index_dictionary: Option<&[Sequence]>,
+    missing: MissingFields,
+) -> Result<(), WriteError> {
+    if is_compressed_vcf(path) {
+        return write_block_compressed(path, header, records, index_dictionary, missing);
+    }
     let output = std::path::Path::new(path);
-    let text = write_records(header, records).map_err(|e| format!("{e:?}"))?;
+    let text = write_records_with(header, records, missing)?;
     std::fs::write(output, &text)?;
     if let Some(dictionary) = index_dictionary {
         let timestamp = std::fs::metadata(output)?
@@ -271,19 +339,148 @@ pub fn write_output(
             path: output,
             timestamp,
         };
-        let (_, index) =
-            write_indexed(header, records, Some(indexed)).map_err(|e| format!("{e:?}"))?;
-        if let Some(index) = index {
+        if let Some(index) = tribble_index(header, records, &text, indexed) {
             std::fs::write(format!("{path}.idx"), index)?;
         }
     }
     Ok(())
 }
 
-/// `VCFFileReader(file, false)` on a path, with a read failure as the exception it was upstream.
+/// `Defaults.BUFFER_SIZE`, the `BufferedOutputStream` the builder puts between the BGZF stream and
+/// the file.
+const BUFFER_SIZE: usize = 128 * 1024;
+
+/// A `BLOCK_COMPRESSED_VCF`: `VCFWriter` over a `BlockCompressedOutputStream` at the installed level
+/// and deflater, and with `INDEX_ON_THE_FLY` a `TabixIndexCreator(refDict, TabixFormat.VCF)` whose
+/// `.tbi` is written at `close()` through the same deflater.
 ///
-/// A gzip file is a `.vcf.gz`, which the reader inflates whatever its name.
-pub fn read_path(path: &str) -> Result<LazyVcf, String> {
+/// `IndexingVariantContextWriter.add` hands the creator the BGZF virtual offset BEFORE the line is
+/// written. Unlike the `.idx` creator, the tabix one checks the order: a record that goes back on
+/// its contig, or a contig that comes back, is an uncaught `IllegalArgumentException`, and the JVM
+/// exits with whatever the buffered stream had already passed to the file.
+pub fn write_block_compressed(
+    path: &str,
+    header: &VcfHeader,
+    records: &[Record],
+    index_dictionary: Option<&[Sequence]>,
+    missing: MissingFields,
+) -> Result<(), WriteError> {
+    use htsjdk_tribble::tabix::{FeatureRef, TabixFormat, TabixIndexCreator};
+    use std::io::Write;
+
+    let file = std::io::BufWriter::with_capacity(BUFFER_SIZE, std::fs::File::create(path)?);
+    let mut bgzf = crate::output::bgzf_writer(file);
+    bgzf.write_all(header.write().as_bytes())?;
+    let mut creator = index_dictionary.map(|_| TabixIndexCreator::new(TabixFormat::VCF));
+    let lengths: std::collections::HashMap<&str, i32> = index_dictionary
+        .unwrap_or_default()
+        .iter()
+        .map(|sequence| (sequence.name.as_str(), sequence.length as i32))
+        .collect();
+    let encoders = Encoders::new(header, missing);
+    let mut line = String::new();
+    for record in records {
+        line.clear();
+        encoders.encode(record, &mut line)?;
+        if let Some(creator) = creator.as_mut() {
+            let variant = &record.variant;
+            // `sequenceDictionary.getSequence(name).getSequenceLength()` when a new contig opens,
+            // which throws on a contig the dictionary lacks.
+            let sequence_length = match (index_dictionary, lengths.get(variant.contig.as_str())) {
+                (Some([_, ..]), None) => die(MISSING_SEQUENCE),
+                (_, length) => length.copied().unwrap_or(0),
+            };
+            let feature = FeatureRef {
+                contig: &variant.contig,
+                start: variant.start as i32,
+                end: variant.stop as i32,
+                // `VariantContext.toString()`, which only the contig-out-of-order refusal quotes
+                // and which this port does not reproduce.
+                description: &variant.contig,
+                sequence_length,
+            };
+            if let Err(error) = creator.add_feature(feature, bgzf.file_pointer() as i64) {
+                die(&format!("{}: {}", error.java_class(), error.message()));
+            }
+        }
+        bgzf.write_all(line.as_bytes())?;
+    }
+    // `VCFWriter.close()` flushes before `IndexingVariantContextWriter.close()` asks for the final
+    // position, and `BlockCompressedOutputStream.flush()` deflates the pending block: the last
+    // chunk ends at the next block's address with offset zero, not inside the last block.
+    bgzf.flush()?;
+    let end = bgzf.file_pointer() as i64;
+    bgzf.into_inner()?
+        .into_inner()
+        .map_err(|e| e.into_error())?;
+    if let Some(creator) = creator {
+        let index = creator
+            .finish(end)
+            .unwrap_or_else(|error| die(&format!("{}: {}", error.java_class(), error.message())));
+        let (level, deflater) = crate::output::current();
+        std::fs::write(
+            format!("{path}.tbi"),
+            index.write_with_level(level, deflater),
+        )?;
+    }
+    Ok(())
+}
+
+/// The helpful `NullPointerException` the tabix creator throws for a contig its dictionary lacks.
+const MISSING_SEQUENCE: &str = "java.lang.NullPointerException: Cannot invoke \
+     \"htsjdk.samtools.SAMSequenceRecord.getSequenceLength()\" because the return value of \
+     \"htsjdk.samtools.SAMSequenceDictionary.getSequence(String)\" is null";
+
+/// Why a block-compressed VCF could not be written: a record the header cannot carry, or the file.
+#[derive(Debug)]
+pub enum WriteError {
+    Encode(EncodeError),
+    Io(std::io::Error),
+}
+
+impl From<EncodeError> for WriteError {
+    fn from(error: EncodeError) -> Self {
+        WriteError::Encode(error)
+    }
+}
+
+impl From<std::io::Error> for WriteError {
+    fn from(error: std::io::Error) -> Self {
+        WriteError::Io(error)
+    }
+}
+
+impl std::fmt::Display for WriteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WriteError::Encode(error) => write!(f, "{error:?}"),
+            WriteError::Io(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for WriteError {}
+
+/// `std::fs::read_to_string` for a VCF, which inflates a gzip file whatever its name as
+/// `VCFFileReader` does, and fails as `read_to_string` would on anything else.
+pub fn read_to_string(path: &str) -> std::io::Result<String> {
+    let bytes = std::fs::read(path)?;
+    let bytes = if bytes.starts_with(&[0x1f, 0x8b]) {
+        htsjdk_bgzf::read::decompress_all(&bytes)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{e:?}")))?
+    } else {
+        bytes
+    };
+    String::from_utf8(bytes).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "stream did not contain valid UTF-8",
+        )
+    })
+}
+
+/// A VCF's text, inflated when the file is gzip, which `VCFFileReader` reads whatever its name.
+pub fn read_text(path: &str) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("java.io.IOException: {e}"))?;
     let bytes = if bytes.starts_with(&[0x1f, 0x8b]) {
         htsjdk_bgzf::read::decompress_all(&bytes)
@@ -291,7 +488,14 @@ pub fn read_path(path: &str) -> Result<LazyVcf, String> {
     } else {
         bytes
     };
-    let text = String::from_utf8(bytes).map_err(|e| format!("java.io.IOException: {e}"))?;
+    String::from_utf8(bytes).map_err(|e| format!("java.io.IOException: {e}"))
+}
+
+/// `VCFFileReader(file, false)` on a path, with a read failure as the exception it was upstream.
+///
+/// A gzip file is a `.vcf.gz`, which the reader inflates whatever its name.
+pub fn read_path(path: &str) -> Result<LazyVcf, String> {
+    let text = read_text(path)?;
     read_lazy(&text)
         .map_err(|failure| format!("{}: {}", failure.error.class(), failure.error.message()))
 }
@@ -609,5 +813,36 @@ mod tests {
              alternate_names=[]) was expected."
         );
         assert!(assert_same_dictionary(&expected[..1], &found[..1]).is_ok());
+    }
+
+    #[test]
+    fn a_compressed_name_is_bgzf_with_a_tabix_index_beside_it() {
+        let dir = std::env::temp_dir().join(format!("vcf_io_gz_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("out.vcf.gz");
+        let path = path.to_str().unwrap();
+        let vcf = read_lazy(&file("a\tb")).unwrap();
+        let dictionary = header_dictionary(&vcf.file.header).unwrap();
+        write_output(path, &vcf.file.header, &vcf.records, Some(&dictionary)).unwrap();
+
+        let bytes = std::fs::read(path).unwrap();
+        assert!(bytes.ends_with(&htsjdk_bgzf::EMPTY_GZIP_BLOCK));
+        let text = write_records(&vcf.file.header, &vcf.records).unwrap();
+        assert_eq!(read_to_string(path).unwrap(), text);
+        assert_eq!(read_path(path).unwrap().records, vcf.records);
+        let index = std::fs::read(format!("{path}.tbi")).unwrap();
+        assert!(htsjdk_bgzf::decompress_all(&index)
+            .unwrap()
+            .starts_with(b"TBI\x01"));
+        assert!(!std::path::Path::new(&format!("{path}.idx")).exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn only_the_compressed_vcf_list_is_block_compressed() {
+        assert!(is_compressed_vcf("a.vcf.gz"));
+        assert!(is_compressed_vcf("a.vcf.bgz"));
+        assert!(!is_compressed_vcf("a.vcf"));
+        assert!(!is_compressed_vcf("a.gz"));
     }
 }

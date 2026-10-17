@@ -18,7 +18,9 @@ use picard_analysis::combine_genotyping_array_vcfs::{
 };
 use picard_analysis::fingerprint::reference_path;
 use picard_analysis::metrics_cli::{thrown, Args};
-use picard_analysis::vcf_io::{header_dictionary, read_path, unroll_paths, write_output, Record};
+use picard_analysis::vcf_io::{
+    header_dictionary, is_compressed_vcf, read_path, unroll_paths, write_output, Record,
+};
 
 /// `sampleSpecificHeaders` at 3.4.0.
 const SAMPLE_SPECIFIC: &[&str] = &[
@@ -214,8 +216,12 @@ fn main() {
         }
         step += 1;
     }
+    // `DEFAULT_OPTIONS` already holds `INDEX_ON_THE_FLY`, so a `.vcf.gz` is indexed whatever
+    // `CREATE_INDEX` says, with or without a dictionary.
     let index = if create_index {
         dictionary.as_deref()
+    } else if is_compressed_vcf(&output) {
+        Some(dictionary.as_deref().unwrap_or_default())
     } else {
         None
     };
