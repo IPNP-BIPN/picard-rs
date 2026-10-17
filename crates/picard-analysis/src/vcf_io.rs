@@ -358,12 +358,7 @@ pub fn write_bcf(
 
 /// `VCFFileReader` on a `.bcf`: the BCF2 codec, every record fully decoded.
 pub fn read_bcf_path(path: &str) -> Result<LazyVcf, String> {
-    use htsjdk_vcf::bcf2::codec::read_bcf;
-
-    let bytes = std::fs::read(path).map_err(|e| format!("java.io.IOException: {e}"))?;
-    let absolute = std::path::absolute(path).unwrap_or_else(|_| path.into());
-    let source = format!("file://{}", absolute.display());
-    let file = read_bcf(&bytes).map_err(|failure| failure.reader_exception(&source).to_string())?;
+    let file = read_bcf_file(path)?;
     let records = file
         .records
         .iter()
@@ -373,15 +368,23 @@ pub fn read_bcf_path(path: &str) -> Result<LazyVcf, String> {
             fully_decoded: true,
         })
         .collect();
-    Ok(LazyVcf {
-        file: VcfFile {
-            header: file.header,
-            codec_version: file.codec_version,
-            header_version: file.header_version,
-            records: file.records,
-            skipped: Vec::new(),
-        },
-        records,
+    Ok(LazyVcf { file, records })
+}
+
+/// The BCF2 codec's whole file, with a refusal as `VCFFileReader` surfaces it.
+fn read_bcf_file(path: &str) -> Result<VcfFile, String> {
+    use htsjdk_vcf::bcf2::codec::read_bcf;
+
+    let bytes = std::fs::read(path).map_err(|e| format!("java.io.IOException: {e}"))?;
+    let absolute = std::path::absolute(path).unwrap_or_else(|_| path.into());
+    let source = format!("file://{}", absolute.display());
+    let file = read_bcf(&bytes).map_err(|failure| failure.reader_exception(&source).to_string())?;
+    Ok(VcfFile {
+        header: file.header,
+        codec_version: file.codec_version,
+        header_version: file.header_version,
+        records: file.records,
+        skipped: Vec::new(),
     })
 }
 
@@ -389,7 +392,7 @@ pub fn read_bcf_path(path: &str) -> Result<LazyVcf, String> {
 /// a `.bcf` through the BCF2 codec, anything else as VCF text.
 pub fn read_vcf_file(path: &str) -> Result<VcfFile, Box<dyn std::error::Error>> {
     if is_bcf(path) {
-        return Ok(read_bcf_path(path)?.file);
+        return Ok(read_bcf_file(path)?);
     }
     Ok(read_vcf(&std::fs::read_to_string(path)?).map_err(|e| format!("{e:?}"))?)
 }
