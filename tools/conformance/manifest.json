@@ -217,7 +217,7 @@
         "tool": "IntervalListTools",
         "port": "interval-list-tools",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "@all"
       },
@@ -245,7 +245,7 @@
         "tool": "MarkDuplicates",
         "port": "mark-duplicates",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "output.txt,metrics.txt,metrics_b.txt"
       },
@@ -293,7 +293,7 @@
         "tool": "MarkDuplicatesWithMateCigar",
         "port": "mark-duplicates-with-mate-cigar",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "output.txt,metrics.txt,metrics_b.txt"
       },
@@ -301,7 +301,7 @@
         "tool": "SimpleMarkDuplicatesWithMateCigar",
         "port": "simple-mark-duplicates-with-mate-cigar",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "output.txt,metrics.txt,metrics_b.txt"
       },
@@ -354,7 +354,7 @@
         "tool": "CollectJumpingLibraryMetrics",
         "port": "collect-jumping-library-metrics",
         "t": 2,
-        "status": "pending"
+        "status": "measured"
       },
       {
         "tool": "MarkIlluminaAdapters",
@@ -668,7 +668,7 @@
         "tool": "UmiAwareMarkDuplicatesWithMateCigar",
         "port": "umi-aware-mark-duplicates-with-mate-cigar",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "strip_program_records": true,
         "output_name": "output.txt,umi_metrics.txt,umi_metrics_b.txt,metrics.txt,metrics_b.txt"
       },

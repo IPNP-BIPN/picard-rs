@@ -310,6 +310,16 @@
       "t": 2,
       "share": 1.0
     },
+    "CollectJumpingLibraryMetrics": {
+      "rows": 15,
+      "accepted": 9,
+      "rejected": 6,
+      "distinct_outputs": 6,
+      "distinct_rejections": 1,
+      "matched": 15,
+      "t": 2,
+      "share": 1.0
+    },
     "CollectMultipleMetrics": {
       "rows": 16,
       "accepted": 9,
@@ -780,6 +790,16 @@
       "t": 2,
       "share": 1.0
     },
+    "IntervalListTools": {
+      "rows": 34,
+      "accepted": 16,
+      "rejected": 18,
+      "distinct_outputs": 12,
+      "distinct_rejections": 8,
+      "matched": 34,
+      "t": 2,
+      "share": 1.0
+    },
     "LiftOverHaplotypeMap": {
       "rows": 8,
       "accepted": 5,
@@ -827,6 +847,26 @@
       "distinct_outputs": 1,
       "distinct_rejections": 1,
       "matched": 6,
+      "t": 2,
+      "share": 1.0
+    },
+    "MarkDuplicates": {
+      "rows": 47,
+      "accepted": 21,
+      "rejected": 26,
+      "distinct_outputs": 19,
+      "distinct_rejections": 9,
+      "matched": 45,
+      "t": 2,
+      "share": 0.9574468085106383
+    },
+    "MarkDuplicatesWithMateCigar": {
+      "rows": 30,
+      "accepted": 6,
+      "rejected": 24,
+      "distinct_outputs": 5,
+      "distinct_rejections": 3,
+      "matched": 30,
       "t": 2,
       "share": 1.0
     },
@@ -1040,6 +1080,16 @@
       "t": 2,
       "share": 1.0
     },
+    "SimpleMarkDuplicatesWithMateCigar": {
+      "rows": 35,
+      "accepted": 9,
+      "rejected": 26,
+      "distinct_outputs": 7,
+      "distinct_rejections": 3,
+      "matched": 35,
+      "t": 2,
+      "share": 1.0
+    },
     "SortGff": {
       "rows": 14,
       "accepted": 5,
@@ -1097,6 +1147,16 @@
       "distinct_outputs": 11,
       "distinct_rejections": 3,
       "matched": 22,
+      "t": 2,
+      "share": 1.0
+    },
+    "UmiAwareMarkDuplicatesWithMateCigar": {
+      "rows": 26,
+      "accepted": 16,
+      "rejected": 10,
+      "distinct_outputs": 13,
+      "distinct_rejections": 6,
+      "matched": 26,
       "t": 2,
       "share": 1.0
     },
