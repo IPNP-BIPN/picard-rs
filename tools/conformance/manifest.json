@@ -2472,7 +2472,7 @@
     },
     {
       "id": "variantcallingmetrics-edge",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "which counter an edge-case site reaches, and the order the per-sample rows are written in",
       "harness": "tools/variantcallingmetrics-conformance",
       "tools": [
@@ -2490,8 +2490,8 @@
       "cases": [
         {
           "dump": "CollectVariantCallingMetricsEdgeDump",
-          "golden": null,
-          "why": "One VCF: two multiallelic indels, a symbolic <DEL>, an ALT of '.', an MNP, a MIXED site, a 90-base insertion, haploid and half-called genotypes, and an insertion known only through a deletion's span."
+          "golden": "crates/picard-analysis/tests/data/collect_variant_calling_metrics_edge.txt.gz",
+          "why": "One VCF: two multiallelic indels, a symbolic <DEL>, an ALT of '.', an MNP, a MIXED site, a 90-base insertion, haploid and half-called genotypes, and an insertion known only through a deletion's span. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 39032486154 on PR 379, identical to the local smoke run."
         }
       ]
     },
