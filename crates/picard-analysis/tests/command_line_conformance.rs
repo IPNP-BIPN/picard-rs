@@ -13,7 +13,7 @@
 use std::io::Read;
 use std::path::Path;
 
-use picard_analysis::command_line::{answer, declared, probe_args, unescape, Answer};
+use picard_analysis::argument_check::{answer, declared, probe_args, unescape, Answer};
 
 fn gunzip(name: &str) -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -100,7 +100,7 @@ fn every_binary_checks_its_command_line_as_its_own_tool() {
         } else {
             tool
         };
-        let call = format!("picard_analysis::command_line::check(\"{own}\");");
+        let call = format!("picard_analysis::argument_check::check(\"{own}\");");
         let body = source.split_once("fn main()").expect("a main").1;
         let first = body.lines().nth(1).unwrap_or_default().trim();
         assert_eq!(

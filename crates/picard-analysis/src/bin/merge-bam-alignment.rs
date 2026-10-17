@@ -2026,7 +2026,7 @@ fn separate_ends(read1: &[String], read2: &[String]) -> (SamHeader, Vec<BamRecor
 }
 
 fn main() {
-    picard_analysis::command_line::check("MergeBamAlignment");
+    picard_analysis::argument_check::check("MergeBamAlignment");
     let args = CommandLine::from_env();
 
     // Barclay's mutex checks, in field order.

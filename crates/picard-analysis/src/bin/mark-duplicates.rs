@@ -118,7 +118,7 @@ fn molecular_identifier(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("MarkDuplicates");
+    picard_analysis::argument_check::check("MarkDuplicates");
     // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
         std::env::args()
@@ -301,15 +301,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter(|tag| tag != "null" && options.barcode_tag.is_some());
     let duplex = flag("DUPLEX_UMI=", false);
     let add_pg_tag = flag("ADD_PG_TAG_TO_READS=", true);
-    // The id every read is tagged with: `PROGRAM_RECORD_ID` made unique against the header's own
-    // program records, or no tag at all when it is `null`. The corpus's reads carry no `PG`, so the
-    // one chain `getChainedPgIds` builds is the one from `null`.
-    let pg_id: Option<String> = match arg(&args, "PROGRAM_RECORD_ID=").as_deref() {
-        Some("null") => None,
-        Some(id) => Some(id.to_string()),
-        None => Some("MarkDuplicates".to_string()),
+    // `getChainedPgIds`: one new `@PG` for every program id the first pass saw on a record (no
+    // `PG` at all counting as one), in the `HashSet`'s order, each chained to the id it replaces;
+    // none when `PROGRAM_RECORD_ID` is `null`.
+    let mut seen: Vec<Option<String>> = Vec::new();
+    for record in &records {
+        let id = string_tag(record, b"PG");
+        if !seen.contains(&id) {
+            seen.push(id);
+        }
     }
-    .map(|id| picard_analysis::merge_sam_files::non_colliding_pg_id(&header, &id));
+    let group = picard_analysis::command_line::ProgramGroup::of("MarkDuplicates");
+    let chained = picard_analysis::command_line::chained_pg_ids(
+        &mut out_header,
+        &picard_analysis::command_line::hash_set_order(seen),
+        &group,
+        "MarkDuplicates",
+    );
 
     // htsjdk's own check in `SAMFileWriterImpl.addAlignment`, which is where a file assumed to be
     // coordinate-sorted and not is caught. The writer is presorted, so nothing re-sorts and the
@@ -409,10 +417,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 written.tags.insert(Tag::new(&key), TagValue::Str(value));
             }
         }
-        if let (true, Some(id)) = (add_pg_tag, &pg_id) {
-            written
-                .tags
-                .insert(Tag::new(b"PG"), TagValue::Str(id.clone()));
+        // `rec.setAttribute(PG, chainedPgIds.get(rec.getStringAttribute(PG)))`.
+        if let (true, Some(chained)) = (add_pg_tag, &chained) {
+            let old = string_tag(&written, b"PG");
+            match picard_analysis::command_line::chained_id(chained, old.as_deref()) {
+                Some(id) => {
+                    written
+                        .tags
+                        .insert(Tag::new(b"PG"), TagValue::Str(id.to_string()));
+                }
+                None => {
+                    written.tags.remove(Tag::new(b"PG"));
+                }
+            }
         }
         writer.write(&written).map_err(|e| format!("{e:?}"))?;
     }

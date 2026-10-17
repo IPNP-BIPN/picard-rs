@@ -34,7 +34,7 @@ fn arg(args: &[String], key: &str) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("CheckDuplicateMarking");
+    picard_analysis::argument_check::check("CheckDuplicateMarking");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

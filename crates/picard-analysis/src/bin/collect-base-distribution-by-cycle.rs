@@ -72,7 +72,7 @@ fn drive(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("CollectBaseDistributionByCycle");
+    picard_analysis::argument_check::check("CollectBaseDistributionByCycle");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -132,8 +132,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut file = MetricsFile::new();
-    file.add_header("CollectBaseDistributionByCycle <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectBaseDistributionByCycle") {
+        file.add_header(&header);
+    }
     for metric in collector.finish() {
         file.add_metric(&metric);
     }

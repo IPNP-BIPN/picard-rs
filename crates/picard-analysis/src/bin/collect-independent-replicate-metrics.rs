@@ -385,7 +385,7 @@ fn byte_histogram(bin: &str, value: &str, counts: &BTreeMap<i64, f64>) -> Histog
 }
 
 fn main() {
-    picard_analysis::command_line::check("CollectIndependentReplicateMetrics");
+    picard_analysis::argument_check::check("CollectIndependentReplicateMetrics");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),
@@ -755,8 +755,9 @@ fn main() {
 
     metric.calculate_derived_fields();
     let mut file = MetricsFile::new();
-    file.add_header(&format!("{TOOL} <command line>"));
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers(TOOL) {
+        file.add_header(&header);
+    }
     file.add_metric(&metric);
     file.histograms.push(byte_histogram(
         "alleleBalance",
@@ -786,8 +787,9 @@ fn main() {
                 .collect(),
         };
         let mut file = MetricsFile::new();
-        file.add_header(&format!("{TOOL} <command line>"));
-        file.add_header("Started on: <timestamp>");
+        for header in picard_analysis::command_line::default_headers(TOOL) {
+            file.add_header(&header);
+        }
         file.histograms.push(tuple(&confusion, "Count"));
         file.histograms
             .push(tuple(&confusion_distance, "EditDistance"));

@@ -624,8 +624,9 @@ fn genotype(
 
 fn metrics_file<B: MetricBean>(beans: Vec<B>) -> String {
     let mut file = MetricsFile::new();
-    file.add_header("GenotypeConcordance <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("GenotypeConcordance") {
+        file.add_header(&header);
+    }
     for bean in beans {
         file.add_metric(&bean);
     }
@@ -633,7 +634,7 @@ fn metrics_file<B: MetricBean>(beans: Vec<B>) -> String {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("GenotypeConcordance");
+    picard_analysis::argument_check::check("GenotypeConcordance");
     let args: Vec<String> = std::env::args().collect();
     let truth_vcf = arg(&args, "TRUTH_VCF=").ok_or("TRUTH_VCF= is required")?;
     let call_vcf = arg(&args, "CALL_VCF=").ok_or("CALL_VCF= is required")?;

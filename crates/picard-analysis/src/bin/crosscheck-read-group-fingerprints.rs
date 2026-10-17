@@ -10,7 +10,7 @@ use picard_analysis::crosscheck_run::{run, write_outcome, DataType, Options};
 use picard_analysis::metrics_cli::{thrown, Args};
 
 fn main() {
-    picard_analysis::command_line::check("CrosscheckReadGroupFingerprints");
+    picard_analysis::argument_check::check("CrosscheckReadGroupFingerprints");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

@@ -451,7 +451,7 @@ fn java_floor_to_int(value: f64) -> i32 {
 }
 
 fn main() {
-    picard_analysis::command_line::check("BamToBfq");
+    picard_analysis::argument_check::check("BamToBfq");
     let args = CommandLine::from_env();
     validate(&args);
 

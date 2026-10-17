@@ -454,7 +454,7 @@ fn write_all(path: &str, header: &VcfHeader, records: &[Record], missing: Missin
 }
 
 fn main() {
-    picard_analysis::command_line::check("LiftoverVcf");
+    picard_analysis::argument_check::check("LiftoverVcf");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

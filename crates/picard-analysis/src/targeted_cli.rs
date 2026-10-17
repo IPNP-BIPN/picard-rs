@@ -632,14 +632,13 @@ pub fn main_for(tool: Tool) {
     }
 
     let mut file = MetricsFile::new();
-    file.add_header(&format!(
-        "{} <command line>",
-        match tool {
-            Tool::Hs => "CollectHsMetrics",
-            Tool::TargetedPcr => "CollectTargetedPcrMetrics",
-        }
-    ));
-    file.add_header("Started on: <timestamp>");
+    let tool_name = match tool {
+        Tool::Hs => "CollectHsMetrics",
+        Tool::TargetedPcr => "CollectTargetedPcrMetrics",
+    };
+    for header in crate::command_line::default_headers(tool_name) {
+        file.add_header(&header);
+    }
     let mut histograms: Vec<(&str, &[(i64, f64)])> = Vec::new();
     for row in &outcome.rows {
         file.add_metric(&convert(tool, row));
@@ -665,14 +664,13 @@ pub fn main_for(tool: Tool) {
         )
         .unwrap_or_else(|e| thrown(&e));
         let mut sensitivity = MetricsFile::new();
-        sensitivity.add_header(&format!(
-            "{} <command line>",
-            match tool {
-                Tool::Hs => "CollectHsMetrics",
-                Tool::TargetedPcr => "CollectTargetedPcrMetrics",
-            }
-        ));
-        sensitivity.add_header("Started on: <timestamp>");
+        let tool_name = match tool {
+            Tool::Hs => "CollectHsMetrics",
+            Tool::TargetedPcr => "CollectTargetedPcrMetrics",
+        };
+        for header in crate::command_line::default_headers(tool_name) {
+            sensitivity.add_header(&header);
+        }
         for row in &rows {
             sensitivity.add_metric(&crate::wgs_cli::SensitivityMetric(row));
         }

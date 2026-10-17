@@ -32,7 +32,7 @@ fn read_dictionary(path: &str) -> std::io::Result<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("LiftOverHaplotypeMap");
+    picard_analysis::argument_check::check("LiftOverHaplotypeMap");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

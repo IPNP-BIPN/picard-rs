@@ -335,7 +335,7 @@ impl MetricBean for DetailRow {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("CollectVariantCallingMetrics");
+    picard_analysis::argument_check::check("CollectVariantCallingMetrics");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -437,14 +437,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (detail_path, summary_path) = file_names(&output);
     let mut summary_file = MetricsFile::new();
-    summary_file.add_header("CollectVariantCallingMetrics <command line>");
-    summary_file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectVariantCallingMetrics") {
+        summary_file.add_header(&header);
+    }
     summary_file.add_metric(&SummaryRow(summary, summary_hidden));
     std::fs::write(summary_path, summary_file.write())?;
 
     let mut detail_file = MetricsFile::new();
-    detail_file.add_header("CollectVariantCallingMetrics <command line>");
-    detail_file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectVariantCallingMetrics") {
+        detail_file.add_header(&header);
+    }
     for (index, sample) in samples.iter().enumerate() {
         let (counts, hidden) = details[index].clone();
         detail_file.add_metric(&DetailRow {

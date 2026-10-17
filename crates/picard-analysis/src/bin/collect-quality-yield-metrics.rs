@@ -26,7 +26,7 @@ fn arg(args: &[String], key: &str) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("CollectQualityYieldMetrics");
+    picard_analysis::argument_check::check("CollectQualityYieldMetrics");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -94,8 +94,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     collector.finish();
 
     let mut file = MetricsFile::new();
-    file.add_header("CollectQualityYieldMetrics <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectQualityYieldMetrics") {
+        file.add_header(&header);
+    }
     file.add_metric(collector.metrics());
     std::fs::write(&output, file.write())?;
     Ok(())

@@ -69,7 +69,7 @@ fn drive(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("MeanQualityByCycle");
+    picard_analysis::argument_check::check("MeanQualityByCycle");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -129,8 +129,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut file = MetricsFile::new();
-    file.add_header("MeanQualityByCycle <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("MeanQualityByCycle") {
+        file.add_header(&header);
+    }
     file.histograms = collector.finish();
     std::fs::write(&output, file.write())?;
     Ok(())

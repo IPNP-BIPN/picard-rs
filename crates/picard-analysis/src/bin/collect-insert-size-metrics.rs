@@ -136,7 +136,7 @@ impl Distributors {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("CollectInsertSizeMetrics");
+    picard_analysis::argument_check::check("CollectInsertSizeMetrics");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -254,8 +254,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let mut file = MetricsFile::new();
-    file.add_header("CollectInsertSizeMetrics <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectInsertSizeMetrics") {
+        file.add_header(&header);
+    }
     for (metric, histogram) in results {
         file.add_metric(&metric);
         file.histograms.push(histogram);

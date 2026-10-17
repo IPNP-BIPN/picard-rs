@@ -58,7 +58,7 @@ fn dictionary(text: &str) -> Vec<(String, String)> {
 }
 
 fn main() {
-    picard_analysis::command_line::check("ConvertHaplotypeDatabaseToVcf");
+    picard_analysis::argument_check::check("ConvertHaplotypeDatabaseToVcf");
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT"), ("R", "REFERENCE_SEQUENCE")]);
     let input = args.required("INPUT");
     let output = args.required("OUTPUT");

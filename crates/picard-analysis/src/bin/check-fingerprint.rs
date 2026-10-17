@@ -117,7 +117,7 @@ fn compare_all(
 }
 
 fn main() {
-    picard_analysis::command_line::check("CheckFingerprint");
+    picard_analysis::argument_check::check("CheckFingerprint");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),
@@ -290,11 +290,13 @@ fn main() {
     };
 
     let mut summary = MetricsFile::new();
-    summary.add_header(&format!("{TOOL} <command line>"));
-    summary.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers(TOOL) {
+        summary.add_header(&header);
+    }
     let mut details = MetricsFile::new();
-    details.add_header(&format!("{TOOL} <command line>"));
-    details.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers(TOOL) {
+        details.add_header(&header);
+    }
     let mut all_zero = true;
     let sample = expected_sample.as_deref();
     for result in &results {

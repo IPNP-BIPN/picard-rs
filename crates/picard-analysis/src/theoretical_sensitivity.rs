@@ -35,6 +35,11 @@ impl JavaRandom {
         ((self.seed as u64) >> (48 - bits)) as i32
     }
 
+    /// `Random.nextInt()`: the next 32 bits, signed.
+    pub fn next_int_unbounded(&mut self) -> i32 {
+        self.next(32)
+    }
+
     /// `Random.nextInt(bound)`: a power of two takes the high bits, anything else rejects the
     /// draws that would bias the remainder.
     pub fn next_int(&mut self, bound: i32) -> i32 {

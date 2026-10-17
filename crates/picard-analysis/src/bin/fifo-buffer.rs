@@ -31,7 +31,7 @@ fn number(args: &[String], key: &str, default: i64) -> i64 {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("FifoBuffer");
+    picard_analysis::argument_check::check("FifoBuffer");
     let args: Vec<String> = std::env::args().skip(1).collect();
     let buffer = number(&args, "BUFFER_SIZE=", 512 * 1024 * 1024);
     let io = number(&args, "IO_SIZE=", 64 * 1024);

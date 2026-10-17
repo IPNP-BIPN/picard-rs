@@ -39,7 +39,7 @@ fn flag(args: &[String], key: &str, default: bool) -> Result<bool, String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("NormalizeFasta");
+    picard_analysis::argument_check::check("NormalizeFasta");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

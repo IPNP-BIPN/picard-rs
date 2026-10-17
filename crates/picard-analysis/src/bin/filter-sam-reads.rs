@@ -50,7 +50,7 @@ fn check_inputs(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("FilterSamReads");
+    picard_analysis::argument_check::check("FilterSamReads");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

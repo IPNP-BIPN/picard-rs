@@ -42,7 +42,7 @@ fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("MarkDuplicatesWithMateCigar");
+    picard_analysis::argument_check::check("MarkDuplicatesWithMateCigar");
     // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
         std::env::args()
@@ -65,8 +65,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let options = Options {
         scoring: match arg(&args, "DUPLICATE_SCORING_STRATEGY=").as_deref() {
-            None | Some("SUM_OF_BASE_QUALITIES") => ScoringStrategy::SumOfBaseQualities,
-            Some("TOTAL_MAPPED_REFERENCE_LENGTH") => ScoringStrategy::TotalMappedReferenceLength,
+            // `AbstractMarkDuplicatesCommandLineProgram.DUPLICATE_SCORING_STRATEGY =
+            // TOTAL_MAPPED_REFERENCE_LENGTH`: an unset one is the one strategy this tool accepts.
+            Some("SUM_OF_BASE_QUALITIES") => ScoringStrategy::SumOfBaseQualities,
+            None | Some("TOTAL_MAPPED_REFERENCE_LENGTH") => {
+                ScoringStrategy::TotalMappedReferenceLength
+            }
             Some("RANDOM") => ScoringStrategy::Random,
             Some(other) => {
                 return Err(format!("unknown DUPLICATE_SCORING_STRATEGY: {other}").into())
@@ -231,6 +235,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         out_header.comments.push(format!("@CO\t{comment}"));
     }
     let add_pg_tag = flag("ADD_PG_TAG_TO_READS=", true);
+    // `setPGIdsSeen`: one pass cannot know which program ids the reads carry, so the chain is
+    // built from the header's, less every id another record names as its `PP`.
+    let previous: Vec<&str> = out_header
+        .programs
+        .iter()
+        .filter_map(|pg| pg.attributes.get("PP"))
+        .collect();
+    let mut seen: Vec<Option<String>> = Vec::new();
+    for pg in &out_header.programs {
+        let id = Some(pg.id.clone());
+        if !previous.contains(&pg.id.as_str()) && !seen.contains(&id) {
+            seen.push(id);
+        }
+    }
+    let chained = picard_analysis::command_line::chained_pg_ids(
+        &mut out_header,
+        &picard_analysis::command_line::hash_set_order(seen),
+        &picard_analysis::command_line::ProgramGroup::of("MarkDuplicatesWithMateCigar"),
+        "MarkDuplicatesWithMateCigar",
+    );
 
     let mut writer = BamWriter::new(Vec::new(), &out_header).map_err(|e| format!("{e:?}"))?;
     for (index, record) in records.iter().enumerate() {
@@ -248,17 +272,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .tags
                 .insert(Tag::new(b"DT"), TagValue::Str(code.clone()));
         }
-        // `updateProgramRecord` only CHAINS: a record that already carries a `PG` gets the new id,
-        // and a record with none gets a warning and nothing else. That is the opposite of
-        // `MarkDuplicates`, which fills its chain from the records themselves and so stamps every
-        // one of them; here the chain comes from the HEADER's program records, and this corpus has
-        // none, so `ADD_PG_TAG_TO_READS` changes not a byte.
-        if add_pg_tag {
-            if let Some(TagValue::Str(existing)) = written.tags.get(Tag::new(b"PG")) {
-                let chained = existing.clone();
-                if header.programs.iter().any(|pg| pg.id == chained) {
-                    written.tags.insert(Tag::new(b"PG"), TagValue::Str(chained));
-                }
+        // `updateProgramRecord` only CHAINS: a record with no `PG`, or with one the chain does
+        // not hold (an id some other record follows), is left as it is, with a warning.
+        if let (true, Some(chained)) = (add_pg_tag, &chained) {
+            let old = string_tag(&written, b"PG");
+            if let Some(id) = old
+                .as_deref()
+                .and_then(|old| picard_analysis::command_line::chained_id(chained, Some(old)))
+            {
+                written
+                    .tags
+                    .insert(Tag::new(b"PG"), TagValue::Str(id.to_string()));
             }
         }
         writer.write(&written).map_err(|e| format!("{e:?}"))?;

@@ -203,7 +203,7 @@ fn rows(
 }
 
 fn main() {
-    picard_analysis::command_line::check("CollectGcBiasMetrics");
+    picard_analysis::argument_check::check("CollectGcBiasMetrics");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),
@@ -377,8 +377,9 @@ fn main() {
     let mut details_file = MetricsFile::new();
     let mut summary_file = MetricsFile::new();
     for file in [&mut details_file, &mut summary_file] {
-        file.add_header(&format!("{TOOL} <command line>"));
-        file.add_header("Started on: <timestamp>");
+        for header in picard_analysis::command_line::default_headers(TOOL) {
+            file.add_header(&header);
+        }
     }
     for distributor in &distributors {
         for (_, unit) in &distributor.units {

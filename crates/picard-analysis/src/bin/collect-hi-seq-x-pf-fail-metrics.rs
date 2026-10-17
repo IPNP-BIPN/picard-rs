@@ -98,7 +98,7 @@ impl Summary {
 }
 
 fn main() {
-    picard_analysis::command_line::check("CollectHiSeqXPfFailMetrics");
+    picard_analysis::argument_check::check("CollectHiSeqXPfFailMetrics");
     let args = Args::from_env(&[("B", "BASECALLS_DIR"), ("O", "OUTPUT"), ("L", "LANE")]);
     let basecalls = std::path::PathBuf::from(args.required("BASECALLS_DIR"));
     let output = args.required("OUTPUT");
@@ -173,8 +173,9 @@ fn main() {
         per_tile.push((tile, s, detailed));
     }
     let header = |file: &mut MetricsFile| {
-        file.add_header(&format!("{TOOL} <command line>"));
-        file.add_header("Started on: <timestamp>");
+        for header in picard_analysis::command_line::default_headers(TOOL) {
+            file.add_header(&header);
+        }
     };
     if probability > 0.0 {
         let mut detail = MetricsFile::new();

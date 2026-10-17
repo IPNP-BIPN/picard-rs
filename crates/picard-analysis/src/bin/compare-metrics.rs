@@ -886,7 +886,7 @@ impl CommandLine {
 }
 
 fn main() {
-    picard_analysis::command_line::check("CompareMetrics");
+    picard_analysis::argument_check::check("CompareMetrics");
     let args = CommandLine::from_env();
     let inputs = args.all("INPUT");
     if inputs.len() != 2 {
@@ -980,8 +980,9 @@ fn main() {
     }
     if let Some(table) = &output_table {
         let mut file = MetricsWriter::new();
-        file.add_header(&format!("{TOOL} <command line>"));
-        file.add_header("Started on: <timestamp>");
+        for header in picard_analysis::command_line::default_headers(TOOL) {
+            file.add_header(&header);
+        }
         for difference in &comparison.value_differences {
             file.add_metric(difference);
         }

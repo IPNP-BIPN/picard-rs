@@ -10,6 +10,7 @@ pub mod add_oa_tag;
 pub mod add_or_replace_read_groups;
 pub mod alignment_summary;
 pub mod annotation;
+pub mod argument_check;
 pub mod bait_designer;
 pub mod bam_index_stats;
 pub mod bam_to_bfq;
@@ -135,6 +136,8 @@ pub mod split_sam_by_number_of_reads;
 pub mod targeted_cli;
 pub mod targeted_metrics;
 pub mod theoretical_sensitivity;
+#[rustfmt::skip]
+pub mod tool_options;
 pub mod umi_aware;
 pub mod umi_duplicates;
 pub mod validate_sam_file;

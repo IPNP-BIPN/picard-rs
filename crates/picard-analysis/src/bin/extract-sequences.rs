@@ -12,7 +12,7 @@ fn arg(args: &[String], key: &str) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    picard_analysis::command_line::check("ExtractSequences");
+    picard_analysis::argument_check::check("ExtractSequences");
     let args: Vec<String> = std::env::args().collect();
     let interval_list = arg(&args, "INTERVAL_LIST=").ok_or("INTERVAL_LIST= is required")?;
     let output = arg(&args, "OUTPUT=")
