@@ -1083,6 +1083,9 @@ jobs:
           - group: oracle-backed
             index: "22/22"
             suites: "gtctovcf createextendedmanifest headerlines"
+          - group: golden-pending
+            index: "1/1"
+            suites: "sortsam-spill"
     steps:
       - uses: actions/checkout@v7
 
