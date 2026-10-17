@@ -89,6 +89,7 @@ pub mod insert_size;
 pub mod interval_list_to_bed;
 pub mod interval_list_tools;
 pub mod java_hash_map;
+pub mod java_writer;
 pub mod javascript;
 pub mod jumping_library;
 pub mod lift_over_haplotype_map;

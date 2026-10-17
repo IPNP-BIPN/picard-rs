@@ -31,7 +31,8 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
 use htsjdk_bam::writer::BamWriter;
-use picard_analysis::clean_sam::clean_records;
+use picard_analysis::clean_sam::{clean_records, CleanError};
+use picard_analysis::java_writer;
 
 fn arg(args: &[String], key: &str) -> Option<String> {
     args.iter()
@@ -82,7 +83,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         read_sam_with(&text, stringency).map_err(|e| format!("{e:?}"))?
     };
 
-    clean_records(&header, &mut records);
+    // Per record, `doWork` cleans and then hands the record to a presorted writer, which checks
+    // the order: whichever of the two throws first, in file order, ends the run. The records before
+    // it were written, and what of them reached the disk is what the writer's buffers let through.
+    let thrown_at = match clean_records(&header, &mut records) {
+        Ok(()) => None,
+        Err(CleanError::Thrown { index, thrown }) => Some((index, thrown)),
+        Err(CleanError::Parse(e)) => return Err(format!("{e:?}").into()),
+    };
+    let filename = if output.ends_with(".sam") {
+        "null".to_string()
+    } else {
+        java_writer::bam_filename(&output)
+    };
+    let out_of_order = java_writer::first_out_of_order(&header, &records, &filename);
+    let failure = match (thrown_at, out_of_order) {
+        (Some(clean), Some(order)) => Some(if clean.0 <= order.0 { clean } else { order }),
+        (clean, order) => clean.or(order),
+    };
+    if let Some((index, thrown)) = failure {
+        let written = &records[..index];
+        let partial = if output.ends_with(".sam") {
+            let header_len = write_sam(&header, &[])
+                .ok_or("the header failed to encode as SAM")?
+                .len();
+            let sam = write_sam(&header, written).ok_or("records failed to re-encode as SAM")?;
+            java_writer::sam_on_disk(sam.as_bytes(), header_len).to_vec()
+        } else {
+            let mut writer = BamWriter::new(Vec::new(), &header)?;
+            for record in written {
+                writer.write(record).map_err(|e| format!("{e:?}"))?;
+            }
+            java_writer::bam_on_disk(&writer.finish()?)
+        };
+        std::fs::write(&output, partial)?;
+        eprintln!("Exception in thread \"main\" {thrown}");
+        std::process::exit(1);
+    }
 
     // The header is written back unchanged: CleanSam hands the reader's header straight to the
     // writer, adds no `@PG` of its own, and does not re-sort, so `SO` still describes the records.

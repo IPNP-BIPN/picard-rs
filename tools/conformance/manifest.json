@@ -3316,6 +3316,35 @@
           "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 38938155720 on PR 365, and identical to the local smoke run but for the Started on values. 54 tools' option tables, 216 command lines Picard parsed and recorded, and 12 real runs: the @PG lines and every read's PG tag of the seven tools that stamp one, and their metrics headers."
         }
       ]
+    },
+    {
+      "id": "inputshapes",
+      "title": "input shapes the tools' own suites never carried: secondary, supplementary, mate cigars, missing mates, unsorted input, malformed tags, a run that throws after a flush",
+      "status": "golden-pending",
+      "harness": "tools/inputshapes-conformance",
+      "tools": [
+        "CleanSam",
+        "CollectSamErrorMetrics",
+        "RevertOriginalBaseQualitiesAndAddMateCigar"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "expect_contains": [
+        "Missing second read of pair: m1",
+        "Value for tag MC is not a String",
+        "Unrecognized CigarOperator: 81",
+        "Alignments added out of order",
+        "MC:Z:40M10S",
+        "Inappropriate call if not paired read",
+        "file:error_by_homopolymer_and_following_ref_base"
+      ],
+      "cases": [
+        {
+          "dump": "InputShapesDump",
+          "golden": null
+        }
+      ]
     }
   ],
   "probes": [
