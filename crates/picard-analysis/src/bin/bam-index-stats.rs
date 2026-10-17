@@ -27,6 +27,7 @@ use picard_analysis::args::arg;
 use picard_analysis::bam_index_stats::bam_index_stats_with_index;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("BamIndexStats");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

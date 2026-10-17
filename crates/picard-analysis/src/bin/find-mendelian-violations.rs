@@ -276,6 +276,7 @@ fn genotype_of(record: &htsjdk_vcf::variant::VariantContext, sample: &str) -> Op
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("FindMendelianViolations");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

@@ -28,6 +28,7 @@ const FIRST_OF_PAIR: u16 = 0x40;
 const DUPLICATE: u16 = 0x400;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("CollectJumpingLibraryMetrics");
     let args: Vec<String> = std::env::args().collect();
     let input = picard_analysis::args::single_input(&args)?;
     let output = arg(&args, "OUTPUT=")

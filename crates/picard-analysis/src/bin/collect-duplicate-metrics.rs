@@ -29,6 +29,7 @@ const DUPLICATE: u16 = 0x400;
 const SUPPLEMENTARY: u16 = 0x800;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("CollectDuplicateMetrics");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

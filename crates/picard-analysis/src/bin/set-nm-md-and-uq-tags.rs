@@ -24,6 +24,7 @@ use picard_analysis::args::arg;
 use picard_analysis::set_nm_md_and_uq_tags::{fix_record, Options};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("SetNmMdAndUqTags");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
