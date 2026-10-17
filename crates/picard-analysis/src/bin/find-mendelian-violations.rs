@@ -13,14 +13,10 @@
 
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use htsjdk_vcf::reader::read_vcf;
+use picard_analysis::args::arg;
 use picard_analysis::find_mendelian_violations::{
     collect, Genotype, Interval, Metrics, Options, Sex, Site, Trio,
 };
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn args_of(args: &[String], key: &str) -> Vec<String> {
     args.iter()
@@ -381,7 +377,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
     let vcf = read_vcf(&std::fs::read_to_string(&input)?).map_err(|e| format!("{e:?}"))?;
-    let tab_mode = arg(&args, "TAB_MODE=").is_some_and(|value| value == "true");
+    let tab_mode =
+        arg(&args, "TAB_MODE=").is_some_and(|value| picard_analysis::args::is_true(&value));
     let pedigree = read_pedigree(&std::fs::read_to_string(&trios)?, tab_mode);
     let samples = &vcf.header.samples;
 

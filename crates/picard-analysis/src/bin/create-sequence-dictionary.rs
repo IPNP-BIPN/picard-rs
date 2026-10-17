@@ -14,12 +14,8 @@
 
 use std::io::Write;
 
+use picard_analysis::args::arg;
 use picard_analysis::create_sequence_dictionary::{create_sequence_dictionary_with, Options};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// `SAMSequenceRecord.LEGAL_RNAME_PATTERN`, as its `toString` prints it.
 const LEGAL_RNAME: &str = "[0-9A-Za-z!#$%&+./:;?@^_|~-][0-9A-Za-z!#$%&*+./:;=?@^_|~-]*";
@@ -121,7 +117,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
 
-    let truncate = arg(&args, "TRUNCATE_NAMES_AT_WHITESPACE=").is_none_or(|v| v == "true");
+    let truncate = arg(&args, "TRUNCATE_NAMES_AT_WHITESPACE=")
+        .is_none_or(|v| picard_analysis::args::is_true(&v));
 
     let options = Options {
         genome_assembly: arg(&args, "GENOME_ASSEMBLY="),

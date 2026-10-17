@@ -20,12 +20,8 @@ use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::writer::BamWriter;
+use picard_analysis::args::arg;
 use picard_analysis::set_nm_md_and_uq_tags::{fix_record, Options};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SetNmMdAndUqTags");
@@ -39,7 +35,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reference = arg(&args, "REFERENCE_SEQUENCE=")
         .or_else(|| arg(&args, "R="))
         .ok_or("REFERENCE_SEQUENCE= is required")?;
-    let flag = |key: &str| arg(&args, key).map(|v| v == "true").unwrap_or(false);
+    let flag = |key: &str| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(false)
+    };
     let options = Options {
         is_bisulfite_sequence: flag("IS_BISULFITE_SEQUENCE="),
         set_only_uq: flag("SET_ONLY_UQ="),
