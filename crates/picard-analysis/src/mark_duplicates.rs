@@ -46,6 +46,8 @@
 //! `picard.sam.DuplicationMetrics` and `htsjdk.samtools.DuplicateScoringStrategy` in Picard 3.4.0.
 
 use foldhash::{HashMap, HashMapExt};
+use std::hash::BuildHasher;
+use std::sync::Arc;
 
 use htsjdk_bam::cigar::{Cigar, Op};
 
@@ -121,7 +123,63 @@ impl Default for Options {
     }
 }
 
-/// One record, reduced to what the two passes read.
+/// What the marking reads of a cigar: the reference length and the clips at either end, which
+/// are all the unclipped coordinates and the reference-length score need. Twelve bytes in place of
+/// the elements, because one is held per record of the file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Span {
+    pub reference_length: u32,
+    /// The soft and hard clips before the first element that is neither.
+    pub leading_clip: i32,
+    /// The soft and hard clips after the last element that is neither.
+    pub trailing_clip: i32,
+}
+
+impl Span {
+    pub fn of(cigar: &Cigar) -> Self {
+        let clip = |elements: &mut dyn Iterator<Item = &htsjdk_bam::cigar::CigarElement>| -> i32 {
+            let mut clipped = 0i32;
+            for element in elements {
+                match element.op {
+                    Op::S | Op::H => clipped += element.length as i32,
+                    _ => break,
+                }
+            }
+            clipped
+        };
+        Self {
+            reference_length: cigar.reference_length(),
+            leading_clip: clip(&mut cigar.elements.iter()),
+            trailing_clip: clip(&mut cigar.elements.iter().rev()),
+        }
+    }
+
+    /// `getUnclippedStart`, for a record aligned at `alignment_start` (one-based).
+    pub fn unclipped_start(&self, alignment_start: i32) -> i32 {
+        alignment_start - self.leading_clip
+    }
+
+    /// `getUnclippedEnd`, for a record aligned at `alignment_start` (one-based).
+    pub fn unclipped_end(&self, alignment_start: i32) -> i32 {
+        alignment_start + self.reference_length as i32 - 1 + self.trailing_clip
+    }
+}
+
+/// `SUM_OF_BASE_QUALITIES` before the vendor discount: the qualities at or above 15, capped at
+/// `Short.MAX_VALUE / 2`. It is the only thing the score reads of the qualities, so a record keeps
+/// this and not them.
+pub fn base_quality_score(qualities: &[u8]) -> i16 {
+    let sum: i64 = qualities
+        .iter()
+        .filter(|quality| **quality >= 15)
+        .map(|quality| i64::from(*quality))
+        .sum();
+    sum.min(i64::from(i16::MAX / 2)) as i16
+}
+
+/// One record, reduced to what the two passes read. The cigar, the qualities and the mate cigar
+/// are kept as what is read of them ([`Span`], [`base_quality_score`] and the read length), so a
+/// file's worth of these holds no per-record allocation but the name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Record {
     pub name: String,
@@ -130,19 +188,25 @@ pub struct Record {
     pub reference_index: i32,
     /// One-based, as the SAM field is.
     pub alignment_start: i32,
-    pub cigar: Cigar,
-    pub qualities: Vec<u8>,
+    /// The record's own cigar, as [`Span::of`] reads it.
+    pub span: Span,
+    /// The number of BASES, which is `SAMRecord.getReadLength` and what `toString` prints. Not the
+    /// number of qualities: a read whose `QUAL` is `*` has none and still has its length.
+    pub read_length: u32,
+    /// [`base_quality_score`] of the record's qualities.
+    pub base_quality_score: i16,
     pub mate_reference_index: i32,
-    pub library: String,
+    /// Shared between the records of one library, which is most of them.
+    pub library: Arc<str>,
     /// The nth read group of the header, which is what `closeEnough` compares.
     pub read_group: i32,
     /// The value of `BARCODE_TAG`, where the record carries one.
     pub barcode: Option<String>,
     /// An incoming `DT`, which `CLEAR_DT` decides the fate of.
     pub existing_dt: Option<String>,
-    /// The `MC` tag, which is what the mate-cigar markers read instead of waiting for the mate.
-    /// `MarkDuplicates` itself does not look at it.
-    pub mate_cigar: Option<Cigar>,
+    /// The `MC` tag as [`Span::of`] reads it, which is what the mate-cigar markers read instead of
+    /// waiting for the mate. `MarkDuplicates` itself does not look at it.
+    pub mate_span: Option<Span>,
     /// The mate's alignment start, one-based, which the molecular identifier of a forward read is
     /// built from. `MarkDuplicates` reads the mate's position off the mate's own record instead.
     pub mate_alignment_start: i32,
@@ -178,26 +242,22 @@ impl Record {
 
     /// `SAMRecord.getUnclippedStart`: the alignment start walked back over the leading clips.
     pub fn unclipped_start(&self) -> i32 {
-        let mut start = self.alignment_start;
-        for element in &self.cigar.elements {
-            match element.op {
-                Op::S | Op::H => start -= element.length as i32,
-                _ => break,
-            }
-        }
-        start
+        self.span.unclipped_start(self.alignment_start)
     }
 
     /// `SAMRecord.getUnclippedEnd`: the alignment end walked forward over the trailing clips.
     pub fn unclipped_end(&self) -> i32 {
-        let mut end = self.alignment_start + self.cigar.reference_length() as i32 - 1;
-        for element in self.cigar.elements.iter().rev() {
-            match element.op {
-                Op::S | Op::H => end += element.length as i32,
-                _ => break,
-            }
-        }
-        end
+        self.span.unclipped_end(self.alignment_start)
+    }
+
+    /// `SAMUtils.getMateUnclippedStart`, off the `MC` tag, where the record carries one.
+    pub fn mate_unclipped_start(&self) -> Option<i32> {
+        Some(self.mate_span?.unclipped_start(self.mate_alignment_start))
+    }
+
+    /// `SAMUtils.getMateUnclippedEnd`, off the `MC` tag, where the record carries one.
+    pub fn mate_unclipped_end(&self) -> Option<i32> {
+        Some(self.mate_span?.unclipped_end(self.mate_alignment_start))
     }
 
     /// `buildReadEnds`: the 5' coordinate, which is the end the strand points away from.
@@ -233,27 +293,19 @@ pub fn duplicate_score_with(
 ) -> i16 {
     let capped = |value: i64| -> i16 { value.min(i64::from(i16::MAX / 2)) as i16 };
     let mut score: i16 = match strategy {
-        ScoringStrategy::SumOfBaseQualities => {
-            let sum: i64 = record
-                .qualities
-                .iter()
-                .filter(|quality| **quality >= 15)
-                .map(|quality| i64::from(*quality))
-                .sum();
-            capped(sum)
-        }
+        ScoringStrategy::SumOfBaseQualities => record.base_quality_score,
         ScoringStrategy::TotalMappedReferenceLength => {
             let own = if record.unmapped() {
                 0
             } else {
-                capped(i64::from(record.cigar.reference_length()))
+                capped(i64::from(record.span.reference_length))
             };
             match (
                 assume_mate_cigar,
                 record.paired() && !record.mate_unmapped(),
             ) {
-                (true, true) => own.wrapping_add(match &record.mate_cigar {
-                    Some(cigar) => capped(i64::from(cigar.reference_length())),
+                (true, true) => own.wrapping_add(match &record.mate_span {
+                    Some(span) => capped(i64::from(span.reference_length)),
                     // `SAMUtils.getMateCigar` returns null and the addition is of nothing; the
                     // caller has already refused a pair with no `MC` or dropped it.
                     None => 0,
@@ -431,7 +483,7 @@ pub fn location_with(name: &str, regex: &ReadNameRegex) -> Location {
 /// `ReadEndsForMarkDuplicates`: one record's, or one pair's, position and score.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadEnds {
-    pub library: String,
+    pub library: Arc<str>,
     pub read1_reference_index: i32,
     pub read1_coordinate: i32,
     pub read2_reference_index: i32,
@@ -750,21 +802,32 @@ pub(crate) fn increment(histogram: &mut Vec<(f64, f64)>, bin: f64, by: f64) {
     }
 }
 
-/// The key a chunk is cut on: `areComparableForDuplicates`.
+/// The key a chunk is cut on: `areComparableForDuplicates`. It borrows its strings, because
+/// there is one per read end.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Key {
-    library: String,
-    barcode: Option<String>,
+struct Key<'a> {
+    library: &'a str,
+    barcode: Option<&'a str>,
     read1_reference_index: i32,
     read1_coordinate: i32,
     orientation: u8,
     read2: Option<(i32, i32)>,
 }
 
-fn key(ends: &ReadEnds, compare_read2: bool) -> Key {
+fn key(ends: &ReadEnds, compare_read2: bool) -> Key<'_> {
+    key_with(&ends.library, ends.barcode.as_deref(), ends, compare_read2)
+}
+
+/// [`key`], with the strings borrowed from somewhere that outlives `ends`.
+fn key_with<'a>(
+    library: &'a str,
+    barcode: Option<&'a str>,
+    ends: &ReadEnds,
+    compare_read2: bool,
+) -> Key<'a> {
     Key {
-        library: ends.library.clone(),
-        barcode: ends.barcode.clone(),
+        library,
+        barcode,
         read1_reference_index: ends.read1_reference_index,
         read1_coordinate: ends.read1_coordinate,
         orientation: ends.orientation,
@@ -798,11 +861,14 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
 /// FIRST record of its run of one read name rather than its own, and the second pass flags the
 /// whole run (see [`queryname_pass`]).
 pub fn mark_sorted(records: &[Record], options: &Options, queryname: bool) -> Marking {
-    let mut pairs: Vec<ReadEnds> = Vec::new();
-    let mut fragments: Vec<ReadEnds> = Vec::new();
+    // Sized once: at most one fragment per record and one pair per two.
+    let mut pairs: Vec<ReadEnds> = Vec::with_capacity(records.len() / 2);
+    let mut fragments: Vec<ReadEnds> = Vec::with_capacity(records.len());
     // `tmp`, the map from a read group and a name to the first end of a pair seen. A key is in it
-    // at most once: its second record takes it out.
-    let mut pending: HashMap<(i32, String), ReadEnds> = HashMap::with_capacity(records.len() / 2);
+    // at most once: its second record takes it out. The end itself is the fragment already pushed,
+    // so the map holds its place in `fragments`: the table is sized for half the file and touched
+    // all over, and a whole end per slot was most of its memory.
+    let mut pending: HashMap<(i32, &str), u32> = HashMap::with_capacity(records.len() / 2);
     // `duplicateIndex`, the index of the first record of the current run of one name.
     let mut run_start = 0;
 
@@ -816,19 +882,22 @@ pub fn mark_sorted(records: &[Record], options: &Options, queryname: bool) -> Ma
             continue;
         }
         let fragment = build_read_ends(record, index, options);
-        fragments.push(fragment.clone());
         if !record.paired() || record.mate_unmapped() {
+            fragments.push(fragment);
             continue;
         }
         // The read group's id and the name: one name in two groups is two templates.
-        let name = (record.read_group, record.name.clone());
+        let name = (record.read_group, record.name.as_str());
         match pending.remove(&name) {
             None => {
-                pending.insert(name, fragment);
+                pending.insert(name, fragments.len() as u32);
+                fragments.push(fragment);
             }
-            Some(mut paired) => {
+            Some(first) => {
+                let mut paired = fragments[first as usize].clone();
                 let mates_reference_index = fragment.read1_reference_index;
                 let mates_coordinate = fragment.read1_coordinate;
+                fragments.push(fragment);
                 // The optical orientation goes by the FIRST end of the pair whatever order the
                 // file put them in, and it is set before the orientation below is rewritten.
                 paired.orientation_for_optical_duplicates = if record.first_of_pair() {
@@ -928,10 +997,10 @@ pub fn mark_sorted(records: &[Record], options: &Options, queryname: bool) -> Ma
         if optical_ends > 0 {
             match optical_pairs
                 .iter_mut()
-                .find(|(library, _)| *library == chunk[0].library)
+                .find(|(library, _)| library.as_str() == &*chunk[0].library)
             {
                 Some((_, count)) => *count += optical_ends,
-                None => optical_pairs.push((chunk[0].library.clone(), optical_ends)),
+                None => optical_pairs.push((chunk[0].library.to_string(), optical_ends)),
             }
         }
         // `trackDuplicateCounts`, which is reached THROUGH `trackOpticalDuplicates` and so does
@@ -1079,7 +1148,11 @@ pub fn sets_by_position(records: &[Record], options: &Options) -> Vec<Vec<usize>
         }
         let ends = build_read_ends(record, index, options);
         let next = groups.len();
-        let position = *keys.entry(key(&ends, false)).or_insert(next);
+        // The strings `build_read_ends` copied, borrowed from the record instead.
+        let barcode = options.barcode_tag.as_ref().and(record.barcode.as_deref());
+        let position = *keys
+            .entry(key_with(&record.library, barcode, &ends, false))
+            .or_insert(next);
         if position == next {
             groups.push(Vec::new());
         }
@@ -1088,41 +1161,80 @@ pub fn sets_by_position(records: &[Record], options: &Options) -> Vec<Vec<usize>
     groups
 }
 
-/// The chunks `generateDuplicateIndexes` cuts, which are the runs of an equal key.
-fn chunks(list: &[ReadEnds], compare_read2: bool) -> Vec<Vec<ReadEnds>> {
-    let mut keys: HashMap<Key, usize> = HashMap::with_capacity(list.len());
-    let mut groups: Vec<Vec<ReadEnds>> = Vec::new();
-    for ends in list {
-        let next = groups.len();
-        let position = *keys.entry(key(ends, compare_read2)).or_insert(next);
-        if position == next {
-            groups.push(Vec::new());
+/// The chunks `generateDuplicateIndexes` cuts, which are the runs of an equal key: in the order
+/// their keys first appear, each in the list's order.
+///
+/// The grouping is a group number per end, found in a table that holds each group's first end
+/// rather than its key, and a counting sort of the indexes by it, so only the chunk being looked
+/// at is ever copied out.
+fn chunks(list: &[ReadEnds], compare_read2: bool) -> impl Iterator<Item = Vec<ReadEnds>> + '_ {
+    let state = foldhash::fast::RandomState::default();
+    let key_of = |index: u32| key(&list[index as usize], compare_read2);
+    let mut group_of: Vec<u32> = Vec::with_capacity(list.len());
+    let mut sizes: Vec<u32> = Vec::new();
+    {
+        // (the group's first end, the group)
+        let mut table: hashbrown::HashTable<(u32, u32)> =
+            hashbrown::HashTable::with_capacity(list.len());
+        for (index, ends) in list.iter().enumerate() {
+            let key = key(ends, compare_read2);
+            let next = sizes.len() as u32;
+            let group = match table.entry(
+                state.hash_one(&key),
+                |&(first, _)| key_of(first) == key,
+                |&(first, _)| state.hash_one(key_of(first)),
+            ) {
+                hashbrown::hash_table::Entry::Occupied(entry) => entry.get().1,
+                hashbrown::hash_table::Entry::Vacant(entry) => {
+                    entry.insert((index as u32, next));
+                    sizes.push(0);
+                    next
+                }
+            };
+            sizes[group as usize] += 1;
+            group_of.push(group);
         }
-        groups[position].push(ends.clone());
     }
-    // `ReadEndsMDComparator` past the key: the mate's position, then the physical location (-1
-    // where none was parsed), then the indexes in the file. Within one file the location rarely
-    // ties apart from the index; two merged files with different name styles do.
-    let location = |ends: &ReadEnds| {
-        let l = ends.location;
-        if l.known {
-            (i32::from(l.tile), l.x, l.y)
-        } else {
-            (-1, -1, -1)
-        }
-    };
-    for group in &mut groups {
-        group.sort_by_key(|ends| {
+    // `bounds[g]..bounds[g + 1]` is group g's run in `order`.
+    let mut bounds: Vec<u32> = Vec::with_capacity(sizes.len() + 1);
+    let mut next = 0;
+    bounds.push(0);
+    for size in &sizes {
+        next += size;
+        bounds.push(next);
+    }
+    let mut fill = bounds[..sizes.len()].to_vec();
+    drop(sizes);
+    let mut order = vec![0u32; list.len()];
+    for (index, group) in group_of.into_iter().enumerate() {
+        order[fill[group as usize] as usize] = index as u32;
+        fill[group as usize] += 1;
+    }
+    (0..bounds.len() - 1).map(move |group| {
+        let mut chunk: Vec<ReadEnds> = order[bounds[group] as usize..bounds[group + 1] as usize]
+            .iter()
+            .map(|&index| list[index as usize].clone())
+            .collect();
+        // `ReadEndsMDComparator` past the key: the mate's position, then the physical location
+        // (-1 where none was parsed), then the indexes in the file. Within one file the location
+        // rarely ties apart from the index; two merged files with different name styles do.
+        chunk.sort_by_key(|ends| {
+            let l = ends.location;
+            let location = if l.known {
+                (i32::from(l.tile), l.x, l.y)
+            } else {
+                (-1, -1, -1)
+            };
             (
                 ends.read2_reference_index,
                 ends.read2_coordinate,
-                location(ends),
+                location,
                 ends.read1_index_in_file,
                 ends.read2_index_in_file,
             )
         });
-    }
-    groups
+        chunk
+    })
 }
 
 /// `trackOpticalDuplicates`, which splits a set that mixes FR and RF before it looks at anything.
@@ -1192,11 +1304,14 @@ fn write(
     let mut written = Vec::with_capacity(records.len());
 
     for (index, record) in records.iter().enumerate() {
-        let position = match metrics.iter().position(|row| row.library == record.library) {
+        let position = match metrics
+            .iter()
+            .position(|row| *row.library == *record.library)
+        {
             Some(position) => position,
             None => {
                 metrics.push(Metrics {
-                    library: record.library.clone(),
+                    library: record.library.to_string(),
                     ..Metrics::default()
                 });
                 metrics.len() - 1
@@ -1403,14 +1518,15 @@ mod tests {
             flags,
             reference_index: 0,
             alignment_start: 1,
-            cigar: Default::default(),
-            qualities: Vec::new(),
+            span: Span::of(&Default::default()),
+            read_length: 0,
+            base_quality_score: 0,
             mate_reference_index: -1,
-            library: String::new(),
+            library: Arc::from(""),
             read_group: 0,
             barcode: None,
             existing_dt: None,
-            mate_cigar: None,
+            mate_span: None,
             mate_alignment_start: 0,
         }
     }
