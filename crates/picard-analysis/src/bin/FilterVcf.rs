@@ -8,13 +8,9 @@
 //! script filter (`JAVASCRIPT_FILE`) is `picard_analysis::javascript`: a variant the script does
 //! not accept is filtered under the script's base name.
 
+use picard_analysis::args::arg;
 use picard_analysis::filter_vcf::{add_header_lines, filter_record, Thresholds};
-use picard_analysis::vcf_io::{die, header_dictionary, read_path, write_output};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
+use picard_analysis::vcf_io::{die, header_dictionary, is_compressed_vcf, read_path, write_output};
 
 fn number<T: std::str::FromStr>(args: &[String], key: &str, default: T) -> T {
     match arg(args, key) {
@@ -27,6 +23,7 @@ fn number<T: std::str::FromStr>(args: &[String], key: &str, default: T) -> T {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("FilterVcf");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
@@ -36,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
     let create_index = arg(&args, "CREATE_INDEX=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(true);
     let thresholds = Thresholds {
         min_ab: number(&args, "MIN_AB=", 0.0),
@@ -108,10 +105,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             filters.dedup();
         }
     }
-    let index_dictionary = if create_index {
-        dictionary.as_deref()
-    } else {
+    // Only a `.vcf` or `.bcf` name sets the dictionary on the builder; a `.vcf.gz` is indexed
+    // without one.
+    let index_dictionary = if !create_index {
         None
+    } else if is_compressed_vcf(&output) {
+        Some(&[][..])
+    } else {
+        dictionary.as_deref()
     };
     write_output(&output, &header, &records, index_dictionary)?;
     Ok(())

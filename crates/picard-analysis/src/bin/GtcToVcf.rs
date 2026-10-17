@@ -87,6 +87,7 @@ fn read_gtc(path: &str, bpm: &Bpm) -> Gtc {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("GtcToVcf");
     picard_analysis::output::install();
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT"), ("R", "REFERENCE_SEQUENCE")]);
     let input = args.required("INPUT");

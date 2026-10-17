@@ -16,17 +16,13 @@
 use htsjdk_vcf::comparator::VariantContextComparator;
 use htsjdk_vcf::header::{HeaderLine, VcfHeader};
 use htsjdk_vcf::merge::{smart_merge_headers, Source};
+use picard_analysis::args::arg;
 use picard_analysis::merge_vcfs::{merge_sorted, MergeFailure};
 use picard_analysis::vcf_io::{
-    add_other_meta_data_line, die, header_dictionary, parse_sam_dictionary, read_path,
-    sample_names_in_order, set_sequence_dictionary, unroll_paths, write_output, LazyVcf, Record,
-    Sequence,
+    add_other_meta_data_line, die, header_dictionary, is_compressed_vcf, parse_sam_dictionary,
+    read_path, sample_names_in_order, set_sequence_dictionary, unroll_paths, write_output, LazyVcf,
+    Record, Sequence,
 };
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// A collection argument: every occurrence appends, and the value `null` empties it (Barclay).
 fn collection(args: &[String], keys: &[&str]) -> Vec<String> {
@@ -66,6 +62,7 @@ fn contig_lines(header: &VcfHeader) -> Vec<HeaderLine> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("MergeVcfs");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let inputs = collection(&args, &["INPUT=", "I="]);
@@ -80,15 +77,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter(|value| value != "null");
     let comments = collection(&args, &["COMMENT=", "CO="]);
     let create_index = arg(&args, "CREATE_INDEX=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(true);
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if !output.ends_with(".vcf") {
-        return Err("only a .vcf OUTPUT is ported".into());
+    if !output.ends_with(".vcf")
+        && !is_compressed_vcf(&output)
+        && !picard_analysis::vcf_io::is_bcf(&output)
+    {
+        return Err("only a .vcf, .vcf.gz or .bcf OUTPUT is ported".into());
     }
 
     // Read through `SamReaderFactory`, as a SAM header: a `.dict`'s `@SQ` lines.

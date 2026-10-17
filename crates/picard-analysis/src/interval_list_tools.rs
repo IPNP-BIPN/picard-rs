@@ -26,9 +26,9 @@
 //!
 //! ## The output header, per action, nailed against the oracle
 //!
-//! The tool always adds a `@PG` whose `CL` is the command line; it is non-reproducible, so it is
-//! canonicalized away exactly as for `DownsampleSam` (the port emits none, the conformance strips
-//! `@PG`). `doWork` takes the output header from `result.getHeader()`, whose sort order is
+//! The tool always adds a `@PG` whose `CL` is the command line; the binary adds it (see
+//! `command_line`), after the input's own `@PG` records, which the output header keeps along with
+//! its read groups and comments. `doWork` takes the output header from `result.getHeader()`, whose sort order is
 //! `SO:unsorted` only when `act` ran `setSortOrder(unsorted)`: a **multi-`INPUT`** `concatenate`
 //! (`addOther`), `OVERLAPS`, or `SYMDIFF`'s `union`. A single-`INPUT` `reduce` returns the input
 //! header untouched, and `INTERSECT`/`SUBTRACT` clone the left operand's header, so those are emitted
@@ -392,6 +392,17 @@ pub fn interval_list_tools(
     for sq in &sq_lines {
         output.push_str(sq);
         output.push('\n');
+    }
+    // The rest of that header comes along: its read groups, its program records and its comments,
+    // in the order the text codec writes them.
+    let first = inputs.first().copied().unwrap_or("");
+    for prefix in ["@RG\t", "@PG\t", "@CO\t"] {
+        for line in first.lines().take_while(|line| line.starts_with('@')) {
+            if line.starts_with(prefix) {
+                output.push_str(line);
+                output.push('\n');
+            }
+        }
     }
     for interval in &final_intervals {
         output.push_str(&interval.to_file_line());

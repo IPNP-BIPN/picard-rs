@@ -59,6 +59,9 @@ ABSENT = {"None", "null", "[]", ""}
 # where one is required), lets the array cover both.
 OMITTED = "<absent>"
 
+# Outputs whose compressed bytes are compared, not only what they inflate to; see `read_output`.
+WRITTEN_AS_IS = (".vcf.gz", ".vcf.bgz", ".tbi")
+
 
 def build_fixtures(workdir):
     """Materialize the corpus with MakeFixtures.java, inside the pinned container."""
@@ -323,7 +326,8 @@ def read_output(out_dir, strip_program_records=False, output_name="output.txt"):
     the port deflates through zlib, so the framed bytes differ for a reason that is not the tool's
     logic -- the same reason `--COMPRESSION_LEVEL` is excluded from every array, and the same pin
     htsjdk-rs asserts in a suite of its own (decisions 0001 and 0029). What is left after the
-    decompression is the header and the records, which is what this array is measuring.
+    decompression is the header and the records, which is what this array is measuring. A
+    `.vcf.gz` and its `.tbi` are the exception: their raw bytes are hashed as well.
     """
     # Most tools write the file they were given. Some write `<OUTPUT>.<suffix>` instead, one per
     # metric class, and comparing `output.txt` for those compares nothing at all: every row looks
@@ -380,6 +384,15 @@ def read_output(out_dir, strip_program_records=False, output_name="output.txt"):
             )
         return text
     payload, kind = decompressed(raw)
+    if output_name.endswith(WRITTEN_AS_IS):
+        # A compressed VCF and its tabix index are compared as written. The port deflates them
+        # as the reference does (GKL by default, libdeflate under USE_JDK_DEFLATER), and the
+        # vcfgz suite asserts it, so the framing is part of the answer here; the content digest
+        # stays beside it so a divergence says whether the records or only the blocks differ.
+        return (
+            f"BYTES sha256={hashlib.sha256(raw).hexdigest()} bytes={len(raw)} "
+            f"{kind} sha256={hashlib.sha256(payload).hexdigest()} bytes={len(payload)}"
+        )
     if strip_program_records:
         payload = without_program_records(payload)
     return f"{kind} sha256={hashlib.sha256(payload).hexdigest()} bytes={len(payload)}"

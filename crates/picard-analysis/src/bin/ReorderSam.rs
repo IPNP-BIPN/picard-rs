@@ -19,15 +19,13 @@ use std::io::{Read, Write};
 
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::sam_file::write_sam;
+use picard_analysis::args::arg;
 use picard_analysis::reorder_sam::{reorder_sam, reorder_sam_to_bam, Options};
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn flag(args: &[String], key: &str) -> bool {
-    arg(args, key).map(|v| v == "true").unwrap_or(false)
+    arg(args, key)
+        .map(|v| picard_analysis::args::is_true(&v))
+        .unwrap_or(false)
 }
 
 /// The text of a SAM or BAM input, whichever it turns out to be.
@@ -62,6 +60,7 @@ fn read_dictionary(path: &str) -> Result<String, Box<dyn std::error::Error>> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("ReorderSam");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")

@@ -17,14 +17,10 @@ use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::{coordinate, query_name};
+use picard_analysis::args::arg;
 use picard_analysis::filter_sam_reads::{
     keep_by_alignment_pairwise, keep_by_read_list, read_name_set, AlignedFilter, Filter,
 };
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// `checkInputs`: an argument this filter does not take is a refusal, and so is one it needs and
 /// has not been given. The wording is the reference's, list of filters included.
@@ -49,6 +45,7 @@ fn check_inputs(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("FilterSamReads");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")

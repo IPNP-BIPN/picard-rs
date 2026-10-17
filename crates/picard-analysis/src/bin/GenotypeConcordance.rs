@@ -38,8 +38,8 @@ use htsjdk_tribble::tabix::{FeatureRef, TabixFormat, TabixIndexCreator};
 use htsjdk_vcf::allele::Allele;
 use htsjdk_vcf::encoder::{MissingFields, VcfEncoder};
 use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
-use htsjdk_vcf::reader::read_vcf;
 use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
+use picard_analysis::args::arg;
 use picard_analysis::genotype_concordance::{
     contingency, contingency_state_value, contingency_string, determine_state, file_names, is_var,
     normalize_alleles, CallState, Cell, Counts, GenotypeView, SiteView, TruthState,
@@ -59,11 +59,6 @@ enum VariantType {
     /// Every alternate symbolic: `isSymbolic()`, a site `writeVcfTuple` leaves out.
     Symbolic,
     Other,
-}
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
 }
 
 fn throw(message: &str) -> ! {
@@ -628,8 +623,9 @@ fn genotype(
 
 fn metrics_file<B: MetricBean>(beans: Vec<B>) -> String {
     let mut file = MetricsFile::new();
-    file.add_header("GenotypeConcordance <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("GenotypeConcordance") {
+        file.add_header(&header);
+    }
     for bean in beans {
         file.add_metric(&bean);
     }
@@ -637,6 +633,7 @@ fn metrics_file<B: MetricBean>(beans: Vec<B>) -> String {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("GenotypeConcordance");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let truth_vcf = arg(&args, "TRUTH_VCF=").ok_or("TRUTH_VCF= is required")?;
@@ -644,7 +641,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
-    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
+    let flag = |key: &str, default: bool| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(default)
+    };
     let number = |key: &str, default: i32| -> i32 {
         arg(&args, key)
             .and_then(|v| v.parse().ok())
@@ -663,8 +664,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let truth = read_vcf(&std::fs::read_to_string(&truth_vcf)?).map_err(|e| format!("{e:?}"))?;
-    let call = read_vcf(&std::fs::read_to_string(&call_vcf)?).map_err(|e| format!("{e:?}"))?;
+    let truth = picard_analysis::vcf_io::read_vcf_file(&truth_vcf)?;
+    let call = picard_analysis::vcf_io::read_vcf_file(&call_vcf)?;
 
     // `TRUTH_SAMPLE is required when the TRUTH_VCF has more than one sample`, and the same for the
     // call side: a one-sample file names its own sample, and a two-sample file refuses.

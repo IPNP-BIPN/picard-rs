@@ -99,9 +99,9 @@
       "source": "none"
     }
   ],
-  "rows": 22,
-  "tuples_total": 179,
-  "tuples_covered": 179,
+  "rows": 25,
+  "tuples_total": 218,
+  "tuples_covered": 218,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -153,6 +153,27 @@
     {
       "row": 2,
       "labels": {
+        "--CREATE_INDEX": "true",
+        "--INDEL_OUTPUT": "fixture[2]",
+        "--INPUT": "fixture[2]",
+        "--SEQUENCE_DICTIONARY": "fixture[2]",
+        "--SNP_OUTPUT": "fixture[2]",
+        "--STRICT": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INDEL_OUTPUT=/work/out/indel.vcf.gz",
+        "--INPUT=/work/fixtures/vcf_unsorted_samples.vcf",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/other.dict",
+        "--SNP_OUTPUT=/work/out/snp.vcf.gz",
+        "--STRICT=true",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 3,
+      "labels": {
         "--CREATE_INDEX": "false",
         "--INDEL_OUTPUT": "fixture[0]",
         "--INPUT": "fixture[1]",
@@ -172,41 +193,41 @@
       ]
     },
     {
-      "row": 3,
+      "row": 4,
       "labels": {
         "--CREATE_INDEX": "false",
         "--INDEL_OUTPUT": "fixture[1]",
         "--INPUT": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
-        "--SNP_OUTPUT": "fixture[1]",
-        "--STRICT": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--SNP_OUTPUT": "fixture[2]",
+        "--STRICT": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INDEL_OUTPUT=/work/out/indel_b.vcf",
         "--INPUT=/work/fixtures/split_types.vcf",
         "--SEQUENCE_DICTIONARY=null",
-        "--SNP_OUTPUT=/work/out/snp_b.vcf",
-        "--STRICT=true",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--SNP_OUTPUT=/work/out/snp.vcf.gz",
+        "--STRICT=false",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
-      "row": 4,
+      "row": 5,
       "labels": {
-        "--CREATE_INDEX": "true",
-        "--INDEL_OUTPUT": "fixture[0]",
-        "--INPUT": "fixture[2]",
+        "--CREATE_INDEX": "false",
+        "--INDEL_OUTPUT": "fixture[2]",
+        "--INPUT": "fixture[3]",
         "--SEQUENCE_DICTIONARY": "fixture[1]",
         "--SNP_OUTPUT": "fixture[0]",
         "--STRICT": "true",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--CREATE_INDEX=true",
-        "--INDEL_OUTPUT=/work/out/indel.vcf",
-        "--INPUT=/work/fixtures/vcf_unsorted_samples.vcf",
+        "--CREATE_INDEX=false",
+        "--INDEL_OUTPUT=/work/out/indel.vcf.gz",
+        "--INPUT=/work/fixtures/gather_1.vcf",
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
         "--SNP_OUTPUT=/work/out/snp.vcf",
         "--STRICT=true",
@@ -214,49 +235,49 @@
       ]
     },
     {
-      "row": 5,
+      "row": 6,
       "labels": {
         "--CREATE_INDEX": "true",
         "--INDEL_OUTPUT": "fixture[0]",
         "--INPUT": "fixture[3]",
-        "--SEQUENCE_DICTIONARY": "fixture[2]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--SNP_OUTPUT": "fixture[1]",
         "--STRICT": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--INDEL_OUTPUT=/work/out/indel.vcf",
         "--INPUT=/work/fixtures/gather_1.vcf",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/other.dict",
+        "--SEQUENCE_DICTIONARY=null",
         "--SNP_OUTPUT=/work/out/snp_b.vcf",
         "--STRICT=true",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
-      "row": 6,
+      "row": 7,
       "labels": {
         "--CREATE_INDEX": "true",
         "--INDEL_OUTPUT": "fixture[0]",
         "--INPUT": "fixture[4]",
-        "--SEQUENCE_DICTIONARY": "fixture[0]",
-        "--SNP_OUTPUT": "fixture[0]",
-        "--STRICT": "false",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--SNP_OUTPUT": "fixture[2]",
+        "--STRICT": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--INDEL_OUTPUT=/work/out/indel.vcf",
         "--INPUT=/work/fixtures/merge_b.vcf",
-        "--SEQUENCE_DICTIONARY=null",
-        "--SNP_OUTPUT=/work/out/snp.vcf",
-        "--STRICT=false",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--SNP_OUTPUT=/work/out/snp.vcf.gz",
+        "--STRICT=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
-      "row": 7,
+      "row": 8,
       "labels": {
         "--CREATE_INDEX": "true",
         "--INDEL_OUTPUT": "fixture[0]",
@@ -277,7 +298,7 @@
       ]
     },
     {
-      "row": 8,
+      "row": 9,
       "labels": {
         "--CREATE_INDEX": "true",
         "--INDEL_OUTPUT": "fixture[0]",
@@ -285,7 +306,7 @@
         "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--SNP_OUTPUT": "fixture[0]",
         "--STRICT": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
@@ -294,27 +315,6 @@
         "--SEQUENCE_DICTIONARY=null",
         "--SNP_OUTPUT=/work/out/snp.vcf",
         "--STRICT=true",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 9,
-      "labels": {
-        "--CREATE_INDEX": "false",
-        "--INDEL_OUTPUT": "fixture[1]",
-        "--INPUT": "fixture[2]",
-        "--SEQUENCE_DICTIONARY": "fixture[2]",
-        "--SNP_OUTPUT": "fixture[0]",
-        "--STRICT": "false",
-        "--VALIDATION_STRINGENCY": "STRICT"
-      },
-      "arguments": [
-        "--CREATE_INDEX=false",
-        "--INDEL_OUTPUT=/work/out/indel_b.vcf",
-        "--INPUT=/work/fixtures/vcf_unsorted_samples.vcf",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/other.dict",
-        "--SNP_OUTPUT=/work/out/snp.vcf",
-        "--STRICT=false",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -322,21 +322,21 @@
       "row": 10,
       "labels": {
         "--CREATE_INDEX": "false",
-        "--INDEL_OUTPUT": "fixture[1]",
-        "--INPUT": "fixture[3]",
-        "--SEQUENCE_DICTIONARY": "fixture[1]",
-        "--SNP_OUTPUT": "fixture[0]",
+        "--INDEL_OUTPUT": "fixture[0]",
+        "--INPUT": "fixture[2]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--SNP_OUTPUT": "fixture[1]",
         "--STRICT": "false",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
-        "--INDEL_OUTPUT=/work/out/indel_b.vcf",
-        "--INPUT=/work/fixtures/gather_1.vcf",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
-        "--SNP_OUTPUT=/work/out/snp.vcf",
+        "--INDEL_OUTPUT=/work/out/indel.vcf",
+        "--INPUT=/work/fixtures/vcf_unsorted_samples.vcf",
+        "--SEQUENCE_DICTIONARY=null",
+        "--SNP_OUTPUT=/work/out/snp_b.vcf",
         "--STRICT=false",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -345,19 +345,19 @@
         "--CREATE_INDEX": "false",
         "--INDEL_OUTPUT": "fixture[1]",
         "--INPUT": "fixture[4]",
-        "--SEQUENCE_DICTIONARY": "fixture[1]",
-        "--SNP_OUTPUT": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[2]",
+        "--SNP_OUTPUT": "fixture[0]",
         "--STRICT": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
         "--INDEL_OUTPUT=/work/out/indel_b.vcf",
         "--INPUT=/work/fixtures/merge_b.vcf",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
-        "--SNP_OUTPUT=/work/out/snp_b.vcf",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/other.dict",
+        "--SNP_OUTPUT=/work/out/snp.vcf",
         "--STRICT=true",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -369,7 +369,7 @@
         "--SEQUENCE_DICTIONARY": "fixture[1]",
         "--SNP_OUTPUT": "fixture[1]",
         "--STRICT": "false",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
@@ -378,7 +378,7 @@
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
         "--SNP_OUTPUT=/work/out/snp_b.vcf",
         "--STRICT=false",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -406,11 +406,158 @@
       "row": 14,
       "labels": {
         "--CREATE_INDEX": "true",
+        "--INDEL_OUTPUT": "fixture[1]",
+        "--INPUT": "fixture[2]",
+        "--SEQUENCE_DICTIONARY": "fixture[1]",
+        "--SNP_OUTPUT": "fixture[0]",
+        "--STRICT": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INDEL_OUTPUT=/work/out/indel_b.vcf",
+        "--INPUT=/work/fixtures/vcf_unsorted_samples.vcf",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
+        "--SNP_OUTPUT=/work/out/snp.vcf",
+        "--STRICT=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 15,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INDEL_OUTPUT": "fixture[1]",
+        "--INPUT": "fixture[3]",
+        "--SEQUENCE_DICTIONARY": "fixture[2]",
+        "--SNP_OUTPUT": "fixture[1]",
+        "--STRICT": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INDEL_OUTPUT=/work/out/indel_b.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/other.dict",
+        "--SNP_OUTPUT=/work/out/snp_b.vcf",
+        "--STRICT=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 16,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INDEL_OUTPUT": "fixture[2]",
+        "--INPUT": "fixture[0]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--SNP_OUTPUT": "fixture[1]",
+        "--STRICT": "false",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INDEL_OUTPUT=/work/out/indel.vcf.gz",
+        "--INPUT=/work/fixtures/split_types.vcf",
+        "--SEQUENCE_DICTIONARY=null",
+        "--SNP_OUTPUT=/work/out/snp_b.vcf",
+        "--STRICT=false",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 17,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INDEL_OUTPUT": "fixture[2]",
+        "--INPUT": "fixture[1]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--SNP_OUTPUT": "fixture[2]",
+        "--STRICT": "true",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INDEL_OUTPUT=/work/out/indel.vcf.gz",
+        "--INPUT=/work/fixtures/vcf_sorted_samples.vcf",
+        "--SEQUENCE_DICTIONARY=null",
+        "--SNP_OUTPUT=/work/out/snp.vcf.gz",
+        "--STRICT=true",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 18,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INDEL_OUTPUT": "fixture[2]",
+        "--INPUT": "fixture[4]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
+        "--SNP_OUTPUT": "fixture[1]",
+        "--STRICT": "false",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INDEL_OUTPUT=/work/out/indel.vcf.gz",
+        "--INPUT=/work/fixtures/merge_b.vcf",
+        "--SEQUENCE_DICTIONARY=null",
+        "--SNP_OUTPUT=/work/out/snp_b.vcf",
+        "--STRICT=false",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 19,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INDEL_OUTPUT": "fixture[2]",
+        "--INPUT": "fixture[5]",
+        "--SEQUENCE_DICTIONARY": "fixture[2]",
+        "--SNP_OUTPUT": "fixture[2]",
+        "--STRICT": "true",
+        "--VALIDATION_STRINGENCY": "STRICT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INDEL_OUTPUT=/work/out/indel.vcf.gz",
+        "--INPUT=/work/fixtures/vcf_no_contigs.vcf",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/other.dict",
+        "--SNP_OUTPUT=/work/out/snp.vcf.gz",
+        "--STRICT=true",
+        "--VALIDATION_STRINGENCY=STRICT"
+      ]
+    },
+    {
+      "row": 20,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INDEL_OUTPUT": "fixture[2]",
+        "--INPUT": "fixture[6]",
+        "--SEQUENCE_DICTIONARY": "fixture[2]",
+        "--SNP_OUTPUT": "fixture[2]",
+        "--STRICT": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INDEL_OUTPUT=/work/out/indel.vcf.gz",
+        "--INPUT=/work/fixtures/vcf_sites_only.vcf",
+        "--SEQUENCE_DICTIONARY=/work/fixtures/other.dict",
+        "--SNP_OUTPUT=/work/out/snp.vcf.gz",
+        "--STRICT=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 21,
+      "labels": {
+        "--CREATE_INDEX": "true",
         "--INDEL_OUTPUT": "fixture[0]",
         "--INPUT": "fixture[0]",
         "--SEQUENCE_DICTIONARY": "fixture[1]",
         "--SNP_OUTPUT": "fixture[0]",
-        "--STRICT": "false",
+        "--STRICT": "true",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
@@ -419,12 +566,12 @@
         "--INPUT=/work/fixtures/split_types.vcf",
         "--SEQUENCE_DICTIONARY=/work/fixtures/ref.dict",
         "--SNP_OUTPUT=/work/out/snp.vcf",
-        "--STRICT=false",
+        "--STRICT=true",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
-      "row": 15,
+      "row": 22,
       "labels": {
         "--CREATE_INDEX": "true",
         "--INDEL_OUTPUT": "fixture[0]",
@@ -432,7 +579,7 @@
         "--SEQUENCE_DICTIONARY": "fixture[2]",
         "--SNP_OUTPUT": "fixture[0]",
         "--STRICT": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
@@ -441,133 +588,49 @@
         "--SEQUENCE_DICTIONARY=/work/fixtures/other.dict",
         "--SNP_OUTPUT=/work/out/snp.vcf",
         "--STRICT=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
-      "row": 16,
+      "row": 23,
       "labels": {
         "--CREATE_INDEX": "true",
         "--INDEL_OUTPUT": "fixture[0]",
-        "--INPUT": "fixture[1]",
+        "--INPUT": "fixture[3]",
         "--SEQUENCE_DICTIONARY": "fixture[0]",
-        "--SNP_OUTPUT": "fixture[0]",
+        "--SNP_OUTPUT": "fixture[2]",
         "--STRICT": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--INDEL_OUTPUT=/work/out/indel.vcf",
-        "--INPUT=/work/fixtures/vcf_sorted_samples.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf",
         "--SEQUENCE_DICTIONARY=null",
-        "--SNP_OUTPUT=/work/out/snp.vcf",
+        "--SNP_OUTPUT=/work/out/snp.vcf.gz",
         "--STRICT=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
-      "row": 17,
-      "labels": {
-        "--CREATE_INDEX": "true",
-        "--INDEL_OUTPUT": "fixture[0]",
-        "--INPUT": "fixture[2]",
-        "--SEQUENCE_DICTIONARY": "fixture[0]",
-        "--SNP_OUTPUT": "fixture[1]",
-        "--STRICT": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
-      },
-      "arguments": [
-        "--CREATE_INDEX=true",
-        "--INDEL_OUTPUT=/work/out/indel.vcf",
-        "--INPUT=/work/fixtures/vcf_unsorted_samples.vcf",
-        "--SEQUENCE_DICTIONARY=null",
-        "--SNP_OUTPUT=/work/out/snp_b.vcf",
-        "--STRICT=true",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 18,
-      "labels": {
-        "--CREATE_INDEX": "true",
-        "--INDEL_OUTPUT": "fixture[0]",
-        "--INPUT": "fixture[3]",
-        "--SEQUENCE_DICTIONARY": "fixture[0]",
-        "--SNP_OUTPUT": "fixture[0]",
-        "--STRICT": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
-      },
-      "arguments": [
-        "--CREATE_INDEX=true",
-        "--INDEL_OUTPUT=/work/out/indel.vcf",
-        "--INPUT=/work/fixtures/gather_1.vcf",
-        "--SEQUENCE_DICTIONARY=null",
-        "--SNP_OUTPUT=/work/out/snp.vcf",
-        "--STRICT=true",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 19,
-      "labels": {
-        "--CREATE_INDEX": "true",
-        "--INDEL_OUTPUT": "fixture[0]",
-        "--INPUT": "fixture[4]",
-        "--SEQUENCE_DICTIONARY": "fixture[2]",
-        "--SNP_OUTPUT": "fixture[0]",
-        "--STRICT": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
-      },
-      "arguments": [
-        "--CREATE_INDEX=true",
-        "--INDEL_OUTPUT=/work/out/indel.vcf",
-        "--INPUT=/work/fixtures/merge_b.vcf",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/other.dict",
-        "--SNP_OUTPUT=/work/out/snp.vcf",
-        "--STRICT=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
-      ]
-    },
-    {
-      "row": 20,
-      "labels": {
-        "--CREATE_INDEX": "true",
-        "--INDEL_OUTPUT": "fixture[0]",
-        "--INPUT": "fixture[5]",
-        "--SEQUENCE_DICTIONARY": "fixture[2]",
-        "--SNP_OUTPUT": "fixture[0]",
-        "--STRICT": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
-      },
-      "arguments": [
-        "--CREATE_INDEX=true",
-        "--INDEL_OUTPUT=/work/out/indel.vcf",
-        "--INPUT=/work/fixtures/vcf_no_contigs.vcf",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/other.dict",
-        "--SNP_OUTPUT=/work/out/snp.vcf",
-        "--STRICT=true",
-        "--VALIDATION_STRINGENCY=SILENT"
-      ]
-    },
-    {
-      "row": 21,
+      "row": 24,
       "labels": {
         "--CREATE_INDEX": "true",
         "--INDEL_OUTPUT": "fixture[0]",
         "--INPUT": "fixture[6]",
-        "--SEQUENCE_DICTIONARY": "fixture[2]",
+        "--SEQUENCE_DICTIONARY": "fixture[0]",
         "--SNP_OUTPUT": "fixture[0]",
         "--STRICT": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
         "--INDEL_OUTPUT=/work/out/indel.vcf",
         "--INPUT=/work/fixtures/vcf_sites_only.vcf",
-        "--SEQUENCE_DICTIONARY=/work/fixtures/other.dict",
+        "--SEQUENCE_DICTIONARY=null",
         "--SNP_OUTPUT=/work/out/snp.vcf",
         "--STRICT=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     }
   ]

@@ -2025,6 +2025,7 @@ fn separate_ends(read1: &[String], read2: &[String]) -> (SamHeader, Vec<BamRecor
 }
 
 fn main() {
+    picard_analysis::argument_check::check("MergeBamAlignment");
     picard_analysis::output::install();
     let args = CommandLine::from_env();
 

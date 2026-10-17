@@ -298,6 +298,7 @@ fn accept(
 }
 
 fn main() {
+    picard_analysis::argument_check::check("CollectRrbsMetrics");
     picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
@@ -476,8 +477,9 @@ fn main() {
     let mut summary_file = MetricsFile::new();
     let mut details_file = MetricsFile::new();
     for file in [&mut summary_file, &mut details_file] {
-        file.add_header(&format!("{TOOL} <command line>"));
-        file.add_header("Started on: <timestamp>");
+        for header in picard_analysis::command_line::default_headers(TOOL) {
+            file.add_header(&header);
+        }
     }
     for (_, units) in &distributors {
         for (_, unit) in units {

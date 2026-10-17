@@ -583,6 +583,7 @@ fn write_feature(out: &mut String, feature: &Gff3Feature) {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("SortGff");
     picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),

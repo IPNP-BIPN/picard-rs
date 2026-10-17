@@ -9,11 +9,7 @@
 //! contract mounts it, refuses every BAM row; the SAM rows are refused first, by name.
 
 use picard_analysis::add_comments_to_bam::{add_comments_to_bam, AddCommentsError};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
+use picard_analysis::args::arg;
 
 fn refuse(message: &str) -> ! {
     eprintln!("Exception in thread \"main\" picard.PicardException: {message}");
@@ -21,6 +17,7 @@ fn refuse(message: &str) -> ! {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("AddCommentsToBam");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")

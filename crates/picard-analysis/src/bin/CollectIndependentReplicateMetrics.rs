@@ -262,7 +262,8 @@ struct Vcf {
 }
 
 fn read_vcf(path: &str) -> Vcf {
-    let text = std::fs::read_to_string(path).unwrap_or_else(|e| fail(&format!("{e}")));
+    let text =
+        picard_analysis::vcf_io::read_to_string(path).unwrap_or_else(|e| fail(&format!("{e}")));
     let mut contigs = Vec::new();
     let mut samples = Vec::new();
     let mut sites = Vec::new();
@@ -385,6 +386,7 @@ fn byte_histogram(bin: &str, value: &str, counts: &BTreeMap<i64, f64>) -> Histog
 }
 
 fn main() {
+    picard_analysis::argument_check::check("CollectIndependentReplicateMetrics");
     picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
@@ -755,8 +757,9 @@ fn main() {
 
     metric.calculate_derived_fields();
     let mut file = MetricsFile::new();
-    file.add_header(&format!("{TOOL} <command line>"));
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers(TOOL) {
+        file.add_header(&header);
+    }
     file.add_metric(&metric);
     file.histograms.push(byte_histogram(
         "alleleBalance",
@@ -786,8 +789,9 @@ fn main() {
                 .collect(),
         };
         let mut file = MetricsFile::new();
-        file.add_header(&format!("{TOOL} <command line>"));
-        file.add_header("Started on: <timestamp>");
+        for header in picard_analysis::command_line::default_headers(TOOL) {
+            file.add_header(&header);
+        }
         file.histograms.push(tuple(&confusion, "Count"));
         file.histograms
             .push(tuple(&confusion_distance, "EditDistance"));

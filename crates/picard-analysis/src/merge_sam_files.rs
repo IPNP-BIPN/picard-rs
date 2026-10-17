@@ -564,6 +564,204 @@ pub fn merge_sam_files_to_bam(
     Ok(w.finish().expect("finish never fails on a Vec"))
 }
 
+/// `MergingSamRecordIterator` over inputs already read: a `java.util.PriorityQueue` of the inputs
+/// keyed by each one's next record, polled one record at a time and offered back while it has
+/// more. The queue's sift order is reproduced rather than a stable sort, because two heads the
+/// comparator calls equal leave in the heap's order, not in file order.
+pub fn priority_merge(
+    per_input: Vec<Vec<BamRecord>>,
+    compare: fn(&BamRecord, &BamRecord) -> std::cmp::Ordering,
+) -> Vec<BamRecord> {
+    use std::cmp::Ordering;
+    let total = per_input.iter().map(Vec::len).sum();
+    let mut rest: Vec<std::vec::IntoIter<BamRecord>> =
+        per_input.into_iter().map(Vec::into_iter).collect();
+    let mut heads: Vec<Option<BamRecord>> = rest.iter_mut().map(Iterator::next).collect();
+    let order = |heads: &[Option<BamRecord>], a: usize, b: usize| -> Ordering {
+        let head = |i: usize| heads[i].as_ref().expect("a queued input has a record");
+        compare(head(a), head(b))
+    };
+    // `offer`: siftUp.
+    let offer = |queue: &mut Vec<usize>, heads: &[Option<BamRecord>], x: usize| {
+        let mut k = queue.len();
+        queue.push(x);
+        while k > 0 {
+            let parent = (k - 1) >> 1;
+            let e = queue[parent];
+            if order(heads, x, e) != Ordering::Less {
+                break;
+            }
+            queue[k] = e;
+            k = parent;
+        }
+        queue[k] = x;
+    };
+    let mut queue: Vec<usize> = Vec::with_capacity(heads.len());
+    for index in 0..heads.len() {
+        if heads[index].is_some() {
+            offer(&mut queue, &heads, index);
+        }
+    }
+    let mut out = Vec::with_capacity(total);
+    while !queue.is_empty() {
+        // `poll`: the head leaves, and the last element sifts down from the root.
+        let head = queue[0];
+        let last = queue.pop().expect("the queue is not empty");
+        let n = queue.len();
+        if n > 0 {
+            let mut k = 0;
+            while k < n >> 1 {
+                let mut child = 2 * k + 1;
+                let right = child + 1;
+                if right < n && order(&heads, queue[child], queue[right]) == Ordering::Greater {
+                    child = right;
+                }
+                if order(&heads, last, queue[child]) != Ordering::Greater {
+                    break;
+                }
+                queue[k] = queue[child];
+                k = child;
+            }
+            queue[k] = last;
+        }
+        let next = rest[head].next();
+        out.push(std::mem::replace(&mut heads[head], next).expect("a queued input has a record"));
+        if heads[head].is_some() {
+            offer(&mut queue, &heads, head);
+        }
+    }
+    out
+}
+
+/// What `MergingSamRecordIterator` hands out for each input after `SamFileHeaderMerger` has merged
+/// their headers without merging dictionaries: the merged header, and every input's records with
+/// their `RG` and `PG` tags renamed where the merge renamed the group.
+pub fn merge_headers_for_iteration(
+    parsed: Vec<(SamHeader, Vec<BamRecord>)>,
+    sort_order_name: &str,
+) -> Result<(SamHeader, Vec<Vec<BamRecord>>), MergeError> {
+    let lengths: Vec<usize> = parsed.iter().map(|(_, records)| records.len()).collect();
+    let (header, records) = merge_parsed(parsed, sort_order_name, false, None)?;
+    let mut records = records.into_iter();
+    let per_input = lengths
+        .iter()
+        .map(|&n| records.by_ref().take(n).collect())
+        .collect();
+    Ok((header, per_input))
+}
+
+/// The merged header, and the records or what reading the first of them throws.
+pub type OpenedInputs = (SamHeader, Result<Vec<BamRecord>, String>);
+
+/// `AbstractMarkDuplicatesCommandLineProgram.openInputs`: the first header takes the assumed sort
+/// order when there is one, a single input is read as it is, and several go through a
+/// `SamFileHeaderMerger` in the first header's order (dictionaries not merged) and a
+/// `MergingSamRecordIterator` that checks every input's order unless one was assumed. Each `Err`
+/// is what the JVM prints after `Exception in thread "main" `: the outer one is thrown while the
+/// inputs are opened, the inner one only once the first record is read.
+pub fn open_inputs(
+    mut inputs: Vec<(SamHeader, Vec<BamRecord>)>,
+    assumed: Option<&str>,
+) -> Result<OpenedInputs, String> {
+    if let Some(order) = assumed {
+        inputs[0].0.set_sort_order(order);
+    }
+    if inputs.len() == 1 {
+        let (header, records) = inputs.pop().expect("one input");
+        return Ok((header, Ok(records)));
+    }
+    let order_of = |h: &SamHeader| h.attributes.get("SO").unwrap_or("unsorted").to_string();
+    let sort_order = order_of(&inputs[0].0);
+    let compatible = assumed.is_some()
+        || sort_order == "unsorted"
+        || inputs.iter().all(|(h, _)| order_of(h) == sort_order);
+    let headers: Vec<SamHeader> = inputs.iter().map(|(h, _)| h.clone()).collect();
+    let duplicate = |kind: &str, id: &str| -> String {
+        let header = headers
+            .iter()
+            .find(|h| {
+                let ids: Vec<&str> = if kind == "RG" {
+                    h.read_groups.iter().map(|g| g.id.as_str()).collect()
+                } else {
+                    h.programs.iter().map(|p| p.id.as_str()).collect()
+                };
+                ids.iter().filter(|&&i| i == id).count() > 1
+            })
+            .map(|h| {
+                let attributes: Vec<String> = h
+                    .attributes
+                    .iter()
+                    .map(|(k, v)| format!("{k}={v}"))
+                    .collect();
+                format!("SAMFileHeader{{{}}}", attributes.join(", "))
+            })
+            .unwrap_or_default();
+        format!(
+            "htsjdk.samtools.SAMException: Input file: {header} contains more than one {kind} \
+             with the same id ({id})"
+        )
+    };
+    let (header, per_input) = match merge_headers_for_iteration(inputs, &sort_order) {
+        Ok(merged) => merged,
+        Err(MergeError::DuplicateReadGroupId(id)) => return Err(duplicate("RG", &id)),
+        Err(MergeError::DuplicateProgramId(id)) => return Err(duplicate("PG", &id)),
+        Err(MergeError::ProgramChainBroken) => {
+            return Err(
+                "htsjdk.samtools.SAMException: program groups weren't processed. Do \
+                        their PP ids point to existing PGs? "
+                    .to_string(),
+            )
+        }
+        Err(other) => return Err(format!("htsjdk.samtools.SAMException: {other:?}")),
+    };
+    if !compatible {
+        return Err(
+            "htsjdk.samtools.SAMException: Files are not compatible with sort order".into(),
+        );
+    }
+    // The queue compares the first two non-empty inputs' heads as soon as it is read, the
+    // second's first.
+    let heads: Vec<&BamRecord> = per_input.iter().filter_map(|r| r.first()).take(2).collect();
+    let records = match sort_order.as_str() {
+        "coordinate" => Ok(priority_merge(per_input, htsjdk_bam::coordinate::compare)),
+        "queryname" => Ok(priority_merge(per_input, htsjdk_bam::query_name::compare)),
+        // `SortOrder.unknown` has no comparator, and `ComparableSamRecordIterator.compareTo` asks it
+        // for its class.
+        "unknown" if heads.len() == 2 => Err("java.lang.NullPointerException: Cannot invoke \
+                                              \"Object.getClass()\" because \"this.comparator\" \
+                                              is null"
+            .to_string()),
+        // `SAMRecordDuplicateComparator` reads every mapped pair's mate coordinate from its MC.
+        "duplicate" if heads.len() == 2 => {
+            let lacks_mate_cigar = |r: &BamRecord| {
+                r.flags & 0x1 != 0
+                    && r.flags & 0x4 == 0
+                    && r.flags & 0x8 == 0
+                    && r.tags.get(Tag::new(b"MC")).is_none()
+            };
+            if let Some(r) = [heads[1], heads[0]]
+                .into_iter()
+                .find(|r| lacks_mate_cigar(r))
+            {
+                Err(format!(
+                    "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found: {}",
+                    crate::view_sam::sam_string(&header, r).trim_end()
+                ))
+            } else if per_input.iter().flatten().any(lacks_mate_cigar) {
+                // shortcut: a later record without MC throws where the duplicate order meets it,
+                // which needs that comparator ported; every caller refuses this order afterwards.
+                Err("merging inputs in duplicate order is not ported".to_string())
+            } else {
+                Ok(per_input.concat())
+            }
+        }
+        // shortcut: any other order merges by identity hash in htsjdk, which no caller reads on
+        // (every MarkDuplicates tool refuses that order next); port it if one ever accepts it.
+        _ => Ok(per_input.concat()),
+    };
+    Ok((header, records))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -599,6 +797,36 @@ mod tests {
              c\t0\tchr1\t30\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n\
              d\t0\tchr1\t40\t60\t4M\t*\t0\t0\tACGT\tIIII\tRG:Z:rg1\n"
         );
+    }
+
+    #[test]
+    fn open_inputs_merges_by_coordinate_and_refuses_a_mixed_order() {
+        let a = read_sam(&format!("{H}{}{}", rec("a", 10), rec("c", 30))).unwrap();
+        let b = read_sam(&format!("{H}{}{}", rec("b", 20), rec("d", 40))).unwrap();
+        let (header, records) = open_inputs(vec![a.clone(), b.clone()], None).unwrap();
+        let records = records.unwrap();
+        assert_eq!(header.attributes.get("GO"), Some("none"));
+        let names: Vec<&str> = records.iter().map(|r| r.read_name.as_str()).collect();
+        assert_eq!(names, ["a", "b", "c", "d"]);
+
+        let queryname = read_sam(&format!(
+            "{}{}",
+            H.replace("SO:coordinate", "SO:queryname"),
+            rec("e", 5)
+        ))
+        .unwrap();
+        let refused = open_inputs(vec![a.clone(), queryname.clone()], None).unwrap_err();
+        assert!(
+            refused.ends_with("Files are not compatible with sort order"),
+            "{refused}"
+        );
+        // An assumed order is not checked against the files.
+        assert!(open_inputs(vec![a.clone(), queryname], Some("coordinate")).is_ok());
+        // `unknown` has no comparator: opening succeeds, reading the first record throws.
+        let (_, unread) = open_inputs(vec![a, b], Some("unknown")).unwrap();
+        assert!(unread
+            .unwrap_err()
+            .starts_with("java.lang.NullPointerException"));
     }
 
     #[test]

@@ -4,6 +4,7 @@
 //! `picard_analysis::wgs_cli` and `picard_analysis::wgs_walk`.
 
 fn main() {
+    picard_analysis::argument_check::check("CollectRawWgsMetrics");
     picard_analysis::output::install();
     picard_analysis::wgs_cli::main_for(picard_analysis::wgs_cli::Tool::Raw);
 }

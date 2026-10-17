@@ -40,7 +40,7 @@ use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
 use picard_analysis::metrics_cli::{absolute, thrown, Args};
 use picard_analysis::vcf_io::{
-    add_other_meta_data_line, header_dictionary, read_path, write_output, Record,
+    add_other_meta_data_line, header_dictionary, is_compressed_vcf, read_path, write_output, Record,
 };
 
 /// Java's `String.split(regex)` for a one-character pattern: trailing empty strings removed.
@@ -354,7 +354,10 @@ fn run(args: &Args, output: &str) -> Result<(), String> {
 
     // `VariantContextWriterBuilder.build()` opens the file, and only then refuses to index on
     // the fly without a dictionary.
-    let Some(dictionary) = header_dictionary(&vcf.file.header) else {
+    // A `.vcf.gz` gets a tabix creator instead, which needs no dictionary.
+    let dictionary =
+        header_dictionary(&vcf.file.header).or_else(|| is_compressed_vcf(output).then(Vec::new));
+    let Some(dictionary) = dictionary else {
         std::fs::write(output, b"").map_err(|e| format!("{e}"))?;
         return Err(
             "java.lang.IllegalArgumentException: A reference dictionary is required for \
@@ -381,6 +384,7 @@ fn run(args: &Args, output: &str) -> Result<(), String> {
         written.push(Record {
             variant: merged,
             lazy_genotypes: None,
+            fully_decoded: false,
         });
     }
     write_output(output, &header, &written, Some(&dictionary)).map_err(|e| format!("{e}"))?;
@@ -391,6 +395,7 @@ fn run(args: &Args, output: &str) -> Result<(), String> {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("MergePedIntoVcf");
     picard_analysis::output::install();
     let args = Args::from_env(&[
         ("VCF", "ORIGINAL_VCF"),

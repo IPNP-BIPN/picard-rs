@@ -15,14 +15,11 @@
 //! column of no-calls for the new sample; but give it an `OLD_SAMPLE_NAME` and the check reads
 //! the first of zero samples, which is the JVM's index-out-of-bounds.
 
-use picard_analysis::vcf_io::{die, header_dictionary, read_path, write_output};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
+use picard_analysis::args::arg;
+use picard_analysis::vcf_io::{die, header_dictionary, is_compressed_vcf, read_path, write_output};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("RenameSampleInVcf");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
@@ -35,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Barclay reads the value `null` as no value, which is this argument's default.
     let old_sample_name = arg(&args, "OLD_SAMPLE_NAME=").filter(|value| value != "null");
     let create_index = arg(&args, "CREATE_INDEX=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(false);
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {
@@ -64,14 +61,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     header.samples = vec![new_sample_name];
 
     let dictionary = header_dictionary(&header);
-    if create_index && dictionary.is_none() {
+    // The builder's refusal is `VCF`'s alone: a `BLOCK_COMPRESSED_VCF` gets a tabix creator with
+    // or without a dictionary.
+    if create_index && dictionary.is_none() && !is_compressed_vcf(&output) {
         die(
             "java.lang.IllegalArgumentException: A reference dictionary is required for creating \
              Tribble indices on the fly",
         );
     }
     let index_dictionary = if create_index {
-        dictionary.as_deref()
+        Some(dictionary.as_deref().unwrap_or_default())
     } else {
         None
     };

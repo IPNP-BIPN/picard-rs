@@ -428,14 +428,14 @@
         "port": "MakeSitesOnlyVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "RenameSampleInVcf",
         "port": "RenameSampleInVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "VcfToIntervalList",
@@ -448,49 +448,49 @@
         "port": "SortVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "UpdateVcfSequenceDictionary",
         "port": "UpdateVcfSequenceDictionary",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "MergeVcfs",
         "port": "MergeVcfs",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "GatherVcfs",
         "port": "GatherVcfs",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "SplitVcfs",
         "port": "SplitVcfs",
         "t": 2,
         "status": "measured",
-        "output_name": "snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf"
+        "output_name": "snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf,snp.vcf.gz,snp.vcf.gz.tbi,indel.vcf.gz,indel.vcf.gz.tbi"
       },
       {
         "tool": "VcfFormatConverter",
         "port": "VcfFormatConverter",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf,output.vcf.gz"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "FixVcfHeader",
         "port": "FixVcfHeader",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "CollectWgsMetrics",
@@ -579,7 +579,7 @@
         "port": "LiftoverVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf,reject.vcf,reject_b.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi,reject.vcf,reject_b.vcf"
       },
       {
         "tool": "CollectMultipleMetrics",
@@ -704,7 +704,7 @@
         "port": "FilterVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "CheckFingerprint",
@@ -1545,6 +1545,63 @@
           "dump": "RejectionDump",
           "golden": "crates/picard-analysis/tests/data/rejections.txt.gz",
           "why": "No golden yet, and none may be committed from here: the bit-identity contract accepts goldens produced on real x86-64 CI, and this harness has so far only run in an emulated container. The generated job runs it and uploads the dump; committing that artefact is what turns this suite oracle-backed. Decision 0008 is what a golden of unknown provenance costs."
+        }
+      ]
+    },
+    {
+      "id": "commandline-declarations",
+      "title": "The names each of Picard's two parsers accepts, per tool",
+      "status": "oracle-backed",
+      "harness": "tools/commandline-conformance",
+      "tools": [],
+      "why": "A binary refuses a NAME=value its tool does not declare, so the list of what a tool declares decides which command lines run at all, and a name missing from it refuses a valid one. The list is read from the parsers' own tables, not from documentation: the legacy parser's optionMap holds BedToIntervalList's hidden DROP_MISSING_CONTIGS, which no inventory lists, and lacks MarkDuplicatesWithMateCigar's TAGGING_POLICY, which MarkDuplicates has. Every binary embeds this golden.",
+      "compare": {
+        "mode": "lines",
+        "skip_comment_lines": true
+      },
+      "expect_rows": null,
+      "expect_contains": [
+        "legacy\tBedToIntervalList\tDROP_MISSING_CONTIGS\tDROP_MISSING_CONTIGS",
+        "legacy\tCollectInsertSizeMetrics\tH\tHISTOGRAM_FILE",
+        "barclay\tBuildBamIndex\thelp",
+        "positional\tCompareSAMs\t2\t2"
+      ],
+      "$expect_why": "Each phrase is a fact a wrong dump would lose: a hidden argument the legacy parser still takes, a short name that differs between the two parsers, a Barclay-only name, and the one tool with positional words.",
+      "cases": [
+        {
+          "dump": "CommandLineDeclarationsDump",
+          "golden": "crates/picard-analysis/tests/data/command_line_declarations.txt.gz",
+          "why": "Frozen from the candidate artefact of run 38940205055 (real x86-64), byte for byte the local dump."
+        }
+      ]
+    },
+    {
+      "id": "commandline",
+      "title": "What Picard prints and exits with for a command line it does not run",
+      "status": "oracle-backed",
+      "harness": "tools/commandline-conformance",
+      "tools": [],
+      "why": "An unknown or misspelled argument is refused, and -h, --help and --version are answered, before a tool runs. What the user sees is the whole process: the syntax banner, the parser's message, the usage after it, which stream each goes to, and the exit status, so each probe is a real `java -jar picard.jar` process. The binaries embed this golden and print its texts with the user's words put in, so the comparison is of the reference's bytes against the port's. Two fields are a clock, the second htsjdk's Log stamps a line with and log4j's millisecond, and the dump replaces both with a fixed value; nothing else is canonicalized. One text depends on the machine: EstimateLibraryComplexity's MAX_RECORDS_IN_RAM default is computed from the JVM's heap, so the probes run with a fixed -Xmx2g.",
+      "compare": {
+        "mode": "lines",
+        "skip_comment_lines": true
+      },
+      "expect_rows": null,
+      "expect_contains": [
+        "run\tSortSam\tlegacy_unknown\t1",
+        "ERROR: Unrecognized option: PICARD_RS_PROBE",
+        "ERROR: Invalid argument 'picard_rs_probe'.",
+        "PICARD_RS_PROBE is not a recognized option",
+        "Can't parse option name containing an embedded '=' (PICARD_RS_PROBE=1)",
+        "USAGE: BuildBamIndex [arguments]",
+        "Version:3.5.0"
+      ],
+      "$expect_why": "A row count is not evidence: a dump whose processes never started a JVM would still print one row per probe. Each phrase is one answer the binaries reproduce.",
+      "cases": [
+        {
+          "dump": "CommandLineDump",
+          "golden": "crates/picard-analysis/tests/data/command_line.txt.gz",
+          "why": "Frozen from the candidate artefact of run 38940205055 (real x86-64). The local dump matched it byte for byte except EstimateLibraryComplexity's heap-derived MAX_RECORDS_IN_RAM default, which is why the probes now run on a fixed heap."
         }
       ]
     },
@@ -3097,6 +3154,53 @@
       ]
     },
     {
+      "id": "vcfgz",
+      "title": "every VCF writer asked for a .vcf.gz: the BGZF bytes and the tabix index beside them",
+      "status": "oracle-backed",
+      "harness": "tools/vcfgz-conformance",
+      "java_props": [
+        "-Duser.language=en",
+        "-Duser.country=US"
+      ],
+      "$java_props_why": "No -Dsamjdk.use_libdeflate=false here: USE_JDK_DEFLATER=true means libdeflate in Picard 3.5.0, and the sort-jdk-deflater cases measure exactly that. Every other case runs under GKL, which instanceMain installs.",
+      "tools": [
+        "SortVcf",
+        "MakeSitesOnlyVcf",
+        "RenameSampleInVcf",
+        "UpdateVcfSequenceDictionary",
+        "FilterVcf",
+        "FixVcfHeader",
+        "MergeVcfs",
+        "SplitVcfs",
+        "LiftoverVcf",
+        "VcfFormatConverter",
+        "GatherVcfs"
+      ],
+      "why": "A .vcf.gz is a BLOCK_COMPRESSED_VCF: a VCFWriter over a BlockCompressedOutputStream at the installed level and deflater, and a TabixIndexCreator that the builder always attaches and that indexes under INDEX_ON_THE_FLY. So the deflater, the level, the 64 KiB block boundaries and every chunk of the .tbi decide the bytes, and the tabix creator, unlike the .idx one, needs no dictionary and refuses records out of order. GatherVcfs over .vcf.gz inputs copies blocks and writes no index. The inputs are written by a formula the port side repeats (tools/vcfgz-conformance/port_side.py), and each input's MD5 is a row.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "expect_rows": 121,
+      "expect_contains": [
+        "exit\tsort\t0",
+        "file\tsort/out.vcf.gz.tbi",
+        "file\tsort-jdk-deflater/out.vcf.gz.tbi",
+        "file\tfilter-no-dictionary/out.vcf.gz.tbi",
+        "file\tliftover/reject.vcf.gz",
+        "file\tgather-block-copy/out.vcf.gz",
+        "Features added out of order",
+        "getSequenceLength()"
+      ],
+      "$expect_why": "A row count is not evidence: these are the behaviours the suite exists for, a .tbi beside a GKL and a libdeflate output, one indexed without a dictionary, the rejects compressed too, a block-copied gather, and the two refusals only the tabix creator makes.",
+      "cases": [
+        {
+          "dump": "VcfGzDump",
+          "golden": "crates/picard-analysis/tests/data/vcfgz.txt.gz",
+          "why": "Twenty-nine runs over eleven tools: the plain sort, its index off, three levels, libdeflate at two levels, the .bgz name and a .vcf.gz input; then each other writer to a .vcf.gz, the two indexes without a dictionary, the out-of-order and missing-contig refusals, both rejects and accepted records of LiftoverVcf, the converter both ways, and GatherVcfs by block copy and conventionally. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 39029131787 on PR 374, and identical to the port side (tools/vcfgz-conformance/port_side.py) row for row. Both sides work in /tmp/picard-rs-vcfgz, because LiftoverVcf writes R's absolute path into its header."
+        }
+      ]
+    },
+    {
       "id": "mendelianviolations",
       "status": "oracle-backed",
       "title": "a trio's impossible genotypes, and the calls the checker declines to look at",
@@ -3213,6 +3317,150 @@
           "dump": "CreateExtendedManifestDump",
           "golden": "crates/picard-analysis/tests/data/create_extended_manifest.txt.gz",
           "why": "Four runs over manifests written record by record: four loci the reference carries, the same with an empty dbSNP, a locus on a contig the reference does not have, and a locus past the end of its contig. From the pinned container on a real x86-64 runner, published as the golden-pending artefact of the run that added it, and identical to the local smoke run."
+        }
+      ]
+    },
+    {
+      "id": "headerlines",
+      "title": "the command line, Started on and @PG lines a tool writes about its own run",
+      "status": "oracle-backed",
+      "harness": "tools/headerlines-conformance",
+      "java_props": [
+        "-Duser.language=en",
+        "-Duser.country=US",
+        "-Dsamjdk.use_libdeflate=false",
+        "-Xmx2g"
+      ],
+      "$java_props_why": "EstimateLibraryComplexity's constructor sets its MAX_RECORDS_IN_RAM default from Runtime.maxMemory(), so without a fixed heap the golden would hold the runner's memory: 17863638 in a 64 GB Docker VM, 4450325 on the CI runner. A fixed -Xmx makes the number the same everywhere; the Rust test compares that one value by its shape.",
+      "tools": [
+        "AccumulateVariantCallingMetrics",
+        "CalculateFingerprintMetrics",
+        "CheckFingerprint",
+        "ClusterCrosscheckMetrics",
+        "CollectAlignmentSummaryMetrics",
+        "CollectArraysVariantCallingMetrics",
+        "CollectBaseDistributionByCycle",
+        "CollectDuplicateMetrics",
+        "CollectGcBiasMetrics",
+        "CollectHiSeqXPfFailMetrics",
+        "CollectIlluminaBasecallingMetrics",
+        "CollectIlluminaLaneMetrics",
+        "CollectIndependentReplicateMetrics",
+        "CollectInsertSizeMetrics",
+        "CollectJumpingLibraryMetrics",
+        "CollectMultipleMetrics",
+        "CollectOxoGMetrics",
+        "CollectQualityYieldMetrics",
+        "CollectQualityYieldMetricsFlow",
+        "CollectQualityYieldMetricsSNVQ",
+        "CollectRnaSeqMetrics",
+        "CollectRrbsMetrics",
+        "CollectSamErrorMetrics",
+        "CollectSequencingArtifactMetrics",
+        "CollectHsMetrics",
+        "CollectTargetedPcrMetrics",
+        "CollectUmiPrevalenceMetrics",
+        "CollectVariantCallingMetrics",
+        "CollectWgsMetrics",
+        "CollectRawWgsMetrics",
+        "CollectWgsMetricsWithNonZeroCoverage",
+        "CompareMetrics",
+        "CompareSAMs",
+        "ConvertSequencingArtifactToOxoG",
+        "CreateBafRegressMetricsFile",
+        "CreateVerifyIDIntensityContaminationMetricsFile",
+        "CrosscheckFingerprints",
+        "CrosscheckReadGroupFingerprints",
+        "DownsampleSam",
+        "EstimateLibraryComplexity",
+        "ExtractIlluminaBarcodes",
+        "IlluminaBasecallsToFastq",
+        "IlluminaBasecallsToSam",
+        "FindMendelianViolations",
+        "GenotypeConcordance",
+        "MarkDuplicates",
+        "MarkDuplicatesWithMateCigar",
+        "SimpleMarkDuplicatesWithMateCigar",
+        "UmiAwareMarkDuplicatesWithMateCigar",
+        "MarkIlluminaAdapters",
+        "MeanQualityByCycle",
+        "QualityScoreDistribution",
+        "PositionBasedDownsampleSam",
+        "IntervalListTools"
+      ],
+      "why": "Every other suite strips these lines (strip_line_prefixes, strip_pg) because they carry paths and a clock reading, so nothing compared them and picard-rs wrote the placeholders `<command line>` and `<timestamp>` and no @PG at all. A NAME=value command line is parsed by Barclay's LegacyCommandLineArgumentParser, whose line is the tool name, the set options in declaration order, three spaces, and every unset option with a non-null default: so what is measured is each tool's option table (order, names, defaults, types), the line itself for generated command lines that exercise short names, case, value normalisation, null and collections, and the @PG records and metrics headers of real runs of the seven tools that stamp one. The runs read and write under /work/hl, which the Rust side maps to its own directory; the Started on value is compared by its format only.",
+      "compare": {
+        "mode": "keyed",
+        "rules": [
+          {
+            "rule": "strip_line_prefixes",
+            "kinds": [
+              "metrics"
+            ],
+            "prefixes": [
+              "# Started on:"
+            ],
+            "why": "The one value no two runs share: new Date() at the start of the run. The golden keeps the line, and the Rust test checks the port writes it in Date.toString()'s format; only its value is left out of the oracle comparison."
+          }
+        ]
+      },
+      "expect_rows": 1859,
+      "expect_contains": [
+        "MarkDuplicates INPUT=[/work/hl/in.bam] OUTPUT=/work/hl/md.bam METRICS_FILE=/work/hl/md.metrics    MAX_SEQUENCES_FOR_DISK_READ_ENDS_MAP=50000",
+        "@PG\\tID:bwa.6\\tVN:9\\tCL:marked by hand\\tPN:MD\\tPP:samtools",
+        "rs:574583166",
+        "@PG\\tID:2\\tCL:IntervalListTools INPUT=[/work/hl/in.interval_list]",
+        "# Started on: "
+      ],
+      "$expect_why": "A row count is not evidence: these are the behaviours the suite exists for, the legacy line's three-space separator, the chain one @PG per program id the reads carried, DownsampleSam reseeding twice, IntervalListTools taking the first free integer id, and the Started on header.",
+      "cases": [
+        {
+          "dump": "HeaderLinesDump",
+          "golden": "crates/picard-analysis/tests/data/header_lines.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 38938155720 on PR 365, and identical to the local smoke run but for the Started on values. 54 tools' option tables, 216 command lines Picard parsed and recorded, and 12 real runs: the @PG lines and every read's PG tag of the seven tools that stamp one, and their metrics headers."
+        }
+      ]
+    },
+    {
+      "id": "bcf",
+      "status": "oracle-backed",
+      "title": "the VCF tools with a .bcf on either side",
+      "harness": "tools/bcf-conformance",
+      "tools": [
+        "VcfFormatConverter",
+        "SortVcf",
+        "MergeVcfs",
+        "MakeSitesOnlyVcf"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "Picard takes a .bcf wherever it takes a .vcf, by name: VCFFileReader picks the BCF2 codec and VariantContextWriterBuilder picks BCF2Writer, and picard-rs refused both. htsjdk's BCF is BCF 2.1 and uncompressed, and its bytes depend on the hash order of the maps a record's attributes passed through, on fullyDecode typing every value of a VCF record by its header line before writing, on GQ being capped at 99, and on a BCF record's genotype block being copied into the BCF written from it. Each case is converted VCF to BCF, back to VCF and to BCF again by VcfFormatConverter, the BCF is read by SortVcf and MergeVcfs and written again, and MakeSitesOnlyVcf writes a BCF from the VCF, so the shared reader and writer are measured through four tools. Nine refusals are the writer's own, named by class and message: a missing contig, filter or header line, a discordant count, a false flag, an unparseable integer, an integer list with a missing element, and a header with no contig lines.",
+      "cases": [
+        {
+          "dump": "BcfDump",
+          "golden": "crates/picard-analysis/tests/data/bcf_tools.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as the candidate-goldens-golden-pending-22 artefact of run 39031026457 on picard-rs #378, identical to the local run. 60 rows: 15 input VCFs, 36 outputs of four tools with a .bcf on one side or both, and 9 refusals of the BCF writer by class and message."
+        }
+      ]
+    },
+    {
+      "id": "bcf-partial",
+      "status": "oracle-backed",
+      "title": "what a VCF writer leaves on disk when it refuses a record partway through",
+      "harness": "tools/bcf-conformance",
+      "tools": [
+        "VcfFormatConverter"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "VariantContextWriterBuilder writes through IOUtil.maybeBufferOutputStream at Defaults.BUFFER_SIZE, a 128 KiB BufferedOutputStream that BCF2Writer and VCFWriter never flush before close(), and a refused record throws before close(). So the file holds what the buffer had flushed: nothing on a small file, and on a large one every buffer up to the last write call that did not fit, which is not a multiple of 128 KiB. picard-rs left an empty file (BCF) or none at all (VCF). Each case is a generated VCF converted to .bcf and to .vcf by VcfFormatConverter, with a late undeclared INFO key, a discordant count, a contig missing from the header and an integer list with a missing element, a header larger than the buffer, which bypasses it, and a small file; the undeclared case is also indexed on the fly, and no .idx appears.",
+      "cases": [
+        {
+          "dump": "PartialOutputDump",
+          "golden": "crates/picard-analysis/tests/data/bcf_partial.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as the candidate-goldens-golden-pending-22 artefact of run 39032733443 on picard-rs #380, identical to the local run. 24 rows: 6 generated inputs by length and MD5, and 18 runs of VcfFormatConverter, each with the length and MD5 of what it left on disk, whether an .idx appeared, and its exception."
         }
       ]
     }

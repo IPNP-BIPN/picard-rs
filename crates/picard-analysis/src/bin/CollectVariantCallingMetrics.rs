@@ -19,16 +19,11 @@
 use std::collections::HashSet;
 
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
-use htsjdk_vcf::reader::read_vcf;
 use htsjdk_vcf::variant::VariantContext;
+use picard_analysis::args::arg;
 use picard_analysis::collect_variant_calling_metrics::{
     accumulate_detail, accumulate_site, file_names, Call, Counts, HiddenCounts, Site,
 };
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// One interval of an interval list, uniqued the way `IntervalList.uniqued` does.
 struct Interval {
@@ -335,6 +330,7 @@ impl MetricBean for DetailRow {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("CollectVariantCallingMetrics");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
@@ -361,10 +357,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         std::process::exit(1);
     }
-    if arg(&args, "GVCF_INPUT=").as_deref() == Some("true") {
+    if arg(&args, "GVCF_INPUT=").is_some_and(|v| picard_analysis::args::is_true(&v)) {
         // `GvcfMetricAccumulator.setup` refuses a file with more than one sample, and the message
         // is the tool's answer for those rows.
-        let vcf = read_vcf(&std::fs::read_to_string(&input)?).map_err(|e| format!("{e:?}"))?;
+        let vcf = picard_analysis::vcf_io::read_vcf_file(&input)?;
         if vcf.header.samples.len() != 1 {
             eprintln!(
                 "Exception in thread \"main\" java.lang.IllegalArgumentException: Expected to have exactly 1 sample in a GVCF, found {}",
@@ -374,8 +370,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let vcf = read_vcf(&std::fs::read_to_string(&input)?).map_err(|e| format!("{e:?}"))?;
-    let known = read_vcf(&std::fs::read_to_string(&dbsnp)?).map_err(|e| format!("{e:?}"))?;
+    let vcf = picard_analysis::vcf_io::read_vcf_file(&input)?;
+    let known = picard_analysis::vcf_io::read_vcf_file(&dbsnp)?;
     let intervals = match arg(&args, "TARGET_INTERVALS=") {
         None => Vec::new(),
         Some(path) => read_intervals(&std::fs::read_to_string(path)?),
@@ -437,14 +433,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (detail_path, summary_path) = file_names(&output);
     let mut summary_file = MetricsFile::new();
-    summary_file.add_header("CollectVariantCallingMetrics <command line>");
-    summary_file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectVariantCallingMetrics") {
+        summary_file.add_header(&header);
+    }
     summary_file.add_metric(&SummaryRow(summary, summary_hidden));
     std::fs::write(summary_path, summary_file.write())?;
 
     let mut detail_file = MetricsFile::new();
-    detail_file.add_header("CollectVariantCallingMetrics <command line>");
-    detail_file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectVariantCallingMetrics") {
+        detail_file.add_header(&header);
+    }
     for (index, sample) in samples.iter().enumerate() {
         let (counts, hidden) = details[index].clone();
         detail_file.add_metric(&DetailRow {

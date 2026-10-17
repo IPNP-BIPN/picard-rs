@@ -257,6 +257,7 @@ fn file_error() -> ! {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("CompareGtcFiles");
     picard_analysis::output::install();
     let args = Args::from_env(&[("I", "INPUT"), ("BPM", "ILLUMINA_BEAD_POOL_MANIFEST_FILE")]);
     let inputs = args.collection("INPUT", &[]);

@@ -25,11 +25,7 @@
 use std::io::Write;
 
 use htsjdk_bam::fasta::read_fasta;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
+use picard_analysis::args::arg;
 
 /// One interval of a Picard interval list: 1-based, inclusive, on the contig at `index` in the
 /// list's own dictionary (`None` for a contig the dictionary lacks).
@@ -65,6 +61,7 @@ fn read_intervals(path: &str) -> Result<Vec<Interval>, String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("NonNFastaSize");
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
