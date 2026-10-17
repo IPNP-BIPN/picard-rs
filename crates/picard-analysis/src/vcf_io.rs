@@ -465,7 +465,9 @@ pub fn write_block_compressed(
     let mut line = String::new();
     for record in records {
         line.clear();
-        encoders.encode(record, &mut line)?;
+        if let Err(error) = encoders.encode(record, &mut line) {
+            die(&encode_exception(&error));
+        }
         if let Some(creator) = creator.as_mut() {
             let variant = &record.variant;
             // `sequenceDictionary.getSequence(name).getSequenceLength()` when a new contig opens,
