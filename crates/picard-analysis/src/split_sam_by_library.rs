@@ -66,7 +66,7 @@ fn read_group_id(rec: &BamRecord) -> Option<&str> {
 
 /// The split itself: the outputs as `(file base name, output header, records)`, in output-name
 /// order. Shared by the SAM and BAM renderers so the routing and header filtering cannot drift.
-fn split_outputs(
+pub fn split_outputs(
     input_sam: &str,
 ) -> Result<Vec<(String, SamHeader, Vec<BamRecord>)>, SplitLibError> {
     let (header, records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;

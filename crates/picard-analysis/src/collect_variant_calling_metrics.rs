@@ -270,25 +270,74 @@ pub struct Site {
     pub calls: Vec<Call>,
 }
 
+/// `VariantContext.Type`, as `determineType` reads it off the alleles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    NoVariation,
+    Snp,
+    Mnp,
+    Indel,
+    Symbolic,
+    Mixed,
+}
+
+/// `determinePolymorphicType`: each alternate's `typeOfBiallelicVariant` against the reference,
+/// and MIXED as soon as two disagree. No-call alternates are not passed in.
+pub fn kind_of(reference: &str, alternates: &[String]) -> Kind {
+    let mut kind: Option<Kind> = None;
+    for alternate in alternates {
+        let this = if htsjdk_vcf::allele::would_be_symbolic(alternate.as_bytes()) {
+            Kind::Symbolic
+        } else if alternate.len() == reference.len() {
+            if reference.len() == 1 {
+                Kind::Snp
+            } else {
+                Kind::Mnp
+            }
+        } else {
+            Kind::Indel
+        };
+        match kind {
+            None => kind = Some(this),
+            Some(seen) if seen != this => return Kind::Mixed,
+            Some(_) => {}
+        }
+    }
+    kind.unwrap_or(Kind::NoVariation)
+}
+
 impl Site {
-    /// `VariantContext.isSNP()`: one reference base against single-base alternates.
+    pub fn kind(&self) -> Kind {
+        kind_of(&self.reference, &self.alternates)
+    }
+    /// `VariantContext.isSNP()`: every alternate one base against a one-base reference.
     pub fn is_snp(&self) -> bool {
-        self.reference.len() == 1 && self.alternates.iter().all(|allele| allele.len() == 1)
+        self.kind() == Kind::Snp
+    }
+    /// `isIndel()`: every alternate a change of length, none symbolic.
+    pub fn is_indel(&self) -> bool {
+        self.kind() == Kind::Indel
     }
     pub fn is_biallelic(&self) -> bool {
         self.alternates.len() == 1
     }
-    /// `isComplexIndel`: an indel whose reference and alternate share neither a prefix nor the
-    /// simple insertion or deletion shape.
-    pub fn is_complex_indel(&self) -> bool {
-        if self.is_snp() || self.alternates.len() != 1 {
-            return false;
-        }
-        let alternate = &self.alternates[0];
-        !(alternate.starts_with(&self.reference) || self.reference.starts_with(alternate.as_str()))
+    /// `isSimpleIndel`: a biallelic indel whose alleles share their first base and one of which is
+    /// that base alone.
+    fn is_simple_indel(&self) -> bool {
+        self.is_indel()
+            && self.is_biallelic()
+            && !self.reference.is_empty()
+            && !self.alternates[0].is_empty()
+            && self.reference.as_bytes()[0] == self.alternates[0].as_bytes()[0]
+            && (self.reference.len() == 1 || self.alternates[0].len() == 1)
     }
+    /// `isComplexIndel`: an indel that is neither a simple insertion nor a simple deletion.
+    pub fn is_complex_indel(&self) -> bool {
+        self.is_indel() && !self.is_simple_indel()
+    }
+    /// `isSimpleInsertion`: a simple indel whose reference is the one base.
     pub fn is_simple_insertion(&self) -> bool {
-        self.alternates.len() == 1 && self.alternates[0].len() > self.reference.len()
+        self.is_simple_indel() && self.reference.len() == 1
     }
     /// `isVariantExcluded`: a site with no alternate, or one where every call is homozygous
     /// reference, never reaches a counter at all.
@@ -342,7 +391,7 @@ pub fn accumulate_site(
     if site.filtered {
         if site.is_snp() {
             counts.filtered_snps += 1;
-        } else {
+        } else if site.is_indel() {
             counts.filtered_indels += 1;
         }
         return;
@@ -391,7 +440,7 @@ pub fn accumulate_site(
         if site.in_db_snp_snps {
             counts.num_in_db_snp_multiallelic += 1;
         }
-    } else if !site.is_snp() && !site.is_complex_indel() {
+    } else if site.is_indel() && !site.is_complex_indel() {
         counts.total_indels += 1;
         let insertion = site.is_simple_insertion();
         if site.in_db_snp_indels {
@@ -440,5 +489,52 @@ pub fn accumulate_detail(
         } else if call.is_hom_var() {
             hidden.number_of_hom_var += 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn site(reference: &str, alternates: &str) -> Site {
+        Site {
+            reference: reference.to_string(),
+            alternates: alternates.split(',').map(str::to_string).collect(),
+            filtered: false,
+            in_db_snp_snps: false,
+            in_db_snp_indels: false,
+            calls: Vec::new(),
+        }
+    }
+
+    /// `getType()`, `isComplexIndel()` and `isSimpleInsertion()` as htsjdk 5.0.0 answers them in
+    /// the oracle container: a spanning deletion `*` is a SNP, an MNP and a mixed site are neither
+    /// SNP nor indel, and a multiallelic indel or one whose first bases differ is complex.
+    #[test]
+    fn sites_are_typed_as_variant_context_types_them() {
+        for (reference, alternates, kind, complex, insertion) in [
+            ("A", "G", Kind::Snp, false, false),
+            ("A", "G,T", Kind::Snp, false, false),
+            ("AC", "GT", Kind::Mnp, false, false),
+            ("A", "AT", Kind::Indel, false, true),
+            ("AT", "A", Kind::Indel, false, false),
+            ("A", "G,AT", Kind::Mixed, false, false),
+            ("A", "<DEL>", Kind::Symbolic, false, false),
+            ("A", "*", Kind::Snp, false, false),
+            ("A", "G,*", Kind::Snp, false, false),
+            ("ACG", "T", Kind::Indel, true, false),
+            ("A", "ATT,ATTT", Kind::Indel, true, false),
+            ("AC", "A", Kind::Indel, false, false),
+        ] {
+            let s = site(reference, alternates);
+            assert_eq!(s.kind(), kind, "{reference}>{alternates}");
+            assert_eq!(s.is_complex_indel(), complex, "{reference}>{alternates}");
+            assert_eq!(
+                s.is_simple_insertion(),
+                insertion,
+                "{reference}>{alternates}"
+            );
+        }
+        assert_eq!(kind_of("A", &[]), Kind::NoVariation);
     }
 }

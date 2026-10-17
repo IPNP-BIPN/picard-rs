@@ -124,20 +124,29 @@ fn main() {
     let records = picard_analysis::illumina_files::parse_tile_metrics(&bytes)
         .unwrap_or_else(|| thrown("picard.PicardException: Unsupported tile metrics version"));
     // `determineLastValueForLaneTileMetricsCode`, then by location.
+    // Both in first-seen order, found by key: a scan per record was quadratic in a flow cell's
+    // tiles (80,000 records took seconds).
     let mut last: Vec<((u16, u16, u16), f32)> = Vec::new();
+    let mut last_at: foldhash::HashMap<(u16, u16, u16), usize> = Default::default();
     for r in &records {
         let key = (r.lane, r.tile, r.code);
-        match last.iter_mut().find(|(k, _)| *k == key) {
-            Some(slot) => slot.1 = r.value,
-            None => last.push((key, r.value)),
+        match last_at.get(&key) {
+            Some(&at) => last[at].1 = r.value,
+            None => {
+                last_at.insert(key, last.len());
+                last.push((key, r.value));
+            }
         }
     }
     let mut locations: Vec<(String, Vec<(u16, f32)>)> = Vec::new();
+    let mut location_at: foldhash::HashMap<(u16, u16), usize> = Default::default();
     for ((lane, tile, code), value) in &last {
-        let key = format!("{lane}:{tile}");
-        match locations.iter_mut().find(|(k, _)| *k == key) {
-            Some((_, codes)) => codes.push((*code, *value)),
-            None => locations.push((key, vec![(*code, *value)])),
+        match location_at.get(&(*lane, *tile)) {
+            Some(&at) => locations[at].1.push((*code, *value)),
+            None => {
+                location_at.insert((*lane, *tile), locations.len());
+                locations.push((format!("{lane}:{tile}"), vec![(*code, *value)]));
+            }
         }
     }
     let locations = java_hash_order(

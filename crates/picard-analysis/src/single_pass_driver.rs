@@ -21,7 +21,7 @@ pub fn run(
     args: &Args,
     input: &str,
     header: &SamHeader,
-    records: &[BamRecord],
+    records: impl IntoIterator<Item = BamRecord>,
     mut accept: impl FnMut(&SamHeader, &BamRecord) -> Result<(), String>,
 ) {
     let assume_sorted = args.bool("ASSUME_SORTED", true);
@@ -32,6 +32,7 @@ pub fn run(
     let mut walker = ReferenceWalker::default();
     let mut count = 0i64;
     for record in records {
+        let record = &record;
         if with_reference && record.reference_index != -1 {
             walker.get(record.reference_index);
         }

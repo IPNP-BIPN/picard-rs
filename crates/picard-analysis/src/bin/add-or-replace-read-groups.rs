@@ -37,7 +37,6 @@ use std::io::{Read, Write};
 
 use htsjdk_bam::build_index::build_bam_index;
 use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
@@ -159,11 +158,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut raw = Vec::new();
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+    // A CRAM's reader hands out plain `SAMRecord`s, as SAM text's does.
+    let cram_input = picard_analysis::cram_input::is_cram(&raw);
+    let raw = picard_analysis::cram_input::uncram(raw);
     // Which reader htsjdk would have used, because a message below names its record class.
     let bam_input = raw.starts_with(&[0x1f, 0x8b]);
     let (mut header, mut records): (SamHeader, Vec<BamRecord>) = if bam_input {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
+        let reader =
+            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
         let text = reader.header.text.clone();
         let decoded = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))
@@ -222,7 +225,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // text names the record class the reader produced, `BAMRecord` for a BAM and
                 // `SAMRecord` for SAM text. Reproducing a crash is reproducing the tool, so the
                 // port names the same class its own input implies.
-                let record_class = if bam_input { "BAMRecord" } else { "SAMRecord" };
+                let record_class = if bam_input && !cram_input {
+                    "BAMRecord"
+                } else {
+                    "SAMRecord"
+                };
                 eprintln!(
                     "Exception in thread \"main\" java.lang.ClassCastException: class \
                      htsjdk.samtools.{record_class} cannot be cast to class java.lang.Comparable \
@@ -247,6 +254,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         writer.write(record).map_err(|e| format!("{e:?}"))?;
     }
     let bam = writer.finish()?;
+    if picard_analysis::cram_output::is_cram(&output) {
+        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
+        return Ok(());
+    }
     std::fs::write(&output, &bam)?;
     if create_index && header.attributes.get("SO") == Some("coordinate") {
         let index = build_bam_index(&bam).map_err(|e| format!("{e:?}"))?;

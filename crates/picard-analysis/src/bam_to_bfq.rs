@@ -3,8 +3,8 @@
 //! A record is a name, a length and one byte per base, the base in the top two bits and the
 //! quality in the bottom six. Everything is fixed-width and little-endian, so the payload is
 //! byte-comparable; the file on disk is GZIP, which `IOUtil.openFileForWriting` applies to a
-//! `.bfq` the way it applies it to a `.gz`, and reproducing THOSE bytes means reproducing a
-//! DEFLATE stream, which this port does not do.
+//! `.bfq` the way it applies it to a `.gz`: one gzip member through zlib, which
+//! [`crate::java_writer::gzip_writer`] writes to the byte.
 //!
 //! Ported from `picard.fastq.BamToBfq` and `picard.fastq.SamToBfqWriter`.
 
@@ -114,8 +114,4 @@ pub fn output_file_prefix(
 pub const MUTUALLY_EXCLUSIVE_MESSAGE: &str =
     "ERROR: Option 'FLOWCELL_BARCODE' cannot be used in conjunction with option(s) OUTPUT_FILE_PREFIX";
 
-/// Whether the bytes on disk are a claim this port makes, which they are not.
-///
-/// The file is GZIP, so its bytes are a DEFLATE stream. The payload beside it in the golden is
-/// what this port reproduces, and the compressed form waits on the deflater Milestone X.4 is for.
-pub const FILE_BYTES_ARE_REPRODUCIBLE: bool = false;
+pub use crate::java_writer::gzip_writer;

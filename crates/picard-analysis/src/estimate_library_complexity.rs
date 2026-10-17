@@ -275,7 +275,7 @@ pub fn search_duplicates(
                 location: group[*index].location,
                 read_group: group[*index].read_group,
                 ..ReadEnds {
-                    library: String::new(),
+                    library: "".into(),
                     read1_reference_index: -1,
                     read1_coordinate: 0,
                     read2_reference_index: -1,

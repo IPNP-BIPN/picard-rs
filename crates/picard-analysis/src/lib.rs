@@ -2,6 +2,10 @@
 //!
 //! Ported from Picard 3.4.0, symbol by symbol, from the pinned clone in `picard/`.
 
+/// Every binary links this crate, so this is the allocator of every tool.
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 pub mod accumulate_quality_yield_metrics;
 pub mod accumulate_variant_calling_metrics;
 pub mod adapter;
@@ -14,10 +18,12 @@ pub mod args;
 pub mod argument_check;
 pub mod bait_designer;
 pub mod bam_index_stats;
+pub mod bam_stream;
 pub mod bam_to_bfq;
 pub mod barcode_extractor;
 pub mod basecalls_converter;
 pub mod bed_to_interval_list;
+pub mod bgzf;
 pub mod build_bam_index;
 pub mod calculate_fingerprint_metrics;
 pub mod calculate_read_group_checksum;
@@ -46,6 +52,8 @@ pub mod command_line;
 pub mod compare_metrics;
 pub mod compare_sams;
 pub mod convert_artifact_to_oxog;
+pub mod cram_input;
+pub mod cram_output;
 pub mod create_baf_regress_metrics;
 pub mod create_extended_illumina_manifest;
 pub mod create_sequence_dictionary;
@@ -86,6 +94,7 @@ pub mod insert_size;
 pub mod interval_list_to_bed;
 pub mod interval_list_tools;
 pub mod java_hash_map;
+pub mod java_writer;
 pub mod javascript;
 pub mod jumping_library;
 pub mod lift_over_haplotype_map;
@@ -109,10 +118,12 @@ pub mod metrics_cli;
 pub mod murmur3;
 pub mod non_n_fasta_size;
 pub mod normalize_fasta;
+pub mod overlap;
 pub mod position_based_downsample_sam;
 pub mod quality_score_distribution;
 pub mod quality_yield;
 pub mod quality_yield_flow;
+pub mod record_validation;
 pub mod refflat;
 pub mod reorder_sam;
 pub mod replace_sam_header;

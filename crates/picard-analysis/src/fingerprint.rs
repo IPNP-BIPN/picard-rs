@@ -55,6 +55,14 @@ pub fn hash_or_zero(s: Option<&str>) -> i32 {
 
 /// `String.compareTo`.
 pub fn java_compare(a: &str, b: &str) -> std::cmp::Ordering {
+    // UTF-16 code unit order is byte order for ASCII, and every lookup in a block map compares
+    // contig names that are almost always equal: the UTF-16 iterators were most of a crosscheck.
+    if a == b {
+        return std::cmp::Ordering::Equal;
+    }
+    if a.is_ascii() && b.is_ascii() {
+        return a.as_bytes().cmp(b.as_bytes());
+    }
     a.encode_utf16().cmp(b.encode_utf16())
 }
 
@@ -353,6 +361,8 @@ impl HaplotypeMap {
         let dictionary = parse_sq_lines(&header);
         let mut anchors: Vec<(String, Block)> = Vec::new();
         let mut held: Vec<(String, Snp)> = Vec::new();
+        // Where each anchor's block is in `anchors`, which keeps the order they were read in.
+        let mut anchor_at: foldhash::HashMap<String, usize> = foldhash::HashMap::default();
         for line in rest {
             if line.trim().is_empty() || line.starts_with('#') {
                 continue;
@@ -391,21 +401,21 @@ impl HaplotypeMap {
                 }
                 _ => {
                     let block = Block::new(snp.maf, snp.clone());
-                    match anchors.iter().position(|(n, _)| *n == snp.name) {
-                        Some(at) => anchors[at].1 = block,
-                        None => anchors.push((snp.name.clone(), block)),
+                    match anchor_at.get(&snp.name) {
+                        Some(&at) => anchors[at].1 = block,
+                        None => {
+                            anchor_at.insert(snp.name.clone(), anchors.len());
+                            anchors.push((snp.name.clone(), block));
+                        }
                     }
                 }
             }
         }
         for (anchor, snp) in held {
-            let block = anchors
-                .iter_mut()
-                .find(|(n, _)| *n == anchor)
-                .ok_or_else(|| {
-                    format!("picard.PicardException: No haplotype found for anchor snp {anchor}")
-                })?;
-            block.1.add(snp)?;
+            let at = *anchor_at.get(&anchor).ok_or_else(|| {
+                format!("picard.PicardException: No haplotype found for anchor snp {anchor}")
+            })?;
+            anchors[at].1.add(snp)?;
         }
         let blocks: Vec<Block> = java_hash_order(
             anchors
@@ -1292,14 +1302,38 @@ pub fn load_vcf_fingerprints(
     let records: Vec<&htsjdk_vcf::variant::VariantContext> = if indexed {
         let mut snps: Vec<&Snp> = map.blocks.iter().flat_map(|b| b.snps.iter()).collect();
         snps.sort_by(|a, b| a.compare(b));
+        // The first record in the file that covers the SNP's position and matches its alleles:
+        // measured on the oracle, a deletion that covers the position before the SNP's own record
+        // does not hide it. The records of each contig are kept by start, with the longest span
+        // among them, so the records that cover a position start within that span before it: a
+        // scan of the whole file per SNP was quadratic.
+        // Per contig: (start, record index) pairs, and the longest span.
+        type Starts = (Vec<(i64, usize)>, i64);
+        let mut by_contig: foldhash::HashMap<&str, Starts> = foldhash::HashMap::default();
+        for (at, record) in vcf.records.iter().enumerate() {
+            let v = &record.variant;
+            let entry = by_contig.entry(v.contig.as_str()).or_default();
+            entry.0.push((v.start, at));
+            entry.1 = entry.1.max(v.stop - v.start);
+        }
+        for (starts, _) in by_contig.values_mut() {
+            starts.sort_unstable();
+        }
         snps.iter()
             .filter_map(|snp| {
-                vcf.records.iter().map(|r| &r.variant).find(|v| {
-                    v.contig == snp.chrom
-                        && v.start <= i64::from(snp.pos)
-                        && v.stop >= i64::from(snp.pos)
-                        && matches_snp(v, snp)
-                })
+                let (starts, span) = by_contig.get(snp.chrom.as_str())?;
+                let pos = i64::from(snp.pos);
+                let from = starts.partition_point(|&(start, _)| start < pos - span);
+                let to = starts.partition_point(|&(start, _)| start <= pos);
+                starts[from..to]
+                    .iter()
+                    .map(|&(_, at)| at)
+                    .filter(|&at| {
+                        let v = &vcf.records[at].variant;
+                        v.stop >= pos && matches_snp(v, snp)
+                    })
+                    .min()
+                    .map(|at| &vcf.records[at].variant)
             })
             .collect()
     } else {
@@ -1441,8 +1475,13 @@ fn add_from_vc(
     }
     let first = ctx.alleles[0].base_string().as_bytes()[0];
     let second = ctx.alleles[1].base_string().as_bytes()[0];
+    // The first genotype of each sample, found by name rather than by a scan per sample.
+    let mut by_sample: foldhash::HashMap<&str, &_> = foldhash::HashMap::default();
+    for g in ctx.genotypes.iter().rev() {
+        by_sample.insert(g.sample_name.as_str(), g);
+    }
     for (sample, fp) in fingerprints.iter_mut() {
-        let Some(genotype) = ctx.genotypes.iter().find(|g| &g.sample_name == sample) else {
+        let Some(&genotype) = by_sample.get(sample.as_str()) else {
             return;
         };
         if let Some(pl) = &genotype.pl {

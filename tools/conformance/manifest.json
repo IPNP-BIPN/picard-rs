@@ -621,7 +621,7 @@
         "tool": "MergeBamAlignment",
         "port": "merge-bam-alignment",
         "t": 2,
-        "status": "measured",
+        "status": "pending",
         "output_name": "output.bam"
       },
       {
@@ -3396,6 +3396,192 @@
           "dump": "HeaderLinesDump",
           "golden": "crates/picard-analysis/tests/data/header_lines.txt.gz",
           "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 38938155720 on PR 365, and identical to the local smoke run but for the Started on values. 54 tools' option tables, 216 command lines Picard parsed and recorded, and 12 real runs: the @PG lines and every read's PG tag of the seven tools that stamp one, and their metrics headers."
+        }
+      ]
+    },
+    {
+      "id": "cram-io",
+      "title": "CRAM 3.1 read and written as Picard 3.5.0 does",
+      "status": "golden-pending",
+      "harness": "tools/cram-conformance",
+      "tools": [
+        "SamFormatConverter",
+        "SortSam",
+        "CollectAlignmentSummaryMetrics",
+        "SplitSamByNumberOfReads"
+      ],
+      "java_props": [
+        "-Duser.language=en",
+        "-Duser.country=US"
+      ],
+      "$java_props_why": "Without -Dsamjdk.use_libdeflate=false: htsjdk 5.0.0's DeflaterFactory gives a CRAM GZIP block libdeflate on Picard's command line, and that is what the port writes. The BGZF of a BAM is not involved in any row.",
+      "why": "Every other suite reads and writes BAM or SAM, so nothing measured CRAM, and Picard 3.5.0's htsjdk 5.0.0 writes CRAM 3.1: rANS Nx16, fqzcomp, the name tokeniser and libdeflate GZIP blocks, slices whose MD and NM are dropped when a reader would regenerate them, pairs attached within a slice, and a .bai for CREATE_INDEX. The dump runs Picard under /work/cram, a fixed directory, because a CRAM's file definition carries its output's URI; the Rust side maps its own directory there. The rows are the input, the CRAM SamFormatConverter writes, the CRAM and index SortSam writes, the SAM read back with its regenerated MD and NM, a metrics file read from the CRAM without its # lines, the names SplitSamByNumberOfReads gives a CRAM's shards, and the refusals: reading without a reference (ReferenceSource with no file, which answers nothing) and writing without one (CRAMLazyReferenceSource, which throws its own message), reading with the wrong reference twice, once on a multi-reference slice that is never checked against its MD5 and once on a single-reference one that is, and indexing a CRAM that is not coordinate-sorted.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "expect_rows": 12,
+      "expect_contains": [
+        "cram\tsam-to-cram\t4352414d0301",
+        "bai\tsortsam\t42414901",
+        "MD:Z:",
+        "shard_0001.cram",
+        "java.lang.IllegalArgumentException: Failure getting reference bases for sequence chr1",
+        "java.lang.IllegalArgumentException: A reference must be supplied that includes the reference sequence for chr1.",
+        "The MD5 for the reference failed to validate against the expected value",
+        "htsjdk.samtools.SAMException: CRAM file mut be coordinate-sorted for indexing."
+      ],
+      "$expect_why": "A row count is not evidence: these are the behaviours the suite exists for, a CRAM 3.1 file definition, a BAI beside a CRAM, MD regenerated on read, CRAM-named shards, and each of the four refusals.",
+      "cases": [
+        {
+          "dump": "CramIoDump",
+          "golden": null,
+          "why": "No golden yet: CI publishes the dump from a real x86-64 runner, and the Rust test that reads it lands with the freeze."
+        }
+      ]
+    },
+    {
+      "id": "strict-validation",
+      "title": "the record validation every BAM reader runs at VALIDATION_STRINGENCY",
+      "status": "golden-pending",
+      "harness": "tools/strict-conformance",
+      "tools": [
+        "CollectQualityYieldMetrics",
+        "SortSam",
+        "MarkDuplicates",
+        "CleanSam"
+      ],
+      "java_props": [
+        "-Duser.language=en",
+        "-Duser.country=US",
+        "-Dsamjdk.use_libdeflate=false"
+      ],
+      "why": "Every other suite reads valid records, so nothing measured what htsjdk 5.0.0's BAMFileReader does with a malformed one: it numbers the records and runs SAMRecord.isValid on each, STRICT throwing the first error as a SAMFormatException, LENIENT printing every one as \"Ignoring SAM validation error\", SILENT saying nothing. The cases are one BAM per check isValid makes that a BAM can carry (flags, mate and read positions, insert size, CIGAR, dictionary, read group) plus Cigar.isValid's checks, which BAMRecord.getCigar runs lazily and without a record number, and an index past the dictionary, which the record's constructor refuses at every stringency. Each is read by four tools at the three stringencies: a single-pass metrics tool that never decodes the CIGAR, SortSam, MarkDuplicates, which reads its input twice and so validates twice, and CleanSam, which reads STRICT as LENIENT. A row is the lines a run printed through System.err that start \"Ignoring SAM validation error\", then the throwable that escaped instanceMain or the exit status; tools/strict-conformance/port_side.py runs the port's binaries on the dump's own BAMs and prints the same rows.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "expect_rows": 312,
+      "expect_contains": [
+        "ERROR::INVALID_FLAG_MATE_UNMAPPED:Record 2, Read name bad, Mapped mate should have mate reference name",
+        "Ignoring SAM validation error: ERROR::CIGAR_MAPS_OFF_REFERENCE:Read name bad, Read CIGAR M operator maps off end of reference",
+        "WARNING::ADJACENT_INDEL_IN_CIGAR:Read name bad",
+        "java.lang.IllegalArgumentException: Reference name for '1' not found in sequence dictionary."
+      ],
+      "$expect_why": "A row count is not evidence: these are a STRICT refusal with its record number, the lazy CIGAR check printed before isValid's own errors, a WARNING-severity error that STRICT still throws, and the refusal no stringency lifts.",
+      "cases": [
+        {
+          "dump": "StrictValidationDump",
+          "golden": null,
+          "why": "No golden yet: CI publishes the dump from a real x86-64 runner, and the Rust test that reads it lands with the freeze."
+        }
+      ]
+    },
+    {
+      "id": "inputshapes",
+      "title": "input shapes the tools' own suites never carried: secondary, supplementary, mate cigars, missing mates, unsorted input, malformed tags, a run that throws after a flush",
+      "status": "oracle-backed",
+      "harness": "tools/inputshapes-conformance",
+      "tools": [
+        "CleanSam",
+        "CollectSamErrorMetrics",
+        "RevertOriginalBaseQualitiesAndAddMateCigar"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "expect_contains": [
+        "Missing second read of pair: m1",
+        "Value for tag MC is not a String",
+        "Unrecognized CigarOperator: 81",
+        "Alignments added out of order",
+        "MC:Z:40M10S",
+        "Inappropriate call if not paired read",
+        "file:error_by_homopolymer_and_following_ref_base"
+      ],
+      "cases": [
+        {
+          "dump": "InputShapesDump",
+          "golden": "crates/picard-analysis/tests/data/inputshapes.txt.gz",
+          "why": "Frozen from the candidate artefact of run 39024046351 (real x86-64), byte for byte the local dump."
+        }
+      ]
+    },
+    {
+      "id": "nonbamshapes",
+      "title": "what a screen of the non-BAM tools on large inputs found answered differently: CollectVariantCallingMetrics' variant types, dbSNP spans and sample order, the .idx beside every plain .vcf and its Double.toString properties, ##fileDate and Generated on dates, BaitDesigner's grouped bait numbers, CheckFingerprint's indexed genotypes, CreateSequenceDictionary's default and existing output, CollectIndependentReplicateMetrics without MC tags, ExtractIlluminaBarcodes' gzip member",
+      "status": "oracle-backed",
+      "harness": "tools/nonbamshapes-conformance",
+      "needs_fixtures": true,
+      "tools": [
+        "BaitDesigner",
+        "CheckFingerprint",
+        "CollectIndependentReplicateMetrics",
+        "CollectVariantCallingMetrics",
+        "CombineGenotypingArrayVcfs",
+        "ConvertHaplotypeDatabaseToVcf",
+        "CreateExtendedIlluminaManifest",
+        "CreateSequenceDictionary",
+        "ExtractFingerprint",
+        "ExtractIlluminaBarcodes",
+        "GtcToVcf",
+        "IdentifyContaminant",
+        "LiftoverVcf",
+        "SortVcf"
+      ],
+      "compare": {
+        "mode": "keyed",
+        "skip_kinds": [
+          "input"
+        ]
+      },
+      "expect_rows": 158,
+      "expect_contains": [
+        "MEAN_FEATURE_VARIANCE=8.159997333377955E-4",
+        "big_bait#1,200",
+        "Mate CIGAR (Tag MC) not found: rep0_15_1",
+        "already exists.  Delete this file and try again",
+        "Unknown problem. Partial dictionary file was deleted.",
+        "IntervalTreeIndex",
+        "a date"
+      ],
+      "cases": [
+        {
+          "dump": "NonBamShapesDump",
+          "golden": "crates/picard-analysis/tests/data/nonbam_shapes.txt.gz",
+          "why": "Frozen from the candidate artefact of run 39035124841 (real x86-64); every row but the inputs, whose .idx files carry a temporary path and a time, is the local dump's."
+        }
+      ]
+    },
+    {
+      "id": "filterandmerge",
+      "title": "the FilterSamReads filters and the MergeBamAlignment inputs the port used to refuse",
+      "status": "golden-pending",
+      "harness": "tools/filterandmerge-conformance",
+      "tools": [
+        "FilterSamReads",
+        "MergeBamAlignment"
+      ],
+      "why": "FilterSamReads with includePairedIntervals keeps a paired, primary read for its own overlap or its mate's, read from the MC tag, and WRITE_READS_FILES leaves a .reads file holding each record's toString(), which htsjdk 5 makes the SAM line. Its iterator runs one kept record ahead of a presorted writer that checks the order, so which of a filter's exception and the writer's is reported depends on where each falls. MergeBamAlignment takes ALIGNED_BAM, READ1_ALIGNED_BAM and READ2_ALIGNED_BAM more than once and reads each set as one stream through a MergingSamRecordIterator: queryname order for the aligned files and coordinate order for each end, under one header merger that renames colliding program ids and refuses dictionaries that disagree. Each case records its command line with its directory as <dir>, so the port can replay it on the same files; several data-line rows share one (kind, case) key, so the full line sequence is compared.",
+      "compare": {
+        "mode": "lines",
+        "skip_comment_lines": false
+      },
+      "expect_rows": 295,
+      "expect_contains": [
+        "Mate CIGAR (Tag MC) not found:mateInside",
+        "Input must be coordinate sorted to use includePairedIntervals",
+        "Alignments added out of order in SAMFileWriterImpl.addAlignment for file://<dir>/out.bam",
+        "intervals_reads_files\tout.reads",
+        "Second record is not marked as second of pair: a\\t355",
+        "SAM dictionaries are not the same",
+        "SequenceUtil$SequenceListsDifferException:Sequences at index 0 don't match",
+        "PG:Z:bwa.1"
+      ],
+      "$expect_why": "A row count is not evidence: these are the behaviours the suite exists for, a mapped mate without MC, the order check after SORT_ORDER, the presorted writer's refusal naming a BAM by its URI, the .reads file of the output, an aligned filter meeting a secondary after a first of pair, both dictionary refusals, and a program id the header merger renamed.",
+      "cases": [
+        {
+          "dump": "FilterAndMergeDump",
+          "golden": null,
+          "why": "No golden yet: CI publishes the dump from a real x86-64 runner, and the port test that replays it lands with the freeze."
         }
       ]
     }

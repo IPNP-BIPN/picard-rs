@@ -403,6 +403,15 @@ fn utc(seconds: i64) -> LocalTime {
     }
 }
 
+/// `new Date().toString()`: the moment it is asked, as a VCF's `##fileDate` or a report's
+/// `Generated on:` writes it.
+pub fn java_date_now() -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    java_date(now)
+}
+
 /// The start of the run: `instanceMain`'s `startDate`, taken once, so every metrics file one run
 /// writes says the same.
 pub fn started_on() -> &'static str {
