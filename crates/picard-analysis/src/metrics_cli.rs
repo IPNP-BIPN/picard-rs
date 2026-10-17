@@ -183,7 +183,7 @@ pub fn read_input(path: &str) -> (SamHeader, Vec<BamRecord>) {
         fail(&format!("{e}"));
     }
     if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).unwrap_or_else(|e| fail(&format!("{e:?}")));
+        let plain = crate::bgzf::decompress_owned(raw).unwrap_or_else(|e| fail(&format!("{e:?}")));
         let reader = BamReader::new(&plain).unwrap_or_else(|e| fail(&format!("{e:?}")));
         let header = reader.header.text.clone();
         let records = reader

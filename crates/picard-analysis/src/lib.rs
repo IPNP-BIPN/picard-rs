@@ -2,6 +2,10 @@
 //!
 //! Ported from Picard 3.4.0, symbol by symbol, from the pinned clone in `picard/`.
 
+/// Every binary links this crate, so this is the allocator of every tool.
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 pub mod accumulate_quality_yield_metrics;
 pub mod accumulate_variant_calling_metrics;
 pub mod adapter;
@@ -16,6 +20,7 @@ pub mod bam_to_bfq;
 pub mod barcode_extractor;
 pub mod basecalls_converter;
 pub mod bed_to_interval_list;
+pub mod bgzf;
 pub mod build_bam_index;
 pub mod calculate_fingerprint_metrics;
 pub mod calculate_read_group_checksum;

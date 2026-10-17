@@ -63,7 +63,7 @@ fn read_input(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::er
         let (header, records) = read_sam(&text).map_err(|e| format!("{e:?}"))?;
         return Ok((header, records));
     }
-    let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+    let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
     let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
     let header = reader.header.text.clone();
     let records: Vec<BamRecord> = reader

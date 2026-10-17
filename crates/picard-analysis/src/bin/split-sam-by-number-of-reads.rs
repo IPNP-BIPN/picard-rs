@@ -68,7 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The library splits SAM text; a BAM input is decoded and re-encoded as text first, which
     // changes no record -- the shard bytes come from the writer either way.
     let text = if bam_input {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
         let header: SamHeader = reader.header.text.clone();
         let records: Vec<BamRecord> = reader

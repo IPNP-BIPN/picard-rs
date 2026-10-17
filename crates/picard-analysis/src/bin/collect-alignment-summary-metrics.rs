@@ -152,7 +152,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // read as SAM. Picard tells the two apart the same way rather than by the file's name, and
     // the covering array hands this tool both.
     let (header, records) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
         let header: SamHeader = reader.header.text.clone();
         let records: Vec<BamRecord> = reader

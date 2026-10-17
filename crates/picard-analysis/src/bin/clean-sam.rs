@@ -70,7 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // BAM and SAM are told apart by the gzip magic, as `SamReaderFactory` tells them apart by
     // sniffing the stream rather than by the file's name.
     let (header, mut records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
         let text = reader.header.text.clone();
         let decoded = reader

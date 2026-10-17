@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The outputs take the INPUT's format, as `reader.type().fileExtension()` gives it.
     let bam_input = raw.starts_with(&[0x1f, 0x8b]);
     let text = if bam_input {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
         let header: SamHeader = reader.header.text.clone();
         let records: Vec<BamRecord> = reader

@@ -95,7 +95,7 @@ fn read_one(
         .read_to_end(&mut raw)
         .map_err(|e| e.to_string())?;
     if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
         let header = reader.header.text.clone();
         let records = reader

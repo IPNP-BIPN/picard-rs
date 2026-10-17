@@ -286,7 +286,7 @@ pub fn write_output(
 pub fn read_path(path: &str) -> Result<LazyVcf, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("java.io.IOException: {e}"))?;
     let bytes = if bytes.starts_with(&[0x1f, 0x8b]) {
-        htsjdk_bgzf::read::decompress_all(&bytes)
+        crate::bgzf::decompress_owned(bytes)
             .map_err(|e| format!("htsjdk.samtools.SAMException: {e:?}"))?
     } else {
         bytes

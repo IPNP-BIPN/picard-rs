@@ -277,8 +277,15 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
     let mut minimum_distance: i32 = -1;
     let mut reference_index: i32 = -1;
 
+    let mut skip = vec![false; records.len()];
+    for &index in skipped {
+        if let Some(slot) = skip.get_mut(index) {
+            *slot = true;
+        }
+    }
+
     for (index, record) in records.iter().enumerate() {
-        if skipped.contains(&index) {
+        if skip[index] {
             continue;
         }
         if record.unmapped() || record.secondary_or_supplementary() {

@@ -165,7 +165,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Which reader htsjdk would have used, because a message below names its record class.
     let bam_input = raw.starts_with(&[0x1f, 0x8b]);
     let (mut header, mut records): (SamHeader, Vec<BamRecord>) = if bam_input {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
         let text = reader.header.text.clone();
         let decoded = reader

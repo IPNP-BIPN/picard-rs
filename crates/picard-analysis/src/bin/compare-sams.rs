@@ -25,7 +25,7 @@ fn as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
     if !raw.starts_with(&[0x1f, 0x8b]) {
         return Ok(String::from_utf8(raw)?);
     }
-    let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+    let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
     let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
     let header = reader.header.text.clone();
     let records: Vec<_> = reader

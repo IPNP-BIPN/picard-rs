@@ -47,7 +47,7 @@ fn read_any(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::erro
     let mut raw = Vec::new();
     std::fs::File::open(path)?.read_to_end(&mut raw)?;
     if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
         let header = reader.header.text.clone();
         let records = reader

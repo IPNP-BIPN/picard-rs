@@ -45,6 +45,8 @@
 //! `picard.sam.markduplicates.util.OpticalDuplicateFinder`, `picard.sam.util.ReadNameParser`,
 //! `picard.sam.DuplicationMetrics` and `htsjdk.samtools.DuplicateScoringStrategy` in Picard 3.4.0.
 
+use foldhash::{HashMap, HashMapExt};
+
 use htsjdk_bam::cigar::{Cigar, Op};
 
 /// `DuplicateScoringStrategy.ScoringStrategy`, minus `RANDOM`.
@@ -791,8 +793,9 @@ fn best(list: &[ReadEnds]) -> usize {
 pub fn mark(records: &[Record], options: &Options) -> Marking {
     let mut pairs: Vec<ReadEnds> = Vec::new();
     let mut fragments: Vec<ReadEnds> = Vec::new();
-    // `tmp`, the map from a read group and a name to the first end of a pair seen.
-    let mut pending: Vec<(String, ReadEnds)> = Vec::new();
+    // `tmp`, the map from a read group and a name to the first end of a pair seen. A name is in it
+    // at most once: its second record takes it out.
+    let mut pending: HashMap<String, ReadEnds> = HashMap::with_capacity(records.len() / 2);
 
     for (index, record) in records.iter().enumerate() {
         if record.unmapped() || record.secondary_or_supplementary() {
@@ -803,11 +806,11 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
         if !record.paired() || record.mate_unmapped() {
             continue;
         }
-        let name = record.name.clone();
-        match pending.iter().position(|(key, _)| *key == name) {
-            None => pending.push((name, fragment)),
-            Some(position) => {
-                let (_, mut paired) = pending.remove(position);
+        match pending.remove(&record.name) {
+            None => {
+                pending.insert(record.name.clone(), fragment);
+            }
+            Some(mut paired) => {
                 let mates_reference_index = fragment.read1_reference_index;
                 let mates_coordinate = fragment.read1_coordinate;
                 // The optical orientation goes by the FIRST end of the pair whatever order the
@@ -954,38 +957,34 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
 /// `MarkDuplicates` itself never needs this list; `UmiAwareMarkDuplicatesWithMateCigar` does,
 /// because it splits each set by UMI before anything is marked.
 pub fn sets_by_position(records: &[Record], options: &Options) -> Vec<Vec<usize>> {
-    let mut keys: Vec<Key> = Vec::new();
+    let mut keys: HashMap<Key, usize> = HashMap::with_capacity(records.len());
     let mut groups: Vec<Vec<usize>> = Vec::new();
     for (index, record) in records.iter().enumerate() {
         if record.unmapped() || record.secondary_or_supplementary() {
             continue;
         }
         let ends = build_read_ends(record, index, options);
-        let this = key(&ends, false);
-        match keys.iter().position(|other| *other == this) {
-            Some(position) => groups[position].push(index),
-            None => {
-                keys.push(this);
-                groups.push(vec![index]);
-            }
+        let next = groups.len();
+        let position = *keys.entry(key(&ends, false)).or_insert(next);
+        if position == next {
+            groups.push(Vec::new());
         }
+        groups[position].push(index);
     }
     groups
 }
 
 /// The chunks `generateDuplicateIndexes` cuts, which are the runs of an equal key.
 fn chunks(list: &[ReadEnds], compare_read2: bool) -> Vec<Vec<ReadEnds>> {
-    let mut keys: Vec<Key> = Vec::new();
+    let mut keys: HashMap<Key, usize> = HashMap::with_capacity(list.len());
     let mut groups: Vec<Vec<ReadEnds>> = Vec::new();
     for ends in list {
-        let this = key(ends, compare_read2);
-        match keys.iter().position(|other| *other == this) {
-            Some(position) => groups[position].push(ends.clone()),
-            None => {
-                keys.push(this);
-                groups.push(vec![ends.clone()]);
-            }
+        let next = groups.len();
+        let position = *keys.entry(key(ends, compare_read2)).or_insert(next);
+        if position == next {
+            groups.push(Vec::new());
         }
+        groups[position].push(ends.clone());
     }
     groups
 }

@@ -17,6 +17,16 @@ jmath.workspace = true
 # Multicore for the per-record transforms. The parallel map preserves order, so its output is
 # byte-identical to the serial one; this is where the port beats single-threaded Picard/GATK.
 rayon = "1"
+# Decoding allocates per record (name, bases, qualities, CIGAR, tags); the system allocator is the
+# slowest part of that on macOS and glibc alike.
+mimalloc = { version = "0.1", default-features = false }
+# The hash maps that find a read's mate and a read's duplicate set. Never iterated, so the hasher's
+# per-process seed cannot reach an output; foldhash because SipHash, std's default, is built to
+# resist collision attacks rather than to be fast on short keys.
+foldhash = "0.2"
+# Whole-file BGZF inflation on every core, with libdeflate. Its libdeflater must resolve to the
+# libdeflate-sys htsjdk-bgzf already links (`links = "deflate"` admits one copy).
+noodles-bgzf = { version = "0.52", features = ["libdeflate"] }
 # The sequence-dictionary M5 is an MD5 of the uppercased contig bases (SequenceUtil.calculateMD5).
 md-5 = "0.11"
 # `READ_NAME_REGEX` when it is not the default: a Java `Pattern` the parser `matches` a name against.
