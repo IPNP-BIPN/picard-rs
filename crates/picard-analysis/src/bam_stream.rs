@@ -105,20 +105,25 @@ impl Input {
             });
         }
         match check(path) {
-            Some(Ok(())) => {
-                let mut stream = RecordStream::new(inflater(BufReader::new(
-                    File::open(path).map_err(InputError::Io)?,
-                )));
-                let header = stream
-                    .header()
-                    .unwrap_or_else(|e| panic!("{path} changed while it was read: {e:?}"));
-                Ok(Input {
-                    header,
-                    records: Records::Stream(stream),
-                })
-            }
+            Some(Ok(())) => stream(path),
             Some(Err(e)) => Err(e),
             None => whole(path),
+        }
+    }
+
+    /// Whether the records are decoded from the file as they are taken, rather than held.
+    pub fn streams(&self) -> bool {
+        matches!(self.records, Records::Stream(_))
+    }
+
+    /// The same input again, for a tool that reads it twice, as Picard's do. A file [`Self::open`]
+    /// streamed has passed the first pass and is streamed again without it; anything else is
+    /// opened as it was the first time.
+    pub fn reopen(path: &str, streamed: bool) -> Result<Input, InputError> {
+        if streamed {
+            stream(path)
+        } else {
+            Input::open(path)
         }
     }
 
@@ -156,6 +161,20 @@ impl Iterator for Records {
                 .unwrap_or_else(|e| panic!("the input changed while it was read: {e:?}")),
         }
     }
+}
+
+/// The second pass, over a file the first has vouched for.
+fn stream(path: &str) -> Result<Input, InputError> {
+    let mut stream = RecordStream::new(inflater(BufReader::new(
+        File::open(path).map_err(InputError::Io)?,
+    )));
+    let header = stream
+        .header()
+        .unwrap_or_else(|e| panic!("{path} changed while it was read: {e:?}"));
+    Ok(Input {
+        header,
+        records: Records::Stream(stream),
+    })
 }
 
 /// The whole-file read, for a BAM the first pass could not vouch for.

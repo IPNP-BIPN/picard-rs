@@ -15,12 +15,8 @@
 //! reference and a surface of its own, so the repository declares no value for it and the array
 //! does not vary it.
 
-use std::io::Read;
-
 use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
 use picard_analysis::mark_duplicates::{mark, Options, Record, ScoringStrategy, TaggingPolicy};
@@ -178,20 +174,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let (header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
+    // Read twice, as Picard reads it: once for the marking, which keeps only what it needs of each
+    // record, and once for the writing. The first read checks the whole file, so a damaged one is
+    // refused here, as reading it whole refused it.
+    let opened = picard_analysis::bam_stream::Input::open(&input)?;
+    let streamed = opened.streams();
+    let (header, records) = opened.into_parts();
 
     // `openInputs` sets the header's own sort order to ASSUME_SORT_ORDER, so by the time the check
     // below reads "the header", the header is already saying what it was told to say -- which is
@@ -249,30 +237,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    // `getChainedPgIds`'s program ids are gathered on the same walk: one new `@PG` for every
+    // program id the first pass saw on a record (no `PG` at all counting as one).
+    let mut seen: Vec<Option<String>> = Vec::new();
     let marked_records: Vec<Record> = records
-        .iter()
         .map(|record| {
-            let (library, read_group) = library_of(record);
+            let id = string_tag(&record, b"PG");
+            if !seen.contains(&id) {
+                seen.push(id);
+            }
+            let (library, read_group) = library_of(&record);
+            let barcode = options.barcode_tag.as_ref().and_then(|tag| {
+                match record
+                    .tags
+                    .get(Tag::new(tag.as_bytes().try_into().unwrap_or(b"RX")))
+                {
+                    Some(TagValue::Str(value)) => Some(value.clone()),
+                    _ => None,
+                }
+            });
+            let existing_dt = string_tag(&record, b"DT");
             Record {
-                name: record.read_name.clone(),
+                name: record.read_name,
                 flags: record.flags,
                 reference_index: record.reference_index,
                 alignment_start: record.alignment_start,
-                cigar: record.cigar.clone(),
-                qualities: record.base_qualities.clone(),
+                cigar: record.cigar,
+                qualities: record.base_qualities,
                 mate_reference_index: record.mate_reference_index,
                 library,
                 read_group,
-                barcode: options.barcode_tag.as_ref().and_then(|tag| {
-                    match record
-                        .tags
-                        .get(Tag::new(tag.as_bytes().try_into().unwrap_or(b"RX")))
-                    {
-                        Some(TagValue::Str(value)) => Some(value.clone()),
-                        _ => None,
-                    }
-                }),
-                existing_dt: string_tag(record, b"DT"),
+                barcode,
+                existing_dt,
                 mate_cigar: None,
                 mate_alignment_start: record.mate_alignment_start,
             }
@@ -300,16 +296,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter(|tag| tag != "null" && options.barcode_tag.is_some());
     let duplex = flag("DUPLEX_UMI=", false);
     let add_pg_tag = flag("ADD_PG_TAG_TO_READS=", true);
-    // `getChainedPgIds`: one new `@PG` for every program id the first pass saw on a record (no
-    // `PG` at all counting as one), in the `HashSet`'s order, each chained to the id it replaces;
-    // none when `PROGRAM_RECORD_ID` is `null`.
-    let mut seen: Vec<Option<String>> = Vec::new();
-    for record in &records {
-        let id = string_tag(record, b"PG");
-        if !seen.contains(&id) {
-            seen.push(id);
-        }
-    }
+    // `getChainedPgIds`: the ids seen above, in the `HashSet`'s order, each chained to the id it
+    // replaces; none when `PROGRAM_RECORD_ID` is `null`.
     let group = picard_analysis::command_line::ProgramGroup::of("MarkDuplicates");
     let chained = picard_analysis::command_line::chained_pg_ids(
         &mut out_header,
@@ -325,12 +313,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut previous: Option<(i32, i32)> = None;
 
     let mut writer = BamWriter::new(Vec::new(), &out_header).map_err(|e| format!("{e:?}"))?;
-    for (index, record) in records.iter().enumerate() {
+    let (_, records) = picard_analysis::bam_stream::Input::reopen(&input, streamed)?.into_parts();
+    for (index, record) in records.enumerate() {
         // `UmiUtil.setMolecularIdentifier`, reached for every record before the ones that are
         // removed are skipped, so a record that cannot be given one stops the run wherever it is.
         let molecular_identifier = match &molecular_identifier_tag {
             Some(_) => {
-                match molecular_identifier(&header, record, &marked_records[index], duplex) {
+                match molecular_identifier(&header, &record, &marked_records[index], duplex) {
                     Ok(value) => Some(value),
                     Err(thrown) => {
                         eprintln!("Exception in thread \"main\" {thrown}");
@@ -390,7 +379,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             previous = Some(here);
         }
 
-        let mut written = record.clone();
+        let flags = record.flags;
+        let mut written = record;
         written.flags &= !DUPLICATE_READ;
         if marking.duplicate[index] {
             written.flags |= DUPLICATE_READ;
@@ -401,7 +391,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .tags
                 .insert(Tag::new(b"DT"), TagValue::Str(code.clone()));
         }
-        if tag_duplicate_set_members && record.flags & (0x4 | 0x100 | 0x800) == 0 {
+        if tag_duplicate_set_members && flags & (0x4 | 0x100 | 0x800) == 0 {
             if let Some((representative, size)) = marking.duplicate_set[index] {
                 written
                     .tags

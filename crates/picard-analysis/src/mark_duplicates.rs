@@ -46,6 +46,7 @@
 //! `picard.sam.DuplicationMetrics` and `htsjdk.samtools.DuplicateScoringStrategy` in Picard 3.4.0.
 
 use foldhash::{HashMap, HashMapExt};
+use std::hash::BuildHasher;
 
 use htsjdk_bam::cigar::{Cigar, Op};
 
@@ -750,21 +751,32 @@ pub(crate) fn increment(histogram: &mut Vec<(f64, f64)>, bin: f64, by: f64) {
     }
 }
 
-/// The key a chunk is cut on: `areComparableForDuplicates`.
+/// The key a chunk is cut on: `areComparableForDuplicates`. It borrows its strings, because
+/// there is one per read end.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Key {
-    library: String,
-    barcode: Option<String>,
+struct Key<'a> {
+    library: &'a str,
+    barcode: Option<&'a str>,
     read1_reference_index: i32,
     read1_coordinate: i32,
     orientation: u8,
     read2: Option<(i32, i32)>,
 }
 
-fn key(ends: &ReadEnds, compare_read2: bool) -> Key {
+fn key(ends: &ReadEnds, compare_read2: bool) -> Key<'_> {
+    key_with(&ends.library, ends.barcode.as_deref(), ends, compare_read2)
+}
+
+/// [`key`], with the strings borrowed from somewhere that outlives `ends`.
+fn key_with<'a>(
+    library: &'a str,
+    barcode: Option<&'a str>,
+    ends: &ReadEnds,
+    compare_read2: bool,
+) -> Key<'a> {
     Key {
-        library: ends.library.clone(),
-        barcode: ends.barcode.clone(),
+        library,
+        barcode,
         read1_reference_index: ends.read1_reference_index,
         read1_coordinate: ends.read1_coordinate,
         orientation: ends.orientation,
@@ -791,11 +803,12 @@ fn best(list: &[ReadEnds]) -> usize {
 /// the writing pass walks. The reference sorts its read ends and cuts chunks on equal keys; the
 /// port groups by the same key, which is the same partition without the spill to disk.
 pub fn mark(records: &[Record], options: &Options) -> Marking {
-    let mut pairs: Vec<ReadEnds> = Vec::new();
-    let mut fragments: Vec<ReadEnds> = Vec::new();
+    // Sized once: at most one fragment per record and one pair per two.
+    let mut pairs: Vec<ReadEnds> = Vec::with_capacity(records.len() / 2);
+    let mut fragments: Vec<ReadEnds> = Vec::with_capacity(records.len());
     // `tmp`, the map from a read group and a name to the first end of a pair seen. A name is in it
     // at most once: its second record takes it out.
-    let mut pending: HashMap<String, ReadEnds> = HashMap::with_capacity(records.len() / 2);
+    let mut pending: HashMap<&str, ReadEnds> = HashMap::with_capacity(records.len() / 2);
 
     for (index, record) in records.iter().enumerate() {
         if record.unmapped() || record.secondary_or_supplementary() {
@@ -806,9 +819,9 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
         if !record.paired() || record.mate_unmapped() {
             continue;
         }
-        match pending.remove(&record.name) {
+        match pending.remove(record.name.as_str()) {
             None => {
-                pending.insert(record.name.clone(), fragment);
+                pending.insert(&record.name, fragment);
             }
             Some(mut paired) => {
                 let mates_reference_index = fragment.read1_reference_index;
@@ -965,7 +978,11 @@ pub fn sets_by_position(records: &[Record], options: &Options) -> Vec<Vec<usize>
         }
         let ends = build_read_ends(record, index, options);
         let next = groups.len();
-        let position = *keys.entry(key(&ends, false)).or_insert(next);
+        // The strings `build_read_ends` copied, borrowed from the record instead.
+        let barcode = options.barcode_tag.as_ref().and(record.barcode.as_deref());
+        let position = *keys
+            .entry(key_with(&record.library, barcode, &ends, false))
+            .or_insert(next);
         if position == next {
             groups.push(Vec::new());
         }
@@ -974,19 +991,61 @@ pub fn sets_by_position(records: &[Record], options: &Options) -> Vec<Vec<usize>
     groups
 }
 
-/// The chunks `generateDuplicateIndexes` cuts, which are the runs of an equal key.
-fn chunks(list: &[ReadEnds], compare_read2: bool) -> Vec<Vec<ReadEnds>> {
-    let mut keys: HashMap<Key, usize> = HashMap::with_capacity(list.len());
-    let mut groups: Vec<Vec<ReadEnds>> = Vec::new();
-    for ends in list {
-        let next = groups.len();
-        let position = *keys.entry(key(ends, compare_read2)).or_insert(next);
-        if position == next {
-            groups.push(Vec::new());
+/// The chunks `generateDuplicateIndexes` cuts, which are the runs of an equal key: in the order
+/// their keys first appear, each in the list's order.
+///
+/// The grouping is a group number per end, found in a table that holds each group's first end
+/// rather than its key, and a counting sort of the indexes by it, so only the chunk being looked
+/// at is ever copied out.
+fn chunks(list: &[ReadEnds], compare_read2: bool) -> impl Iterator<Item = Vec<ReadEnds>> + '_ {
+    let state = foldhash::fast::RandomState::default();
+    let key_of = |index: u32| key(&list[index as usize], compare_read2);
+    let mut group_of: Vec<u32> = Vec::with_capacity(list.len());
+    let mut sizes: Vec<u32> = Vec::new();
+    {
+        // (the group's first end, the group)
+        let mut table: hashbrown::HashTable<(u32, u32)> =
+            hashbrown::HashTable::with_capacity(list.len());
+        for (index, ends) in list.iter().enumerate() {
+            let key = key(ends, compare_read2);
+            let next = sizes.len() as u32;
+            let group = match table.entry(
+                state.hash_one(&key),
+                |&(first, _)| key_of(first) == key,
+                |&(first, _)| state.hash_one(key_of(first)),
+            ) {
+                hashbrown::hash_table::Entry::Occupied(entry) => entry.get().1,
+                hashbrown::hash_table::Entry::Vacant(entry) => {
+                    entry.insert((index as u32, next));
+                    sizes.push(0);
+                    next
+                }
+            };
+            sizes[group as usize] += 1;
+            group_of.push(group);
         }
-        groups[position].push(ends.clone());
     }
-    groups
+    // `bounds[g]..bounds[g + 1]` is group g's run in `order`.
+    let mut bounds: Vec<u32> = Vec::with_capacity(sizes.len() + 1);
+    let mut next = 0;
+    bounds.push(0);
+    for size in &sizes {
+        next += size;
+        bounds.push(next);
+    }
+    let mut fill = bounds[..sizes.len()].to_vec();
+    drop(sizes);
+    let mut order = vec![0u32; list.len()];
+    for (index, group) in group_of.into_iter().enumerate() {
+        order[fill[group as usize] as usize] = index as u32;
+        fill[group as usize] += 1;
+    }
+    (0..bounds.len() - 1).map(move |group| {
+        order[bounds[group] as usize..bounds[group + 1] as usize]
+            .iter()
+            .map(|&index| list[index as usize].clone())
+            .collect()
+    })
 }
 
 /// `trackOpticalDuplicates`, which splits a set that mixes FR and RF before it looks at anything.

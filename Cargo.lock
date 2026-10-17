@@ -1092,6 +1092,7 @@ dependencies = [
  "boa_engine",
  "flate2",
  "foldhash",
+ "hashbrown 0.17.1",
  "htsjdk-bam",
  "htsjdk-bgzf",
  "htsjdk-metrics",

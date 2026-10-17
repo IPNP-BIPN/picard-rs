@@ -24,6 +24,9 @@ mimalloc = { version = "0.1", default-features = false }
 # per-process seed cannot reach an output; foldhash because SipHash, std's default, is built to
 # resist collision attacks rather than to be fast on short keys.
 foldhash = "0.2"
+# The chunking table, which keys each read end by the index of the first end of its group, so a
+# slot is two integers rather than the key's strings.
+hashbrown = { version = "0.17.1", default-features = false }
 # Whole-file BGZF inflation on every core, with libdeflate. Its libdeflater must resolve to the
 # libdeflate-sys htsjdk-bgzf already links (`links = "deflate"` admits one copy).
 noodles-bgzf = { version = "0.52", features = ["libdeflate"] }
