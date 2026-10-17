@@ -83,6 +83,7 @@ fn iso8601(date: &str) -> String {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("IlluminaBasecallsToSam");
     let args = Args::from_env(&[
         ("B", "BASECALLS_DIR"),
         ("L", "LANE"),
