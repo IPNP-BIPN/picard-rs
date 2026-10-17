@@ -2471,6 +2471,31 @@
       ]
     },
     {
+      "id": "variantcallingmetrics-edge",
+      "status": "golden-pending",
+      "title": "which counter an edge-case site reaches, and the order the per-sample rows are written in",
+      "harness": "tools/variantcallingmetrics-conformance",
+      "tools": [
+        "CollectVariantCallingMetrics"
+      ],
+      "why": "The counter a site reaches is VariantContext.getType(): a multiallelic indel is complex, a symbolic, MNP or MIXED site reaches nothing, and a half-called genotype is MIXED rather than a no-call. The dbSNP indel bitset covers a known deletion's whole span. And the detail rows come out in the accumulator's HashMap order, NA3 NA2 NA1, which the main suite's sorted tables cannot see.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "expect_rows": 4,
+      "expect_contains": [
+        "\\nNA3\\t",
+        "TOTAL_COMPLEX_INDELS"
+      ],
+      "cases": [
+        {
+          "dump": "CollectVariantCallingMetricsEdgeDump",
+          "golden": null,
+          "why": "One VCF: two multiallelic indels, a symbolic <DEL>, an ALT of '.', an MNP, a MIXED site, a 90-base insertion, haploid and half-called genotypes, and an insertion known only through a deletion's span."
+        }
+      ]
+    },
+    {
       "id": "nonzerowgs",
       "status": "oracle-backed",
       "title": "the same traversal reported twice, once over the whole territory and once over the covered part",
