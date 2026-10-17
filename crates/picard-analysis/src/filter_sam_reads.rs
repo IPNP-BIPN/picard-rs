@@ -162,8 +162,45 @@ pub fn alignment_pairwise_indices(
 /// `IntervalList.fromFile(...).getIntervals()` as `IntervalKeepPairFilter` holds them: the
 /// intervals per contig, as an `OverlapDetector` with no buffer keeps them. An interval with no
 /// bases (`start == end + 1`) is never stored, as `addLhs` drops it.
+///
+/// Each contig's spans are sorted by start beside the furthest end reached so far, so a query is
+/// one binary search rather than a scan of the list, which an exome's worth of intervals over a
+/// whole genome's reads cannot afford.
 pub struct PairedIntervals {
-    by_contig: std::collections::HashMap<String, Vec<(i32, i32)>>,
+    by_contig: std::collections::HashMap<String, SortedSpans>,
+}
+
+/// One contig's spans: their starts in order, and at each position the largest end among the
+/// spans up to and including it.
+struct SortedSpans {
+    starts: Vec<i32>,
+    furthest_end: Vec<i32>,
+}
+
+impl SortedSpans {
+    fn new(mut spans: Vec<(i32, i32)>) -> Self {
+        spans.sort_unstable();
+        let mut furthest = i32::MIN;
+        let furthest_end = spans
+            .iter()
+            .map(|&(_, end)| {
+                furthest = furthest.max(end);
+                furthest
+            })
+            .collect();
+        SortedSpans {
+            starts: spans.iter().map(|&(start, _)| start).collect(),
+            furthest_end,
+        }
+    }
+
+    /// Whether a span starting at or before `end` reaches `start`.
+    fn overlaps(&self, start: i32, end: i32) -> bool {
+        match self.starts.partition_point(|&s| s <= end) {
+            0 => false,
+            n => self.furthest_end[n - 1] >= start,
+        }
+    }
 }
 
 impl PairedIntervals {
@@ -249,7 +286,12 @@ impl PairedIntervals {
                     .push((start, end));
             }
         }
-        Ok(PairedIntervals { by_contig })
+        Ok(PairedIntervals {
+            by_contig: by_contig
+                .into_iter()
+                .map(|(contig, spans)| (contig, SortedSpans::new(spans)))
+                .collect(),
+        })
     }
 
     /// `hasOverlaps`: whether any interval shares a base with `contig:start-end`.
@@ -258,7 +300,7 @@ impl PairedIntervals {
             && self
                 .by_contig
                 .get(contig)
-                .is_some_and(|spans| spans.iter().any(|&(s, e)| s <= end && start <= e))
+                .is_some_and(|spans| spans.overlaps(start, end))
     }
 }
 
@@ -629,6 +671,39 @@ mod tests {
         pairUU\t141\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n\
         singleA\t0\tchr1\t500\t60\t4M\t*\t0\t0\tACGT\tIIII\n\
         singleU\t4\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n";
+
+    /// Overlapping and nested intervals, where the furthest end so far is not the last span's.
+    #[test]
+    fn an_overlap_is_found_whatever_the_intervals_nest() {
+        let list = PairedIntervals::parse(
+            "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:1000\n\
+             chr1\t500\t520\t+\tlate\n\
+             chr1\t100\t400\t+\touter\n\
+             chr1\t150\t160\t+\tnested\n\
+             chr1\t390\t450\t+\toverlapping\n\
+             chr1\t600\t599\t+\tempty\n\
+             chr9\t1\t10\t+\tunknown\n",
+        )
+        .unwrap();
+        let cases = [
+            (1, 99, false),
+            (90, 100, true),
+            (300, 310, true),
+            (451, 499, false),
+            (460, 500, true),
+            (521, 700, false),
+            (599, 600, false),
+            (310, 300, false),
+        ];
+        for (start, end, expected) in cases {
+            let brute = [(500, 520), (100, 400), (150, 160), (390, 450)]
+                .iter()
+                .any(|&(s, e)| s <= end && start <= e && start <= end);
+            assert_eq!(brute, expected, "{start}-{end}");
+            assert_eq!(list.overlaps("chr1", start, end), expected, "{start}-{end}");
+        }
+        assert!(!list.overlaps("chr9", 1, 10));
+    }
 
     #[test]
     fn include_aligned_keeps_fully_aligned_templates() {
