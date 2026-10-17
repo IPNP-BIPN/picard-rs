@@ -12,7 +12,7 @@
 
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::flow_based::FlowArguments;
-use picard_analysis::metrics_cli::{read_input, Args};
+use picard_analysis::metrics_cli::{open_input, Args};
 use picard_analysis::quality_yield_flow::FlowCollector;
 use picard_analysis::single_pass_driver;
 
@@ -20,7 +20,7 @@ fn main() {
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT"), ("R", "REFERENCE_SEQUENCE")]);
     let input = args.required("INPUT");
     let output = args.required("OUTPUT");
-    let (header, records) = read_input(&input);
+    let (header, records) = open_input(&input).into_parts();
 
     let mut collector = FlowCollector::new(
         args.bool("INCLUDE_SECONDARY_ALIGNMENTS", false),
@@ -31,7 +31,7 @@ fn main() {
             filling_value: args.double("flow-fill-empty-bins-value", 0.0),
         },
     );
-    single_pass_driver::run(&args, &input, &header, &records, |header, record| {
+    single_pass_driver::run(&args, &input, &header, records, |header, record| {
         collector.accept(header, record)
     });
     let (metrics, histograms) = collector.finish();

@@ -16,6 +16,7 @@ pub mod alignment_summary;
 pub mod annotation;
 pub mod bait_designer;
 pub mod bam_index_stats;
+pub mod bam_stream;
 pub mod bam_to_bfq;
 pub mod barcode_extractor;
 pub mod basecalls_converter;

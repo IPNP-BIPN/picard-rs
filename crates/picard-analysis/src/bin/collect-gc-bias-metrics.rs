@@ -26,7 +26,7 @@ use picard_analysis::gc::{
     phred_score_from_obs_and_errors, GcBiasDetailMetrics, GcBiasSummaryMetrics, GcObject, BINS,
 };
 use picard_analysis::metrics_cli::{
-    check_coordinate_sorted, fail, read_group, read_input, thrown, Args, ReferenceWalker,
+    check_coordinate_sorted, fail, open_input, read_group, thrown, Args, ReferenceWalker,
 };
 
 const TOOL: &str = "CollectGcBiasMetrics";
@@ -249,7 +249,7 @@ fn main() {
         }
     }
 
-    let (header, records) = read_input(&input);
+    let (header, records) = open_input(&input).into_parts();
     let contigs = read_fasta_file(&reference).unwrap_or_else(|e| fail(&format!("{e:?}")));
     check_coordinate_sorted(&input, &header, assume_sorted);
 
@@ -300,7 +300,8 @@ fn main() {
     let mut walker = ReferenceWalker::default();
     let mut gc: Option<(i32, Vec<i8>, Vec<u8>)> = None;
     let mut count = 0i64;
-    for record in &records {
+    for record in records {
+        let record = &record;
         let mut reference_bases: Option<&[u8]> = None;
         if record.reference_index != -1 {
             walker.get(record.reference_index);

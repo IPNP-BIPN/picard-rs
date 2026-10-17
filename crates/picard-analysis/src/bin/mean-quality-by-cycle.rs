@@ -9,12 +9,8 @@
 //! Picard renders that PDF by shelling out to R, which is a rendering of the metrics file rather
 //! than the tool's answer. The array compares the metrics file, which is what both sides compute.
 
-use std::io::Read;
-
 use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::cycle::MeanQualityByCycle;
 use picard_analysis::single_pass_rejections::{
@@ -37,7 +33,7 @@ fn arg(args: &[String], key: &str) -> Option<String> {
 fn drive(
     input: &str,
     header: &SamHeader,
-    records: &[BamRecord],
+    records: impl IntoIterator<Item = BamRecord>,
     assume_sorted: bool,
     with_reference: bool,
     stop_after: i64,
@@ -55,6 +51,7 @@ fn drive(
     let mut current: Option<i32> = None;
     let mut count = 0i64;
     for record in records {
+        let record = &record;
         if with_reference && record.reference_index != -1 {
             current = Some(walk_reference(current, record.reference_index)?);
         }
@@ -89,20 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let (header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
+    let (header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
 
     let mut collector = MeanQualityByCycle::default();
     collector.pf_reads_only = flag("PF_READS_ONLY=");
@@ -117,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(rejection) = drive(
         &input,
         &header,
-        &records,
+        records,
         flag("ASSUME_SORTED="),
         with_reference,
         stop_after,

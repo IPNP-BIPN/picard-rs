@@ -11,12 +11,6 @@
 //! It reads a BAM or a SAM, telling the two apart by the file's own first bytes, because the
 //! array's fixtures are one of each.
 
-use std::io::Read;
-
-use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
-use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::quality_yield::{Options, QualityYieldMetricsCollector};
 
@@ -62,20 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let (_header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
+    let (_header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
 
     // `SinglePassSamProgram.makeItSo` counts a record after handing it over, and stops once
     // `STOP_AFTER` of them have been handed over; zero or less reads them all.
@@ -84,8 +65,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .transpose()?
         .unwrap_or(0);
     let mut collector = QualityYieldMetricsCollector::new(options);
-    for (count, record) in (1i64..).zip(&records) {
-        collector.accept(record);
+    for (count, record) in (1i64..).zip(records) {
+        collector.accept(&record);
         if stop_after > 0 && count >= stop_after {
             break;
         }

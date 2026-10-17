@@ -196,6 +196,11 @@ pub fn read_input(path: &str) -> (SamHeader, Vec<BamRecord>) {
     }
 }
 
+/// The input, checked as [`read_input`] checks it, its records decoded as they are taken.
+pub fn open_input(path: &str) -> crate::bam_stream::Input {
+    crate::bam_stream::Input::open(path).unwrap_or_else(|e| fail(&e.message()))
+}
+
 /// `SAMFileHeader.getSortOrder().name()`: an absent or unrecognised `SO` reads as unsorted.
 pub fn sort_order(header: &SamHeader) -> &str {
     match header.attributes.get("SO") {
