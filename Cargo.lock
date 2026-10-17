@@ -577,7 +577,7 @@ dependencies = [
 [[package]]
 name = "gkl-deflate"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=3960c99e19d57bb1a57addbe429cb036a4b08fb8#3960c99e19d57bb1a57addbe429cb036a4b08fb8"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=ea53d9981d65dea5283539c965f4e4917eb1d44b#ea53d9981d65dea5283539c965f4e4917eb1d44b"
 dependencies = [
  "isal-sys",
 ]
@@ -608,7 +608,7 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 [[package]]
 name = "htsjdk-bam"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=3960c99e19d57bb1a57addbe429cb036a4b08fb8#3960c99e19d57bb1a57addbe429cb036a4b08fb8"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=ea53d9981d65dea5283539c965f4e4917eb1d44b#ea53d9981d65dea5283539c965f4e4917eb1d44b"
 dependencies = [
  "htsjdk-bgzf",
  "jmath",
@@ -618,19 +618,20 @@ dependencies = [
 [[package]]
 name = "htsjdk-bgzf"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=3960c99e19d57bb1a57addbe429cb036a4b08fb8#3960c99e19d57bb1a57addbe429cb036a4b08fb8"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=ea53d9981d65dea5283539c965f4e4917eb1d44b#ea53d9981d65dea5283539c965f4e4917eb1d44b"
 dependencies = [
  "flate2",
  "gkl-deflate",
  "libdeflate-sys",
  "libz-sys",
  "md-5",
+ "rayon",
 ]
 
 [[package]]
 name = "htsjdk-metrics"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=3960c99e19d57bb1a57addbe429cb036a4b08fb8#3960c99e19d57bb1a57addbe429cb036a4b08fb8"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=ea53d9981d65dea5283539c965f4e4917eb1d44b#ea53d9981d65dea5283539c965f4e4917eb1d44b"
 dependencies = [
  "jmath",
 ]
@@ -638,7 +639,7 @@ dependencies = [
 [[package]]
 name = "htsjdk-tribble"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=3960c99e19d57bb1a57addbe429cb036a4b08fb8#3960c99e19d57bb1a57addbe429cb036a4b08fb8"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=ea53d9981d65dea5283539c965f4e4917eb1d44b#ea53d9981d65dea5283539c965f4e4917eb1d44b"
 dependencies = [
  "flate2",
  "htsjdk-bam",
@@ -648,7 +649,7 @@ dependencies = [
 [[package]]
 name = "htsjdk-vcf"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=3960c99e19d57bb1a57addbe429cb036a4b08fb8#3960c99e19d57bb1a57addbe429cb036a4b08fb8"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=ea53d9981d65dea5283539c965f4e4917eb1d44b#ea53d9981d65dea5283539c965f4e4917eb1d44b"
 dependencies = [
  "htsjdk-tribble",
  "jmath",
@@ -843,7 +844,7 @@ checksum = "4d3667095d64c3ecffc96463a21157b04bf3e252f6e8d5750b20c02e33c194e3"
 [[package]]
 name = "jmath"
 version = "0.2.0"
-source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=3960c99e19d57bb1a57addbe429cb036a4b08fb8#3960c99e19d57bb1a57addbe429cb036a4b08fb8"
+source = "git+https://github.com/IPNP-BIPN/htsjdk-rs?rev=ea53d9981d65dea5283539c965f4e4917eb1d44b#ea53d9981d65dea5283539c965f4e4917eb1d44b"
 
 [[package]]
 name = "libc"

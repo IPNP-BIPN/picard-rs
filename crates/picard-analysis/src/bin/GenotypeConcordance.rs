@@ -536,7 +536,7 @@ impl OutputVcf {
         };
         if let Err(error) = self
             .index
-            .add_feature(feature, self.bgzf.file_pointer() as i64)
+            .add_feature(feature, self.bgzf.file_pointer()? as i64)
         {
             eprintln!(
                 "Exception in thread \"main\" {}: {}",
@@ -552,8 +552,8 @@ impl OutputVcf {
 
     /// `close()`: the index is finalised at the position the last line ended, then the stream is
     /// closed with its empty terminating block, and the `.tbi` is written beside it.
-    fn close(self) -> Result<(), Box<dyn std::error::Error>> {
-        let end = self.bgzf.file_pointer() as i64;
+    fn close(mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let end = self.bgzf.file_pointer()? as i64;
         std::fs::write(&self.path, self.bgzf.into_inner()?)?;
         let index = self
             .index

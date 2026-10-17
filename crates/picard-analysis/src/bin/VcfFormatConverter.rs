@@ -121,7 +121,7 @@ fn write_block_compressed(
                 &variant.contig,
                 variant.start,
                 variant.stop,
-                writer.file_pointer(),
+                writer.file_pointer()?,
             ) {
                 die(&exception);
             }
