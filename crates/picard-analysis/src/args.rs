@@ -17,22 +17,22 @@ pub fn is_true(value: &str) -> bool {
     value.eq_ignore_ascii_case("true")
 }
 
-/// The one file a tool reads from `INPUT` (or `I`), which Picard declares as a list. Reading
-/// several inputs as one is not ported, so a second one is refused rather than silently dropped.
-pub fn single_input(args: &[String]) -> Result<String, String> {
-    let inputs: Vec<String> = args
-        .iter()
-        .filter_map(|a| a.strip_prefix("INPUT=").or_else(|| a.strip_prefix("I=")))
+/// Every value of a list option, in command-line order, under its long and short names (`"INPUT="`
+/// and `"I="`).
+pub fn all(args: &[String], long: &str, short: &str) -> Vec<String> {
+    args.iter()
+        .filter_map(|a| a.strip_prefix(long).or_else(|| a.strip_prefix(short)))
         .map(str::to_string)
-        .collect();
-    match inputs.as_slice() {
-        [] => Err("INPUT= is required".to_string()),
-        [one] => Ok(one.clone()),
-        several => Err(format!(
-            "more than one INPUT is not ported: {} were given",
-            several.len()
-        )),
+        .collect()
+}
+
+/// The files a tool reads from `INPUT` (or `I`), a list in Picard, at least one of them.
+pub fn inputs(args: &[String]) -> Result<Vec<String>, String> {
+    let inputs = all(args, "INPUT=", "I=");
+    if inputs.is_empty() {
+        return Err("INPUT= is required".to_string());
     }
+    Ok(inputs)
 }
 
 #[cfg(test)]
@@ -62,14 +62,15 @@ mod tests {
     }
 
     #[test]
-    fn a_second_input_is_refused() {
-        assert_eq!(single_input(&words("tool I=a.bam")).as_deref(), Ok("a.bam"));
+    fn every_input_is_read_in_order() {
         assert_eq!(
-            single_input(&words("tool INPUT=a.bam")).as_deref(),
-            Ok("a.bam")
+            inputs(&words("tool I=a.bam")),
+            Ok(vec!["a.bam".to_string()])
         );
-        assert!(single_input(&words("tool O=x.bam")).is_err());
-        let refused = single_input(&words("tool I=a.bam INPUT=b.bam")).unwrap_err();
-        assert!(refused.contains("2 were given"), "{refused}");
+        assert_eq!(
+            inputs(&words("tool I=a.bam INPUT=b.bam")),
+            Ok(vec!["a.bam".to_string(), "b.bam".to_string()])
+        );
+        assert!(inputs(&words("tool O=x.bam")).is_err());
     }
 }

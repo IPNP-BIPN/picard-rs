@@ -14,12 +14,7 @@
 //! The corpus gained `mate_cigar.bam` for this: without a file that carries the tag, every row
 //! measured the refusal and nothing else.
 
-use std::io::Read;
-
-use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
@@ -50,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     });
     let args: Vec<String> = std::env::args().collect();
-    let input = picard_analysis::args::single_input(&args)?;
+    let inputs = picard_analysis::args::inputs(&args)?;
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
@@ -105,25 +100,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let (header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
-
     // ASSUME_SORT_ORDER is written into the header by `openInputs`, so it decides this check as
     // surely as the file does: a coordinate-sorted file assumed to be anything else is refused,
     // and the message says nothing about the assumption.
-    let mut header = header;
     // `ASSUME_SORTED=true` stands for `ASSUME_SORT_ORDER=coordinate`.
     let assumed = arg(&args, "ASSUME_SORT_ORDER=")
         .or_else(|| arg(&args, "ASO="))
@@ -133,9 +112,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .is_some_and(|v| picard_analysis::args::is_true(&v))
                 .then(|| "coordinate".to_string())
         });
-    if let Some(order) = assumed {
-        header.set_sort_order(&order);
-    }
+    let read = |input: &String| picard_analysis::metrics_cli::read_input(input);
+    let (header, records) = picard_analysis::merge_sam_files::open_inputs(
+        inputs.iter().map(read).collect(),
+        assumed.as_deref(),
+    )
+    .unwrap_or_else(|thrown| picard_analysis::metrics_cli::thrown(&thrown));
+    // Only an order this tool refuses before reading a record makes reading one throw.
+    let records = records.unwrap_or_default();
     let header_order = header
         .attributes
         .get("SO")

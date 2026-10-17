@@ -792,7 +792,7 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
     let mut pairs: Vec<ReadEnds> = Vec::new();
     let mut fragments: Vec<ReadEnds> = Vec::new();
     // `tmp`, the map from a read group and a name to the first end of a pair seen.
-    let mut pending: Vec<(String, ReadEnds)> = Vec::new();
+    let mut pending: Vec<((i32, String), ReadEnds)> = Vec::new();
 
     for (index, record) in records.iter().enumerate() {
         if record.unmapped() || record.secondary_or_supplementary() {
@@ -803,7 +803,8 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
         if !record.paired() || record.mate_unmapped() {
             continue;
         }
-        let name = record.name.clone();
+        // The read group's id and the name: one name in two groups is two templates.
+        let name = (record.read_group, record.name.clone());
         match pending.iter().position(|(key, _)| *key == name) {
             None => pending.push((name, fragment)),
             Some(position) => {
@@ -986,6 +987,28 @@ fn chunks(list: &[ReadEnds], compare_read2: bool) -> Vec<Vec<ReadEnds>> {
                 groups.push(vec![ends.clone()]);
             }
         }
+    }
+    // `ReadEndsMDComparator` past the key: the mate's position, then the physical location (-1
+    // where none was parsed), then the indexes in the file. Within one file the location rarely
+    // ties apart from the index; two merged files with different name styles do.
+    let location = |ends: &ReadEnds| {
+        let l = ends.location;
+        if l.known {
+            (i32::from(l.tile), l.x, l.y)
+        } else {
+            (-1, -1, -1)
+        }
+    };
+    for group in &mut groups {
+        group.sort_by_key(|ends| {
+            (
+                ends.read2_reference_index,
+                ends.read2_coordinate,
+                location(ends),
+                ends.read1_index_in_file,
+                ends.read2_index_in_file,
+            )
+        });
     }
     groups
 }

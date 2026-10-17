@@ -17,7 +17,7 @@ use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::args::arg;
-use picard_analysis::jumping_library::{collect, unsorted_message, Arguments, Pair};
+use picard_analysis::jumping_library::{collect_files, unsorted_message, Arguments, Pair};
 
 const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
@@ -30,7 +30,7 @@ const DUPLICATE: u16 = 0x400;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CollectJumpingLibraryMetrics");
     let args: Vec<String> = std::env::args().collect();
-    let input = picard_analysis::args::single_input(&args)?;
+    let inputs = picard_analysis::args::inputs(&args)?;
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
@@ -52,8 +52,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // Every file is read in order into one set of counters; the first that is not coordinate
+    // sorted is the refusal.
+    let files = inputs
+        .iter()
+        .map(|input| pairs_of(input))
+        .collect::<Result<Vec<_>, _>>()?;
+    let files: Vec<&[(Pair, bool)]> = files.iter().map(Vec::as_slice).collect();
+    let metrics = collect_files(&files, &arguments);
+    let mut file = MetricsFile::new();
+    for header in picard_analysis::command_line::default_headers("CollectJumpingLibraryMetrics") {
+        file.add_header(&header);
+    }
+    file.add_metric(&metrics);
+    std::fs::write(&output, file.write())?;
+    Ok(())
+}
+
+/// One file's first ends, in file order, each with whether its mate lies to the right.
+fn pairs_of(input: &str) -> Result<Vec<(Pair, bool)>, Box<dyn std::error::Error>> {
     let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+    std::fs::File::open(input)?.read_to_end(&mut raw)?;
     let (header, records) = if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
@@ -68,7 +87,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     if header.attributes.get("SO") != Some("coordinate") {
-        let name = input.rsplit('/').next().unwrap_or(&input);
+        let name = input.rsplit('/').next().unwrap_or(input);
         eprintln!(
             "Exception in thread \"main\" picard.PicardException: {}",
             unsorted_message(name)
@@ -77,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // "We're getting all our info from the first of each pair."
-    let pairs: Vec<(Pair, bool)> = records
+    Ok(records
         .iter()
         .filter(|rec| rec.flags & READ_PAIRED != 0 && rec.flags & FIRST_OF_PAIR != 0)
         .map(|rec| {
@@ -116,14 +135,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             (pair, mate_is_to_the_right)
         })
-        .collect();
-
-    let metrics = collect(&pairs, &arguments);
-    let mut file = MetricsFile::new();
-    for header in picard_analysis::command_line::default_headers("CollectJumpingLibraryMetrics") {
-        file.add_header(&header);
-    }
-    file.add_metric(&metrics);
-    std::fs::write(&output, file.write())?;
-    Ok(())
+        .collect())
 }
