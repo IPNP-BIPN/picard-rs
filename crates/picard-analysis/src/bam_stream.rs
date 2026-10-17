@@ -15,6 +15,7 @@
 //! passes the checks htsjdk's reader makes, and the inflated length is the sum of the declared
 //! ones. Anything else is answered by reading the file whole, exactly as before.
 
+use crate::record_validation::Validator;
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::{BamReader, ReadError};
 use htsjdk_bam::record::BamRecord;
@@ -96,7 +97,7 @@ impl Input {
             let (header, records) = crate::cram_input::decode_or_exit(&raw);
             return Ok(Input {
                 header,
-                records: Records::Decoded(records.into_iter()),
+                records: Records::Decoded(records.into_iter(), None),
             });
         }
         head.truncate(2);
@@ -109,9 +110,10 @@ impl Input {
                 .map_err(InputError::Io)?;
             let text = String::from_utf8(raw).map_err(InputError::Utf8)?;
             let (header, records) = read_sam(&text).map_err(InputError::Sam)?;
+            // shortcut: a SAM is not validated; SAMLineParser's checks are their own port.
             return Ok(Input {
                 header,
-                records: Records::Decoded(records.into_iter()),
+                records: Records::Decoded(records.into_iter(), None),
             });
         }
         match check(path) {
@@ -123,7 +125,7 @@ impl Input {
 
     /// Whether the records are decoded from the file as they are taken, rather than held.
     pub fn streams(&self) -> bool {
-        matches!(self.records, Records::Stream(_))
+        matches!(self.records, Records::Stream(..))
     }
 
     /// The same input again, for a tool that reads it twice, as Picard's do. A file [`Self::open`]
@@ -152,24 +154,36 @@ impl IntoIterator for Input {
     }
 }
 
-/// The records of an [`Input`].
+/// The records of an [`Input`], a BAM's validated as they are taken.
 pub enum Records {
-    Stream(RecordStream<MultithreadedInflater<BufReader<File>>>),
-    Decoded(std::vec::IntoIter<BamRecord>),
+    Stream(
+        RecordStream<MultithreadedInflater<BufReader<File>>>,
+        Validator,
+    ),
+    Decoded(std::vec::IntoIter<BamRecord>, Option<Validator>),
 }
 
 impl Iterator for Records {
     type Item = BamRecord;
 
     fn next(&mut self) -> Option<BamRecord> {
-        match self {
-            Records::Decoded(records) => records.next(),
+        let (record, validator) = match self {
+            Records::Decoded(records, validator) => (records.next(), validator.as_mut()),
             // The first pass decoded every record of this file, so a failure here means the file
             // changed under the run.
-            Records::Stream(stream) => stream
-                .record()
-                .unwrap_or_else(|e| panic!("the input changed while it was read: {e:?}")),
+            Records::Stream(stream, validator) => (
+                stream
+                    .record()
+                    .unwrap_or_else(|e| panic!("the input changed while it was read: {e:?}")),
+                Some(validator),
+            ),
+        };
+        if let (Some(rec), Some(validator)) = (&record, validator) {
+            if let Err(message) = validator.check(rec) {
+                crate::metrics_cli::thrown(&message);
+            }
         }
+        record
     }
 }
 
@@ -181,9 +195,11 @@ fn stream(path: &str) -> Result<Input, InputError> {
     let header = stream
         .header()
         .unwrap_or_else(|e| panic!("{path} changed while it was read: {e:?}"));
+    // Each pass validates, as each of Picard's readers does.
+    let validator = Validator::new(&header, &stream.binary_sequences);
     Ok(Input {
         header,
-        records: Records::Stream(stream),
+        records: Records::Stream(stream, validator),
     })
 }
 
@@ -197,12 +213,13 @@ fn whole(path: &str) -> Result<Input, InputError> {
     let plain = crate::bgzf::decompress_owned(raw).map_err(InputError::Bgzf)?;
     let reader = BamReader::new(&plain).map_err(InputError::Bam)?;
     let header = reader.header.text.clone();
+    let validator = Validator::new(&header, &reader.header.binary_sequences);
     let records = reader
         .collect::<Result<Vec<_>, _>>()
         .map_err(InputError::Bam)?;
     Ok(Input {
         header,
-        records: Records::Decoded(records.into_iter()),
+        records: Records::Decoded(records.into_iter(), Some(validator)),
     })
 }
 
@@ -357,6 +374,8 @@ pub struct RecordStream<R> {
     buf: Vec<u8>,
     start: usize,
     end_of_stream: bool,
+    /// The header's binary dictionary, once [`Self::header`] has read it.
+    pub binary_sequences: Vec<(String, i32)>,
 }
 
 impl<R: Read> RecordStream<R> {
@@ -366,6 +385,7 @@ impl<R: Read> RecordStream<R> {
             buf: Vec::new(),
             start: 0,
             end_of_stream: false,
+            binary_sequences: Vec::new(),
         }
     }
 
@@ -399,6 +419,7 @@ impl<R: Read> RecordStream<R> {
             match BamReader::new(&self.buf) {
                 Ok(reader) => {
                     self.start = reader.records_start();
+                    self.binary_sequences = reader.header.binary_sequences;
                     return Ok(reader.header.text);
                 }
                 Err(ReadError::Truncated { need, .. }) if !self.end_of_stream => self.fill(need)?,
@@ -537,7 +558,7 @@ mod tests {
         match Input::open(path) {
             Ok(input) => {
                 let (header, records) = input.into_parts();
-                let streaming = matches!(records, Records::Stream(_));
+                let streaming = matches!(records, Records::Stream(..));
                 (Ok((header, records.collect())), streaming)
             }
             Err(e) => (Err(e.message()), false),

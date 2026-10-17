@@ -212,7 +212,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // `buildSortedReadEndLists` reads every record before the order is checked.
             let records =
                 records.unwrap_or_else(|thrown| picard_analysis::metrics_cli::thrown(&thrown));
-            Ok((header, Records::Decoded(records.into_iter()), false))
+            Ok((header, Records::Decoded(records.into_iter(), None), false))
         };
     let (header, records, streamed) = open(None)?;
     let header_order = header

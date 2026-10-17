@@ -53,6 +53,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // `QualityYieldMetricsCollector` reads bases, qualities and flags, never the CIGAR.
+    picard_analysis::record_validation::cigar_never_decoded();
     let (_header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
 
     // `SinglePassSamProgram.makeItSo` counts a record after handing it over, and stops once

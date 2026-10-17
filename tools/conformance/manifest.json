@@ -3413,6 +3413,42 @@
           "why": "No golden yet: CI publishes the dump from a real x86-64 runner, and the Rust test that reads it lands with the freeze."
         }
       ]
+    },
+    {
+      "id": "strict-validation",
+      "title": "the record validation every BAM reader runs at VALIDATION_STRINGENCY",
+      "status": "golden-pending",
+      "harness": "tools/strict-conformance",
+      "tools": [
+        "CollectQualityYieldMetrics",
+        "SortSam",
+        "MarkDuplicates",
+        "CleanSam"
+      ],
+      "java_props": [
+        "-Duser.language=en",
+        "-Duser.country=US",
+        "-Dsamjdk.use_libdeflate=false"
+      ],
+      "why": "Every other suite reads valid records, so nothing measured what htsjdk 5.0.0's BAMFileReader does with a malformed one: it numbers the records and runs SAMRecord.isValid on each, STRICT throwing the first error as a SAMFormatException, LENIENT printing every one as \"Ignoring SAM validation error\", SILENT saying nothing. The cases are one BAM per check isValid makes that a BAM can carry (flags, mate and read positions, insert size, CIGAR, dictionary, read group) plus Cigar.isValid's checks, which BAMRecord.getCigar runs lazily and without a record number, and an index past the dictionary, which the record's constructor refuses at every stringency. Each is read by four tools at the three stringencies: a single-pass metrics tool that never decodes the CIGAR, SortSam, MarkDuplicates, which reads its input twice and so validates twice, and CleanSam, which reads STRICT as LENIENT. A row is the lines a run printed through System.err that start \"Ignoring SAM validation error\", then the throwable that escaped instanceMain or the exit status; tools/strict-conformance/port_side.py runs the port's binaries on the dump's own BAMs and prints the same rows.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "expect_rows": 312,
+      "expect_contains": [
+        "ERROR::INVALID_FLAG_MATE_UNMAPPED:Record 2, Read name bad, Mapped mate should have mate reference name",
+        "Ignoring SAM validation error: ERROR::CIGAR_MAPS_OFF_REFERENCE:Read name bad, Read CIGAR M operator maps off end of reference",
+        "WARNING::ADJACENT_INDEL_IN_CIGAR:Read name bad",
+        "java.lang.IllegalArgumentException: Reference name for '1' not found in sequence dictionary."
+      ],
+      "$expect_why": "A row count is not evidence: these are a STRICT refusal with its record number, the lazy CIGAR check printed before isValid's own errors, a WARNING-severity error that STRICT still throws, and the refusal no stringency lifts.",
+      "cases": [
+        {
+          "dump": "StrictValidationDump",
+          "golden": null,
+          "why": "No golden yet: CI publishes the dump from a real x86-64 runner, and the Rust test that reads it lands with the freeze."
+        }
+      ]
     }
   ],
   "probes": [

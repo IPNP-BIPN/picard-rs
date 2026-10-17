@@ -15,7 +15,6 @@ use std::io::Read;
 use htsjdk_bam::fasta::read_fasta_file;
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::interval::IntervalList;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
@@ -177,7 +176,7 @@ fn read_input(input: &str) -> Result<(SamHeader, Vec<BamRecord>, bool), String> 
     let raw = crate::cram_input::uncram(raw);
     if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = crate::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+        let reader = crate::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
         let header = reader.header.text.clone();
         let records = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))
