@@ -428,14 +428,14 @@
         "port": "MakeSitesOnlyVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "RenameSampleInVcf",
         "port": "RenameSampleInVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "VcfToIntervalList",
@@ -448,49 +448,49 @@
         "port": "SortVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "UpdateVcfSequenceDictionary",
         "port": "UpdateVcfSequenceDictionary",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "MergeVcfs",
         "port": "MergeVcfs",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "GatherVcfs",
         "port": "GatherVcfs",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "SplitVcfs",
         "port": "SplitVcfs",
         "t": 2,
         "status": "measured",
-        "output_name": "snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf"
+        "output_name": "snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf,snp.vcf.gz,snp.vcf.gz.tbi,indel.vcf.gz,indel.vcf.gz.tbi"
       },
       {
         "tool": "VcfFormatConverter",
         "port": "VcfFormatConverter",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf,output.vcf.gz"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "FixVcfHeader",
         "port": "FixVcfHeader",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "CollectWgsMetrics",
@@ -579,7 +579,7 @@
         "port": "LiftoverVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf,reject.vcf,reject_b.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi,reject.vcf,reject_b.vcf"
       },
       {
         "tool": "CollectMultipleMetrics",
@@ -704,7 +704,7 @@
         "port": "FilterVcf",
         "t": 2,
         "status": "measured",
-        "output_name": "output.vcf"
+        "output_name": "output.vcf,output.vcf.gz,output.vcf.gz.tbi"
       },
       {
         "tool": "CheckFingerprint",

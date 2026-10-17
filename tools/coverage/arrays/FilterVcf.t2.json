@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 23,
-  "arguments_in_array": 9,
-  "arguments_excluded": 14,
+  "arguments_in_array": 10,
+  "arguments_excluded": 13,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -41,13 +41,6 @@
       "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--OUTPUT",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/out/output.vcf",
-      "source": "fixture"
     },
     {
       "argument": "--QUIET",
@@ -106,9 +99,9 @@
       "source": "none"
     }
   ],
-  "rows": 18,
-  "tuples_total": 231,
-  "tuples_covered": 231,
+  "rows": 20,
+  "tuples_total": 277,
+  "tuples_covered": 277,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -126,6 +119,7 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_QD": "fixture[0]",
+        "--OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -137,6 +131,7 @@
         "--MIN_DP=0",
         "--MIN_GQ=0",
         "--MIN_QD=0.0",
+        "--OUTPUT=/work/out/output.vcf",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -151,6 +146,7 @@
         "--MIN_DP": "fixture[1]",
         "--MIN_GQ": "fixture[1]",
         "--MIN_QD": "fixture[1]",
+        "--OUTPUT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
@@ -162,6 +158,7 @@
         "--MIN_DP=9",
         "--MIN_GQ=30",
         "--MIN_QD=2.0",
+        "--OUTPUT=/work/out/output.vcf.gz",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -176,6 +173,7 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[1]",
         "--MIN_QD": "fixture[0]",
+        "--OUTPUT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -187,6 +185,7 @@
         "--MIN_DP=0",
         "--MIN_GQ=30",
         "--MIN_QD=0.0",
+        "--OUTPUT=/work/out/output.vcf.gz",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -201,6 +200,7 @@
         "--MIN_DP": "fixture[1]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_QD": "fixture[1]",
+        "--OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -212,6 +212,7 @@
         "--MIN_DP=9",
         "--MIN_GQ=0",
         "--MIN_QD=2.0",
+        "--OUTPUT=/work/out/output.vcf",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -226,6 +227,7 @@
         "--MIN_DP": "fixture[1]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_QD": "fixture[0]",
+        "--OUTPUT": "fixture[1]",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
@@ -237,6 +239,7 @@
         "--MIN_DP=9",
         "--MIN_GQ=0",
         "--MIN_QD=0.0",
+        "--OUTPUT=/work/out/output.vcf.gz",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
@@ -251,7 +254,8 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[1]",
         "--MIN_QD": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--OUTPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
@@ -262,7 +266,8 @@
         "--MIN_DP=0",
         "--MIN_GQ=30",
         "--MIN_QD=2.0",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--OUTPUT=/work/out/output.vcf",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -276,7 +281,8 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_QD": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--OUTPUT": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=false",
@@ -287,7 +293,8 @@
         "--MIN_DP=0",
         "--MIN_GQ=0",
         "--MIN_QD=0.0",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--OUTPUT=/work/out/output.vcf.gz",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -301,6 +308,7 @@
         "--MIN_DP": "fixture[1]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_QD": "fixture[0]",
+        "--OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -312,6 +320,7 @@
         "--MIN_DP=9",
         "--MIN_GQ=0",
         "--MIN_QD=0.0",
+        "--OUTPUT=/work/out/output.vcf",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -326,6 +335,7 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_QD": "fixture[0]",
+        "--OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -337,6 +347,7 @@
         "--MIN_DP=0",
         "--MIN_GQ=0",
         "--MIN_QD=0.0",
+        "--OUTPUT=/work/out/output.vcf",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -351,6 +362,7 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_QD": "fixture[0]",
+        "--OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -362,6 +374,7 @@
         "--MIN_DP=0",
         "--MIN_GQ=0",
         "--MIN_QD=0.0",
+        "--OUTPUT=/work/out/output.vcf",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -376,7 +389,8 @@
         "--MIN_DP": "fixture[1]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_QD": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--OUTPUT": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
@@ -387,7 +401,8 @@
         "--MIN_DP=9",
         "--MIN_GQ=0",
         "--MIN_QD=2.0",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--OUTPUT=/work/out/output.vcf.gz",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -401,7 +416,8 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_QD": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--OUTPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
@@ -412,7 +428,8 @@
         "--MIN_DP=0",
         "--MIN_GQ=0",
         "--MIN_QD=0.0",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--OUTPUT=/work/out/output.vcf",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -426,7 +443,8 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_QD": "fixture[1]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--OUTPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
@@ -437,7 +455,8 @@
         "--MIN_DP=0",
         "--MIN_GQ=0",
         "--MIN_QD=2.0",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--OUTPUT=/work/out/output.vcf",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -451,7 +470,8 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[1]",
         "--MIN_QD": "fixture[0]",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--OUTPUT": "fixture[1]",
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--CREATE_INDEX=true",
@@ -462,7 +482,8 @@
         "--MIN_DP=0",
         "--MIN_GQ=30",
         "--MIN_QD=0.0",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--OUTPUT=/work/out/output.vcf.gz",
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -476,6 +497,7 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[1]",
         "--MIN_QD": "fixture[1]",
+        "--OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -487,6 +509,7 @@
         "--MIN_DP=0",
         "--MIN_GQ=30",
         "--MIN_QD=2.0",
+        "--OUTPUT=/work/out/output.vcf",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -501,6 +524,7 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_QD": "fixture[0]",
+        "--OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -512,6 +536,7 @@
         "--MIN_DP=0",
         "--MIN_GQ=0",
         "--MIN_QD=0.0",
+        "--OUTPUT=/work/out/output.vcf",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -526,6 +551,7 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[1]",
         "--MIN_QD": "fixture[0]",
+        "--OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
@@ -537,6 +563,7 @@
         "--MIN_DP=0",
         "--MIN_GQ=30",
         "--MIN_QD=0.0",
+        "--OUTPUT=/work/out/output.vcf",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
@@ -551,6 +578,7 @@
         "--MIN_DP": "fixture[0]",
         "--MIN_GQ": "fixture[0]",
         "--MIN_QD": "fixture[0]",
+        "--OUTPUT": "fixture[0]",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
@@ -562,7 +590,62 @@
         "--MIN_DP=0",
         "--MIN_GQ=0",
         "--MIN_QD=0.0",
+        "--OUTPUT=/work/out/output.vcf",
         "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 18,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[2]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
+        "--MAX_FS": "fixture[0]",
+        "--MIN_AB": "fixture[0]",
+        "--MIN_DP": "fixture[0]",
+        "--MIN_GQ": "fixture[0]",
+        "--MIN_QD": "fixture[0]",
+        "--OUTPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/vcf_unsorted_samples.vcf",
+        "--JAVASCRIPT_FILE=<absent>",
+        "--MAX_FS=60.0",
+        "--MIN_AB=0.0",
+        "--MIN_DP=0",
+        "--MIN_GQ=0",
+        "--MIN_QD=0.0",
+        "--OUTPUT=/work/out/output.vcf",
+        "--VALIDATION_STRINGENCY=LENIENT"
+      ]
+    },
+    {
+      "row": 19,
+      "labels": {
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[3]",
+        "--JAVASCRIPT_FILE": "fixture[0]",
+        "--MAX_FS": "fixture[0]",
+        "--MIN_AB": "fixture[0]",
+        "--MIN_DP": "fixture[0]",
+        "--MIN_GQ": "fixture[0]",
+        "--MIN_QD": "fixture[0]",
+        "--OUTPUT": "fixture[0]",
+        "--VALIDATION_STRINGENCY": "LENIENT"
+      },
+      "arguments": [
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/vcf_sites_only.vcf",
+        "--JAVASCRIPT_FILE=<absent>",
+        "--MAX_FS=60.0",
+        "--MIN_AB=0.0",
+        "--MIN_DP=0",
+        "--MIN_GQ=0",
+        "--MIN_QD=0.0",
+        "--OUTPUT=/work/out/output.vcf",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     }
   ]
