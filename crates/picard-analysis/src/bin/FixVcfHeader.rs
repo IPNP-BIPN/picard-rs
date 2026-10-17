@@ -23,11 +23,10 @@
 //! The writer always indexes, whatever `CREATE_INDEX` says, so the output header needs contig
 //! lines.
 
-use htsjdk_vcf::encoder::EncodeError;
 use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::standard_header_lines::{standard_format_line, PRIMARY_KEYS};
 use picard_analysis::vcf_io::{
-    die, header_dictionary, read_path, sample_names_in_order, write_output, write_records,
+    die, header_dictionary, read_path, sample_names_in_order, write_output,
 };
 
 fn arg(args: &[String], key: &str) -> Option<String> {
@@ -60,22 +59,6 @@ fn same_line(a: &HeaderLine, b: &HeaderLine) -> bool {
             },
         ) => ak == bk && ai == bi && an == bn && at == bt && ad == bd,
         _ => a == b,
-    }
-}
-
-fn encode_error(error: &EncodeError) -> String {
-    match error {
-        EncodeError::MissingFromHeader {
-            key,
-            field,
-            contig,
-            start,
-        } => format!(
-            "java.lang.IllegalStateException: Key {key} found in VariantContext field {field} at \
-             {contig}:{start} but this key isn't defined in the VCFHeader.  We require all VCFs \
-             to have complete VCF headers by default."
-        ),
-        other => format!("{other:?}"),
     }
 }
 
@@ -229,12 +212,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
              Tribble indices on the fly",
         );
     };
-    // The VCF encoder's refusals are the VCF writer's; a BCF writer refuses for itself.
-    if !picard_analysis::vcf_io::is_bcf(&output) {
-        if let Err(error) = write_records(&out_header, &vcf.records) {
-            die(&encode_error(&error));
-        }
-    }
     write_output(&output, &out_header, &vcf.records, Some(&dictionary))?;
     Ok(())
 }

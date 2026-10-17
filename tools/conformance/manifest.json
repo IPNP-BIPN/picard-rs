@@ -3120,6 +3120,31 @@
       ]
     },
     {
+      "id": "bcf-partial",
+      "status": "golden-pending",
+      "title": "what a VCF writer leaves on disk when it refuses a record partway through",
+      "harness": "tools/bcf-conformance",
+      "tools": [
+        "VcfFormatConverter"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "VariantContextWriterBuilder writes through IOUtil.maybeBufferOutputStream at Defaults.BUFFER_SIZE, a 128 KiB BufferedOutputStream that BCF2Writer and VCFWriter never flush before close(), and a refused record throws before close(). So the file holds what the buffer had flushed: nothing on a small file, and on a large one every buffer up to the last write call that did not fit, which is not a multiple of 128 KiB. picard-rs left an empty file (BCF) or none at all (VCF). Each case is a generated VCF converted to .bcf and to .vcf by VcfFormatConverter, with a late undeclared INFO key, a discordant count, a contig missing from the header and an integer list with a missing element, a header larger than the buffer, which bypasses it, and a small file; the undeclared case is also indexed on the fly, and no .idx appears.",
+      "expect_rows": 24,
+      "expect_contains": [
+        "input\tlate-undeclared\t",
+        "bcf\tlate-count\t",
+        "idx=no java.lang.IllegalStateException: Key XX found"
+      ],
+      "cases": [
+        {
+          "dump": "PartialOutputDump",
+          "golden": null
+        }
+      ]
+    },
+    {
       "id": "mendelianviolations",
       "status": "oracle-backed",
       "title": "a trio's impossible genotypes, and the calls the checker declines to look at",

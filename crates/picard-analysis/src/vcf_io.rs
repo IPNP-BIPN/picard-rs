@@ -126,6 +126,15 @@ pub fn read_lazy(text: &str) -> Result<LazyVcf, ReadFailure> {
 
 /// `VCFWriter.writeHeader` and then `add` per record: the whole file.
 pub fn write_records(header: &VcfHeader, records: &[Record]) -> Result<String, EncodeError> {
+    match written(header, records) {
+        (text, None) => Ok(text),
+        (_, Some(error)) => Err(error),
+    }
+}
+
+/// [`write_records`] up to the first refusal: the header and every whole line before it, and the
+/// refusal. A refused line never leaves `VCFWriter`'s line buffer.
+fn written(header: &VcfHeader, records: &[Record]) -> (String, Option<EncodeError>) {
     let encoder = VcfEncoder::new(header);
     // The site columns of a lazy record go through the same encoder with no samples in its header,
     // so it writes no FORMAT of its own; the copied block supplies it.
@@ -137,24 +146,75 @@ pub fn write_records(header: &VcfHeader, records: &[Record]) -> Result<String, E
 
     let mut out = header.write();
     for record in records {
-        match &record.lazy_genotypes {
+        let start = out.len();
+        let encoded = match &record.lazy_genotypes {
             Some(block) => {
                 let mut site = record.variant.clone();
                 site.genotypes.clear();
-                sites_encoder.encode_into(&site, &mut out)?;
-                out.push('\t');
-                out.push_str(block);
+                sites_encoder.encode_into(&site, &mut out).map(|()| {
+                    out.push('\t');
+                    out.push_str(block);
+                })
             }
             // The reader keeps its own copy of the block whatever the sample order, so a record
             // this module decoded is marked decoded there too, or the encoder would copy it.
             None => {
                 record.variant.genotypes.decode();
-                encoder.encode_into(&record.variant, &mut out)?
+                encoder.encode_into(&record.variant, &mut out)
             }
+        };
+        if let Err(error) = encoded {
+            out.truncate(start);
+            return (out, Some(error));
         }
         out.push('\n');
     }
-    Ok(out)
+    (out, None)
+}
+
+/// The exception `VCFEncoder` throws for a refusal.
+pub fn encode_exception(error: &EncodeError) -> String {
+    match error {
+        EncodeError::MissingFromHeader {
+            key,
+            field,
+            contig,
+            start,
+        } => format!(
+            "java.lang.IllegalStateException: Key {key} found in VariantContext field {field} at \
+             {contig}:{start} but this key isn't defined in the VCFHeader.  We require all VCFs \
+             to have complete VCF headers by default."
+        ),
+        other => format!("{other:?}"),
+    }
+}
+
+/// What reaches the file through `IOUtil.maybeBufferOutputStream(out, Defaults.BUFFER_SIZE)`,
+/// counted per `write` call as the writer makes them: a write that does not fit flushes what is
+/// buffered first, and one at least as large as the buffer goes straight through. Nothing else
+/// flushes before `close()`, which a run that throws never reaches, so a refusal leaves exactly
+/// `flushed` bytes on disk -- none on a small file, whole buffers' worth on a large one.
+#[derive(Default)]
+struct Buffered {
+    buffered: usize,
+    flushed: usize,
+}
+
+impl Buffered {
+    /// `samjdk.buffer_size`'s default.
+    const SIZE: usize = 128 * 1024;
+
+    fn write(&mut self, len: usize) {
+        if len > Self::SIZE - self.buffered {
+            self.flushed += self.buffered;
+            self.buffered = 0;
+        }
+        if len >= Self::SIZE {
+            self.flushed += len;
+        } else {
+            self.buffered += len;
+        }
+    }
 }
 
 /// `VCFWriter` with `INDEX_ON_THE_FLY`, and the `.idx` it leaves beside the file at `close()`.
@@ -279,7 +339,18 @@ pub fn write_output(
         return write_bcf(path, header, records, index_dictionary);
     }
     let output = std::path::Path::new(path);
-    let text = write_records(header, records).map_err(|e| format!("{e:?}"))?;
+    let (text, refused) = written(header, records);
+    if let Some(error) = refused {
+        // `VCFWriter` writes the header, then each line, as one call each.
+        let header_length = header.write().len();
+        let mut stream = Buffered::default();
+        stream.write(header_length);
+        for line in text[header_length..].split_inclusive('\n') {
+            stream.write(line.len());
+        }
+        std::fs::write(output, &text.as_bytes()[..stream.flushed])?;
+        die(&encode_exception(&error));
+    }
     std::fs::write(output, &text)?;
     if let Some(dictionary) = index_dictionary {
         let timestamp = modified_millis(output)?;
@@ -315,8 +386,8 @@ fn modified_millis(path: &std::path::Path) -> std::io::Result<i64> {
 
 /// `BCF2Writer`, with its `.idx` when indexing on the fly.
 ///
-/// The builder opens the file before the writer exists, so a refusal from `writeHeader` or from
-/// any record leaves an empty file behind: what had been encoded was still in the buffer.
+/// The builder opens the file before the writer exists, so a refusal from `writeHeader` leaves an
+/// empty file behind, and one from a record leaves what the [`Buffered`] stream had flushed.
 pub fn write_bcf(
     path: &str,
     header: &VcfHeader,
@@ -329,6 +400,12 @@ pub fn write_bcf(
     std::fs::write(output, [])?;
     let mut writer = Bcf2Writer::new(header, false).unwrap_or_else(|e| die(&e.to_string()));
     let mut bytes = writer.header_bytes();
+    // `BCFVersion.write` is the magic as one call and each version byte as another, and
+    // `BCF2Type.INT32.write` is four single bytes.
+    let mut stream = Buffered::default();
+    for len in [3, 1, 1, 1, 1, 1, 1, bytes.len() - 9] {
+        stream.write(len);
+    }
     let mut positions = Vec::with_capacity(records.len());
     for record in records {
         positions.push(bytes.len() as i64);
@@ -338,8 +415,18 @@ pub fn write_bcf(
             Origin::VcfCodec
         };
         match writer.encode(&record.variant, origin) {
-            Ok(encoded) => bytes.extend_from_slice(&encoded),
-            Err(e) => die(&e.to_string()),
+            Ok(encoded) => {
+                // `writeBlock`: two INT32 lengths, then the site block and the genotype block.
+                let sites = u32::from_le_bytes(encoded[..4].try_into().expect("a length")) as usize;
+                for len in [1, 1, 1, 1, 1, 1, 1, 1, sites, encoded.len() - 8 - sites] {
+                    stream.write(len);
+                }
+                bytes.extend_from_slice(&encoded);
+            }
+            Err(e) => {
+                std::fs::write(output, &bytes[..stream.flushed])?;
+                die(&e.to_string())
+            }
         }
     }
     std::fs::write(output, &bytes)?;
