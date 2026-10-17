@@ -53,6 +53,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -160,6 +161,9 @@ public class VcfGzDump {
     static final List<String> ALL = Arrays.asList(CONTIGS);
     static final int[] ORDER = {0, 1, 2};
 
+    /** The port side and the Rust test use this same directory. */
+    static final String DIR = "/tmp/picard-rs-vcfgz";
+
     static Path dir;
 
     static void input(final String name, final String text) throws Exception {
@@ -265,7 +269,17 @@ public class VcfGzDump {
     }
 
     public static void main(final String[] args) throws Exception {
-        dir = Files.createTempDirectory("vcfgz");
+        // LiftoverVcf writes `##reference=file://` and R's absolute path into its header, so the
+        // directory is fixed: a temporary one's random name would move the bytes from run to run.
+        dir = Path.of(DIR);
+        if (Files.exists(dir)) {
+            try (Stream<Path> walk = Files.walk(dir)) {
+                for (final Path p : walk.sorted(Comparator.reverseOrder()).toList()) {
+                    Files.delete(p);
+                }
+            }
+        }
+        Files.createDirectories(dir);
         inputs();
 
         final Tool sort = a -> new picard.vcf.SortVcf().instanceMain(a);

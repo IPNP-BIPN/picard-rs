@@ -405,6 +405,10 @@ pub fn write_block_compressed(
         }
         bgzf.write_all(line.as_bytes())?;
     }
+    // `VCFWriter.close()` flushes before `IndexingVariantContextWriter.close()` asks for the final
+    // position, and `BlockCompressedOutputStream.flush()` deflates the pending block: the last
+    // chunk ends at the next block's address with offset zero, not inside the last block.
+    bgzf.flush()?;
     let end = bgzf.file_pointer() as i64;
     bgzf.into_inner()?
         .into_inner()

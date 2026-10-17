@@ -12,7 +12,7 @@ binary named after the tool, under the arguments the dump hands `instanceMain`.
 import hashlib
 import subprocess
 import sys
-import tempfile
+import shutil
 import zlib
 from pathlib import Path
 
@@ -21,6 +21,8 @@ LENGTH = 60000
 PER_CONTIG = 4000
 STEP = 13
 BASES = "ACGT"
+# VcfGzDump.DIR: the same directory on both sides.
+DIR = "/tmp/picard-rs-vcfgz"
 ROWS = []
 
 
@@ -170,62 +172,64 @@ def run(d, bins, name, tool, *args):
 
 def main():
     bins = Path(sys.argv[1]).resolve()
-    with tempfile.TemporaryDirectory(prefix="vcfgz") as tmp:
-        d = Path(tmp)
-        inputs(d)
-        for name, extra in [
-            ("sort", []),
-            ("sort-no-index", ["CREATE_INDEX=false"]),
-            ("sort-level-3", ["COMPRESSION_LEVEL=3"]),
-            ("sort-level-9", ["COMPRESSION_LEVEL=9"]),
-            ("sort-jdk-deflater", ["USE_JDK_DEFLATER=true"]),
-            ("sort-jdk-deflater-level-1", ["USE_JDK_DEFLATER=true", "COMPRESSION_LEVEL=1"]),
-        ]:
-            run(d, bins, name, "SortVcf", "I=@/unsorted.vcf", "O=%/out.vcf.gz", *extra)
-        run(d, bins, "sort-bgz", "SortVcf", "I=@/unsorted.vcf", "O=%/out.vcf.bgz")
-        run(d, bins, "sort-gz-input", "SortVcf", "I=@/case-sort/out.vcf.gz", "O=%/out.vcf.gz")
+    # The dump's directory, which LiftoverVcf writes into its header through R's absolute path.
+    d = Path(DIR)
+    shutil.rmtree(d, ignore_errors=True)
+    d.mkdir(parents=True)
+    inputs(d)
+    for name, extra in [
+        ("sort", []),
+        ("sort-no-index", ["CREATE_INDEX=false"]),
+        ("sort-level-3", ["COMPRESSION_LEVEL=3"]),
+        ("sort-level-9", ["COMPRESSION_LEVEL=9"]),
+        ("sort-jdk-deflater", ["USE_JDK_DEFLATER=true"]),
+        ("sort-jdk-deflater-level-1", ["USE_JDK_DEFLATER=true", "COMPRESSION_LEVEL=1"]),
+    ]:
+        run(d, bins, name, "SortVcf", "I=@/unsorted.vcf", "O=%/out.vcf.gz", *extra)
+    run(d, bins, "sort-bgz", "SortVcf", "I=@/unsorted.vcf", "O=%/out.vcf.bgz")
+    run(d, bins, "sort-gz-input", "SortVcf", "I=@/case-sort/out.vcf.gz", "O=%/out.vcf.gz")
 
-        run(d, bins, "sites-only", "MakeSitesOnlyVcf", "I=@/in.vcf", "O=%/out.vcf.gz")
-        run(d, bins, "sites-only-out-of-order", "MakeSitesOnlyVcf", "I=@/swapped.vcf",
-            "O=%/out.vcf.gz")
-        run(d, bins, "sites-only-missing-contig", "MakeSitesOnlyVcf", "I=@/missing.vcf",
-            "O=%/out.vcf.gz")
+    run(d, bins, "sites-only", "MakeSitesOnlyVcf", "I=@/in.vcf", "O=%/out.vcf.gz")
+    run(d, bins, "sites-only-out-of-order", "MakeSitesOnlyVcf", "I=@/swapped.vcf",
+        "O=%/out.vcf.gz")
+    run(d, bins, "sites-only-missing-contig", "MakeSitesOnlyVcf", "I=@/missing.vcf",
+        "O=%/out.vcf.gz")
 
-        run(d, bins, "rename", "RenameSampleInVcf", "I=@/single.vcf", "O=%/out.vcf.gz",
-            "NEW_SAMPLE_NAME=renamed")
-        run(d, bins, "rename-no-dictionary", "RenameSampleInVcf", "I=@/single-nodict.vcf",
-            "O=%/out.vcf.gz", "NEW_SAMPLE_NAME=renamed", "CREATE_INDEX=true")
+    run(d, bins, "rename", "RenameSampleInVcf", "I=@/single.vcf", "O=%/out.vcf.gz",
+        "NEW_SAMPLE_NAME=renamed")
+    run(d, bins, "rename-no-dictionary", "RenameSampleInVcf", "I=@/single-nodict.vcf",
+        "O=%/out.vcf.gz", "NEW_SAMPLE_NAME=renamed", "CREATE_INDEX=true")
 
-        run(d, bins, "update-dictionary", "UpdateVcfSequenceDictionary", "I=@/in.vcf",
-            "O=%/out.vcf.gz", "SEQUENCE_DICTIONARY=@/other.dict", "CREATE_INDEX=true")
+    run(d, bins, "update-dictionary", "UpdateVcfSequenceDictionary", "I=@/in.vcf",
+        "O=%/out.vcf.gz", "SEQUENCE_DICTIONARY=@/other.dict", "CREATE_INDEX=true")
 
-        run(d, bins, "filter", "FilterVcf", "I=@/in.vcf", "O=%/out.vcf.gz", "MIN_DP=30")
-        run(d, bins, "filter-no-dictionary", "FilterVcf", "I=@/nodict.vcf", "O=%/out.vcf.gz",
-            "MIN_DP=30")
+    run(d, bins, "filter", "FilterVcf", "I=@/in.vcf", "O=%/out.vcf.gz", "MIN_DP=30")
+    run(d, bins, "filter-no-dictionary", "FilterVcf", "I=@/nodict.vcf", "O=%/out.vcf.gz",
+        "MIN_DP=30")
 
-        run(d, bins, "fix-header", "FixVcfHeader", "I=@/in.vcf", "O=%/out.vcf.gz")
+    run(d, bins, "fix-header", "FixVcfHeader", "I=@/in.vcf", "O=%/out.vcf.gz")
 
-        run(d, bins, "merge", "MergeVcfs", "I=@/m1.vcf", "I=@/m2.vcf", "O=%/out.vcf.gz")
+    run(d, bins, "merge", "MergeVcfs", "I=@/m1.vcf", "I=@/m2.vcf", "O=%/out.vcf.gz")
 
-        run(d, bins, "split", "SplitVcfs", "I=@/in.vcf", "SNP_OUTPUT=%/snp.vcf.gz",
-            "INDEL_OUTPUT=%/indel.vcf.gz", "STRICT=false")
+    run(d, bins, "split", "SplitVcfs", "I=@/in.vcf", "SNP_OUTPUT=%/snp.vcf.gz",
+        "INDEL_OUTPUT=%/indel.vcf.gz", "STRICT=false")
 
-        run(d, bins, "liftover", "LiftoverVcf", "I=@/in.vcf", "O=%/out.vcf.gz",
-            "REJECT=%/reject.vcf.gz", "CHAIN=@/id.chain", "R=@/ref.fasta")
+    run(d, bins, "liftover", "LiftoverVcf", "I=@/in.vcf", "O=%/out.vcf.gz",
+        "REJECT=%/reject.vcf.gz", "CHAIN=@/id.chain", "R=@/ref.fasta")
 
-        run(d, bins, "convert", "VcfFormatConverter", "I=@/in.vcf", "O=%/out.vcf.gz",
-            "REQUIRE_INDEX=false")
-        run(d, bins, "convert-gz-to-gz", "VcfFormatConverter", "I=@/case-sort/out.vcf.gz",
-            "O=%/out.vcf.gz")
-        run(d, bins, "convert-gz-to-vcf", "VcfFormatConverter", "I=@/case-sort/out.vcf.gz",
-            "O=%/out.vcf")
+    run(d, bins, "convert", "VcfFormatConverter", "I=@/in.vcf", "O=%/out.vcf.gz",
+        "REQUIRE_INDEX=false")
+    run(d, bins, "convert-gz-to-gz", "VcfFormatConverter", "I=@/case-sort/out.vcf.gz",
+        "O=%/out.vcf.gz")
+    run(d, bins, "convert-gz-to-vcf", "VcfFormatConverter", "I=@/case-sort/out.vcf.gz",
+        "O=%/out.vcf")
 
-        for c in range(1, 4):
-            run(d, bins, f"part{c}", "SortVcf", f"I=@/p{c}.vcf", f"O=%/p{c}.vcf.gz")
-        run(d, bins, "gather-block-copy", "GatherVcfs", "I=@/case-part1/p1.vcf.gz",
-            "I=@/case-part2/p2.vcf.gz", "I=@/case-part3/p3.vcf.gz", "O=%/out.vcf.gz")
-        run(d, bins, "gather-conventional", "GatherVcfs", "I=@/p1.vcf", "I=@/p2.vcf",
-            "I=@/p3.vcf", "O=%/out.vcf.gz")
+    for c in range(1, 4):
+        run(d, bins, f"part{c}", "SortVcf", f"I=@/p{c}.vcf", f"O=%/p{c}.vcf.gz")
+    run(d, bins, "gather-block-copy", "GatherVcfs", "I=@/case-part1/p1.vcf.gz",
+        "I=@/case-part2/p2.vcf.gz", "I=@/case-part3/p3.vcf.gz", "O=%/out.vcf.gz")
+    run(d, bins, "gather-conventional", "GatherVcfs", "I=@/p1.vcf", "I=@/p2.vcf",
+        "I=@/p3.vcf", "O=%/out.vcf.gz")
     print("\n".join(ROWS))
 
 
