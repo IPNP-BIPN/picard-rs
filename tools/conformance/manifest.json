@@ -2914,7 +2914,7 @@
     },
     {
       "id": "umiduplicates-noreadgroup",
-      "status": "golden-pending",
+      "status": "oracle-backed",
       "title": "what the UMI-aware duplicate marker does with a read that has no read group",
       "harness": "tools/matecigardup-conformance",
       "tools": [
@@ -2936,8 +2936,8 @@
       "cases": [
         {
           "dump": "UmiNoReadGroupDump",
-          "golden": null,
-          "why": "No golden yet: CI publishes the dump from a real x86-64 runner, and the Rust test that reads it lands with the freeze."
+          "golden": "crates/picard-analysis/tests/data/umi_no_read_group.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 39044976001, and identical to the local smoke run. Eleven inputs, ten of them refused, each with what the output held at the throw."
         }
       ]
     },
