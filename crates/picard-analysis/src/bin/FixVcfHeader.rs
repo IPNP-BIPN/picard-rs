@@ -123,7 +123,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if !output.ends_with(".vcf") {
+    if !output.ends_with(".vcf") && !picard_analysis::vcf_io::is_bcf(&output) {
         return Err("only a .vcf OUTPUT is ported".into());
     }
 
@@ -229,8 +229,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
              Tribble indices on the fly",
         );
     };
-    if let Err(error) = write_records(&out_header, &vcf.records) {
-        die(&encode_error(&error));
+    // The VCF encoder's refusals are the VCF writer's; a BCF writer refuses for itself.
+    if !picard_analysis::vcf_io::is_bcf(&output) {
+        if let Err(error) = write_records(&out_header, &vcf.records) {
+            die(&encode_error(&error));
+        }
     }
     write_output(&output, &out_header, &vcf.records, Some(&dictionary))?;
     Ok(())

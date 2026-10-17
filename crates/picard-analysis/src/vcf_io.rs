@@ -49,6 +49,10 @@ pub struct Record {
     /// `parts[8]` while the context is still lazy; `None` once it has been decoded, or when the
     /// line had no genotype columns at all.
     pub lazy_genotypes: Option<String>,
+    /// `isFullyDecoded()`: true for a record the BCF2 codec made, whose values are already typed
+    /// and whose attributes are already in the order the record iterates them. A BCF writer runs
+    /// `fullyDecode` on any other record first, and that decides the INFO order it writes.
+    pub fully_decoded: bool,
 }
 
 impl Record {
@@ -113,6 +117,7 @@ pub fn read_lazy(text: &str) -> Result<LazyVcf, ReadFailure> {
             Record {
                 variant: variant.clone(),
                 lazy_genotypes,
+                fully_decoded: false,
             }
         })
         .collect();
@@ -176,20 +181,34 @@ pub fn write_indexed(
     records: &[Record],
     indexed: Option<Indexed>,
 ) -> Result<(String, Option<Vec<u8>>), EncodeError> {
-    use htsjdk_tribble::index::{TribbleIndex, INTERVAL_TREE, LINEAR, VERSION};
-    use htsjdk_tribble::index_write::{BalanceApproach, BuiltIndex, DynamicIndexCreator, Feature};
-
     let text = write_records(header, records)?;
     let Some(indexed) = indexed else {
         return Ok((text, None));
     };
-    let mut creator = DynamicIndexCreator::new(BalanceApproach::ForSeekTime);
     let header_length = header.write().len();
     let mut at = header_length as i64;
-    for (record, line) in records
-        .iter()
-        .zip(text[header_length..].split_terminator('\n'))
-    {
+    let mut positions = Vec::with_capacity(records.len());
+    for line in text[header_length..].split_terminator('\n') {
+        positions.push(at);
+        at += line.len() as i64 + 1;
+    }
+    let index = tribble_index(records, &positions, text.len() as i64, &indexed);
+    Ok((text, index))
+}
+
+/// The `.idx` `IndexingVariantContextWriter` writes at `close()`: each record's feature at the
+/// position its bytes start at, and the file's length as the end.
+fn tribble_index(
+    records: &[Record],
+    positions: &[i64],
+    file_length: i64,
+    indexed: &Indexed,
+) -> Option<Vec<u8>> {
+    use htsjdk_tribble::index::{TribbleIndex, INTERVAL_TREE, LINEAR, VERSION};
+    use htsjdk_tribble::index_write::{BalanceApproach, BuiltIndex, DynamicIndexCreator, Feature};
+
+    let mut creator = DynamicIndexCreator::new(BalanceApproach::ForSeekTime);
+    for (record, &at) in records.iter().zip(positions) {
         creator.add_feature(
             &Feature {
                 contig: record.variant.contig.clone(),
@@ -198,7 +217,6 @@ pub fn write_indexed(
             },
             at,
         );
-        at += line.len() as i64 + 1;
     }
     let mut properties: Vec<(String, String)> = indexed
         .dictionary
@@ -214,20 +232,20 @@ pub fn write_indexed(
     // The creator starts a new per-contig index whenever the contig changes, so a contig that
     // comes back after another is two of them; the index then puts each into a `LinkedHashMap` by
     // name, where the second REPLACES the first and keeps the first's place.
-    let (index_type, contigs, interval_contigs) = match creator.finalize(text.len() as i64) {
+    let (index_type, contigs, interval_contigs) = match creator.finalize(file_length) {
         Ok(BuiltIndex::Linear(contigs)) => (LINEAR, by_name(contigs, |c| &c.name), Vec::new()),
         Ok(BuiltIndex::IntervalTree(intervals)) => {
             (INTERVAL_TREE, Vec::new(), by_name(intervals, |c| &c.name))
         }
         // Only an empty linear index refuses, and a VCF always has a header.
-        Err(_) => return Ok((text, None)),
+        Err(_) => return None,
     };
     let absolute = std::path::absolute(indexed.path).unwrap_or_else(|_| indexed.path.into());
     let index = TribbleIndex {
         index_type,
         version: VERSION,
         indexed_path: format!("file://{}", absolute.display()),
-        indexed_file_size: text.len() as i64,
+        indexed_file_size: file_length,
         indexed_file_timestamp: indexed.timestamp,
         indexed_file_md5: String::new(),
         flags: 0,
@@ -235,7 +253,7 @@ pub fn write_indexed(
         contigs,
         interval_contigs,
     };
-    Ok((text, index.write().ok()))
+    index.write().ok()
 }
 
 /// `LinkedHashMap.put` over a list: a repeated key keeps its first position and its last value.
@@ -257,15 +275,14 @@ pub fn write_output(
     records: &[Record],
     index_dictionary: Option<&[Sequence]>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    if is_bcf(path) {
+        return write_bcf(path, header, records, index_dictionary);
+    }
     let output = std::path::Path::new(path);
     let text = write_records(header, records).map_err(|e| format!("{e:?}"))?;
     std::fs::write(output, &text)?;
     if let Some(dictionary) = index_dictionary {
-        let timestamp = std::fs::metadata(output)?
-            .modified()?
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_millis() as i64)
-            .unwrap_or(0);
+        let timestamp = modified_millis(output)?;
         let indexed = Indexed {
             dictionary,
             path: output,
@@ -280,10 +297,111 @@ pub fn write_output(
     Ok(())
 }
 
+/// `VCFFileReader.isBCF` and `VariantContextWriterBuilder.isBCF`: the name decides, not the bytes.
+pub fn is_bcf(path: &str) -> bool {
+    std::path::Path::new(path)
+        .file_name()
+        .is_some_and(|name| name.to_string_lossy().ends_with(".bcf"))
+}
+
+/// The modification time `IndexingVariantContextWriter` records, in milliseconds.
+fn modified_millis(path: &std::path::Path) -> std::io::Result<i64> {
+    Ok(std::fs::metadata(path)?
+        .modified()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0))
+}
+
+/// `BCF2Writer`, with its `.idx` when indexing on the fly.
+///
+/// The builder opens the file before the writer exists, so a refusal from `writeHeader` or from
+/// any record leaves an empty file behind: what had been encoded was still in the buffer.
+pub fn write_bcf(
+    path: &str,
+    header: &VcfHeader,
+    records: &[Record],
+    index_dictionary: Option<&[Sequence]>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use htsjdk_vcf::bcf2::writer::{Bcf2Writer, Origin};
+
+    let output = std::path::Path::new(path);
+    std::fs::write(output, [])?;
+    let mut writer = Bcf2Writer::new(header, false).unwrap_or_else(|e| die(&e.to_string()));
+    let mut bytes = writer.header_bytes();
+    let mut positions = Vec::with_capacity(records.len());
+    for record in records {
+        positions.push(bytes.len() as i64);
+        let origin = if record.fully_decoded {
+            Origin::Bcf2Codec
+        } else {
+            Origin::VcfCodec
+        };
+        match writer.encode(&record.variant, origin) {
+            Ok(encoded) => bytes.extend_from_slice(&encoded),
+            Err(e) => die(&e.to_string()),
+        }
+    }
+    std::fs::write(output, &bytes)?;
+    if let Some(dictionary) = index_dictionary {
+        let indexed = Indexed {
+            dictionary,
+            path: output,
+            timestamp: modified_millis(output)?,
+        };
+        if let Some(index) = tribble_index(records, &positions, bytes.len() as i64, &indexed) {
+            std::fs::write(format!("{path}.idx"), index)?;
+        }
+    }
+    Ok(())
+}
+
+/// `VCFFileReader` on a `.bcf`: the BCF2 codec, every record fully decoded.
+pub fn read_bcf_path(path: &str) -> Result<LazyVcf, String> {
+    use htsjdk_vcf::bcf2::codec::read_bcf;
+
+    let bytes = std::fs::read(path).map_err(|e| format!("java.io.IOException: {e}"))?;
+    let absolute = std::path::absolute(path).unwrap_or_else(|_| path.into());
+    let source = format!("file://{}", absolute.display());
+    let file = read_bcf(&bytes).map_err(|failure| failure.reader_exception(&source).to_string())?;
+    let records = file
+        .records
+        .iter()
+        .map(|variant| Record {
+            variant: variant.clone(),
+            lazy_genotypes: None,
+            fully_decoded: true,
+        })
+        .collect();
+    Ok(LazyVcf {
+        file: VcfFile {
+            header: file.header,
+            codec_version: file.codec_version,
+            header_version: file.header_version,
+            records: file.records,
+            skipped: Vec::new(),
+        },
+        records,
+    })
+}
+
+/// The whole file as [`read_vcf`] gives it, for a tool that reads the records and writes none:
+/// a `.bcf` through the BCF2 codec, anything else as VCF text.
+pub fn read_vcf_file(path: &str) -> Result<VcfFile, Box<dyn std::error::Error>> {
+    if is_bcf(path) {
+        return Ok(read_bcf_path(path)?.file);
+    }
+    Ok(read_vcf(&std::fs::read_to_string(path)?).map_err(|e| format!("{e:?}"))?)
+}
+
 /// `VCFFileReader(file, false)` on a path, with a read failure as the exception it was upstream.
 ///
-/// A gzip file is a `.vcf.gz`, which the reader inflates whatever its name.
+/// A gzip file is a `.vcf.gz`, which the reader inflates whatever its name, and a `.bcf` is read
+/// by the BCF2 codec whatever its contents.
 pub fn read_path(path: &str) -> Result<LazyVcf, String> {
+    if is_bcf(path) {
+        return read_bcf_path(path);
+    }
     let bytes = std::fs::read(path).map_err(|e| format!("java.io.IOException: {e}"))?;
     let bytes = if bytes.starts_with(&[0x1f, 0x8b]) {
         htsjdk_bgzf::read::decompress_all(&bytes)

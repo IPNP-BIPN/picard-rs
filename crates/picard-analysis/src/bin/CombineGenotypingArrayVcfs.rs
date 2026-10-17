@@ -205,6 +205,7 @@ fn main() {
             Ok(vc) => records.push(Record {
                 variant: vc,
                 lazy_genotypes: None,
+                fully_decoded: false,
             }),
             Err(e) => {
                 failure = Some(e);

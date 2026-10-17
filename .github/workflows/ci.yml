@@ -1163,6 +1163,9 @@ jobs:
           - group: oracle-backed
             index: "22/22"
             suites: "gtctovcf createextendedmanifest"
+          - group: golden-pending
+            index: "1/1"
+            suites: "bcf"
     steps:
       - uses: actions/checkout@v7
 

@@ -3097,6 +3097,35 @@
       ]
     },
     {
+      "id": "bcf",
+      "status": "golden-pending",
+      "title": "the VCF tools with a .bcf on either side",
+      "harness": "tools/bcf-conformance",
+      "tools": [
+        "VcfFormatConverter",
+        "SortVcf",
+        "MergeVcfs",
+        "MakeSitesOnlyVcf"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "Picard takes a .bcf wherever it takes a .vcf, by name: VCFFileReader picks the BCF2 codec and VariantContextWriterBuilder picks BCF2Writer, and picard-rs refused both. htsjdk's BCF is BCF 2.1 and uncompressed, and its bytes depend on the hash order of the maps a record's attributes passed through, on fullyDecode typing every value of a VCF record by its header line before writing, on GQ being capped at 99, and on a BCF record's genotype block being copied into the BCF written from it. Each case is converted VCF to BCF, back to VCF and to BCF again by VcfFormatConverter, the BCF is read by SortVcf and MergeVcfs and written again, and MakeSitesOnlyVcf writes a BCF from the VCF, so the shared reader and writer are measured through four tools. Nine refusals are the writer's own, named by class and message: a missing contig, filter or header line, a discordant count, a false flag, an unparseable integer, an integer list with a missing element, and a header with no contig lines.",
+      "expect_rows": 60,
+      "expect_contains": [
+        "converter-bcf2\ttrio\t",
+        "sortvcf-bcf\tedge\t",
+        "java.lang.NullPointerException: Cannot invoke",
+        "Cannot write BCF2 file with missing contig lines"
+      ],
+      "cases": [
+        {
+          "dump": "BcfDump",
+          "golden": null
+        }
+      ]
+    },
+    {
       "id": "mendelianviolations",
       "status": "oracle-backed",
       "title": "a trio's impossible genotypes, and the calls the checker declines to look at",

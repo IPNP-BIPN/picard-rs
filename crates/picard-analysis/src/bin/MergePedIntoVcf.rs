@@ -381,6 +381,7 @@ fn run(args: &Args, output: &str) -> Result<(), String> {
         written.push(Record {
             variant: merged,
             lazy_genotypes: None,
+            fully_decoded: false,
         });
     }
     write_output(output, &header, &written, Some(&dictionary)).map_err(|e| format!("{e}"))?;

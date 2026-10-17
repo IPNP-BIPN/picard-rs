@@ -75,7 +75,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if !snp_output.ends_with(".vcf") || !indel_output.ends_with(".vcf") {
+    let writable = |path: &str| path.ends_with(".vcf") || picard_analysis::vcf_io::is_bcf(path);
+    if !writable(&snp_output) || !writable(&indel_output) {
         return Err("only .vcf outputs are ported".into());
     }
 

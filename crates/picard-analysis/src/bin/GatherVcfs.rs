@@ -239,7 +239,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if !output.ends_with(".vcf") {
+    if !output.ends_with(".vcf") && !picard_analysis::vcf_io::is_bcf(&output) {
         return Err("only a .vcf OUTPUT is ported".into());
     }
 

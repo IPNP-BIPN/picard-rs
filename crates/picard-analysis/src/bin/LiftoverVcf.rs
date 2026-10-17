@@ -424,6 +424,14 @@ fn add_line(header: &mut VcfHeader, line: HeaderLine) {
 /// encoded and its genotype block copied, as `vcf_io::write_records` does, and every encode
 /// refuses an INFO key the header lacks unless missing fields are allowed.
 fn write_all(path: &str, header: &VcfHeader, records: &[Record], missing: MissingFields) {
+    // A `.bcf` gets `BCF2Writer`, which has no missing-fields option: a field the header lacks is
+    // the writer's own refusal whatever ALLOW_MISSING_FIELDS_IN_HEADER says.
+    if picard_analysis::vcf_io::is_bcf(path) {
+        if let Err(e) = picard_analysis::vcf_io::write_bcf(path, header, records, None) {
+            die(&format!("htsjdk.samtools.util.RuntimeIOException: {e}"));
+        }
+        return;
+    }
     let encoder = VcfEncoder::new(header).with_missing_fields(missing);
     let sites_header = VcfHeader {
         lines: header.lines.clone(),
@@ -722,6 +730,7 @@ fn main() {
                     Record {
                         variant: swap_ref_alt(&vc, &tags_to_reverse, &tags_to_drop),
                         lazy_genotypes: None,
+                        fully_decoded: false,
                     },
                     &mut lifted,
                 );
@@ -764,6 +773,7 @@ fn main() {
                 Record {
                     variant: vc,
                     lazy_genotypes,
+                    fully_decoded: false,
                 },
                 &mut lifted,
             );

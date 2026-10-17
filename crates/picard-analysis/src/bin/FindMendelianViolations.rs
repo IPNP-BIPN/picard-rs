@@ -12,7 +12,6 @@
 //! its own, so a call whose `PL` disagrees with its `GQ` is judged on the `PL`.
 
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
-use htsjdk_vcf::reader::read_vcf;
 use picard_analysis::find_mendelian_violations::{
     collect, Genotype, Interval, Metrics, Options, Sex, Site, Trio,
 };
@@ -380,7 +379,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         std::process::exit(1);
     }
-    let vcf = read_vcf(&std::fs::read_to_string(&input)?).map_err(|e| format!("{e:?}"))?;
+    let vcf = picard_analysis::vcf_io::read_vcf_file(&input)?;
     let tab_mode = arg(&args, "TAB_MODE=").is_some_and(|value| value == "true");
     let pedigree = read_pedigree(&std::fs::read_to_string(&trios)?, tab_mode);
     let samples = &vcf.header.samples;
