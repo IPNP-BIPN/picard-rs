@@ -234,6 +234,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    // `buildSortedReadEndLists` keys every primary mapped read whose mate is mapped on
+    // `rec.getReadGroup().getReadGroupId()`, which is null with no RG tag or one the header does
+    // not declare. The pass stops at the first unplaced unmapped read when coordinate-sorted.
+    if records
+        .iter()
+        .take_while(|r| {
+            !(r.flags & 0x4 != 0 && r.reference_index == -1 && header_order == "coordinate")
+        })
+        .any(|r| r.flags & (0x1 | 0x4 | 0x8 | 0x100 | 0x800) == 0x1 && library_of(r).1 == -1)
+    {
+        eprintln!(
+            "Exception in thread \"main\" java.lang.NullPointerException: Cannot invoke \
+             \"htsjdk.samtools.SAMReadGroupRecord.getReadGroupId()\" because the return value of \
+             \"htsjdk.samtools.SAMRecord.getReadGroup()\" is null"
+        );
+        std::process::exit(1);
+    }
+
     let marked_records: Vec<Record> = records
         .iter()
         .map(|record| {
