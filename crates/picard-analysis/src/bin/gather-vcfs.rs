@@ -213,6 +213,7 @@ fn gather_conventionally(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("GatherVcfs");
     let args: Vec<String> = std::env::args().collect();
     let inputs = collection(&args, &["INPUT=", "I="]);
     if inputs.is_empty() {

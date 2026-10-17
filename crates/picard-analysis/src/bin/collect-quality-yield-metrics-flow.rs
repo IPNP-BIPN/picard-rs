@@ -17,6 +17,7 @@ use picard_analysis::quality_yield_flow::FlowCollector;
 use picard_analysis::single_pass_driver;
 
 fn main() {
+    picard_analysis::argument_check::check("CollectQualityYieldMetricsFlow");
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT"), ("R", "REFERENCE_SEQUENCE")]);
     let input = args.required("INPUT");
     let output = args.required("OUTPUT");

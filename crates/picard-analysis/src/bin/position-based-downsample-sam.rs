@@ -28,6 +28,7 @@ use picard_analysis::position_based_downsample_sam::{
 const DUPLICATE_READ: u16 = 0x400;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("PositionBasedDownsampleSam");
     // `READ_NAME_REGEX`, which a name has to match whole for its tile and position to be read.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
         std::env::args()

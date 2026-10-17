@@ -179,6 +179,7 @@ fn has_index(vcf: &str) -> bool {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("CollectSamErrorMetrics");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

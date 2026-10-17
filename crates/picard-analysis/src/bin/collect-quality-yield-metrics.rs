@@ -22,6 +22,7 @@ use picard_analysis::args::arg;
 use picard_analysis::quality_yield::{Options, QualityYieldMetricsCollector};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("CollectQualityYieldMetrics");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

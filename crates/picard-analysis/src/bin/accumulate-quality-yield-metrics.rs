@@ -12,6 +12,7 @@ use picard_analysis::accumulate_quality_yield_metrics::accumulate_quality_yield_
 use picard_analysis::args::arg;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("AccumulateQualityYieldMetrics");
     let args: Vec<String> = std::env::args().collect();
     let mut inputs: Vec<String> = args
         .iter()
