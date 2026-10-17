@@ -147,7 +147,17 @@ fn main() {
             record.allele_frequency,
         ));
     }
-    if let Err(e) = std::fs::write(&output, text) {
+    // `writeAsVcf` builds its writer with the reference's dictionary and the default options,
+    // so the `.vcf` gets its `.idx`.
+    let reference_dictionary = std::fs::read_to_string(match reference.rsplit_once('.') {
+        Some((stem, _)) => format!("{stem}.dict"),
+        None => format!("{reference}.dict"),
+    })
+    .map(|t| picard_analysis::vcf_io::parse_sam_dictionary(&t))
+    .ok();
+    if let Err(e) =
+        picard_analysis::vcf_io::write_text_indexed(&output, &text, reference_dictionary.as_deref())
+    {
         thrown(&format!(
             "picard.PicardException: Problem writing haplotype map to {output}: {e}"
         ));

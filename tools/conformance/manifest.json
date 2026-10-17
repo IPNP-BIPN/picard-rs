@@ -3345,6 +3345,51 @@
           "golden": null
         }
       ]
+    },
+    {
+      "id": "nonbamshapes",
+      "title": "what a screen of the non-BAM tools on large inputs found answered differently: CollectVariantCallingMetrics' variant types, dbSNP spans and sample order, the .idx beside every plain .vcf and its Double.toString properties, ##fileDate and Generated on dates, BaitDesigner's grouped bait numbers, CheckFingerprint's indexed genotypes, CreateSequenceDictionary's default and existing output, CollectIndependentReplicateMetrics without MC tags, ExtractIlluminaBarcodes' gzip member",
+      "status": "golden-pending",
+      "harness": "tools/nonbamshapes-conformance",
+      "needs_fixtures": true,
+      "tools": [
+        "BaitDesigner",
+        "CheckFingerprint",
+        "CollectIndependentReplicateMetrics",
+        "CollectVariantCallingMetrics",
+        "CombineGenotypingArrayVcfs",
+        "ConvertHaplotypeDatabaseToVcf",
+        "CreateExtendedIlluminaManifest",
+        "CreateSequenceDictionary",
+        "ExtractFingerprint",
+        "ExtractIlluminaBarcodes",
+        "GtcToVcf",
+        "IdentifyContaminant",
+        "LiftoverVcf",
+        "SortVcf"
+      ],
+      "compare": {
+        "mode": "keyed",
+        "skip_kinds": [
+          "input"
+        ]
+      },
+      "expect_rows": 158,
+      "expect_contains": [
+        "MEAN_FEATURE_VARIANCE=8.159997333377955E-4",
+        "big_bait#1,200",
+        "Mate CIGAR (Tag MC) not found: rep0_15_1",
+        "already exists.  Delete this file and try again",
+        "Unknown problem. Partial dictionary file was deleted.",
+        "IntervalTreeIndex",
+        "a date"
+      ],
+      "cases": [
+        {
+          "dump": "NonBamShapesDump",
+          "golden": null
+        }
+      ]
     }
   ],
   "probes": [

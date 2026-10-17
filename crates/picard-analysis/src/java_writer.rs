@@ -125,6 +125,16 @@ pub fn bam_filename(output: &str) -> String {
     uri
 }
 
+/// `IOUtil.openGzipFileForWriting`: a `CustomGzipOutputStream`, which is a `GZIPOutputStream`
+/// whose deflater takes `IOUtil.compressionLevel` (the tool's `COMPRESSION_LEVEL`). It is what
+/// htsjdk writes for any `.gz` or `.bfq` opened with `openFileForWriting` (a BFQ, the barcode
+/// files of ExtractIlluminaBarcodes), as opposed to the BGZF of its block-compressed writers. One
+/// member, whose header names no file and no time and says OS 255, which is flate2's own header;
+/// the deflate stream is zlib's, the same zlib the BGZF writer's JDK deflater runs.
+pub fn gzip_writer<W: std::io::Write>(inner: W, level: u32) -> flate2::write::GzEncoder<W> {
+    flate2::GzBuilder::new().write(inner, flate2::Compression::new(level))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

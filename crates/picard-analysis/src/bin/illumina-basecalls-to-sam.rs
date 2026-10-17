@@ -561,24 +561,34 @@ fn main() {
         records
     };
 
+    // The writers by barcode, found by key rather than by a scan per cluster.
+    let mut writer_at: foldhash::HashMap<Option<String>, usize> = Default::default();
+    for (at, (k, _)) in writers.iter().enumerate() {
+        writer_at.entry(k.clone()).or_insert(at);
+    }
     for tile in converter.tiles.clone() {
         let mut by_barcode: Vec<(Option<String>, Vec<Vec<BamRecord>>)> = Vec::new();
+        let mut barcode_at: foldhash::HashMap<Option<String>, usize> = Default::default();
         for data in converter.tile(tile) {
             let key = data.barcode.clone();
-            if !writers.iter().any(|(k, _)| *k == key) && !ignore_unexpected {
+            if !writer_at.contains_key(&key) && !ignore_unexpected {
                 unexpected(&key, sort);
             }
             let records = convert(&data);
-            match by_barcode.iter_mut().find(|(k, _)| *k == key) {
-                Some((_, v)) => v.push(records),
-                None => by_barcode.push((key, vec![records])),
+            match barcode_at.get(&key) {
+                Some(&at) => by_barcode[at].1.push(records),
+                None => {
+                    barcode_at.insert(key.clone(), by_barcode.len());
+                    by_barcode.push((key, vec![records]));
+                }
             }
         }
         for (key, clusters) in by_barcode.iter_mut() {
             if sort {
                 clusters.sort_by(|a, b| a[0].read_name.cmp(&b[0].read_name));
             }
-            if let Some((_, w)) = writers.iter_mut().find(|(k, _)| k == key) {
+            if let Some(&at) = writer_at.get(key) {
+                let w = &mut writers[at].1;
                 for c in clusters.drain(..) {
                     w.records.extend(c);
                 }

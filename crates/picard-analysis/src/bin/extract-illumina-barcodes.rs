@@ -43,9 +43,10 @@ fn main() {
         .unwrap_or_else(|| thrown("picard.PicardException: Read structure could not be parsed"));
     let barcode_file = args.get("BARCODE_FILE").map(str::to_string);
     let barcode_args = args.collection("BARCODE", &[]);
-    // `COMPRESS_OUTPUTS` gzips each barcode file and names it `.gz`. The bytes are the deflater's;
-    // the content is the tool's, and that is what is compared.
+    // `COMPRESS_OUTPUTS` gzips each barcode file, one gzip member at `COMPRESSION_LEVEL`, and
+    // names it `.gz`.
     let compress = args.bool("COMPRESS_OUTPUTS", false);
+    let level = args.int("COMPRESSION_LEVEL", 5) as u32;
     let lengths: Vec<usize> = structure
         .iter()
         .filter(|s| s.kind == SegmentKind::Barcode)
@@ -138,6 +139,11 @@ fn main() {
         reads.push(cycles);
     }
     let mut metrics = metrics_in_order;
+    // Each declared barcode's metric, found by key rather than by a scan per cluster.
+    let mut declared_at: foldhash::HashMap<String, usize> = Default::default();
+    for (at, (k, _)) in declared.iter().enumerate() {
+        declared_at.entry(k.clone()).or_insert(at);
+    }
     // `doWork` keeps one list of tile extractors across the lanes and submits the WHOLE list after
     // each lane, so a lane's tiles run once for every lane from it to the last. Each run counts
     // into the same extractor's metrics, and writes the same barcode file again.
@@ -166,9 +172,8 @@ fn main() {
                 let m = extractor.find(&read, (minimum > 0).then_some(quals.as_slice()), false);
                 // `updateMetrics`.
                 let target = if m.matched {
-                    let at = declared
-                        .iter()
-                        .position(|(k, _)| *k == m.barcode)
+                    let at = *declared_at
+                        .get(&m.barcode)
                         .unwrap_or_else(|| thrown("java.lang.NullPointerException"));
                     &mut metrics[at]
                 } else {
@@ -207,7 +212,8 @@ fn main() {
             let written = if compress {
                 std::fs::File::create(&path).and_then(|file| {
                     use std::io::Write;
-                    let mut writer = htsjdk_bgzf::BgzfWriter::new(file);
+                    // `openFileForBufferedWriting`: one gzip member, not BGZF.
+                    let mut writer = picard_analysis::java_writer::gzip_writer(file, level);
                     writer.write_all(text.as_bytes())?;
                     writer.finish().map(|_| ())
                 })

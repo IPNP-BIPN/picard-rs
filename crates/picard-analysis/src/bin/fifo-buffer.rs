@@ -7,9 +7,7 @@
 //! `DEBUG_FREQUENCY` and `NAME` only drive a log thread on standard error, which a port that has
 //! no second thread has nothing to say about.
 
-use std::io::{Read, Write};
-
-use picard_analysis::fifo_buffer::copy;
+use picard_analysis::fifo_buffer::pump;
 
 fn arg(args: &[String], key: &str) -> Option<String> {
     args.iter()
@@ -44,14 +42,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    let mut input = Vec::new();
-    std::io::stdin().lock().read_to_end(&mut input)?;
-    // The buffer is never larger than the input needs to be: the reference allocates all of it and
-    // the port has no reason to.
-    let size = (buffer as usize).min(input.len().max(1));
-    let output = copy(&input, size, io as usize);
-    let mut stdout = std::io::stdout().lock();
-    stdout.write_all(&output)?;
-    stdout.flush()?;
+    // The ring is never larger than one read needs: the reference allocates all of BUFFER_SIZE
+    // (512 MiB by default), and the bytes that come out do not depend on it.
+    let size = (buffer as usize).min(io as usize);
+    pump(
+        &mut std::io::stdin().lock(),
+        &mut std::io::BufWriter::new(std::io::stdout().lock()),
+        size,
+        io as usize,
+    )?;
     Ok(())
 }

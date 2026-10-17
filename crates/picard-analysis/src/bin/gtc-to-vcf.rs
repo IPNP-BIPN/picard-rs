@@ -172,7 +172,7 @@ fn main() {
     let mut zeroed = 0;
     let mut rows: Vec<(usize, i32, String)> = Vec::new();
     for (gtc_index, record) in manifest.records.iter().enumerate() {
-        let Some(egt_index) = egt.rs_names.iter().position(|n| *n == record.name) else {
+        let Some(egt_index) = egt.index_of(&record.name) else {
             raise(&format!(
                 "Found no record in cluster file for manifest entry '{}'",
                 record.name
@@ -263,7 +263,7 @@ fn main() {
     let input_name = file_name(&input);
     let chip_well_barcode =
         input_name[..input_name.rfind('.').unwrap_or(input_name.len())].to_string();
-    add("fileDate", "<now>");
+    add("fileDate", &picard_analysis::command_line::java_date_now());
     add("source", "GtcToVcf");
     let descriptor_name = &manifest.descriptor_file_name;
     add(
@@ -461,7 +461,7 @@ fn main() {
         text.push_str(line);
         text.push('\n');
     }
-    if let Err(e) = std::fs::write(&output, text) {
+    if let Err(e) = picard_analysis::vcf_io::write_text_indexed(&output, &text, Some(&dictionary)) {
         raise(&format!("htsjdk.samtools.SAMException: {e}"));
     }
 }

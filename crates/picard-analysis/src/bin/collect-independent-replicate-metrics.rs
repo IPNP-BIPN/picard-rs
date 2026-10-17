@@ -502,7 +502,22 @@ fn main() {
         );
     }
 
-    // The query, then the filters, then the sets.
+    // The query, then the filters, then the sets. The sites of each reference by start, each
+    // carrying the furthest end so far: a record overlaps one when the furthest end among those
+    // starting at or before its end reaches its start. A scan of every site for every record was
+    // reads times sites.
+    let mut spans: BTreeMap<i32, Vec<(i32, i32)>> = BTreeMap::new();
+    for q in sites.keys() {
+        spans.entry(q.reference).or_default().push((q.start, q.end));
+    }
+    for list in spans.values_mut() {
+        list.sort_unstable();
+        let mut furthest = i32::MIN;
+        for span in list.iter_mut() {
+            furthest = furthest.max(span.1);
+            span.1 = furthest;
+        }
+    }
     let kept: Vec<&BamRecord> = records
         .iter()
         .filter(|r| {
@@ -514,8 +529,9 @@ fn main() {
             } else {
                 r.alignment_end()
             };
-            sites.keys().any(|q| {
-                q.reference == r.reference_index && r.alignment_start <= q.end && end >= q.start
+            spans.get(&r.reference_index).is_some_and(|list| {
+                let before = list.partition_point(|&(start, _)| start <= end);
+                before > 0 && list[before - 1].1 >= r.alignment_start
             })
         })
         .filter(|r| r.flags & UNMAPPED == 0)
@@ -564,6 +580,27 @@ fn main() {
             }
         })
         .collect();
+    // `DuplicateSetIterator` sorts the records by `SAMRecordDuplicateComparator`, whose every
+    // comparison first asks each record for its mate's unclipped coordinate, and that needs the
+    // MC tag of a paired record whose mate is mapped. Any such record without one throws as soon
+    // as the sort reaches it: the second record first (TimSort's first comparison is `a[1]` against
+    // `a[0]`), then the first, then the rest in order. One record alone is never compared.
+    if kept.len() > 1 {
+        let order = std::iter::once(1)
+            .chain(std::iter::once(0))
+            .chain(2..kept.len());
+        if let Some(at) = order.into_iter().find(|&at| {
+            let r = kept[at];
+            r.flags & PAIRED != 0
+                && r.flags & (UNMAPPED | MATE_UNMAPPED) == 0
+                && r.tags.get(Tag::new(b"MC")).is_none()
+        }) {
+            thrown(&format!(
+                "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found: {}",
+                picard_analysis::view_sam::sam_string(&header, kept[at])
+            ));
+        }
+    }
     let sets = duplicate_sets(&set_records, &Options::default());
 
     let mut confusion: BTreeMap<(String, String), f64> = BTreeMap::new();

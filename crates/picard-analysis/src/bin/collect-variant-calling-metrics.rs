@@ -22,8 +22,9 @@ use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use htsjdk_vcf::reader::read_vcf;
 use htsjdk_vcf::variant::VariantContext;
 use picard_analysis::collect_variant_calling_metrics::{
-    accumulate_detail, accumulate_site, file_names, Call, Counts, HiddenCounts, Site,
+    accumulate_detail, accumulate_site, file_names, kind_of, Call, Counts, HiddenCounts, Kind, Site,
 };
+use picard_analysis::java_hash_map::JavaHashMap;
 
 fn arg(args: &[String], key: &str) -> Option<String> {
     args.iter()
@@ -84,28 +85,54 @@ fn read_intervals(text: &str) -> Vec<Interval> {
     merged
 }
 
-fn within(record: &VariantContext, intervals: &[Interval]) -> bool {
-    intervals.iter().any(|interval| {
-        record.contig == interval.contig
-            && record.start <= interval.end
-            && record.stop >= interval.start
-    })
+/// The intervals of each contig sorted by start, each carrying the furthest end so far: a record
+/// overlaps one of them when the furthest end among those starting at or before its stop reaches
+/// its start. A scan of every interval for every record was quadratic in the two.
+struct Targets(foldhash::HashMap<String, Vec<(i64, i64)>>);
+
+impl Targets {
+    fn new(intervals: &[Interval]) -> Targets {
+        let mut by_contig: foldhash::HashMap<String, Vec<(i64, i64)>> = Default::default();
+        for interval in intervals {
+            by_contig
+                .entry(interval.contig.clone())
+                .or_default()
+                .push((interval.start, interval.end));
+        }
+        for spans in by_contig.values_mut() {
+            spans.sort_unstable();
+            let mut furthest = i64::MIN;
+            for span in spans.iter_mut() {
+                furthest = furthest.max(span.1);
+                span.1 = furthest;
+            }
+        }
+        Targets(by_contig)
+    }
+
+    fn within(&self, record: &VariantContext) -> bool {
+        self.0.get(&record.contig).is_some_and(|spans| {
+            let before = spans.partition_point(|&(start, _)| start <= record.stop);
+            before > 0 && spans[before - 1].1 >= record.start
+        })
+    }
 }
 
-/// `VariantContext.isSNP()` over a decoded record.
-fn record_is_snp(record: &VariantContext) -> bool {
+/// `VariantContext.getType()` over a decoded record.
+fn record_kind(record: &VariantContext) -> Kind {
     let reference = record
         .alleles
         .iter()
         .find(|allele| allele.is_reference())
         .map(|allele| allele.base_string())
         .unwrap_or_default();
-    reference.len() == 1
-        && record
-            .alleles
-            .iter()
-            .filter(|allele| !allele.is_reference())
-            .all(|allele| allele.base_string().len() == 1)
+    let alternates: Vec<String> = record
+        .alleles
+        .iter()
+        .filter(|allele| !allele.is_reference() && !allele.is_no_call())
+        .map(|allele| allele.base_string())
+        .collect();
+    kind_of(&reference, &alternates)
 }
 
 fn site_of(
@@ -381,17 +408,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // `createSnpAndIndelBitSets`: one set of SNP sites and one of indel sites, over the intervals.
+    // A record sets every position from its start to its end, and only a SNP or an INDEL sets
+    // anything: an MNP, a mixed or a symbolic record is in neither set.
+    let targets = Targets::new(&intervals);
     let mut snp_sites: HashSet<(String, i64)> = HashSet::new();
     let mut indel_sites: HashSet<(String, i64)> = HashSet::new();
     for record in &known.records {
-        if !intervals.is_empty() && !within(record, &intervals) {
+        if !intervals.is_empty() && !targets.within(record) {
             continue;
         }
-        let key = (record.contig.clone(), record.start);
-        if record_is_snp(record) {
-            snp_sites.insert(key);
-        } else {
-            indel_sites.insert(key);
+        let sites = match record_kind(record) {
+            Kind::Snp => &mut snp_sites,
+            Kind::Indel => &mut indel_sites,
+            _ => continue,
+        };
+        for position in record.start..=record.stop {
+            sites.insert((record.contig.clone(), position));
         }
     }
 
@@ -402,7 +434,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         samples.iter().map(|_| Default::default()).collect();
 
     for record in &vcf.records {
-        if !intervals.is_empty() && !within(record, &intervals) {
+        if !intervals.is_empty() && !targets.within(record) {
             continue;
         }
         let site = site_of(record, &samples, &snp_sites, &indel_sites);
@@ -446,7 +478,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for header in picard_analysis::command_line::default_headers("CollectVariantCallingMetrics") {
         detail_file.add_header(&header);
     }
+    // `sampleMetricsMap`, and `Result.merge`'s `groupingBy` after it: a `HashMap` by sample name,
+    // which is the order the rows come out in.
+    let mut order: JavaHashMap<usize> = JavaHashMap::new();
     for (index, sample) in samples.iter().enumerate() {
+        order.put(sample, index);
+    }
+    for (sample, &index) in order.iter() {
+        let sample = sample.to_string();
         let (counts, hidden) = details[index].clone();
         detail_file.add_metric(&DetailRow {
             sample: sample.clone(),

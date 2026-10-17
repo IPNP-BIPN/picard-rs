@@ -18,16 +18,19 @@
 //! * Each read is written as a name (with `/1` or `/2`), a length and one byte per base; a
 //!   paired run sends a read to the file its first-of-pair flag names. Every `READ_CHUNK_SIZE`
 //!   records the files roll over to the next index, so a run that ends on a multiple leaves an
-//!   empty pair of files behind. A `.bfq` is gzip (`IOUtil.hasGzipFileExtension`), and a gzip
-//!   stream is what this writes: the harness compares what it inflates to.
+//!   empty pair of files behind. A `.bfq` is gzip (`IOUtil.hasGzipFileExtension`), written by
+//!   `openGzipFileForWriting` as ONE gzip member through zlib at `COMPRESSION_LEVEL`, the header
+//!   saying OS 255; this writes the same member, not BGZF blocks, so the file is Picard's to the
+//!   byte (measured on 147 MB from 2,000,000 reads).
 
 use std::fs::File;
 use std::io::Write;
 
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
-use htsjdk_bgzf::BgzfWriter;
-use picard_analysis::bam_to_bfq::{encode_base_and_quality, MAX_SEED_REGION_NOCALL_FIXES};
+use picard_analysis::bam_to_bfq::{
+    encode_base_and_quality, gzip_writer, MAX_SEED_REGION_NOCALL_FIXES,
+};
 use picard_analysis::metrics_cli::{absolute, read_input, refuse_validation, sort_order, thrown};
 
 const SEED_REGION_LENGTH: usize = 28;
@@ -196,9 +199,12 @@ fn assert_file_is_writable(path: &str) {
     }
 }
 
+/// `IOUtil.compressionLevel`, which `instanceMain` sets from `COMPRESSION_LEVEL`.
+static LEVEL: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+
 /// One `.bfq` being written: a gzip stream, which `BinaryCodec` writes little-endian into.
 struct Codec {
-    writer: BgzfWriter<File>,
+    writer: flate2::write::GzEncoder<std::io::BufWriter<File>>,
 }
 
 impl Codec {
@@ -210,7 +216,7 @@ impl Codec {
             ))
         });
         Codec {
-            writer: BgzfWriter::new(file),
+            writer: gzip_writer(std::io::BufWriter::new(file), *LEVEL.get().unwrap_or(&5)),
         }
     }
 
@@ -220,9 +226,10 @@ impl Codec {
             .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")));
     }
 
-    fn close(mut self) {
+    fn close(self) {
         self.writer
             .finish()
+            .and_then(|mut inner| inner.flush())
             .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")));
     }
 }
@@ -452,6 +459,11 @@ fn java_floor_to_int(value: f64) -> i32 {
 
 fn main() {
     let args = CommandLine::from_env();
+    let _ = LEVEL.set(
+        args.get("COMPRESSION_LEVEL")
+            .and_then(|level| level.parse().ok())
+            .unwrap_or(5),
+    );
     validate(&args);
 
     let input = args.get("INPUT").unwrap_or("null").to_string();

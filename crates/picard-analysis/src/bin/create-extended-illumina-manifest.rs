@@ -166,35 +166,48 @@ fn main() {
     }
 
     // dbSNP: every position a record spans, mapped to its ID, for the loci the manifest has.
-    let mut known: Vec<(String, String)> = Vec::new();
+    let mut known: foldhash::HashMap<String, String> = foldhash::HashMap::default();
     if let Some(path) = &dbsnp {
         let vcf = read_path(path).unwrap_or_else(|e| thrown(&e));
+        // The loci a record may overlap, per contig, sorted by start with the furthest end so far:
+        // a record overlaps one of them when the furthest end among those starting at or before its
+        // stop reaches its start. A scan of every locus for every record was quadratic on a chip.
+        let mut loci: foldhash::HashMap<&str, Vec<(i64, i64)>> = foldhash::HashMap::default();
+        for (_, _, e) in &rows {
+            if !e.flag.is_fail() {
+                let start = i64::from(e.b37_pos);
+                let end = start + e.allele_a.len().max(e.allele_b.len()) as i64;
+                loci.entry(e.b37_chr.as_str())
+                    .or_default()
+                    .push((start, end));
+            }
+        }
+        for spans in loci.values_mut() {
+            spans.sort_unstable();
+            let mut furthest = i64::MIN;
+            for span in spans.iter_mut() {
+                furthest = furthest.max(span.1);
+                span.1 = furthest;
+            }
+        }
         for v in vcf.records.iter().map(|r| &r.variant) {
-            let wanted = rows.iter().any(|(_, _, e)| {
-                !e.flag.is_fail() && e.b37_chr == v.contig && {
-                    let start = i64::from(e.b37_pos);
-                    let end = start + e.allele_a.len().max(e.allele_b.len()) as i64;
-                    v.start <= end && v.stop >= start
-                }
+            let wanted = loci.get(v.contig.as_str()).is_some_and(|spans| {
+                let before = spans.partition_point(|&(start, _)| start <= v.stop);
+                before > 0 && spans[before - 1].1 >= v.start
             });
             if !wanted {
                 continue;
             }
             for pos in v.start..=v.stop {
-                let key = format!("{}.{pos}", v.contig);
-                match known.iter_mut().find(|(k, _)| *k == key) {
-                    Some(slot) => slot.1 = v.id.clone(),
-                    None => known.push((key, v.id.clone())),
-                }
+                known.insert(format!("{}.{pos}", v.contig), v.id.clone());
             }
         }
     }
     for (_, record, extension) in &mut rows {
         let key = format!("{}.{}", record.chr, record.map_info);
         extension.rs_id = known
-            .iter()
-            .find(|(k, _)| *k == key)
-            .map(|(_, id)| id.clone())
+            .get(&key)
+            .cloned()
             .unwrap_or_else(|| "null".to_string());
     }
 
@@ -207,7 +220,9 @@ fn main() {
                 absolute(&path)
             ))
         });
+        // The groups in the order their first locus came, found by key through `group_of`.
         let mut groups: Vec<(String, Vec<usize>)> = Vec::new();
+        let mut group_of: foldhash::HashMap<String, usize> = foldhash::HashMap::default();
         for (i, (_, _, e)) in rows.iter().enumerate() {
             if e.flag.is_fail() {
                 continue;
@@ -219,16 +234,17 @@ fn main() {
             if e.allele_b != e.allele_a && e.allele_b != e.ref_allele {
                 key.push_str(&format!(".{}", e.allele_b));
             }
-            match groups.iter_mut().find(|(k, _)| *k == key) {
-                Some((_, list)) => list.push(i),
-                None => groups.push((key, vec![i])),
+            match group_of.get(&key) {
+                Some(&at) => groups[at].1.push(i),
+                None => {
+                    group_of.insert(key.clone(), groups.len());
+                    groups.push((key, vec![i]));
+                }
             }
         }
         let score = |i: usize| -> f32 {
             let name = &rows[i].1.name;
-            egt.rs_names
-                .iter()
-                .position(|n| n == name)
+            egt.index_of(name)
                 .map(|at| egt.total_score[at])
                 .unwrap_or_else(|| thrown("java.lang.NullPointerException"))
         };
@@ -342,8 +358,9 @@ fn main() {
     // The report.
     let s = &statistics;
     let mut r = format!(
-        "CreateExtendedIlluminaManifest (version: {VERSION}) Report For: {}\nGenerated on: <now>\nUsing Illumina Manifest: {}\n",
+        "CreateExtendedIlluminaManifest (version: {VERSION}) Report For: {}\nGenerated on: {}\nUsing Illumina Manifest: {}\n",
         file_name(&output),
+        picard_analysis::command_line::java_date_now(),
         absolute(&input)
     );
     if flag_duplicates {

@@ -34,7 +34,7 @@ use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
 use picard_analysis::metrics_cli::{absolute, Args};
 use picard_analysis::vcf_io::{
     add_other_meta_data_line, die, log_error, parse_sam_dictionary, read_path,
-    set_sequence_dictionary, Record,
+    set_sequence_dictionary, write_text_indexed, Record, Sequence,
 };
 
 const TOOL: &str = "LiftoverVcf";
@@ -423,7 +423,13 @@ fn add_line(header: &mut VcfHeader, line: HeaderLine) {
 /// `VCFWriter.writeHeader` then `add` per record: a record still lazy has its site columns
 /// encoded and its genotype block copied, as `vcf_io::write_records` does, and every encode
 /// refuses an INFO key the header lacks unless missing fields are allowed.
-fn write_all(path: &str, header: &VcfHeader, records: &[Record], missing: MissingFields) {
+fn write_all(
+    path: &str,
+    header: &VcfHeader,
+    records: &[Record],
+    missing: MissingFields,
+    index: Option<&[Sequence]>,
+) {
     let encoder = VcfEncoder::new(header).with_missing_fields(missing);
     let sites_header = VcfHeader {
         lines: header.lines.clone(),
@@ -448,7 +454,7 @@ fn write_all(path: &str, header: &VcfHeader, records: &[Record], missing: Missin
         }
         out.push('\n');
     }
-    if let Err(e) = std::fs::write(path, out) {
+    if let Err(e) = write_text_indexed(path, &out, index) {
         die(&format!("htsjdk.tribble.TribbleException: {e}"));
     }
 }
@@ -657,6 +663,7 @@ fn main() {
                 &out_header,
                 std::slice::from_ref(&record),
                 missing,
+                None,
             );
         }
         lifted.push(record);
@@ -769,7 +776,8 @@ fn main() {
         }
     }
 
-    write_all(&reject, &reject_header, &rejected, missing);
+    // The rejects' writer unsets `INDEX_ON_THE_FLY`; the output's keeps it unless DISABLE_SORT.
+    write_all(&reject, &reject_header, &rejected, missing, None);
     if !disable_sort {
         let index_of = |name: &str| dictionary.iter().position(|s| s.name == name).unwrap_or(0);
         lifted.sort_by(|a, b| {
@@ -778,5 +786,6 @@ fn main() {
                 .then(a.variant.start.cmp(&b.variant.start))
         });
     }
-    write_all(&output, &out_header, &lifted, missing);
+    let index = (!disable_sort).then_some(dictionary.as_slice());
+    write_all(&output, &out_header, &lifted, missing, index);
 }

@@ -36,6 +36,9 @@ regex = "1"
 boa_engine = "0.22"
 # `Started on:` is `java.util.Date.toString()` in the local zone, named the way `localtime_r` names it.
 libc = "0.2.190"
+# The plain gzip member `IOUtil.openGzipFileForWriting` writes (a `.bfq`), through the same zlib the
+# BGZF writer's JDK deflater uses.
+flate2 = { version = "1", default-features = false, features = ["zlib"] }
 
 [dev-dependencies]
 flate2 = { version = "1", default-features = false, features = ["zlib"] }
