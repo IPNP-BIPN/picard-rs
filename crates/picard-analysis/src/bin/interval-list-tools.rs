@@ -20,11 +20,12 @@ use picard_analysis::interval_list_tools::{
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
-    let input = picard_analysis::args::single_input(&args)?;
+    let inputs = picard_analysis::args::inputs(&args)?;
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
-    let second_input = arg(&args, "SECOND_INPUT=").or_else(|| arg(&args, "SI="));
+    // Both are lists: each is padded, then reduced by the action's `reduceEach`.
+    let second_inputs = picard_analysis::args::all(&args, "SECOND_INPUT=", "SI=");
     let flag = |key: &str, default: bool| {
         arg(&args, key)
             .map(|v| picard_analysis::args::is_true(&v))
@@ -65,12 +66,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if scatter_count < 1 {
         errors.push("SCATTER_COUNT must be greater than 0.".to_string());
     }
-    if second_input.is_none() && takes_second_input {
+    if second_inputs.is_empty() && takes_second_input {
         errors.push(format!(
             "SECOND_INPUT was not provided but action {action_name} requires a second input."
         ));
     }
-    if second_input.is_some() && !takes_second_input {
+    if !second_inputs.is_empty() && !takes_second_input {
         errors.push(format!(
             "SECOND_INPUT was provided but action {action_name} doesn't take a second input."
         ));
@@ -107,13 +108,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or(0),
     };
 
-    let first = std::fs::read_to_string(&input)?;
-    let second = second_input
-        .as_ref()
-        .map(std::fs::read_to_string)
-        .transpose()?;
-    let seconds: Vec<&str> = second.as_deref().into_iter().collect();
-    let text = interval_list_tools(&[&first], &seconds, &options).map_err(|e| format!("{e:?}"))?;
+    let read = |paths: &[String]| -> std::io::Result<Vec<String>> {
+        paths.iter().map(std::fs::read_to_string).collect()
+    };
+    let (firsts, seconds) = (read(&inputs)?, read(&second_inputs)?);
+    let firsts: Vec<&str> = firsts.iter().map(String::as_str).collect();
+    let seconds: Vec<&str> = seconds.iter().map(String::as_str).collect();
+    let text = interval_list_tools(&firsts, &seconds, &options).map_err(|e| format!("{e:?}"))?;
     // `header.addComment` for every COMMENT: the comments close the header, after any `@PG`.
     let comments: Vec<String> = args
         .iter()
