@@ -890,16 +890,6 @@
       "t": 2,
       "share": 1.0
     },
-    "MergeBamAlignment": {
-      "rows": 29,
-      "accepted": 16,
-      "rejected": 13,
-      "distinct_outputs": 16,
-      "distinct_rejections": 6,
-      "matched": 29,
-      "t": 2,
-      "share": 1.0
-    },
     "MergePedIntoVcf": {
       "rows": 19,
       "accepted": 19,
