@@ -82,7 +82,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
 
-      - run: cargo build --release --bin collect-alignment-summary-metrics --bin add-oa-tag
+      - run: cargo build --release --bin CollectAlignmentSummaryMetrics --bin AddOATag
 
       - name: Build the fixture corpus
         run: |
@@ -100,7 +100,7 @@ jobs:
         # where a locale-sensitive formatter would write "0,333333".
         run: |
           set -eux
-          B=target/release/collect-alignment-summary-metrics
+          B=target/release/CollectAlignmentSummaryMetrics
           F=target/fixtures
           $B I=$F/small.bam O=/tmp/run1.txt R=$F/ref.fasta
           $B I=$F/small.bam O=/tmp/run2.txt R=$F/ref.fasta
@@ -128,7 +128,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
 
-      - run: cargo build --release --bin collect-alignment-summary-metrics
+      - run: cargo build --release --bin CollectAlignmentSummaryMetrics
 
       - name: Fuzz, seeded from the covering array, and replay against the port
         # The covering arrays cover interactions between arguments; they say nothing about which
@@ -139,7 +139,7 @@ jobs:
         run: |
           python3 tools/fuzz/run_fuzz.py --tool CollectQualityYieldMetrics --iterations 60
           python3 tools/fuzz/run_fuzz.py --tool CollectAlignmentSummaryMetrics --iterations 60 \
-            --port target/release/collect-alignment-summary-metrics
+            --port target/release/CollectAlignmentSummaryMetrics
 
       - name: Publish the findings
         # Findings are evidence, not goldens: they say what the reference did and where the port
@@ -216,13 +216,13 @@ jobs:
           ls -la target/benchmark/bench.bam
 
       - name: Build the port
-        run: cargo build --release --bin collect-alignment-summary-metrics --bin add-oa-tag
+        run: cargo build --release --bin CollectAlignmentSummaryMetrics --bin AddOATag
 
       - name: Time both, on the same hardware, neither emulated
         # The runner is real x86-64, so this is the authoritative figure; the numbers in
         # decision 0004 come from an emulated container and say so.
         run: |
-          cp target/release/collect-alignment-summary-metrics target/benchmark/
+          cp target/release/CollectAlignmentSummaryMetrics target/benchmark/
           cat > target/benchmark/bench.sh <<'INNER'
           cd /out
           TIMEFORMAT='%3R'
@@ -231,9 +231,9 @@ jobs:
           echo "picard_gkl_default_s"
           for i in 1 2 3; do { time java -jar $PICARD_JAR CollectAlignmentSummaryMetrics I=bench.bam O=/out/picard.txt R=bench.fasta >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_s"
-          for i in 1 2 3; do { time /out/collect-alignment-summary-metrics I=bench.bam O=/out/rust.txt R=bench.fasta >/dev/null 2>&1 ; } 2>&1; done
+          for i in 1 2 3; do { time /out/CollectAlignmentSummaryMetrics I=bench.bam O=/out/rust.txt R=bench.fasta >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_phases"
-          PICARD_RS_TIMING=1 /out/collect-alignment-summary-metrics I=bench.bam O=/out/rust.txt R=bench.fasta
+          PICARD_RS_TIMING=1 /out/CollectAlignmentSummaryMetrics I=bench.bam O=/out/rust.txt R=bench.fasta
           INNER
           docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.5.0 'bash /out/bench.sh'
 
@@ -264,24 +264,24 @@ jobs:
         # RAYON_NUM_THREADS=1 to expose the single-thread floor, rust_nt leaves rayon on all cores,
         # and the gap between them is the multicore win, isolated from the Rust-vs-JVM baseline.
         run: |
-          cp target/release/add-oa-tag target/benchmark/
+          cp target/release/AddOATag target/benchmark/
           cat > target/benchmark/oabench.sh <<'INNER'
           cd /out
           TIMEFORMAT='%3R'
           echo "picard_addoatag_s"
           for i in 1 2 3; do { time java -jar $PICARD_JAR AddOATag I=bench.bam O=/out/picard_oa.sam VALIDATION_STRINGENCY=SILENT >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_1t_s"
-          for i in 1 2 3; do { time env RAYON_NUM_THREADS=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
+          for i in 1 2 3; do { time env RAYON_NUM_THREADS=1 /out/AddOATag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_nt_s"
-          for i in 1 2 3; do { time /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
+          for i in 1 2 3; do { time /out/AddOATag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
           # The whole-program numbers above are I/O-bound; these phase lines isolate the transform
           # itself, where the add_oa step is the only thing rayon parallelizes. Compare add_oa across
           # the two: that ratio is the multicore speedup on the work, before decode/encode/write dilute
           # it end to end.
           echo "rust_1t_phases"
-          PICARD_RS_TIMING=1 RAYON_NUM_THREADS=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam
+          PICARD_RS_TIMING=1 RAYON_NUM_THREADS=1 /out/AddOATag I=bench.bam O=/out/rust_oa.sam
           echo "rust_nt_phases"
-          PICARD_RS_TIMING=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam
+          PICARD_RS_TIMING=1 /out/AddOATag I=bench.bam O=/out/rust_oa.sam
           INNER
           docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.5.0 'bash /out/oabench.sh'
 

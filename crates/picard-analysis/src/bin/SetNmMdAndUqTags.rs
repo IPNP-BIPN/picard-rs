@@ -23,7 +23,8 @@ use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
 use picard_analysis::set_nm_md_and_uq_tags::{fix_record, Options};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+// `pub` because `SetNmAndUqTags`, Picard's older name for the same tool, includes this file.
+pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SetNmMdAndUqTags");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")

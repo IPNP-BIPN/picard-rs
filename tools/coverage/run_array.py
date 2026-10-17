@@ -22,7 +22,7 @@ Two modes, and the difference matters:
 
     python3 tools/coverage/run_array.py --tool CollectAlignmentSummaryMetrics
     python3 tools/coverage/run_array.py --tool CollectAlignmentSummaryMetrics \\
-        --port target/release/collect-alignment-summary-metrics
+        --port target/release/CollectAlignmentSummaryMetrics
 """
 
 import argparse

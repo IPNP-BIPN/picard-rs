@@ -206,7 +206,7 @@ run here against the oracle:
 
 ```sh
 python3 tools/coverage/run_array.py --tool CollectAlignmentSummaryMetrics \
-    --port target/release/collect-alignment-summary-metrics
+    --port target/release/CollectAlignmentSummaryMetrics
 ```
 
 `tools/coverage/MakeFixtures.java` builds the deterministic corpus the rows run against (a covering
@@ -229,7 +229,7 @@ reference that nothing has reached, with JaCoCo measuring inside the pinned cont
 
 ```sh
 python3 tools/fuzz/run_fuzz.py --tool CollectAlignmentSummaryMetrics --iterations 200 \
-    --port target/release/collect-alignment-summary-metrics
+    --port target/release/CollectAlignmentSummaryMetrics
 ```
 
 Sixty mutations reach about 10% more of the reference than the whole pairwise array does, and the

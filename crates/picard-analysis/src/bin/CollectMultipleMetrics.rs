@@ -72,34 +72,11 @@ impl Program {
         }
     }
 
-    /// The port that runs it, and the tool name that port writes into its metrics headers.
-    fn port(self) -> (&'static str, &'static str) {
+    /// The port that runs it, whose name is also the tool name it writes into its metrics headers.
+    fn port(self) -> &'static str {
         match self {
-            Program::CollectAlignmentSummaryMetrics => (
-                "collect-alignment-summary-metrics",
-                "CollectAlignmentSummaryMetrics",
-            ),
-            Program::CollectInsertSizeMetrics => {
-                ("collect-insert-size-metrics", "CollectInsertSizeMetrics")
-            }
-            Program::QualityScoreDistribution => {
-                ("quality-score-distribution", "QualityScoreDistribution")
-            }
-            Program::MeanQualityByCycle => ("mean-quality-by-cycle", "MeanQualityByCycle"),
-            Program::CollectBaseDistributionByCycle => (
-                "collect-base-distribution-by-cycle",
-                "CollectBaseDistributionByCycle",
-            ),
-            Program::CollectGcBiasMetrics => ("collect-gc-bias-metrics", "CollectGcBiasMetrics"),
-            Program::RnaSeqMetrics => ("collect-rna-seq-metrics", "CollectRnaSeqMetrics"),
-            Program::CollectSequencingArtifactMetrics => (
-                "collect-sequencing-artifact-metrics",
-                "CollectSequencingArtifactMetrics",
-            ),
-            Program::CollectQualityYieldMetrics => (
-                "collect-quality-yield-metrics",
-                "CollectQualityYieldMetrics",
-            ),
+            Program::RnaSeqMetrics => "CollectRnaSeqMetrics",
+            other => other.name(),
         }
     }
 
@@ -444,7 +421,7 @@ fn main() {
         stop_after,
     };
     for program in &programs {
-        let (binary, tool) = program.port();
+        let binary = program.port();
         let (mut program_args, outputs) = instance(*program, &shared);
         // The program's own parser takes its extra arguments over what this tool set, except the
         // four `makeItSo` reads from this tool rather than from the program.
@@ -487,7 +464,8 @@ fn main() {
         // `setDefaultHeaders(getDefaultHeaders())`: this tool's command line and start head every
         // file, in place of the ones the program would have written for itself.
         let [command_line, started_on] = picard_analysis::command_line::default_headers(TOOL);
-        let own = format!("# {tool} ");
+        // `port` is the tool name the program writes into its own headers.
+        let own = format!("# {binary} ");
         for path in outputs {
             if let Ok(text) = std::fs::read_to_string(&path) {
                 let mut replaced_command = false;

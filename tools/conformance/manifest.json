@@ -48,123 +48,123 @@
     "tools": [
       {
         "tool": "AddOATag",
-        "port": "add-oa-tag",
+        "port": "AddOATag",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "CollectAlignmentSummaryMetrics",
-        "port": "collect-alignment-summary-metrics",
+        "port": "CollectAlignmentSummaryMetrics",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "CollectQualityYieldMetrics",
-        "port": "collect-quality-yield-metrics",
+        "port": "CollectQualityYieldMetrics",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "SortSam",
-        "port": "sort-sam",
+        "port": "SortSam",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "CleanSam",
-        "port": "clean-sam",
+        "port": "CleanSam",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "SamFormatConverter",
-        "port": "sam-format-converter",
+        "port": "SamFormatConverter",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "BedToIntervalList",
-        "port": "bed-to-interval-list",
+        "port": "BedToIntervalList",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "IntervalListToBed",
-        "port": "interval-list-to-bed",
+        "port": "IntervalListToBed",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "NormalizeFasta",
-        "port": "normalize-fasta",
+        "port": "NormalizeFasta",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "AddOrReplaceReadGroups",
-        "port": "add-or-replace-read-groups",
+        "port": "AddOrReplaceReadGroups",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "MergeSamFiles",
-        "port": "merge-sam-files",
+        "port": "MergeSamFiles",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "ReplaceSamHeader",
-        "port": "replace-sam-header",
+        "port": "ReplaceSamHeader",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "CalculateReadGroupChecksum",
-        "port": "calculate-read-group-checksum",
+        "port": "CalculateReadGroupChecksum",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "NonNFastaSize",
-        "port": "non-n-fasta-size",
+        "port": "NonNFastaSize",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "ScatterIntervalsByNs",
-        "port": "scatter-intervals-by-ns",
+        "port": "ScatterIntervalsByNs",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "ViewSam",
-        "port": "view-sam",
+        "port": "ViewSam",
         "t": 2,
         "status": "measured",
         "output": "stdout"
       },
       {
         "tool": "BamIndexStats",
-        "port": "bam-index-stats",
+        "port": "BamIndexStats",
         "t": 2,
         "status": "measured",
         "output": "stdout"
       },
       {
         "tool": "ReorderSam",
-        "port": "reorder-sam",
+        "port": "ReorderSam",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "CreateSequenceDictionary",
-        "port": "create-sequence-dictionary",
+        "port": "CreateSequenceDictionary",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "DownsampleSam",
-        "port": "downsample-sam",
+        "port": "DownsampleSam",
         "t": 2,
         "status": "measured",
         "strip_program_records": true,
@@ -172,50 +172,50 @@
       },
       {
         "tool": "FixMateInformation",
-        "port": "fix-mate-information",
+        "port": "FixMateInformation",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "MeanQualityByCycle",
-        "port": "mean-quality-by-cycle",
+        "port": "MeanQualityByCycle",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "CollectBaseDistributionByCycle",
-        "port": "collect-base-distribution-by-cycle",
+        "port": "CollectBaseDistributionByCycle",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "QualityScoreDistribution",
-        "port": "quality-score-distribution",
+        "port": "QualityScoreDistribution",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "SetNmMdAndUqTags",
-        "port": "set-nm-md-and-uq-tags",
+        "port": "SetNmMdAndUqTags",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "RevertSam",
-        "port": "revert-sam",
+        "port": "RevertSam",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt,rg1.bam,rg2.bam,rg1.sam,rg2.sam,rg1.cram,rg2.cram,mapped_rg1.bam,mapped_rg2.sam"
       },
       {
         "tool": "ExtractSequences",
-        "port": "extract-sequences",
+        "port": "ExtractSequences",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "IntervalListTools",
-        "port": "interval-list-tools",
+        "port": "IntervalListTools",
         "t": 2,
         "status": "measured",
         "strip_program_records": true,
@@ -223,27 +223,27 @@
       },
       {
         "tool": "PositionBasedDownsampleSam",
-        "port": "position-based-downsample-sam",
+        "port": "PositionBasedDownsampleSam",
         "t": 2,
         "status": "measured",
         "strip_program_records": true
       },
       {
         "tool": "ValidateSamFile",
-        "port": "validate-sam-file",
+        "port": "ValidateSamFile",
         "t": 2,
         "status": "measured",
         "exit_code_is_a_result": true
       },
       {
         "tool": "FilterSamReads",
-        "port": "filter-sam-reads",
+        "port": "FilterSamReads",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "MarkDuplicates",
-        "port": "mark-duplicates",
+        "port": "MarkDuplicates",
         "t": 2,
         "status": "measured",
         "strip_program_records": true,
@@ -251,47 +251,47 @@
       },
       {
         "tool": "FastqToSam",
-        "port": "fastq-to-sam",
+        "port": "FastqToSam",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "SplitSamByNumberOfReads",
-        "port": "split-sam-by-number-of-reads",
+        "port": "SplitSamByNumberOfReads",
         "t": 2,
         "status": "measured",
         "output_name": "shard_0001.bam,shard_0002.bam,shard_0003.bam,shard_0004.bam,shard_0005.bam,shard_0001.sam,shard_0002.sam,shard_0003.sam,shard_0004.sam,shard_0005.sam,part_0001.bam,part_0002.bam,part_0003.bam,part_0004.bam,part_0005.bam,part_0001.sam,part_0002.sam,part_0003.sam,part_0004.sam,part_0005.sam"
       },
       {
         "tool": "SplitSamByLibrary",
-        "port": "split-sam-by-library",
+        "port": "SplitSamByLibrary",
         "t": 2,
         "status": "measured",
         "output_name": "lib1.bam"
       },
       {
         "tool": "MakeVcfSampleNameMap",
-        "port": "make-vcf-sample-name-map",
+        "port": "MakeVcfSampleNameMap",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "SamToFastq",
-        "port": "sam-to-fastq",
+        "port": "SamToFastq",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CollectDuplicateMetrics",
-        "port": "collect-duplicate-metrics",
+        "port": "CollectDuplicateMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "metrics.txt,metrics_b.txt"
       },
       {
         "tool": "MarkDuplicatesWithMateCigar",
-        "port": "mark-duplicates-with-mate-cigar",
+        "port": "MarkDuplicatesWithMateCigar",
         "t": 2,
         "status": "measured",
         "strip_program_records": true,
@@ -299,7 +299,7 @@
       },
       {
         "tool": "SimpleMarkDuplicatesWithMateCigar",
-        "port": "simple-mark-duplicates-with-mate-cigar",
+        "port": "SimpleMarkDuplicatesWithMateCigar",
         "t": 2,
         "status": "measured",
         "strip_program_records": true,
@@ -307,79 +307,79 @@
       },
       {
         "tool": "CheckDuplicateMarking",
-        "port": "check-duplicate-marking",
+        "port": "CheckDuplicateMarking",
         "t": 2,
         "status": "measured",
         "exit_code_is_a_result": true
       },
       {
         "tool": "AccumulateQualityYieldMetrics",
-        "port": "accumulate-quality-yield-metrics",
+        "port": "AccumulateQualityYieldMetrics",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "GenotypeConcordance",
-        "port": "genotype-concordance",
+        "port": "GenotypeConcordance",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt.genotype_concordance_summary_metrics,output.txt.genotype_concordance.vcf.gz"
       },
       {
         "tool": "EstimateLibraryComplexity",
-        "port": "estimate-library-complexity",
+        "port": "EstimateLibraryComplexity",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "CollectUmiPrevalenceMetrics",
-        "port": "collect-umi-prevalence-metrics",
+        "port": "CollectUmiPrevalenceMetrics",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "RevertOriginalBaseQualitiesAndAddMateCigar",
-        "port": "revert-original-base-qualities-and-add-mate-cigar",
+        "port": "RevertOriginalBaseQualitiesAndAddMateCigar",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "CollectVariantCallingMetrics",
-        "port": "collect-variant-calling-metrics",
+        "port": "CollectVariantCallingMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt.variant_calling_summary_metrics"
       },
       {
         "tool": "CollectJumpingLibraryMetrics",
-        "port": "collect-jumping-library-metrics",
+        "port": "CollectJumpingLibraryMetrics",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "MarkIlluminaAdapters",
-        "port": "mark-illumina-adapters",
+        "port": "MarkIlluminaAdapters",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt,metrics.txt,metrics_b.txt"
       },
       {
         "tool": "SamToFastqWithTags",
-        "port": "sam-to-fastq-with-tags",
+        "port": "SamToFastqWithTags",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "FindMendelianViolations",
-        "port": "find-mendelian-violations",
+        "port": "FindMendelianViolations",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "LiftOverIntervalList",
-        "port": "lift-over-interval-list",
+        "port": "LiftOverIntervalList",
         "t": 2,
         "status": "measured",
         "exit_code_is_a_result": true,
@@ -387,231 +387,231 @@
       },
       {
         "tool": "CompareSAMs",
-        "port": "compare-sams",
+        "port": "CompareSAMs",
         "t": 2,
         "status": "measured",
         "exit_code_is_a_result": true
       },
       {
         "tool": "CollectInsertSizeMetrics",
-        "port": "collect-insert-size-metrics",
+        "port": "CollectInsertSizeMetrics",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "BuildBamIndex",
-        "port": "build-bam-index",
+        "port": "BuildBamIndex",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "AddCommentsToBam",
-        "port": "add-comments-to-bam",
+        "port": "AddCommentsToBam",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "GatherBamFiles",
-        "port": "gather-bam-files",
+        "port": "GatherBamFiles",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "LiftOverHaplotypeMap",
-        "port": "lift-over-haplotype-map",
+        "port": "LiftOverHaplotypeMap",
         "t": 2,
         "status": "measured",
         "exit_code_is_a_result": true
       },
       {
         "tool": "MakeSitesOnlyVcf",
-        "port": "make-sites-only-vcf",
+        "port": "MakeSitesOnlyVcf",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "RenameSampleInVcf",
-        "port": "rename-sample-in-vcf",
+        "port": "RenameSampleInVcf",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "VcfToIntervalList",
-        "port": "vcf-to-interval-list",
+        "port": "VcfToIntervalList",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "SortVcf",
-        "port": "sort-vcf",
+        "port": "SortVcf",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "UpdateVcfSequenceDictionary",
-        "port": "update-vcf-sequence-dictionary",
+        "port": "UpdateVcfSequenceDictionary",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "MergeVcfs",
-        "port": "merge-vcfs",
+        "port": "MergeVcfs",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "GatherVcfs",
-        "port": "gather-vcfs",
+        "port": "GatherVcfs",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "SplitVcfs",
-        "port": "split-vcfs",
+        "port": "SplitVcfs",
         "t": 2,
         "status": "measured",
         "output_name": "snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf"
       },
       {
         "tool": "VcfFormatConverter",
-        "port": "vcf-format-converter",
+        "port": "VcfFormatConverter",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf,output.vcf.gz"
       },
       {
         "tool": "FixVcfHeader",
-        "port": "fix-vcf-header",
+        "port": "FixVcfHeader",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "CollectWgsMetrics",
-        "port": "collect-wgs-metrics",
+        "port": "CollectWgsMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt,theoretical.txt"
       },
       {
         "tool": "CollectRawWgsMetrics",
-        "port": "collect-raw-wgs-metrics",
+        "port": "CollectRawWgsMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt,theoretical.txt"
       },
       {
         "tool": "CollectWgsMetricsWithNonZeroCoverage",
-        "port": "collect-wgs-metrics-with-non-zero-coverage",
+        "port": "CollectWgsMetricsWithNonZeroCoverage",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt,theoretical.txt"
       },
       {
         "tool": "CollectHsMetrics",
-        "port": "collect-hs-metrics",
+        "port": "CollectHsMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt,per_target.txt,per_base.txt,theoretical.txt"
       },
       {
         "tool": "CollectTargetedPcrMetrics",
-        "port": "collect-targeted-pcr-metrics",
+        "port": "CollectTargetedPcrMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt,per_target.txt,per_base.txt,theoretical.txt"
       },
       {
         "tool": "CollectSequencingArtifactMetrics",
-        "port": "collect-sequencing-artifact-metrics",
+        "port": "CollectSequencingArtifactMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "output.pre_adapter_summary_metrics,output.pre_adapter_detail_metrics,output.bait_bias_summary_metrics,output.bait_bias_detail_metrics,output.error_summary_metrics,output.pre_adapter_summary_metrics.txt,output.pre_adapter_detail_metrics.txt,output.bait_bias_summary_metrics.txt,output.bait_bias_detail_metrics.txt,output.error_summary_metrics.txt"
       },
       {
         "tool": "ConvertSequencingArtifactToOxoG",
-        "port": "convert-sequencing-artifact-to-oxog",
+        "port": "ConvertSequencingArtifactToOxoG",
         "t": 2,
         "status": "measured",
         "output_name": "output.oxog_metrics,oxog.txt"
       },
       {
         "tool": "CollectOxoGMetrics",
-        "port": "collect-oxo-g-metrics",
+        "port": "CollectOxoGMetrics",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "CollectGcBiasMetrics",
-        "port": "collect-gc-bias-metrics",
+        "port": "CollectGcBiasMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt,summary.txt,summary_b.txt"
       },
       {
         "tool": "CollectRrbsMetrics",
-        "port": "collect-rrbs-metrics",
+        "port": "CollectRrbsMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "output.rrbs_summary_metrics,output.rrbs_detail_metrics"
       },
       {
         "tool": "CollectRnaSeqMetrics",
-        "port": "collect-rna-seq-metrics",
+        "port": "CollectRnaSeqMetrics",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "CollectIndependentReplicateMetrics",
-        "port": "collect-independent-replicate-metrics",
+        "port": "CollectIndependentReplicateMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt,matrix.txt"
       },
       {
         "tool": "LiftoverVcf",
-        "port": "liftover-vcf",
+        "port": "LiftoverVcf",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf,reject.vcf,reject_b.vcf"
       },
       {
         "tool": "CollectMultipleMetrics",
-        "port": "collect-multiple-metrics",
+        "port": "CollectMultipleMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "output.alignment_summary_metrics,output.base_distribution_by_cycle_metrics,output.insert_size_metrics,output.quality_by_cycle_metrics,output.quality_distribution_metrics,output.gc_bias.detail_metrics,output.gc_bias.summary_metrics,output.rna_metrics,output.quality_yield_metrics,output.pre_adapter_summary_metrics,output.pre_adapter_detail_metrics,output.bait_bias_summary_metrics,output.bait_bias_detail_metrics,output.error_summary_metrics,output.alignment_summary_metrics.txt,output.base_distribution_by_cycle_metrics.txt,output.insert_size_metrics.txt,output.quality_by_cycle_metrics.txt,output.quality_distribution_metrics.txt,output.gc_bias.detail_metrics.txt,output.gc_bias.summary_metrics.txt,output.rna_metrics.txt,output.quality_yield_metrics.txt,output.pre_adapter_summary_metrics.txt,output.pre_adapter_detail_metrics.txt,output.bait_bias_summary_metrics.txt,output.bait_bias_detail_metrics.txt,output.error_summary_metrics.txt"
       },
       {
         "tool": "SortGff",
-        "port": "sort-gff",
+        "port": "SortGff",
         "t": 2,
         "status": "measured",
         "output_name": "output.gff3,output.gff3.gz"
       },
       {
         "tool": "MergePedIntoVcf",
-        "port": "merge-ped-into-vcf",
+        "port": "MergePedIntoVcf",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "BamToBfq",
-        "port": "bam-to-bfq",
+        "port": "BamToBfq",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CompareMetrics",
-        "port": "compare-metrics",
+        "port": "CompareMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt,table.txt",
@@ -619,54 +619,54 @@
       },
       {
         "tool": "MergeBamAlignment",
-        "port": "merge-bam-alignment",
+        "port": "MergeBamAlignment",
         "t": 2,
         "status": "measured",
         "output_name": "output.bam"
       },
       {
         "tool": "CollectSamErrorMetrics",
-        "port": "collect-sam-error-metrics",
+        "port": "CollectSamErrorMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "AccumulateVariantCallingMetrics",
-        "port": "accumulate-variant-calling-metrics",
+        "port": "AccumulateVariantCallingMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "output.txt.variant_calling_detail_metrics,output.txt.variant_calling_summary_metrics"
       },
       {
         "tool": "BaitDesigner",
-        "port": "bait-designer",
+        "port": "BaitDesigner",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CollectQualityYieldMetricsFlow",
-        "port": "collect-quality-yield-metrics-flow",
+        "port": "CollectQualityYieldMetricsFlow",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "CollectQualityYieldMetricsSNVQ",
-        "port": "collect-quality-yield-metrics-snvq",
+        "port": "CollectQualityYieldMetricsSNVQ",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "FifoBuffer",
-        "port": "fifo-buffer",
+        "port": "FifoBuffer",
         "t": 2,
         "status": "measured",
         "output": "stdout"
       },
       {
         "tool": "UmiAwareMarkDuplicatesWithMateCigar",
-        "port": "umi-aware-mark-duplicates-with-mate-cigar",
+        "port": "UmiAwareMarkDuplicatesWithMateCigar",
         "t": 2,
         "status": "measured",
         "strip_program_records": true,
@@ -674,26 +674,26 @@
       },
       {
         "tool": "ConvertHaplotypeDatabaseToVcf",
-        "port": "convert-haplotype-database-to-vcf",
+        "port": "ConvertHaplotypeDatabaseToVcf",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "ClusterCrosscheckMetrics",
-        "port": "cluster-crosscheck-metrics",
+        "port": "ClusterCrosscheckMetrics",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "SetNmAndUqTags",
-        "port": "set-nm-md-and-uq-tags",
+        "port": "SetNmAndUqTags",
         "t": 2,
         "status": "measured"
       },
       {
         "tool": "CheckTerminatorBlock",
-        "port": "check-terminator-block",
+        "port": "CheckTerminatorBlock",
         "t": 2,
         "status": "measured",
         "output": "stderr",
@@ -701,14 +701,14 @@
       },
       {
         "tool": "FilterVcf",
-        "port": "filter-vcf",
+        "port": "FilterVcf",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf"
       },
       {
         "tool": "CheckFingerprint",
-        "port": "check-fingerprint",
+        "port": "CheckFingerprint",
         "t": 2,
         "status": "measured",
         "output_name": "@all",
@@ -716,7 +716,7 @@
       },
       {
         "tool": "CrosscheckFingerprints",
-        "port": "crosscheck-fingerprints",
+        "port": "CrosscheckFingerprints",
         "t": 2,
         "status": "measured",
         "output_name": "@all",
@@ -724,7 +724,7 @@
       },
       {
         "tool": "CrosscheckReadGroupFingerprints",
-        "port": "crosscheck-read-group-fingerprints",
+        "port": "CrosscheckReadGroupFingerprints",
         "t": 2,
         "status": "measured",
         "output_name": "@all",
@@ -732,7 +732,7 @@
       },
       {
         "tool": "CalculateFingerprintMetrics",
-        "port": "calculate-fingerprint-metrics",
+        "port": "CalculateFingerprintMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "@all",
@@ -740,7 +740,7 @@
       },
       {
         "tool": "ExtractFingerprint",
-        "port": "extract-fingerprint",
+        "port": "ExtractFingerprint",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf",
@@ -750,7 +750,7 @@
       },
       {
         "tool": "IdentifyContaminant",
-        "port": "identify-contaminant",
+        "port": "IdentifyContaminant",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf",
@@ -760,35 +760,35 @@
       },
       {
         "tool": "CreateBafRegressMetricsFile",
-        "port": "create-baf-regress-metrics-file",
+        "port": "CreateBafRegressMetricsFile",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CreateVerifyIDIntensityContaminationMetricsFile",
-        "port": "create-verify-id-intensity-contamination-metrics-file",
+        "port": "CreateVerifyIDIntensityContaminationMetricsFile",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "BpmToNormalizationManifestCsv",
-        "port": "bpm-to-normalization-manifest-csv",
+        "port": "BpmToNormalizationManifestCsv",
         "t": 2,
         "status": "measured",
         "output_name": "output.csv"
       },
       {
         "tool": "CompareGtcFiles",
-        "port": "compare-gtc-files",
+        "port": "CompareGtcFiles",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "GtcToVcf",
-        "port": "gtc-to-vcf",
+        "port": "GtcToVcf",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf",
@@ -798,7 +798,7 @@
       },
       {
         "tool": "VcfToAdpc",
-        "port": "vcf-to-adpc",
+        "port": "VcfToAdpc",
         "t": 2,
         "status": "measured",
         "output_name": "@all",
@@ -806,7 +806,7 @@
       },
       {
         "tool": "CombineGenotypingArrayVcfs",
-        "port": "combine-genotyping-array-vcfs",
+        "port": "CombineGenotypingArrayVcfs",
         "t": 2,
         "status": "measured",
         "output_name": "output.vcf",
@@ -814,14 +814,14 @@
       },
       {
         "tool": "CollectArraysVariantCallingMetrics",
-        "port": "collect-arrays-variant-calling-metrics",
+        "port": "CollectArraysVariantCallingMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CreateExtendedIlluminaManifest",
-        "port": "create-extended-illumina-manifest",
+        "port": "CreateExtendedIlluminaManifest",
         "t": 2,
         "status": "measured",
         "output_name": "@all",
@@ -831,7 +831,7 @@
       },
       {
         "tool": "CheckIlluminaDirectory",
-        "port": "check-illumina-directory",
+        "port": "CheckIlluminaDirectory",
         "t": 2,
         "status": "measured",
         "output": "stderr",
@@ -839,42 +839,42 @@
       },
       {
         "tool": "CollectIlluminaLaneMetrics",
-        "port": "collect-illumina-lane-metrics",
+        "port": "CollectIlluminaLaneMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CollectHiSeqXPfFailMetrics",
-        "port": "collect-hi-seq-x-pf-fail-metrics",
+        "port": "CollectHiSeqXPfFailMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "CollectIlluminaBasecallingMetrics",
-        "port": "collect-illumina-basecalling-metrics",
+        "port": "CollectIlluminaBasecallingMetrics",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "ExtractIlluminaBarcodes",
-        "port": "extract-illumina-barcodes",
+        "port": "ExtractIlluminaBarcodes",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "IlluminaBasecallsToFastq",
-        "port": "illumina-basecalls-to-fastq",
+        "port": "IlluminaBasecallsToFastq",
         "t": 2,
         "status": "measured",
         "output_name": "@all"
       },
       {
         "tool": "IlluminaBasecallsToSam",
-        "port": "illumina-basecalls-to-sam",
+        "port": "IlluminaBasecallsToSam",
         "t": 2,
         "status": "measured",
         "output_name": "@all"

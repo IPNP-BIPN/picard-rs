@@ -43,7 +43,7 @@ fn payload(kind: &str, case: &str) -> String {
         .unwrap_or_else(|| panic!("no {kind} {case} row"))
 }
 
-/// Runs the port's `sort-sam` on the corpus input and returns the output and, if it wrote one,
+/// Runs the port's `SortSam` on the corpus input and returns the output and, if it wrote one,
 /// the index.
 fn sort(order: &str, ext: &str) -> (Vec<u8>, Option<Vec<u8>>) {
     let dir = std::env::temp_dir().join(format!(
@@ -55,7 +55,7 @@ fn sort(order: &str, ext: &str) -> (Vec<u8>, Option<Vec<u8>>) {
     let input = dir.join("in.sam");
     std::fs::write(&input, unescape(&payload("sam", "input"))).unwrap();
     let output = dir.join(format!("out.{ext}"));
-    let status = Command::new(env!("CARGO_BIN_EXE_sort-sam"))
+    let status = Command::new(env!("CARGO_BIN_EXE_SortSam"))
         .arg(format!("INPUT={}", input.display()))
         .arg(format!("OUTPUT={}", output.display()))
         .arg(format!("SORT_ORDER={order}"))

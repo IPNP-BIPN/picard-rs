@@ -28,7 +28,7 @@ fn scratch(name: &str) -> PathBuf {
 }
 
 fn run(dir: &Path, args: &[&str]) {
-    let status = Command::new(env!("CARGO_BIN_EXE_genotype-concordance"))
+    let status = Command::new(env!("CARGO_BIN_EXE_GenotypeConcordance"))
         .current_dir(dir)
         .args(args)
         .status()
