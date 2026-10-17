@@ -19,7 +19,6 @@
 use std::io::{Read, Write};
 
 use htsjdk_bam::read_group_checksum::calculate_read_group_record_checksum;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::sam_file::read_sam_with;
 use htsjdk_bam::text_parse::ValidationStringency;
 
@@ -42,7 +41,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
     let read_groups = if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+        let reader =
+            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
         reader.header.text.read_groups.clone()
     } else {
         let text = String::from_utf8(raw)?;

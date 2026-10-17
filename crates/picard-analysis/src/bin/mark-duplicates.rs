@@ -18,7 +18,6 @@
 use std::io::Read;
 
 use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
@@ -180,10 +179,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut raw = Vec::new();
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+    // `doWork` opens the input a second time to write it, and that reader validates again.
+    // shortcut: the first pass validates every record, where `buildSortedReadEndLists` stops at
+    // the first unplaced unmapped read of a coordinate-sorted input; only LENIENT shows it.
+    let mut second_pass = None;
     let (header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+        let reader =
+            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
         let header = reader.header.text.clone();
+        second_pass = Some(picard_analysis::record_validation::Validator::new(
+            &header,
+            &reader.header.binary_sequences,
+        ));
         let records = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))
             .collect::<Result<_, _>>()?;
@@ -326,6 +334,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut writer = BamWriter::new(Vec::new(), &out_header).map_err(|e| format!("{e:?}"))?;
     for (index, record) in records.iter().enumerate() {
+        if let Some(validator) = &mut second_pass {
+            if let Err(message) = validator.check(record) {
+                picard_analysis::metrics_cli::thrown(&message);
+            }
+        }
         // `UmiUtil.setMolecularIdentifier`, reached for every record before the ones that are
         // removed are skipped, so a record that cannot be given one stops the run wherever it is.
         let molecular_identifier = match &molecular_identifier_tag {

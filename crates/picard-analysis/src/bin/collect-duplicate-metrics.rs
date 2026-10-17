@@ -10,7 +10,6 @@
 
 use std::io::Read;
 
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
@@ -54,7 +53,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
     let (header, records) = if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+        let reader =
+            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
         let header = reader.header.text.clone();
         let records: Vec<BamRecord> = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))

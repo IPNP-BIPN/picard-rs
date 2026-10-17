@@ -8,7 +8,6 @@
 
 use std::io::Read;
 
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::sam_file::write_sam;
 use htsjdk_metrics::file::{Histogram, MetricsFile};
 use picard_analysis::compare_sams::{compare_sams_with_options, CompareOptions};
@@ -26,7 +25,8 @@ fn as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
         return Ok(String::from_utf8(raw)?);
     }
     let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-    let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+    let reader =
+        picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
     let header = reader.header.text.clone();
     let records: Vec<_> = reader
         .map(|r| r.map_err(|e| format!("{e:?}")))

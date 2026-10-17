@@ -12,7 +12,6 @@
 use std::io::Read;
 
 use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
 use picard_analysis::split_sam_by_number_of_reads::{
@@ -69,7 +68,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // changes no record -- the shard bytes come from the writer either way.
     let text = if bam_input {
         let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+        let reader =
+            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
         let header: SamHeader = reader.header.text.clone();
         let records: Vec<BamRecord> = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))

@@ -20,7 +20,6 @@ use std::io::{Read, Write};
 
 use htsjdk_bam::build_index::build_bam_index;
 use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
 use htsjdk_bam::writer::BamWriter;
@@ -64,7 +63,8 @@ fn read_input(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::er
         return Ok((header, records));
     }
     let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-    let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+    let reader =
+        picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
     let header = reader.header.text.clone();
     let records: Vec<BamRecord> = reader
         .map(|r| r.map_err(|e| format!("{e:?}")))

@@ -21,7 +21,6 @@ use std::io::Read;
 
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::interval::IntervalList;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
@@ -184,7 +183,8 @@ pub fn read_input(path: &str) -> (SamHeader, Vec<BamRecord>) {
     }
     if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = crate::bgzf::decompress_owned(raw).unwrap_or_else(|e| fail(&format!("{e:?}")));
-        let reader = BamReader::new(&plain).unwrap_or_else(|e| fail(&format!("{e:?}")));
+        let reader =
+            crate::record_validation::reader(&plain).unwrap_or_else(|e| fail(&format!("{e:?}")));
         let header = reader.header.text.clone();
         let records = reader
             .map(|r| r.unwrap_or_else(|e| fail(&format!("{e:?}"))))

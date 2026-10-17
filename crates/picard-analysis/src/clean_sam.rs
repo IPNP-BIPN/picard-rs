@@ -29,7 +29,16 @@ fn clean_record(rec: &mut BamRecord, header: &SamHeader) {
     );
 
     if rec.flags & READ_UNMAPPED == 0 {
-        let ref_len = header.sequences[rec.reference_index as usize].length;
+        let Some(refseq) = usize::try_from(rec.reference_index)
+            .ok()
+            .and_then(|i| header.sequences.get(i))
+        else {
+            // A mapped read with no reference, which only a LENIENT or SILENT reader lets through.
+            crate::metrics_cli::thrown(
+                "java.lang.NullPointerException: Cannot invoke \"htsjdk.samtools.SAMSequenceRecord.getSequenceLength()\" because \"refseq\" is null",
+            );
+        };
+        let ref_len = refseq.length;
         // getAlignmentEnd = alignmentStart + referenceLength - 1.
         let alignment_end = rec.alignment_start + rec.cigar.reference_length() as i32 - 1;
         let overhang = alignment_end - ref_len;

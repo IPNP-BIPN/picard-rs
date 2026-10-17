@@ -16,7 +16,6 @@ use std::io::{Read, Write};
 
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::query_name;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use picard_analysis::check_duplicate_marking::{check, Mode, Record};
@@ -62,7 +61,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
     let (header, mut records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+        let reader =
+            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
         let header = reader.header.text.clone();
         let records = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))

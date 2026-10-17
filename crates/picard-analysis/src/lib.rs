@@ -117,6 +117,7 @@ pub mod position_based_downsample_sam;
 pub mod quality_score_distribution;
 pub mod quality_yield;
 pub mod quality_yield_flow;
+pub mod record_validation;
 pub mod refflat;
 pub mod reorder_sam;
 pub mod replace_sam_header;

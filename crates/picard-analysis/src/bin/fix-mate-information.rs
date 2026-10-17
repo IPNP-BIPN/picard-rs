@@ -14,7 +14,6 @@
 
 use std::io::{Read, Write};
 
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::sam_file::write_sam;
 use picard_analysis::fix_mate_information::{
     fix_mate_information_to_bam_with, fix_mate_information_with, Options, SortOrder,
@@ -53,7 +52,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
     let text = if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+        let reader =
+            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
         let header = reader.header.text.clone();
         let records = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))
