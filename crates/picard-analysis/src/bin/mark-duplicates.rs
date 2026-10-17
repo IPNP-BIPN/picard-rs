@@ -19,7 +19,10 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
-use picard_analysis::mark_duplicates::{mark, Options, Record, ScoringStrategy, TaggingPolicy};
+use picard_analysis::mark_duplicates::{
+    base_quality_score, mark, Options, Record, ScoringStrategy, Span, TaggingPolicy,
+};
+use std::sync::Arc;
 
 const DUPLICATE_READ: u16 = 0x400;
 
@@ -97,15 +100,11 @@ fn molecular_identifier(
                 picard_analysis::view_sam::sam_string(header, record)
             ));
         };
-        let mate = Record {
-            alignment_start: record.mate_alignment_start,
-            cigar: mate_cigar,
-            ..marked.clone()
-        };
+        let mate = Span::of(&mate_cigar);
         let mate_five = if marked.mate_reverse_strand() {
-            mate.unclipped_end()
+            mate.unclipped_end(record.mate_alignment_start)
         } else {
-            mate.unclipped_start()
+            mate.unclipped_start(record.mate_alignment_start)
         };
         marked.first_of_pair() == (read_five <= mate_five)
     };
@@ -215,25 +214,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // The read group's library, which is what a duplicate set is cut by, and the group's index in
-    // the header, which is what `closeEnough` compares.
-    let library_of = |record: &BamRecord| -> (String, i32) {
-        let id = string_tag(record, b"RG");
-        match id.and_then(|id| {
-            header
-                .read_groups
-                .iter()
-                .position(|group| group.id == id)
-                .map(|position| (position, &header.read_groups[position]))
-        }) {
-            Some((position, group)) => (
-                group
-                    .attributes
-                    .get("LB")
-                    .unwrap_or("Unknown Library")
-                    .to_string(),
-                position as i32,
-            ),
-            None => ("Unknown Library".to_string(), -1),
+    // the header, which is what `closeEnough` compares. One shared string per read group, so the
+    // records of a library hold a pointer each rather than a copy.
+    let unknown_library: Arc<str> = Arc::from("Unknown Library");
+    let libraries: Vec<Arc<str>> = header
+        .read_groups
+        .iter()
+        .map(|group| match group.attributes.get("LB") {
+            Some(library) => Arc::from(library),
+            None => unknown_library.clone(),
+        })
+        .collect();
+    let library_of = |record: &BamRecord| -> (Arc<str>, i32) {
+        let id = match record.tags.get(Tag::new(b"RG")) {
+            Some(TagValue::Str(s)) => Some(s.as_str()),
+            _ => None,
+        };
+        match id.and_then(|id| header.read_groups.iter().position(|group| group.id == id)) {
+            Some(position) => (libraries[position].clone(), position as i32),
+            None => (unknown_library.clone(), -1),
         }
     };
 
@@ -262,14 +261,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 flags: record.flags,
                 reference_index: record.reference_index,
                 alignment_start: record.alignment_start,
-                cigar: record.cigar,
-                qualities: record.base_qualities,
+                span: Span::of(&record.cigar),
+                read_length: record.read_bases.len() as u32,
+                base_quality_score: base_quality_score(&record.base_qualities),
                 mate_reference_index: record.mate_reference_index,
                 library,
                 read_group,
                 barcode,
                 existing_dt,
-                mate_cigar: None,
+                mate_span: None,
                 mate_alignment_start: record.mate_alignment_start,
             }
         })
@@ -312,7 +312,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let coordinate_out = out_header.attributes.get("SO") == Some("coordinate");
     let mut previous: Option<(i32, i32)> = None;
 
-    let mut writer = BamWriter::new(Vec::new(), &out_header).map_err(|e| format!("{e:?}"))?;
+    // The output is built whole before it is written, so it is given room for about the input's
+    // size at once: growing it by doubling holds the old and the new buffer together, and that was
+    // the run's peak.
+    let reserve = std::fs::metadata(&input).map_or(0, |m| m.len() as usize);
+    let mut writer = BamWriter::new(Vec::with_capacity(reserve + reserve / 8), &out_header)
+        .map_err(|e| format!("{e:?}"))?;
     let (_, records) = picard_analysis::bam_stream::Input::reopen(&input, streamed)?.into_parts();
     for (index, record) in records.enumerate() {
         // `UmiUtil.setMolecularIdentifier`, reached for every record before the ones that are

@@ -255,7 +255,7 @@ pub fn revert_original_records_with(
 /// `SO:duplicate`: htsjdk's duplicate comparator over the records, which needs each record's
 /// library and read group as well as its own fields.
 fn sort_by_duplicate_order(header: &htsjdk_bam::header::SamHeader, records: &mut [BamRecord]) {
-    use crate::mark_duplicates::{Record, ScoringStrategy};
+    use crate::mark_duplicates::{base_quality_score, Record, ScoringStrategy, Span};
     let library_of = |record: &BamRecord| -> (String, i32) {
         let id = match record.tags.get(Tag::new(b"RG")) {
             Some(TagValue::Str(value)) => Some(value.clone()),
@@ -286,15 +286,19 @@ fn sort_by_duplicate_order(header: &htsjdk_bam::header::SamHeader, records: &mut
             flags: record.flags,
             reference_index: record.reference_index,
             alignment_start: record.alignment_start,
-            cigar: record.cigar.clone(),
-            qualities: record.base_qualities.clone(),
+            span: Span::of(&record.cigar),
+            read_length: record.read_bases.len() as u32,
+            base_quality_score: base_quality_score(&record.base_qualities),
             mate_reference_index: record.mate_reference_index,
-            library,
+            library: library.into(),
             read_group,
             barcode: None,
             existing_dt: None,
-            mate_cigar: match record.tags.get(Tag::new(b"MC")) {
-                Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text).ok(),
+            mate_span: match record.tags.get(Tag::new(b"MC")) {
+                Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text)
+                    .ok()
+                    .as_ref()
+                    .map(Span::of),
                 _ => None,
             },
             mate_alignment_start: record.mate_alignment_start,
@@ -305,10 +309,10 @@ fn sort_by_duplicate_order(header: &htsjdk_bam::header::SamHeader, records: &mut
         .iter()
         .map(|record| {
             let converted = as_record(record);
-            let library = match libraries.iter().position(|k| *k == converted.library) {
+            let library = match libraries.iter().position(|k| **k == *converted.library) {
                 Some(at) => at as i32,
                 None => {
-                    libraries.push(converted.library.clone());
+                    libraries.push(converted.library.to_string());
                     (libraries.len() - 1) as i32
                 }
             };

@@ -22,7 +22,9 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
-use picard_analysis::mark_duplicates::{Options, Record, ScoringStrategy, TaggingPolicy};
+use picard_analysis::mark_duplicates::{
+    base_quality_score, Options, Record, ScoringStrategy, Span, TaggingPolicy,
+};
 use picard_analysis::mate_cigar_duplicates::{
     mark_with_mate_cigar, MateCigarOptions, SortOrder as MateSortOrder,
 };
@@ -181,10 +183,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 flags: record.flags,
                 reference_index: record.reference_index,
                 alignment_start: record.alignment_start,
-                cigar: record.cigar.clone(),
-                qualities: record.base_qualities.clone(),
+                span: Span::of(&record.cigar),
+                read_length: record.read_bases.len() as u32,
+                base_quality_score: base_quality_score(&record.base_qualities),
                 mate_reference_index: record.mate_reference_index,
-                library,
+                library: library.into(),
                 read_group,
                 barcode: options.barcode_tag.as_ref().and_then(|tag| {
                     match record
@@ -196,8 +199,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }),
                 existing_dt: string_tag(record, b"DT"),
-                mate_cigar: match record.tags.get(Tag::new(b"MC")) {
-                    Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text).ok(),
+                mate_span: match record.tags.get(Tag::new(b"MC")) {
+                    Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text)
+                        .ok()
+                        .as_ref()
+                        .map(Span::of),
                     _ => None,
                 },
                 mate_alignment_start: record.mate_alignment_start,
