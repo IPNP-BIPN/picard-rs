@@ -485,7 +485,7 @@ pub fn write_block_compressed(
                 description: &variant.contig,
                 sequence_length,
             };
-            if let Err(error) = creator.add_feature(feature, bgzf.file_pointer() as i64) {
+            if let Err(error) = creator.add_feature(feature, bgzf.file_pointer()? as i64) {
                 die(&format!("{}: {}", error.java_class(), error.message()));
             }
         }
@@ -495,7 +495,7 @@ pub fn write_block_compressed(
     // position, and `BlockCompressedOutputStream.flush()` deflates the pending block: the last
     // chunk ends at the next block's address with offset zero, not inside the last block.
     bgzf.flush()?;
-    let end = bgzf.file_pointer() as i64;
+    let end = bgzf.file_pointer()? as i64;
     bgzf.into_inner()?
         .into_inner()
         .map_err(|e| e.into_error())?;
