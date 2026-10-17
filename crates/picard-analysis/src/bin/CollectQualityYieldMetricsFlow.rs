@@ -17,6 +17,7 @@ use picard_analysis::quality_yield_flow::FlowCollector;
 use picard_analysis::single_pass_driver;
 
 fn main() {
+    picard_analysis::argument_check::check("CollectQualityYieldMetricsFlow");
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT"), ("R", "REFERENCE_SEQUENCE")]);
     let input = args.required("INPUT");
     let output = args.required("OUTPUT");
@@ -37,8 +38,9 @@ fn main() {
     let (metrics, histograms) = collector.finish();
 
     let mut file = MetricsFile::new();
-    file.add_header("CollectQualityYieldMetricsFlow <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectQualityYieldMetricsFlow") {
+        file.add_header(&header);
+    }
     file.add_metric(&metrics);
     file.histograms = histograms;
     if let Err(e) = std::fs::write(&output, file.write()) {

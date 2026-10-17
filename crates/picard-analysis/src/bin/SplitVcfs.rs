@@ -14,14 +14,10 @@
 //! also why a VCF with no contig lines is refused without it only when indexing.
 
 use htsjdk_vcf::variant::VariantContext;
+use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
     die, header_dictionary, parse_sam_dictionary, read_path, write_output,
 };
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// `VariantContext.getType()`'s name.
 fn type_name(vc: &VariantContext) -> &'static str {
@@ -54,6 +50,7 @@ fn type_name(vc: &VariantContext) -> &'static str {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("SplitVcfs");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -64,10 +61,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "D="))
         .filter(|value| value != "null");
     let strict = arg(&args, "STRICT=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(true);
     let create_index = arg(&args, "CREATE_INDEX=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(true);
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {

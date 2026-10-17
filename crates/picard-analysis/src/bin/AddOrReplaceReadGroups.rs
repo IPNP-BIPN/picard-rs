@@ -43,17 +43,13 @@ use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
 use htsjdk_bam::writer::BamWriter;
 use picard_analysis::add_or_replace_read_groups::{replace_and_stamp, Options};
+use picard_analysis::args::arg;
 use picard_analysis::sort_sam::{mate_cigar_refusal, MateCigarCheck, RequestedOrder};
 
 const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
 const MATE_UNMAPPED: u16 = 0x8;
 const FIRST_OF_PAIR: u16 = 0x40;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn index_path(output: &str) -> String {
     match output.strip_suffix(".bam") {
@@ -100,6 +96,7 @@ fn check_of(record: &BamRecord, header: &SamHeader) -> MateCigarCheck {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("AddOrReplaceReadGroups");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -151,7 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         opts.optional.push((tag, value));
     }
     let create_index = arg(&args, "CREATE_INDEX=")
-        .map(|value| value == "true")
+        .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(false);
     let stringency = match arg(&args, "VALIDATION_STRINGENCY=").as_deref() {
         None | Some("STRICT") => ValidationStringency::Strict,

@@ -1,0 +1,62 @@
+name: Release binaries
+
+# A tagged release carries prebuilt binaries, so using the port does not start with a Rust
+# toolchain. Each archive holds every tool's binary for one platform, built from the tag itself.
+# The binaries are a convenience: what the release claims is measured by ci.yml on the same commit.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "An existing release tag to build and attach binaries to, e.g. v0.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+
+      - name: Build every tool
+        run: cargo build --release --locked
+
+      - name: Package
+        run: |
+          name="picard-rs-${TAG}-${{ matrix.target }}"
+          mkdir -p "dist/${name}/bin"
+          for src in crates/picard-analysis/src/bin/*.rs; do
+            cp "target/release/$(basename "${src}" .rs)" "dist/${name}/bin/"
+          done
+          cp LICENSE README.md "dist/${name}/"
+          tar -C dist -czf "${name}.tar.gz" "${name}"
+          shasum -a 256 "${name}.tar.gz" > "${name}.tar.gz.sha256"
+          find "dist/${name}/bin" -type f | wc -l
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${TAG}" "picard-rs-${TAG}-${{ matrix.target }}.tar.gz" "picard-rs-${TAG}-${{ matrix.target }}.tar.gz.sha256" --clobber

@@ -85,6 +85,7 @@ fn run_info(path: &std::path::Path) -> Vec<(usize, bool)> {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("CollectIlluminaLaneMetrics");
     let args = Args::from_env(&[
         ("R", "RUN_DIRECTORY"),
         ("O", "OUTPUT_PREFIX"),
@@ -215,8 +216,9 @@ fn main() {
     });
 
     let header = |file: &mut MetricsFile| {
-        file.add_header("CollectIlluminaLaneMetrics <command line>");
-        file.add_header("Started on: <timestamp>");
+        for header in picard_analysis::command_line::default_headers("CollectIlluminaLaneMetrics") {
+            file.add_header(&header);
+        }
     };
     let mut lane_file = MetricsFile::new();
     header(&mut lane_file);

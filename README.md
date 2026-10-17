@@ -88,17 +88,15 @@ CollectInsertSizeMetrics I=marked.bam O=insert_size.txt H=insert_size.pdf
 The output files are the same. The command line around them has a few differences, listed here so
 none of them surprises you:
 
-- **There is no `--help`.** Use the Picard documentation for a tool's arguments.
-- **A misspelled or unknown argument is ignored, not refused.** Picard stops on `SORT_ORDR=...`;
-  picard-rs runs as if the argument were absent (and stops only if that leaves a required argument
-  missing). Check your spelling against the Picard documentation.
+- **Only `NAME=value` is read.** Picard's newer `--INPUT x` syntax is not: `-h`, `--help` and
+  `--version` work, and an argument the tool does not declare is refused, but a declared one written
+  that way is ignored.
 - **`COMPRESSION_LEVEL`, `MAX_RECORDS_IN_RAM`, `TMP_DIR`, `USE_JDK_DEFLATER`, `USE_JDK_INFLATER`,
   `VERBOSITY` and `QUIET` are accepted and have no effect.** Output is always written the way Picard
   writes it at its default compression level with the JDK deflater, and memory is not bounded by a
   record count.
-- **Headers**: metrics files carry placeholder command-line and date lines, and no tool adds its
-  own `@PG` record (see [Getting the same bytes as Picard](#getting-the-same-bytes-as-picard)).
-- On an error, the tool prints `Error: ...` on stderr and exits with status 1.
+- An unknown or misspelled argument is refused with Picard's own message, usage and exit status.
+  Any other error prints `Error: ...` on stderr and exits with status 1.
 
 ## Tools
 
@@ -130,22 +128,26 @@ SortSam I=in.bam O=picard-rs.bam SORT_ORDER=coordinate
 cmp picard.bam picard-rs.bam && echo identical
 ```
 
-Three kinds of header line do not match Picard's yet, and the comparisons in CI remove them
-before comparing:
+The lines a tool writes about its own run are Picard's too: a metrics file opens with
+`# <Tool> <arguments>` and `# Started on: <date>`, and the tools that stamp a SAM/BAM header
+(`MarkDuplicates` and its three variants, `DownsampleSam`, `PositionBasedDownsampleSam`,
+`IntervalListTools`) add the same `@PG` record Picard adds. The argument line lists every argument
+with its value, defaults included, in Picard's order and format, so it matches Picard's when both
+are given the same arguments and the same paths: pass `USE_JDK_DEFLATER=true USE_JDK_INFLATER=true`
+to picard-rs as well (it accepts them) if you compare those lines. Two header values can still
+differ, and the comparisons in CI leave them out:
 
-- a metrics file's `# <Tool> <arguments>` and `# Started on: <date>` lines, which picard-rs writes
-  as the placeholders `<command line>` and `<timestamp>`;
-- the `@PG` record a tool adds to the SAM/BAM header in Picard (`MarkDuplicates`, for one, adds
-  `@PG ID:MarkDuplicates` with its version and command line). picard-rs does not add it, although
-  the reads still carry `PG:Z:MarkDuplicates`;
+- `# Started on:` is the time the run started, so no two runs share it. The time zone is named by
+  the C library, which in a few zones abbreviates differently from Java (`-03` where Java writes
+  `BRT`);
 - `UR:` paths in `@SQ` lines and sequence dictionaries, which are where the files were on disk.
 
-Everything else, records and metrics included, is compared byte for byte. So a SortSam BAM compares with
-`cmp`; for a metrics file or a MarkDuplicates BAM, compare everything below
-those lines.
+Everything else, records, metrics and the other header lines included, is compared byte for byte.
+So a SortSam BAM compares with `cmp`; for a metrics file, compare everything but the
+`# Started on:` line.
 
 How this is measured: on every change, CI runs Picard 3.5.0 in a pinned container on real x86-64
-and compares byte for byte, on 107 conformance suites and on a covering array per tool that runs
+and compares byte for byte, on 108 conformance suites and on a covering array per tool that runs
 every pair of argument values on both sides. All 121 arrays match on every row.
 [`docs/VALIDATION.md`](docs/VALIDATION.md) has the per-tool results and the method.
 

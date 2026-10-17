@@ -15,16 +15,13 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
+use picard_analysis::args::arg;
 use picard_analysis::split_sam_by_number_of_reads::{
     split_sam_by_number_of_reads, split_sam_by_number_of_reads_to_bam, SplitOptions,
 };
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("SplitSamByNumberOfReads");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -89,7 +86,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // `CREATE_INDEX` gives each BAM shard its `.bai`, which htsjdk writes only for a
         // coordinate-sorted file. Its virtual offsets point into this writer's blocks, so the
         // index is this BAM's and not byte for byte the reference's, as the BAM is not.
-        let create_index = arg(&args, "CREATE_INDEX=").as_deref() == Some("true")
+        let create_index = arg(&args, "CREATE_INDEX=")
+            .is_some_and(|v| picard_analysis::args::is_true(&v))
             && text
                 .lines()
                 .next()

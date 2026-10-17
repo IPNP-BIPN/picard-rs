@@ -19,17 +19,13 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{Histogram, MetricsFile};
+use picard_analysis::args::arg;
 use picard_analysis::collect_umi_prevalence_metrics::{
     decode_barcode_qualities, filters_out, Arguments, Read, DEFAULT_BARCODE_QUALITY_TAG,
     DEFAULT_BARCODE_TAG, DEFAULT_MINIMUM_BARCODE_BASE_QUALITY, DEFAULT_MINIMUM_MAPPING_QUALITY,
 };
 use picard_analysis::duplicate_set::duplicate_sets;
 use picard_analysis::mark_duplicates::{Options, Record as SetRecord};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn string_tag(record: &BamRecord, name: &str) -> Option<String> {
     let bytes = name.as_bytes();
@@ -43,6 +39,7 @@ fn string_tag(record: &BamRecord, name: &str) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("CollectUmiPrevalenceMetrics");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -62,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             DEFAULT_MINIMUM_BARCODE_BASE_QUALITY,
         ),
         filter_unpaired_reads: arg(&args, "FILTER_UNPAIRED_READS=")
-            .map(|value| value == "true")
+            .map(|value| picard_analysis::args::is_true(&value))
             .unwrap_or(true),
     };
     let barcode_tag = arg(&args, "BARCODE_TAG=").unwrap_or_else(|| DEFAULT_BARCODE_TAG.to_string());
@@ -165,8 +162,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut file = MetricsFile::new();
-    file.add_header("CollectUmiPrevalenceMetrics <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectUmiPrevalenceMetrics") {
+        file.add_header(&header);
+    }
     file.histograms.push(Histogram {
         bin_label: "numUmis".to_string(),
         value_label: "duplicateSets".to_string(),

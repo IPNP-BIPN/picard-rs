@@ -27,6 +27,7 @@ impl MetricBean for Row {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("CreateVerifyIDIntensityContaminationMetricsFile");
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT")]);
     let input = args.required("INPUT");
     let output = output_name(&args.required("OUTPUT"));
@@ -41,8 +42,11 @@ fn main() {
         Err(ParseError::EndedEarly) => thrown("java.lang.NullPointerException"),
     };
     let mut file = MetricsFile::new();
-    file.add_header("CreateVerifyIDIntensityContaminationMetricsFile <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers(
+        "CreateVerifyIDIntensityContaminationMetricsFile",
+    ) {
+        file.add_header(&header);
+    }
     for r in rows {
         file.add_metric(&Row(vec![
             Value::Long(i64::from(r.id)),

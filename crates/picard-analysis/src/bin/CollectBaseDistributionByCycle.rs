@@ -19,15 +19,11 @@ use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_metrics::file::MetricsFile;
+use picard_analysis::args::arg;
 use picard_analysis::cycle::CollectBaseDistributionByCycle;
 use picard_analysis::single_pass_rejections::{
     check_sort_order, walk_reference, Rejection, SortOrder,
 };
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// The driver's own work, before and around the records: the sort-order refusal, and the
 /// reference walker that refuses to rewind.
@@ -72,6 +68,7 @@ fn drive(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("CollectBaseDistributionByCycle");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -84,7 +81,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "CollectBaseDistributionByCycle",
         arg(&args, "CHART_OUTPUT=").is_some() || arg(&args, "CHART=").is_some(),
     );
-    let flag = |key: &str| arg(&args, key).map(|v| v == "true").unwrap_or(false);
+    let flag = |key: &str| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(false)
+    };
 
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {
@@ -131,8 +132,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut file = MetricsFile::new();
-    file.add_header("CollectBaseDistributionByCycle <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectBaseDistributionByCycle") {
+        file.add_header(&header);
+    }
     for metric in collector.finish() {
         file.add_metric(&metric);
     }

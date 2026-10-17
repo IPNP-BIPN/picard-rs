@@ -12,6 +12,7 @@ use picard_analysis::single_pass_driver;
 use picard_analysis::snvq::SnvqCollector;
 
 fn main() {
+    picard_analysis::argument_check::check("CollectQualityYieldMetricsSNVQ");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),
@@ -34,8 +35,9 @@ fn main() {
     let (metrics, histograms) = collector.finish_with_histograms();
 
     let mut file = MetricsFile::new();
-    file.add_header("CollectQualityYieldMetricsSNVQ <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectQualityYieldMetricsSNVQ") {
+        file.add_header(&header);
+    }
     file.add_metric(&metrics);
     file.histograms = histograms;
     if let Err(e) = std::fs::write(&output, file.write()) {

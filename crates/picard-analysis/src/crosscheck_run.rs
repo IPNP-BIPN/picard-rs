@@ -857,8 +857,9 @@ pub fn write_outcome(options: &Options, outcome: &Outcome) -> i32 {
         return options.exit_code_when_no_valid_checks;
     }
     let mut file = htsjdk_metrics::file::MetricsFile::new();
-    file.add_header(&format!("{} <command line>", options.tool));
-    file.add_header("Started on: <timestamp>");
+    for header in crate::command_line::default_headers(&options.tool) {
+        file.add_header(&header);
+    }
     for m in &outcome.metrics {
         file.add_metric(m);
     }

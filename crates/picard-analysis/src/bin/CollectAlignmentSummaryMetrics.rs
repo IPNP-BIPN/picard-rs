@@ -27,12 +27,8 @@ use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{Histogram as OutHistogram, MetricsFile};
 use picard_analysis::alignment_summary::{GroupCollector, Options};
+use picard_analysis::args::arg;
 use picard_analysis::insert_size::PairOrientation;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// Every value given for one argument, which is what a collection argument reads.
 fn args_all(args: &[String], key: &str) -> Vec<String> {
@@ -72,6 +68,7 @@ fn read_group_of(record: &BamRecord) -> Option<String> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("CollectAlignmentSummaryMetrics");
     let mut t = std::time::Instant::now();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
@@ -89,10 +86,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut options = Options::default();
     if let Some(value) = arg(&args, "IS_BISULFITE_SEQUENCED=") {
-        options.is_bisulfite_sequenced = value == "true";
+        options.is_bisulfite_sequenced = picard_analysis::args::is_true(&value);
     }
     if let Some(value) = arg(&args, "COLLECT_ALIGNMENT_INFORMATION=") {
-        options.collect_alignment_information = value == "true";
+        options.collect_alignment_information = picard_analysis::args::is_true(&value);
     }
     if let Some(value) = arg(&args, "MAX_INSERT_SIZE=") {
         options.max_insert_size = value.parse()?;
@@ -306,8 +303,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     t = phase("decode_and_collect", t);
 
     let mut file = MetricsFile::new();
-    file.add_header("CollectAlignmentSummaryMetrics <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectAlignmentSummaryMetrics") {
+        file.add_header(&header);
+    }
     for (unit, collector) in units.iter().zip(collectors.iter_mut()) {
         for mut row in collector.rows() {
             row.sample = unit.sample.clone();

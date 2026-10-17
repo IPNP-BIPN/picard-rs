@@ -15,6 +15,7 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::MetricsFile;
+use picard_analysis::args::arg;
 use picard_analysis::collect_duplicate_metrics::{collect, Record, UNKNOWN_LIBRARY};
 use picard_analysis::single_pass_rejections::{
     check_sort_order, walk_reference, Rejection, SortOrder,
@@ -27,12 +28,8 @@ const SECONDARY: u16 = 0x100;
 const DUPLICATE: u16 = 0x400;
 const SUPPLEMENTARY: u16 = 0x800;
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("CollectDuplicateMetrics");
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -41,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "M="))
         .ok_or("METRICS_FILE= is required")?;
     let assume_sorted = arg(&args, "ASSUME_SORTED=")
-        .map(|v| v == "true")
+        .map(|v| picard_analysis::args::is_true(&v))
         .unwrap_or(false);
 
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
@@ -152,8 +149,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     let mut file = MetricsFile::new();
-    file.add_header("CollectDuplicateMetrics <command line>");
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers("CollectDuplicateMetrics") {
+        file.add_header(&header);
+    }
     for row in collect(&header_libraries, &tallied) {
         file.add_metric(&row);
     }

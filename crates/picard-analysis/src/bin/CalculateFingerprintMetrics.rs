@@ -168,6 +168,7 @@ fn metrics(map: &HaplotypeMap, fp: &Fingerprint) -> Row {
 }
 
 fn main() {
+    picard_analysis::argument_check::check("CalculateFingerprintMetrics");
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),
@@ -185,8 +186,9 @@ fn main() {
             .unwrap_or_else(|e| thrown(&e));
     let merged = merge_by(&fps, by);
     let mut file = MetricsFile::new();
-    file.add_header(&format!("{TOOL} <command line>"));
-    file.add_header("Started on: <timestamp>");
+    for header in picard_analysis::command_line::default_headers(TOOL) {
+        file.add_header(&header);
+    }
     for (_, fp) in &merged {
         file.add_metric(&metrics(&map, fp));
     }

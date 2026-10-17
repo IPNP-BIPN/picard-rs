@@ -15,22 +15,16 @@
 //! reference and a surface of its own, so the repository declares no value for it and the array
 //! does not vary it.
 
-use std::io::Read;
-
 use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
-use picard_analysis::mark_duplicates::{mark, Options, Record, ScoringStrategy, TaggingPolicy};
+use picard_analysis::args::arg;
+use picard_analysis::mark_duplicates::{
+    mark_sorted, Options, Record, ScoringStrategy, TaggingPolicy,
+};
 
 const DUPLICATE_READ: u16 = 0x400;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
     match record.tags.get(Tag::new(name)) {
@@ -118,6 +112,7 @@ fn molecular_identifier(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("MarkDuplicates");
     // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
         std::env::args()
@@ -129,14 +124,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     });
     let args: Vec<String> = std::env::args().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
+    let inputs = picard_analysis::args::inputs(&args)?;
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
     let metrics_file = arg(&args, "METRICS_FILE=").or_else(|| arg(&args, "M="));
-    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
+    let flag = |key: &str, default: bool| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(default)
+    };
 
     let options = Options {
         scoring: match arg(&args, "DUPLICATE_SCORING_STRATEGY=").as_deref() {
@@ -178,21 +175,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let (header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
-
     // `openInputs` sets the header's own sort order to ASSUME_SORT_ORDER, so by the time the check
     // below reads "the header", the header is already saying what it was told to say -- which is
     // why the refusal prints the assumed order twice.
@@ -200,16 +182,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let assumed = arg(&args, "ASSUME_SORT_ORDER=")
         .or_else(|| arg(&args, "ASO="))
         .or_else(|| {
-            (arg(&args, "ASSUME_SORTED=")
+            arg(&args, "ASSUME_SORTED=")
                 .or_else(|| arg(&args, "AS="))
-                .as_deref()
-                == Some("true"))
-            .then(|| "coordinate".to_string())
+                .is_some_and(|v| picard_analysis::args::is_true(&v))
+                .then(|| "coordinate".to_string())
         });
-    let mut header = header;
-    if let Some(order) = &assumed {
-        header.set_sort_order(order);
-    }
+    let read = |input: &String| picard_analysis::metrics_cli::read_input(input);
+    let (header, records) = picard_analysis::merge_sam_files::open_inputs(
+        inputs.iter().map(read).collect(),
+        assumed.as_deref(),
+    )
+    .unwrap_or_else(|thrown| picard_analysis::metrics_cli::thrown(&thrown));
+    // `buildSortedReadEndLists` reads every record before the order is checked.
+    let records = records.unwrap_or_else(|thrown| picard_analysis::metrics_cli::thrown(&thrown));
     let header_order = header
         .attributes
         .get("SO")
@@ -279,7 +264,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
 
-    let marking = mark(&marked_records, &options);
+    let marking = mark_sorted(&marked_records, &options, header_order == "queryname");
 
     // `createOutHeader`: assuming queryname says the file is queryname GROUPED, which is not a
     // sort order, so the output says so.
@@ -300,15 +285,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter(|tag| tag != "null" && options.barcode_tag.is_some());
     let duplex = flag("DUPLEX_UMI=", false);
     let add_pg_tag = flag("ADD_PG_TAG_TO_READS=", true);
-    // The id every read is tagged with: `PROGRAM_RECORD_ID` made unique against the header's own
-    // program records, or no tag at all when it is `null`. The corpus's reads carry no `PG`, so the
-    // one chain `getChainedPgIds` builds is the one from `null`.
-    let pg_id: Option<String> = match arg(&args, "PROGRAM_RECORD_ID=").as_deref() {
-        Some("null") => None,
-        Some(id) => Some(id.to_string()),
-        None => Some("MarkDuplicates".to_string()),
+    // `getChainedPgIds`: one new `@PG` for every program id the first pass saw on a record (no
+    // `PG` at all counting as one), in the `HashSet`'s order, each chained to the id it replaces;
+    // none when `PROGRAM_RECORD_ID` is `null`.
+    let mut seen: Vec<Option<String>> = Vec::new();
+    for record in &records {
+        let id = string_tag(record, b"PG");
+        if !seen.contains(&id) {
+            seen.push(id);
+        }
     }
-    .map(|id| picard_analysis::merge_sam_files::non_colliding_pg_id(&header, &id));
+    let group = picard_analysis::command_line::ProgramGroup::of("MarkDuplicates");
+    let chained = picard_analysis::command_line::chained_pg_ids(
+        &mut out_header,
+        &picard_analysis::command_line::hash_set_order(seen),
+        &group,
+        "MarkDuplicates",
+    );
 
     // htsjdk's own check in `SAMFileWriterImpl.addAlignment`, which is where a file assumed to be
     // coordinate-sorted and not is caught. The writer is presorted, so nothing re-sorts and the
@@ -408,10 +401,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 written.tags.insert(Tag::new(&key), TagValue::Str(value));
             }
         }
-        if let (true, Some(id)) = (add_pg_tag, &pg_id) {
-            written
-                .tags
-                .insert(Tag::new(b"PG"), TagValue::Str(id.clone()));
+        // `rec.setAttribute(PG, chainedPgIds.get(rec.getStringAttribute(PG)))`.
+        if let (true, Some(chained)) = (add_pg_tag, &chained) {
+            let old = string_tag(&written, b"PG");
+            match picard_analysis::command_line::chained_id(chained, old.as_deref()) {
+                Some(id) => {
+                    written
+                        .tags
+                        .insert(Tag::new(b"PG"), TagValue::Str(id.to_string()));
+                }
+                None => {
+                    written.tags.remove(Tag::new(b"PG"));
+                }
+            }
         }
         writer.write(&written).map_err(|e| format!("{e:?}"))?;
     }
