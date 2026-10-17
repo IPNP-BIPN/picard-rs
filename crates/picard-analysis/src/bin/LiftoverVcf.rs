@@ -566,7 +566,12 @@ fn main() {
     add_other_meta_data_line(
         &mut out_header,
         "reference",
-        &format!("file:{}", absolute(&reference)),
+        // Mapped back to the path the reference was given: a .vcf.gz carries it inside its blocks,
+        // where the harness cannot rewrite it.
+        &format!(
+            "file:{}",
+            picard_analysis::fingerprint::reference_path(&absolute(&reference))
+        ),
     );
 
     // The reject header.
