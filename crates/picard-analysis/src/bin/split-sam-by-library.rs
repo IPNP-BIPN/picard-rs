@@ -10,7 +10,7 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
 use picard_analysis::args::arg;
-use picard_analysis::split_sam_by_library::{split_sam_by_library, split_sam_by_library_to_bam};
+use picard_analysis::split_sam_by_library::split_sam_by_library;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SplitSamByLibrary");
@@ -34,7 +34,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let raw = picard_analysis::cram_input::uncram(raw);
     // The outputs take the INPUT's format, as `reader.type().fileExtension()` gives it.
     let bam_input = raw.starts_with(&[0x1f, 0x8b]);
-    let text = if bam_input {
+    // A BAM input is split as decoded records, each written back from the bytes it was read from;
+    // a SAM one is parsed and re-encoded, so that it takes the path its text always took.
+    let (header, records): (SamHeader, Vec<BamRecord>) = if bam_input {
         let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader =
             picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
@@ -42,12 +44,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let records: Vec<BamRecord> = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))
             .collect::<Result<_, _>>()?;
-        write_sam(&header, &records).ok_or("records that parsed re-encode as SAM text")?
+        (header, records)
     } else {
         let text = String::from_utf8(raw)?;
-        let (header, records) = read_sam(&text).map_err(|e| format!("{e:?}"))?;
-        write_sam(&header, &records).ok_or("records that parsed re-encode as SAM text")?
+        read_sam(&text).map_err(|e| format!("{e:?}"))?
     };
+    let text = write_sam(&header, &records).ok_or("records that parsed re-encode as SAM text")?;
 
     std::fs::create_dir_all(&output)?;
     // A CRAM in is CRAMs out, `makeWriter` with the reference, and `CREATE_INDEX` is honoured by
@@ -68,10 +70,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     if bam_input {
-        for (name, bytes) in split_sam_by_library_to_bam(&text).map_err(|e| format!("{e:?}"))? {
+        let outputs = picard_analysis::split_sam_by_library::split_records(header, records)
+            .map_err(|e| format!("{e:?}"))?;
+        for (name, header, records) in outputs {
+            let mut writer = htsjdk_bam::writer::BamWriter::new(Vec::new(), &header)
+                .map_err(|e| format!("{e:?}"))?;
+            for record in &records {
+                writer.write(record).map_err(|e| format!("{e:?}"))?;
+            }
             std::fs::write(
                 std::path::Path::new(&output).join(format!("{name}.bam")),
-                bytes,
+                writer.finish().map_err(|e| format!("{e:?}"))?,
             )?;
         }
     } else {

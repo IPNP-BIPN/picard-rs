@@ -53,14 +53,29 @@ fn split_shards(
     input_sam: &str,
     opts: &SplitOptions,
 ) -> Result<(SamHeader, Vec<Vec<BamRecord>>), SplitError> {
+    check_options(opts)?;
+    let (header, records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
+    split_records(header, records, opts)
+}
+
+fn check_options(opts: &SplitOptions) -> Result<(), SplitError> {
     if opts.total_reads_in_input < 0 {
         return Err(SplitError::NegativeTotalReads);
     }
     if opts.split_to_n_files <= 1 && opts.split_to_n_reads <= 1 {
         return Err(SplitError::NoSplitTarget);
     }
+    Ok(())
+}
 
-    let (header, records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
+/// The split over records already read: a BAM's come decoded, and nothing is set on them, so each
+/// keeps the bytes it was read from, as htsjdk keeps them.
+pub fn split_records(
+    header: SamHeader,
+    records: Vec<BamRecord>,
+    opts: &SplitOptions,
+) -> Result<(SamHeader, Vec<Vec<BamRecord>>), SplitError> {
+    check_options(opts)?;
 
     let total_reads = if opts.total_reads_in_input == 0 {
         records.len() as i64

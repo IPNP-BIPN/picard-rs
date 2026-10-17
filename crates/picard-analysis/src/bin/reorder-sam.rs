@@ -17,9 +17,13 @@
 
 use std::io::{Read, Write};
 
-use htsjdk_bam::sam_file::write_sam;
+use htsjdk_bam::header::SamHeader;
+use htsjdk_bam::record::BamRecord;
+use htsjdk_bam::sam_file::{read_sam_with, write_sam};
+use htsjdk_bam::text_parse::ValidationStringency;
+use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
-use picard_analysis::reorder_sam::{reorder_sam, reorder_sam_to_bam, Options};
+use picard_analysis::reorder_sam::{reorder_records, Options};
 
 fn flag(args: &[String], key: &str) -> bool {
     arg(args, key)
@@ -27,8 +31,9 @@ fn flag(args: &[String], key: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// The text of a SAM or BAM input, whichever it turns out to be.
-fn read_as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
+/// A SAM or BAM input, whichever it turns out to be, as a header and its records. A BAM's records
+/// come decoded from their bytes, which an untouched record is written back from.
+fn read_input(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::error::Error>> {
     let mut raw = Vec::new();
     std::fs::File::open(path)?.read_to_end(&mut raw)?;
     let raw = picard_analysis::cram_input::uncram(raw);
@@ -40,10 +45,17 @@ fn read_as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
         let records = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?)
+        Ok((header, records))
     } else {
-        Ok(String::from_utf8(raw)?)
+        let text = String::from_utf8(raw)?;
+        Ok(read_sam_with(&text, ValidationStringency::Lenient).map_err(|e| format!("{e:?}"))?)
     }
+}
+
+/// The text of a SAM or BAM input, for a dictionary read from one.
+fn read_as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let (header, records) = read_input(path)?;
+    Ok(write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?)
 }
 
 /// `SAMSequenceDictionaryExtractor.extractDictionary`: a FASTA's dictionary is the `.dict` file
@@ -78,19 +90,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         allow_contig_length_discordance: flag(&args, "ALLOW_CONTIG_LENGTH_DISCORDANCE="),
     };
 
-    let text = read_as_sam(&input)?;
+    let (header, records) = read_input(&input)?;
     let dict = read_dictionary(&dictionary)?;
+    let (out_header, records) =
+        reorder_records(header, records, &dict, &options).map_err(|e| format!("{e:?}"))?;
 
     // `SAMFileWriterFactory.makeWriter` decides by the output's name: `.sam` is text, anything
     // else is a BAM, including the `output.txt` the arrays pass.
     if output.ends_with(".sam") {
-        let sam = reorder_sam(&text, &dict, &options).map_err(|e| format!("{e:?}"))?;
+        let sam = write_sam(&out_header, &records).ok_or("records failed to re-encode as SAM")?;
         let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
         out.write_all(sam.as_bytes())?;
         out.flush()?;
         return Ok(());
     }
-    let bam = reorder_sam_to_bam(&text, &dict, &options).map_err(|e| format!("{e:?}"))?;
+    let mut writer = BamWriter::new(Vec::new(), &out_header).map_err(|e| format!("{e:?}"))?;
+    for record in &records {
+        writer.write(record).map_err(|e| format!("{e:?}"))?;
+    }
+    let bam = writer.finish().map_err(|e| format!("{e:?}"))?;
     picard_analysis::cram_output::write(&output, bam)?;
     Ok(())
 }

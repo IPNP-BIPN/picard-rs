@@ -1088,7 +1088,7 @@ jobs:
             suites: "inputshapes nonbamshapes"
           - group: golden-pending
             index: "1/1"
-            suites: "cram-io strict-validation filterandmerge"
+            suites: "cram-io strict-validation filterandmerge rawrecords"
     steps:
       - uses: actions/checkout@v7
 
