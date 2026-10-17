@@ -576,10 +576,9 @@ pub fn revert_sam(input_sam: &str) -> Result<String, ParseError> {
 /// reproduces (its oracle), and the `BamWriter` is proven byte-identical over arbitrary records (the
 /// SamFormatConverter oracle and htsjdk-rs's `every_file_is_byte_identical_to_htsjdks`).
 pub fn revert_sam_to_bam(input_sam: &str) -> Result<Vec<u8>, ParseError> {
-    use htsjdk_bam::writer::BamWriter;
     let (out_header, records) = revert(input_sam)?;
-    let mut writer =
-        BamWriter::new(Vec::new(), &out_header).expect("in-memory BAM writer never fails");
+    let mut writer = crate::output::bam_writer(Vec::new(), &out_header)
+        .expect("in-memory BAM writer never fails");
     for rec in &records {
         writer
             .write(rec)

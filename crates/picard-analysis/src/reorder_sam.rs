@@ -231,11 +231,9 @@ pub fn reorder_sam_to_bam(
     dict_text: &str,
     opts: &Options,
 ) -> Result<Vec<u8>, ReorderError> {
-    use htsjdk_bam::writer::BamWriter;
-
     let (out_header, records) = reorder(input_sam, dict_text, opts)?;
-    let mut writer =
-        BamWriter::new(Vec::new(), &out_header).expect("in-memory BAM writer never fails");
+    let mut writer = crate::output::bam_writer(Vec::new(), &out_header)
+        .expect("in-memory BAM writer never fails");
     for rec in &records {
         writer
             .write(rec)

@@ -15,6 +15,7 @@ use picard_analysis::split_sam_by_library::{split_sam_by_library, split_sam_by_l
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SplitSamByLibrary");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))

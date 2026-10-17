@@ -36,12 +36,11 @@ pub fn check_terminator_block(data: &[u8]) -> (String, i32) {
 mod tests {
     use super::*;
     use htsjdk_bam::header::SamHeader;
-    use htsjdk_bam::writer::BamWriter;
 
     /// A BAM produced by the byte-identical writer ends in the terminator block and exits 0.
     fn a_bam() -> Vec<u8> {
         let header = SamHeader::new();
-        let writer = BamWriter::new(Vec::new(), &header).unwrap();
+        let writer = crate::output::bam_writer(Vec::new(), &header).unwrap();
         writer.finish().unwrap()
     }
 

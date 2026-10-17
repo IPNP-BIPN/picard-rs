@@ -34,7 +34,6 @@ use htsjdk_bam::pair::set_mate_info;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sequence::{reverse_complement, reverse_qualities};
 use htsjdk_bam::tag::{Tag, TagValue};
-use htsjdk_bam::writer::BamWriter;
 use picard_analysis::insert_size::forward_mate_five_prime;
 use picard_analysis::java_hash_map::string_hash_code;
 use picard_analysis::metrics_cli::{absolute, read_input, refuse_validation, thrown};
@@ -2027,6 +2026,7 @@ fn separate_ends(read1: &[String], read2: &[String]) -> (SamHeader, Vec<BamRecor
 
 fn main() {
     picard_analysis::argument_check::check("MergeBamAlignment");
+    picard_analysis::output::install();
     let args = CommandLine::from_env();
 
     // Barclay's mutex checks, in field order.
@@ -2367,7 +2367,7 @@ fn main() {
     }
     header.set_sort_order(&settings.sort_order);
 
-    let mut writer = BamWriter::new(Vec::new(), &header)
+    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)
         .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")));
     for rec in &records {
         writer

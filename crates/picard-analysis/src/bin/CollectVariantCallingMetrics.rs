@@ -19,7 +19,6 @@
 use std::collections::HashSet;
 
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
-use htsjdk_vcf::reader::read_vcf;
 use htsjdk_vcf::variant::VariantContext;
 use picard_analysis::args::arg;
 use picard_analysis::collect_variant_calling_metrics::{
@@ -332,6 +331,7 @@ impl MetricBean for DetailRow {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CollectVariantCallingMetrics");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -360,7 +360,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if arg(&args, "GVCF_INPUT=").is_some_and(|v| picard_analysis::args::is_true(&v)) {
         // `GvcfMetricAccumulator.setup` refuses a file with more than one sample, and the message
         // is the tool's answer for those rows.
-        let vcf = read_vcf(&std::fs::read_to_string(&input)?).map_err(|e| format!("{e:?}"))?;
+        let vcf = picard_analysis::vcf_io::read_vcf_file(&input)?;
         if vcf.header.samples.len() != 1 {
             eprintln!(
                 "Exception in thread \"main\" java.lang.IllegalArgumentException: Expected to have exactly 1 sample in a GVCF, found {}",
@@ -370,8 +370,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let vcf = read_vcf(&std::fs::read_to_string(&input)?).map_err(|e| format!("{e:?}"))?;
-    let known = read_vcf(&std::fs::read_to_string(&dbsnp)?).map_err(|e| format!("{e:?}"))?;
+    let vcf = picard_analysis::vcf_io::read_vcf_file(&input)?;
+    let known = picard_analysis::vcf_io::read_vcf_file(&dbsnp)?;
     let intervals = match arg(&args, "TARGET_INTERVALS=") {
         None => Vec::new(),
         Some(path) => read_intervals(&std::fs::read_to_string(path)?),

@@ -8,5 +8,6 @@
 
 fn main() {
     picard_analysis::argument_check::check("SamToFastq");
+    picard_analysis::output::install();
     picard_analysis::sam_to_fastq_full::main_with(false)
 }

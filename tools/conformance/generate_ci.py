@@ -226,6 +226,14 @@ def coverage_job(manifest):
     steps:
       - uses: actions/checkout@v4
 
+      - name: nasm, which gkl-igzip needs to build
+        # The htsjdk-bgzf `gkl-igzip` feature assembles ISA-L, so every job that compiles the
+        # workspace needs an assembler; see the deflater job for why the feature stays on.
+        run: |
+          sudo apt-get update -qq || echo "apt refresh incomplete; the install below is the gate"
+          sudo apt-get install -y -qq nasm
+          nasm -v
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.1"

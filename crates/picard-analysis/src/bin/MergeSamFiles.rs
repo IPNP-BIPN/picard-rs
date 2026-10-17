@@ -46,7 +46,6 @@ use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
-use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
 use picard_analysis::merge_sam_files::merge_parsed;
 use picard_analysis::sort_sam::{
@@ -197,6 +196,7 @@ fn check_of(record: &BamRecord, header: &SamHeader) -> MateCigarCheck {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("MergeSamFiles");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let mut inputs = args_all(&args, "INPUT=");
     inputs.extend(args_all(&args, "I="));
@@ -347,7 +347,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let mut writer = BamWriter::new(Vec::new(), &header)?;
+    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)?;
     for record in &records {
         writer.write(record).map_err(|e| format!("{e:?}"))?;
     }

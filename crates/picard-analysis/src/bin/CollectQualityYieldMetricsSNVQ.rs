@@ -13,6 +13,7 @@ use picard_analysis::snvq::SnvqCollector;
 
 fn main() {
     picard_analysis::argument_check::check("CollectQualityYieldMetricsSNVQ");
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

@@ -8,7 +8,6 @@
 
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
-use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
 use picard_analysis::mark_duplicates::{Options, Record, ScoringStrategy, TaggingPolicy};
 use picard_analysis::mate_cigar_duplicates::{
@@ -26,6 +25,7 @@ fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SimpleMarkDuplicatesWithMateCigar");
+    picard_analysis::output::install();
     // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
         std::env::args()
@@ -201,7 +201,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let program_group =
         picard_analysis::command_line::ProgramGroup::of("SimpleMarkDuplicatesWithMateCigar");
-    let mut writer = BamWriter::new(Vec::new(), &out_header).map_err(|e| format!("{e:?}"))?;
+    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &out_header)
+        .map_err(|e| format!("{e:?}"))?;
     for (index, record) in records.iter().enumerate() {
         if !marking.written[index] {
             continue;

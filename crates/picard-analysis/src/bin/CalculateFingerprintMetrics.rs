@@ -169,6 +169,7 @@ fn metrics(map: &HaplotypeMap, fp: &Fingerprint) -> Row {
 
 fn main() {
     picard_analysis::argument_check::check("CalculateFingerprintMetrics");
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

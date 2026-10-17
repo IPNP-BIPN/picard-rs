@@ -24,7 +24,6 @@ use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
-use htsjdk_bam::writer::BamWriter;
 use htsjdk_metrics::file::{Histogram, MetricsFile};
 use picard_analysis::args::arg;
 use picard_analysis::mark_illumina_adapters::{
@@ -149,6 +148,7 @@ fn throw(message: &str) -> ! {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("MarkIlluminaAdapters");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -392,8 +392,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // that it is not creating one and writes the file anyway, which is a line on stderr rather
     // than a difference in the answer.
     if let Some(output) = output {
-        let mut writer =
-            BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+        let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)
+            .expect("in-memory BAM writer never fails");
         for record in &records {
             writer
                 .write(record)

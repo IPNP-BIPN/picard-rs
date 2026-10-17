@@ -177,9 +177,9 @@ pub fn filter_sam_reads_to_bam(
     read_list_text: &str,
     filter: Filter,
 ) -> Result<Vec<u8>, ParseError> {
-    use htsjdk_bam::writer::BamWriter;
     let (header, kept) = filter_read_list(input_sam, read_list_text, filter)?;
-    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut writer =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &kept {
         writer
             .write(rec)
@@ -259,9 +259,9 @@ pub fn filter_sam_reads_by_tag_to_bam(
     values: &[&str],
     filter: TagFilter,
 ) -> Result<Vec<u8>, ParseError> {
-    use htsjdk_bam::writer::BamWriter;
     let (header, kept) = filter_by_tag(input_sam, tag, values, filter)?;
-    let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut w =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &kept {
         w.write(rec).expect("record re-encodes as BAM");
     }
@@ -343,9 +343,9 @@ pub fn filter_sam_reads_aligned_to_bam(
     input_sam: &str,
     filter: AlignedFilter,
 ) -> Result<Vec<u8>, ParseError> {
-    use htsjdk_bam::writer::BamWriter;
     let (header, kept) = filter_aligned(input_sam, filter)?;
-    let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut w =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &kept {
         w.write(rec).expect("record re-encodes as BAM");
     }

@@ -775,7 +775,7 @@ pub fn main_with(with_tags: bool) -> ! {
     let (outputs, result) = run(&header, &records, &opts, stringency == "STRICT");
     for (path, text) in &outputs.files {
         let written = if path.ends_with(".gz") {
-            let mut writer = htsjdk_bgzf::BgzfWriter::new(Vec::new());
+            let mut writer = crate::output::bgzf_writer(Vec::new());
             std::io::Write::write_all(&mut writer, text.as_bytes())
                 .and_then(|()| writer.into_inner())
                 .and_then(|bytes| std::fs::write(path, bytes))

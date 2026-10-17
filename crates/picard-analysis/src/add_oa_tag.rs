@@ -117,12 +117,11 @@ pub fn add_oa_tag(input_sam: &str) -> Result<String, ParseError> {
 /// This joins the multicore transform to a byte-identical BAM write, the two edges the port claims
 /// over single-threaded Picard.
 pub fn add_oa_to_bam(input_sam: &str) -> Result<Vec<u8>, ParseError> {
-    use htsjdk_bam::writer::BamWriter;
-
     let (header, mut records) = read_sam(input_sam)?;
     add_oa_records(&header, &mut records);
 
-    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut writer =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &records {
         writer
             .write(rec)

@@ -4,8 +4,9 @@
  * SortSam sorts through htsjdk's SortingCollection, which holds MAX_RECORDS_IN_RAM records, spills
  * each full batch to TMP_DIR as a sorted run and merges the runs. This writes an unsorted SAM of
  * 600 records, most of which the comparators call equal, and sorts it with MAX_RECORDS_IN_RAM=50
- * (twelve runs): coordinate to an indexed BAM, queryname to a BAM and to a SAM, all with
- * USE_JDK_DEFLATER=true. It refuses to emit anything unless the same sorts without spilling write
+ * (twelve runs): coordinate to an indexed BAM, queryname to a BAM and to a SAM, all under
+ * Picard's default deflater, the GKL instanceMain installs, as an unchanged command line writes
+ * them. It refuses to emit anything unless the same sorts without spilling write
  * the same bytes, and unless the small threshold really spills (a TMP_DIR that is a file fails).
  *
  *   java -cp picard-fat.jar:. SortSamSpillDump
@@ -88,7 +89,6 @@ public class SortSamSpillDump {
                 "MAX_RECORDS_IN_RAM=" + max,
                 "TMP_DIR=" + tmp.getAbsolutePath(),
                 "CREATE_INDEX=" + order.equals("coordinate"),
-                "USE_JDK_DEFLATER=true",
                 "VALIDATION_STRINGENCY=SILENT",
         };
     }

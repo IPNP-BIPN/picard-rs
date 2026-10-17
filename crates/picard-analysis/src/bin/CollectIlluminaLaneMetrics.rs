@@ -86,6 +86,7 @@ fn run_info(path: &std::path::Path) -> Vec<(usize, bool)> {
 
 fn main() {
     picard_analysis::argument_check::check("CollectIlluminaLaneMetrics");
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("R", "RUN_DIRECTORY"),
         ("O", "OUTPUT_PREFIX"),

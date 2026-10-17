@@ -23,12 +23,12 @@
 //! The writer always indexes, whatever `CREATE_INDEX` says, so the output header needs contig
 //! lines.
 
-use htsjdk_vcf::encoder::EncodeError;
 use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::standard_header_lines::{standard_format_line, PRIMARY_KEYS};
 use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
-    die, header_dictionary, read_path, sample_names_in_order, write_output, write_records,
+    die, header_dictionary, is_bcf, is_compressed_vcf, read_path, sample_names_in_order,
+    write_output,
 };
 
 const MISSING: &str = "Missing description: this {} line was added by Picard's FixVCFHeader";
@@ -59,22 +59,6 @@ fn same_line(a: &HeaderLine, b: &HeaderLine) -> bool {
     }
 }
 
-fn encode_error(error: &EncodeError) -> String {
-    match error {
-        EncodeError::MissingFromHeader {
-            key,
-            field,
-            contig,
-            start,
-        } => format!(
-            "java.lang.IllegalStateException: Key {key} found in VariantContext field {field} at \
-             {contig}:{start} but this key isn't defined in the VCFHeader.  We require all VCFs \
-             to have complete VCF headers by default."
-        ),
-        other => format!("{other:?}"),
-    }
-}
-
 /// `enforceSameSamples`: the sorted names, pairwise.
 fn assert_same_samples(reader: &VcfHeader, input: &VcfHeader) {
     let reader_samples = sample_names_in_order(reader);
@@ -96,6 +80,7 @@ fn assert_same_samples(reader: &VcfHeader, input: &VcfHeader) {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("FixVcfHeader");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -119,8 +104,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if !output.ends_with(".vcf") {
-        return Err("only a .vcf OUTPUT is ported".into());
+    if !output.ends_with(".vcf") && !is_compressed_vcf(&output) && !is_bcf(&output) {
+        return Err("only a .vcf, .vcf.gz or .bcf OUTPUT is ported".into());
     }
 
     // `customCommandLineValidation`: printed after the usage, and the program exits 1.
@@ -225,9 +210,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
              Tribble indices on the fly",
         );
     };
-    if let Err(error) = write_records(&out_header, &vcf.records) {
-        die(&encode_error(&error));
-    }
     write_output(&output, &out_header, &vcf.records, Some(&dictionary))?;
     Ok(())
 }

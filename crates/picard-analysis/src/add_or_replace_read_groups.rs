@@ -171,9 +171,9 @@ pub fn add_or_replace_read_groups_to_bam(
     input_sam: &str,
     opts: &Options,
 ) -> Result<Vec<u8>, ParseError> {
-    use htsjdk_bam::writer::BamWriter;
     let (header, records) = apply(input_sam, opts)?;
-    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut writer =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &records {
         writer
             .write(rec)

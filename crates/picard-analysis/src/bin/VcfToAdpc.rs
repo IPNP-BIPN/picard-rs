@@ -118,6 +118,7 @@ fn run(vcfs: &[String], out: &mut Vec<u8>) -> Result<(Vec<String>, usize), Strin
 
 fn main() {
     picard_analysis::argument_check::check("VcfToAdpc");
+    picard_analysis::output::install();
     let args = Args::from_env(&[("O", "OUTPUT")]);
     let vcfs = unroll_paths(&args.collection("VCF", &[])).unwrap_or_default();
     let output = args.required("OUTPUT");

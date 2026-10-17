@@ -107,9 +107,9 @@ pub fn fastq_to_sam_unpaired_to_bam(
     fastq_text: &str,
     opts: &Options,
 ) -> Result<Vec<u8>, FastqError> {
-    use htsjdk_bam::writer::BamWriter;
     let (header, records) = fastq_to_records_unpaired(fastq_text, opts)?;
-    let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut w =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &records {
         w.write(rec).expect("unmapped record re-encodes as BAM");
     }
@@ -209,7 +209,7 @@ pub fn fastq_to_bam_full(
     opts: &FullOptions,
 ) -> Result<Vec<u8>, String> {
     use htsjdk_bam::fastq::get_sam_read_name_from_fastq_header;
-    use htsjdk_bam::writer::BamWriter;
+
     let header = full_header(opts);
     let parse = |text: &str| {
         parse_fastq(text, opts.allow_and_ignore_empty_lines)
@@ -296,7 +296,8 @@ pub fn fastq_to_bam_full(
     if opts.sort_order == "queryname" {
         records.sort_by(query_name::compare);
     }
-    let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut w =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &records {
         w.write(rec).expect("unmapped record re-encodes as BAM");
     }

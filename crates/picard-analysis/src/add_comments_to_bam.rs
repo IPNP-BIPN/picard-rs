@@ -13,7 +13,7 @@
 //! takes BAM bytes, and a non-BAM input is rejected by `reheader_bam` (`ReheaderError::NotABam`).
 
 use htsjdk_bam::reader::BamReader;
-use htsjdk_bam::reheader::{reheader_bam, ReheaderError};
+use htsjdk_bam::reheader::{reheader_bam_with, ReheaderError};
 use htsjdk_bgzf::decompress_all;
 
 /// Why `AddCommentsToBam` could not run.
@@ -51,7 +51,8 @@ pub fn add_comments_to_bam(
         header.add_comment(comment);
     }
 
-    Ok(reheader_bam(&header, input_bam)?)
+    let (level, deflater) = crate::output::current();
+    Ok(reheader_bam_with(&header, input_bam, level, deflater)?)
 }
 
 #[cfg(test)]
@@ -59,14 +60,13 @@ mod tests {
     use super::*;
     use htsjdk_bam::sam_file::read_sam_with;
     use htsjdk_bam::text_parse::ValidationStringency;
-    use htsjdk_bam::writer::BamWriter;
 
     const SAM: &str = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n\
         a\t0\tchr1\t10\t60\t4M\t*\t0\t0\tACGT\tIIII\n";
 
     fn build_bam(sam: &str) -> Vec<u8> {
         let (header, records) = read_sam_with(sam, ValidationStringency::Lenient).unwrap();
-        let mut w = BamWriter::new(Vec::new(), &header).unwrap();
+        let mut w = crate::output::bam_writer(Vec::new(), &header).unwrap();
         for r in &records {
             w.write(r).unwrap();
         }

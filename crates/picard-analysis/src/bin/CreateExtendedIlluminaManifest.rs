@@ -51,6 +51,7 @@ fn header_line(width: usize, fields: &[&str]) -> String {
 
 fn main() {
     picard_analysis::argument_check::check("CreateExtendedIlluminaManifest");
+    picard_analysis::output::install();
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT"), ("R", "REFERENCE_SEQUENCE")]);
     let input = args.required("INPUT");
     let output = args.required("OUTPUT");
