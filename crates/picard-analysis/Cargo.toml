@@ -13,6 +13,7 @@ htsjdk-vcf.workspace = true
 htsjdk-tribble.workspace = true
 # Needed by the runnable binary, not only by the tests: reading a BAM means decompressing it.
 htsjdk-bgzf.workspace = true
+htsjdk-cram.workspace = true
 jmath.workspace = true
 # Multicore for the per-record transforms. The parallel map preserves order, so its output is
 # byte-identical to the serial one; this is where the port beats single-threaded Picard/GATK.

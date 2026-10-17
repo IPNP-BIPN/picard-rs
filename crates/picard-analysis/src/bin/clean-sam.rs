@@ -64,6 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut raw = Vec::new();
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+    let raw = picard_analysis::cram_input::uncram(raw);
     // BAM and SAM are told apart by the gzip magic, as `SamReaderFactory` tells them apart by
     // sniffing the stream rather than by the file's name.
     let (header, mut records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
@@ -96,6 +97,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         writer.write(record).map_err(|e| format!("{e:?}"))?;
     }
     let bam = writer.finish()?;
+    if picard_analysis::cram_output::is_cram(&output) {
+        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
+        return Ok(());
+    }
     std::fs::write(&output, &bam)?;
     // Only a coordinate-sorted file is indexed, and asking for an index on any other order is not
     // an error: `initializeBAMWriter` simply does not enable the indexer.

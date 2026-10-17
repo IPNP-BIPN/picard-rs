@@ -234,7 +234,7 @@ fn main() {
             .unwrap_or_else(|e| fail(&format!("{e:?}")));
     }
     let bytes = writer.finish().unwrap_or_else(|e| fail(&format!("{e:?}")));
-    if let Err(e) = std::fs::write(&output, bytes) {
+    if let Err(e) = picard_analysis::cram_output::write(&output, bytes) {
         fail(&format!("{e}"));
     }
 

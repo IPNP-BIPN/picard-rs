@@ -180,6 +180,7 @@ pub fn read_input(path: &str) -> (SamHeader, Vec<BamRecord>) {
     if let Err(e) = std::fs::File::open(path).and_then(|mut f| f.read_to_end(&mut raw)) {
         fail(&format!("{e}"));
     }
+    let raw = crate::cram_input::uncram(raw);
     if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = crate::bgzf::decompress_owned(raw).unwrap_or_else(|e| fail(&format!("{e:?}")));
         let reader = BamReader::new(&plain).unwrap_or_else(|e| fail(&format!("{e:?}")));

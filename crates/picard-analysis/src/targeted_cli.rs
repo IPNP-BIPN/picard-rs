@@ -313,6 +313,7 @@ fn read_input(input: &str) -> Result<(SamHeader, Vec<BamRecord>), String> {
     std::fs::File::open(input)
         .and_then(|mut f| f.read_to_end(&mut raw))
         .map_err(|e| format!("{e}"))?;
+    let raw = crate::cram_input::uncram(raw);
     if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = crate::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;

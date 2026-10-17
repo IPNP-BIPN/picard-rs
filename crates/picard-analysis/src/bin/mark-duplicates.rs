@@ -448,7 +448,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         writer.write(&written).map_err(|e| format!("{e:?}"))?;
     }
-    std::fs::write(&output, writer.finish().map_err(|e| format!("{e:?}"))?)?;
+    picard_analysis::cram_output::write(&output, writer.finish().map_err(|e| format!("{e:?}"))?)?;
 
     // The metrics file is written because the tool requires the argument, and its content is not
     // what this array compares: the OUTPUT is.

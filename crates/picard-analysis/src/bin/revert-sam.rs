@@ -25,7 +25,7 @@ fn write_bam(path: &str, header: &SamHeader, records: &[BamRecord]) -> Result<()
         writer.write(record).map_err(|e| format!("{e:?}"))?;
     }
     let bytes = writer.finish().map_err(|e| format!("{e:?}"))?;
-    std::fs::write(path, bytes).map_err(|e| format!("{e:?}"))
+    picard_analysis::cram_output::write(path, bytes).map_err(|e| format!("{e:?}"))
 }
 
 /// A collection argument as Barclay builds it: the default, each value appended, `null` emptying it.
@@ -108,7 +108,8 @@ fn thrown(message: &str) -> ! {
     std::process::exit(1);
 }
 
-/// The file the writer factory makes for a path: SAM text for `.sam`, a BAM otherwise.
+/// The file the writer factory makes for a path: SAM text for `.sam`, CRAM for `.cram`, a BAM
+/// otherwise.
 fn write_records(path: &str, header: &SamHeader, records: &[BamRecord]) -> Result<(), String> {
     if path.ends_with(".sam") {
         let text = htsjdk_bam::sam_file::write_sam(header, records)
@@ -194,6 +195,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut raw = Vec::new();
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+    let raw = picard_analysis::cram_input::uncram(raw);
     let (mut header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
         let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;

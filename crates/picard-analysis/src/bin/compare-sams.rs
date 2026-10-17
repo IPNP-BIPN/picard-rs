@@ -18,6 +18,7 @@ use picard_analysis::compare_sams::{compare_sams_with_options, CompareOptions};
 fn as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
     let mut raw = Vec::new();
     std::fs::File::open(path)?.read_to_end(&mut raw)?;
+    let raw = picard_analysis::cram_input::uncram(raw);
     if !raw.starts_with(&[0x1f, 0x8b]) {
         return Ok(String::from_utf8(raw)?);
     }

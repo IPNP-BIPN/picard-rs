@@ -88,8 +88,18 @@ impl Input {
     pub fn open(path: &str) -> Result<Input, InputError> {
         let mut head = Vec::new();
         File::open(path)
-            .and_then(|f| f.take(2).read_to_end(&mut head))
+            .and_then(|f| f.take(4).read_to_end(&mut head))
             .map_err(InputError::Io)?;
+        // A CRAM is decoded whole, against the reference, as htsjdk's reader would hand it over.
+        if crate::cram_input::is_cram(&head) {
+            let raw = std::fs::read(path).map_err(InputError::Io)?;
+            let (header, records) = crate::cram_input::decode_or_exit(&raw);
+            return Ok(Input {
+                header,
+                records: Records::Decoded(records.into_iter()),
+            });
+        }
+        head.truncate(2);
         // A BAM begins with a BGZF block, whose first two bytes are gzip's magic; anything else is
         // read as SAM, whole.
         if head != [0x1f, 0x8b] {
@@ -183,6 +193,7 @@ fn whole(path: &str) -> Result<Input, InputError> {
     File::open(path)
         .and_then(|mut f| f.read_to_end(&mut raw))
         .map_err(InputError::Io)?;
+    let raw = crate::cram_input::uncram(raw);
     let plain = crate::bgzf::decompress_owned(raw).map_err(InputError::Bgzf)?;
     let reader = BamReader::new(&plain).map_err(InputError::Bam)?;
     let header = reader.header.text.clone();

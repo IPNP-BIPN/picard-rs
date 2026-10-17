@@ -606,7 +606,12 @@ fn main() {
                 .finish()
                 .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.SAMException: {e}")))
         };
-        if let Err(e) = std::fs::write(&w.path, bytes) {
+        let written = if is_sam {
+            std::fs::write(&w.path, bytes)
+        } else {
+            picard_analysis::cram_output::write(&w.path.display().to_string(), bytes)
+        };
+        if let Err(e) = written {
             thrown(&format!("htsjdk.samtools.SAMException: {e}"));
         }
     }

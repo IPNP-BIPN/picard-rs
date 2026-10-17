@@ -751,6 +751,7 @@ pub fn main_with(with_tags: bool) -> ! {
 
     let read = || -> Result<(SamHeader, Vec<BamRecord>), String> {
         let raw = std::fs::read(&input).map_err(|e| e.to_string())?;
+        let raw = crate::cram_input::uncram(raw);
         if raw.starts_with(&[0x1f, 0x8b]) {
             let plain = crate::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
             let reader =

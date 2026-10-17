@@ -31,6 +31,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut raw = Vec::new();
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+    let cram_input = picard_analysis::cram_input::is_cram(&raw);
+    let raw = picard_analysis::cram_input::uncram(raw);
     // The outputs take the INPUT's format, as `reader.type().fileExtension()` gives it.
     let bam_input = raw.starts_with(&[0x1f, 0x8b]);
     let text = if bam_input {
@@ -48,6 +50,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     std::fs::create_dir_all(&output)?;
+    // A CRAM in is CRAMs out, `makeWriter` with the reference, and `CREATE_INDEX` is honoured by
+    // `CRAMBAIIndexer`, which refuses an output that is not coordinate-sorted.
+    if cram_input {
+        let create_index = arg(&args, "CREATE_INDEX=").as_deref() == Some("true");
+        for (name, header, records) in picard_analysis::split_sam_by_library::split_outputs(&text)
+            .map_err(|e| format!("{e:?}"))?
+        {
+            let path = std::path::Path::new(&output).join(format!("{name}.cram"));
+            picard_analysis::cram_output::write_records_indexed(
+                &path.display().to_string(),
+                &header,
+                &records,
+                create_index,
+            )?;
+        }
+        return Ok(());
+    }
     if bam_input {
         for (name, bytes) in split_sam_by_library_to_bam(&text).map_err(|e| format!("{e:?}"))? {
             std::fs::write(

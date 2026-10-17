@@ -58,6 +58,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut raw = Vec::new();
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+    // A CRAM's shards are named `.cram` and written by `makeSAMOrBAMWriter`, which writes BAM for
+    // any name that is not `.sam`.
+    let extension = if picard_analysis::cram_input::is_cram(&raw) {
+        "cram"
+    } else {
+        "bam"
+    };
+    let raw = picard_analysis::cram_input::uncram(raw);
     // `reader.type().fileExtension()`: the shards take the INPUT's format, so a SAM in gives SAM
     // shards named `.sam`, not BAM ones. A tool that always wrote BAM would put its output under a
     // name the reference never writes.
@@ -93,12 +101,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .next()
                 .is_some_and(|hd| hd.starts_with("@HD") && hd.contains("\tSO:coordinate"));
         for (index, bytes) in shards.iter().enumerate() {
-            let name = format!("{prefix}_{:04}.bam", index + 1);
-            std::fs::write(std::path::Path::new(&output).join(name), bytes)?;
+            let name = format!("{prefix}_{:04}.{extension}", index + 1);
+            std::fs::write(std::path::Path::new(&output).join(&name), bytes)?;
             if create_index {
                 let bai = htsjdk_bam::build_index::build_bam_index(bytes)
                     .map_err(|e| format!("{e:?}"))?;
-                let name = format!("{prefix}_{:04}.bai", index + 1);
+                // `createBamIndex`: `.bam` is replaced by `.bai`, anything else has it appended.
+                let name = match name.strip_suffix(".bam") {
+                    Some(stem) => format!("{stem}.bai"),
+                    None => format!("{name}.bai"),
+                };
                 std::fs::write(std::path::Path::new(&output).join(name), bai)?;
             }
         }
