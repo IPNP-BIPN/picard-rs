@@ -14,7 +14,9 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
 use htsjdk_metrics::file::MetricsFile;
-use picard_analysis::mark_duplicates::{Options, Record, ScoringStrategy};
+use picard_analysis::mark_duplicates::{
+    base_quality_score, Options, Record, ScoringStrategy, Span,
+};
 use picard_analysis::mate_cigar_duplicates::needs_mate_cigar;
 use picard_analysis::metrics_cli::{fail, read_input, thrown, Args};
 use picard_analysis::umi_aware::{run, UmiAwareOptions};
@@ -135,15 +137,19 @@ fn main() {
                 flags: record.flags,
                 reference_index: record.reference_index,
                 alignment_start: record.alignment_start,
-                cigar: record.cigar.clone(),
-                qualities: record.base_qualities.clone(),
+                span: Span::of(&record.cigar),
+                read_length: record.base_qualities.len() as u32,
+                base_quality_score: base_quality_score(&record.base_qualities),
                 mate_reference_index: record.mate_reference_index,
-                library,
+                library: library.into(),
                 read_group,
                 barcode: None,
                 existing_dt: string_tag(record, b"DT"),
-                mate_cigar: match record.tags.get(Tag::new(b"MC")) {
-                    Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text).ok(),
+                mate_span: match record.tags.get(Tag::new(b"MC")) {
+                    Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text)
+                        .ok()
+                        .as_ref()
+                        .map(Span::of),
                     _ => None,
                 },
                 mate_alignment_start: record.mate_alignment_start,
@@ -162,7 +168,7 @@ fn main() {
         .filter(|index| *index < marked_records.len());
     for index in examination {
         let record = &marked_records[index];
-        if needs_mate_cigar(record) && record.mate_cigar.is_none() {
+        if needs_mate_cigar(record) && record.mate_span.is_none() {
             thrown(&format!(
                 "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found: {}",
                 picard_analysis::view_sam::sam_string(&header, &records[index])

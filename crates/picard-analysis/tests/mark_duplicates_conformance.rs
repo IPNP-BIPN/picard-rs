@@ -21,7 +21,7 @@ use std::io::Read;
 
 use htsjdk_bam::text_parse::parse_cigar;
 use picard_analysis::mark_duplicates::{
-    mark, roi_histogram, Options, Record, ScoringStrategy, TaggingPolicy,
+    base_quality_score, mark, roi_histogram, Options, Record, ScoringStrategy, Span, TaggingPolicy,
 };
 
 fn corpus() -> String {
@@ -65,21 +65,27 @@ fn record(line: &str) -> Record {
         flags,
         reference_index: if unmapped { -1 } else { 0 },
         alignment_start: columns[3].parse().expect("the position"),
-        cigar: if columns[5] == "*" {
+        span: Span::of(&if columns[5] == "*" {
             parse_cigar("").expect("an empty cigar")
         } else {
             parse_cigar(columns[5]).expect("the cigar")
-        },
-        qualities: columns[10].bytes().map(|byte| byte - 33).collect(),
+        }),
+        read_length: columns[10].len() as u32,
+        base_quality_score: base_quality_score(
+            &columns[10]
+                .bytes()
+                .map(|byte| byte - 33)
+                .collect::<Vec<u8>>(),
+        ),
         mate_reference_index: if columns[6] == "*" { -1 } else { 0 },
         // The fixture's one read group, whose library the header names.
-        library: "lib1".to_string(),
+        library: "lib1".into(),
         read_group: 0,
         barcode: tag("RX"),
         existing_dt: tag("DT"),
         // `MarkDuplicates` does not read the mate's cigar; the two tools that do have their own
         // suite, and this fixture carries the tag only where they need it.
-        mate_cigar: tag("MC").map(|text| parse_cigar(&text).expect("the mate cigar")),
+        mate_span: tag("MC").map(|text| Span::of(&parse_cigar(&text).expect("the mate cigar"))),
         mate_alignment_start: columns[7].parse().unwrap_or(0),
     }
 }

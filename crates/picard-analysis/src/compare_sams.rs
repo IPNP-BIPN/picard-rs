@@ -401,15 +401,19 @@ fn duplicate_record(header: &SamHeader, rec: &BamRecord) -> crate::mark_duplicat
         flags: rec.flags,
         reference_index: rec.reference_index,
         alignment_start: rec.alignment_start,
-        cigar: rec.cigar.clone(),
-        qualities: rec.base_qualities.clone(),
+        span: crate::mark_duplicates::Span::of(&rec.cigar),
+        read_length: rec.base_qualities.len() as u32,
+        base_quality_score: crate::mark_duplicates::base_quality_score(&rec.base_qualities),
         mate_reference_index: rec.mate_reference_index,
-        library,
+        library: library.into(),
         read_group: group.map_or(-1, |index| index as i32),
         barcode: None,
         existing_dt: None,
-        mate_cigar: match rec.tags.get(Tag::new(b"MC")) {
-            Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text).ok(),
+        mate_span: match rec.tags.get(Tag::new(b"MC")) {
+            Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text)
+                .ok()
+                .as_ref()
+                .map(crate::mark_duplicates::Span::of),
             _ => None,
         },
         mate_alignment_start: rec.mate_alignment_start,

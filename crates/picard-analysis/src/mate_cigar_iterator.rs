@@ -296,7 +296,7 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
         // "If not already set, this sets the minimum distance to twice the read length, or 100,
         // whichever is larger" -- from the FIRST mapped record, and never revised.
         if minimum_distance == -1 {
-            minimum_distance = std::cmp::max(2 * record.qualities.len() as i32, 100);
+            minimum_distance = std::cmp::max(2 * record.read_length as i32, 100);
         }
 
         let current = build_end(
@@ -408,32 +408,13 @@ fn build_end(records: &[Record], index: usize, library_id: i32, options: &Option
 
 /// The mate's 5' coordinate, from its `MC` cigar and its alignment start.
 fn mate_five_prime(record: &Record) -> i32 {
-    let Some(cigar) = &record.mate_cigar else {
-        // Without the tag there is nothing to read; the caller has already refused or skipped.
-        return -1;
-    };
-    let start = record.mate_alignment_start;
-    if record.mate_reverse_strand() {
-        let mut end = start + cigar.reference_length() as i32 - 1;
-        for element in cigar.elements.iter().rev() {
-            match element.op {
-                htsjdk_bam::cigar::Op::S | htsjdk_bam::cigar::Op::H => end += element.length as i32,
-                _ => break,
-            }
-        }
-        end
+    // Without the tag there is nothing to read; the caller has already refused or skipped.
+    let coordinate = if record.mate_reverse_strand() {
+        record.mate_unclipped_end()
     } else {
-        let mut begin = start;
-        for element in &cigar.elements {
-            match element.op {
-                htsjdk_bam::cigar::Op::S | htsjdk_bam::cigar::Op::H => {
-                    begin -= element.length as i32
-                }
-                _ => break,
-            }
-        }
-        begin
-    }
+        record.mate_unclipped_start()
+    };
+    coordinate.unwrap_or(-1)
 }
 
 /// `MarkQueue.shouldBeInLocations`: only a mapped pair is tracked for optical duplicates.

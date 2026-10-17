@@ -16,7 +16,7 @@
 use std::io::Read;
 
 use htsjdk_bam::text_parse::parse_cigar;
-use picard_analysis::mark_duplicates::{mark, Options, Record};
+use picard_analysis::mark_duplicates::{base_quality_score, mark, Options, Record, Span};
 use picard_analysis::mate_cigar_duplicates::{
     mark_with_mate_cigar, simple_mark_with_mate_cigar, MateCigarOptions, Refusal, SortOrder,
 };
@@ -64,14 +64,20 @@ fn record(line: &str) -> Record {
         flags,
         reference_index: 0,
         alignment_start: columns[3].parse().expect("the position"),
-        cigar: parse_cigar(columns[5]).expect("the cigar"),
-        qualities: columns[10].bytes().map(|byte| byte - 33).collect(),
+        span: Span::of(&parse_cigar(columns[5]).expect("the cigar")),
+        read_length: columns[10].len() as u32,
+        base_quality_score: base_quality_score(
+            &columns[10]
+                .bytes()
+                .map(|byte| byte - 33)
+                .collect::<Vec<u8>>(),
+        ),
         mate_reference_index: if columns[6] == "*" { -1 } else { 0 },
-        library: "lib1".to_string(),
+        library: "lib1".into(),
         read_group: 0,
         barcode: None,
         existing_dt: None,
-        mate_cigar: tag("MC").map(|text| parse_cigar(&text).expect("the mate cigar")),
+        mate_span: tag("MC").map(|text| Span::of(&parse_cigar(&text).expect("the mate cigar"))),
         mate_alignment_start: columns[7].parse().unwrap_or(0),
     }
 }
