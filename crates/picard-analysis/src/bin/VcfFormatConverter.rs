@@ -20,15 +20,10 @@
 //! The plain writer's Tribble index takes records in any order. The tabix creator does not: a
 //! record that starts before the one written before it on the same contig is an uncaught
 //! `IllegalArgumentException` naming both, their file positions BGZF virtual offsets taken before
-//! each line is written. That check is reproduced here; the `.tbi` itself is not written, because
-//! the htsjdk-rs revision this repository pins predates its tabix module. The index is a side file
-//! the covering array does not compare, and its refusals are the part of it a row can observe.
+//! each line is written. Both are `vcf_io::write_output`, which writes the `.tbi` beside a
+//! `.vcf.gz` and the `.idx` beside a `.vcf`.
 
-use std::io::Write;
-
-use picard_analysis::vcf_io::{
-    die, header_dictionary, read_path, write_output, write_records, Record,
-};
+use picard_analysis::vcf_io::{die, header_dictionary, is_compressed_vcf, read_path, write_output};
 
 fn arg(args: &[String], key: &str) -> Option<String> {
     args.iter()
@@ -40,96 +35,6 @@ fn has_block_compressed_extension(path: &str) -> bool {
     [".gz", ".gzip", ".bgz", ".bgzf"]
         .iter()
         .any(|ext| path.to_lowercase().ends_with(ext))
-}
-
-/// `TabixIndexCreator.addFeature`'s two refusals, without the index it builds.
-#[derive(Default)]
-struct TabixOrder {
-    sequence_names: Vec<String>,
-    /// `previousFeature`: reference index, start, end, and the position it starts at.
-    previous: Option<(usize, i64, i64, u64)>,
-}
-
-impl TabixOrder {
-    fn add_feature(
-        &mut self,
-        contig: &str,
-        start: i64,
-        end: i64,
-        position: u64,
-    ) -> Result<(), String> {
-        let current = self.sequence_names.last().map(String::as_str);
-        let reference_index = if current == Some(contig) {
-            self.sequence_names.len() - 1
-        } else {
-            if current.is_some() && self.sequence_names.iter().any(|n| n == contig) {
-                // The Java names the feature by `VariantContext.toString()`, which this port does
-                // not reproduce; no record in the corpus reaches it.
-                return Err(format!(
-                    "java.lang.IllegalArgumentException: Sequence {contig} added out sequence of \
-                     order"
-                ));
-            }
-            self.sequence_names.len()
-        };
-        let describe = |(index, start, end, position): (usize, i64, i64, u64)| {
-            format!(
-                "TabixFeature{{referenceIndex={index}, start={start}, end={end}, \
-                 featureStartFilePosition={position}, featureEndFilePosition=-1}}"
-            )
-        };
-        let this = (reference_index, start, end, position);
-        if let Some(previous) = self.previous {
-            // `TabixFeature.compareTo`: the reference index, then the start.
-            if (previous.0, previous.1) > (this.0, this.1) {
-                return Err(format!(
-                    "java.lang.IllegalArgumentException: Features added out of order: previous \
-                     ({}) > next ({})",
-                    describe(previous),
-                    describe(this)
-                ));
-            }
-        }
-        self.previous = Some(this);
-        if reference_index == self.sequence_names.len() {
-            self.sequence_names.push(contig.to_string());
-        }
-        Ok(())
-    }
-}
-
-/// The BGZF writer, with the tabix creator's order checks beside it when indexing, as
-/// `VariantContextWriterBuilder` builds it for a `BLOCK_COMPRESSED_VCF`.
-fn write_block_compressed(
-    path: &str,
-    header: &htsjdk_vcf::header::VcfHeader,
-    records: &[Record],
-    indexing: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let text = write_records(header, records).map_err(|e| format!("{e:?}"))?;
-    let header_length = header.write().len();
-    let mut writer = picard_analysis::output::bgzf_writer(Vec::new());
-    writer.write_all(&text.as_bytes()[..header_length])?;
-    let mut order = TabixOrder::default();
-    for (record, line) in records
-        .iter()
-        .zip(text[header_length..].split_inclusive('\n'))
-    {
-        if indexing {
-            let variant = &record.variant;
-            if let Err(exception) = order.add_feature(
-                &variant.contig,
-                variant.start,
-                variant.stop,
-                writer.file_pointer(),
-            ) {
-                die(&exception);
-            }
-        }
-        writer.write_all(line.as_bytes())?;
-    }
-    std::fs::write(path, writer.into_inner()?)?;
-    Ok(())
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -186,9 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None
     };
 
-    if output.ends_with(".vcf.gz") || output.ends_with(".vcf.bgz") {
-        write_block_compressed(&output, &header, &vcf.records, create_index)?;
-    } else if output.ends_with(".vcf") {
+    if output.ends_with(".vcf") || is_compressed_vcf(&output) {
         write_output(&output, &header, &vcf.records, index_dictionary)?;
     } else {
         die(

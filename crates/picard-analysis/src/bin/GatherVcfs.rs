@@ -1,8 +1,10 @@
 //! `GatherVcfs` as a runnable binary: the covering array's port side.
 //!
-//! Ports `picard.vcf.GatherVcfs.doWork` at tag 3.4.0 for a plain-text output, which is the
-//! conventional gather: the block-copying one is taken only when every input AND the output are
-//! block compressed. The read and write round trip is `picard_analysis::vcf_io`.
+//! Ports `picard.vcf.GatherVcfs.doWork` at tag 3.4.0. The conventional gather reads every record
+//! and writes them through `picard_analysis::vcf_io`, a `.vcf.gz` as BGZF with its `.tbi`. The
+//! block-copying one is taken instead when every input AND the output have a block-compressed
+//! name: no record is parsed, no `COMMENT` is added and no index is written, whatever
+//! `CREATE_INDEX` says.
 //!
 //! Nothing is merged. The output header is the first file's own, `COMMENT` added through
 //! `addMetaDataLine` (so only the first comment given is written), and every file's records follow
@@ -23,8 +25,8 @@
 use htsjdk_vcf::comparator::VariantContextComparator;
 use htsjdk_vcf::variant::VariantContext;
 use picard_analysis::vcf_io::{
-    add_other_meta_data_line, assert_same_dictionary, die, header_dictionary, java_compare,
-    log_error, read_path, unroll_paths, write_output, LazyVcf, Record,
+    add_other_meta_data_line, assert_same_dictionary, die, header_dictionary, is_compressed_vcf,
+    java_compare, log_error, read_path, unroll_paths, write_output, LazyVcf, Record,
 };
 
 fn arg(args: &[String], key: &str) -> Option<String> {
@@ -216,6 +218,85 @@ fn gather_conventionally(
     Ok((header, records))
 }
 
+/// `IOUtil.hasBlockCompressedExtension`, and not `VCFFileReader.isBCF`: what `areAllBlockCompressed`
+/// asks of each name, without opening the file.
+fn block_compressed(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    !path.ends_with(".bcf")
+        && [".gz", ".gzip", ".bgz", ".bgzf"]
+            .iter()
+            .any(|extension| lower.ends_with(extension))
+}
+
+/// `gatherWithBlockCopying`: the first file's blocks as they are, and of every later file the rest
+/// of the block its header ends in, deflated again as one new block, then its remaining blocks as
+/// they are. Each file's terminator is left out and one is written at the end.
+fn gather_with_block_copying(paths: &[String]) -> Result<Vec<u8>, Failure> {
+    use htsjdk_bgzf::{check_termination, BgzfReader, FileTermination, EMPTY_GZIP_BLOCK};
+    use std::io::Write;
+
+    let io = |e: std::io::Error| {
+        Failure::Caught(format!("htsjdk.samtools.util.RuntimeIOException: {e}"))
+    };
+    let mut out = Vec::new();
+    for (i, path) in paths.iter().enumerate() {
+        let data = std::fs::read(path).map_err(io)?;
+        let termination = check_termination(&data);
+        if termination == FileTermination::Defective {
+            return Err(Failure::Caught(format!(
+                "picard.PicardException: {} does not have a valid GZIP block at the end of the \
+                 file.",
+                absolute(path)
+            )));
+        }
+        let mut position = 0;
+        if i > 0 {
+            let mut reader = BgzfReader::new(&data[..]);
+            let mut last_byte_newline = true;
+            // `blockIn.available()` reads the next block, and is zero at an empty one, which ends
+            // the scan with the stream positioned after it.
+            while let Some(block) = reader
+                .next_block()
+                .map_err(|e| Failure::Caught(format!("htsjdk.samtools.SAMException: {e:?}")))?
+            {
+                position = block.block_address as usize + block.block_compressed_size;
+                if block.data.is_empty() {
+                    break;
+                }
+                let first = block.data.iter().position(|&b| {
+                    let newline = b == b'\n' || b == b'\r';
+                    let found = last_byte_newline && !newline && b != b'#';
+                    last_byte_newline = newline;
+                    found
+                });
+                if let Some(first) = first {
+                    let mut block_out = picard_analysis::output::bgzf_writer(Vec::new());
+                    block_out.write_all(&block.data[first..]).map_err(io)?;
+                    out.extend(block_out.into_inner_without_terminator().map_err(io)?);
+                    break;
+                }
+            }
+        }
+        let skip_last = if termination == FileTermination::HasTerminatorBlock {
+            EMPTY_GZIP_BLOCK.len()
+        } else {
+            0
+        };
+        let end = data.len() - skip_last;
+        if end > position {
+            out.extend_from_slice(&data[position..end]);
+        }
+    }
+    out.extend_from_slice(&EMPTY_GZIP_BLOCK);
+    Ok(out)
+}
+
+/// What the `try` block produced: records to write, or the bytes the block copy assembled.
+enum Gathered {
+    Conventionally(htsjdk_vcf::header::VcfHeader, Vec<Record>),
+    WithBlockCopying(Vec<u8>),
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
@@ -239,10 +320,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if !output.ends_with(".vcf") {
-        return Err("only a .vcf OUTPUT is ported".into());
-    }
-
     let paths = unroll_paths(&inputs).unwrap_or_else(|exception| die(&exception));
 
     // `VCFFileReader.getSequenceDictionary(unrolledPaths.get(0))`, outside the `try`.
@@ -262,11 +339,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             files.push((path.clone(), vcf));
         }
         let files = assert_same_samples_and_valid_ordering(files, reorder)?;
-        gather_conventionally(files, &comments)
+        let paths: Vec<String> = files.iter().map(|(path, _)| path.clone()).collect();
+        if paths.iter().all(|path| block_compressed(path)) && block_compressed(&output) {
+            if create_index {
+                eprintln!(
+                    "WARN\tGatherVcfs\tIndex creation not currently supported when gathering \
+                     block compressed VCFs."
+                );
+            }
+            return gather_with_block_copying(&paths).map(Gathered::WithBlockCopying);
+        }
+        // `gatherConventionally` builds its writer before it reads a record, and the builder
+        // refuses a name it cannot place inside the `try`.
+        if output.ends_with(".bcf") {
+            return Err(Failure::Escaped("a .bcf OUTPUT is not ported".to_string()));
+        }
+        if !output.ends_with(".vcf") && !is_compressed_vcf(&output) {
+            return Err(Failure::Caught(
+                "java.lang.IllegalArgumentException: Output format type is not set, or could not \
+                 be inferred from the output path. If a path was used, does it have a valid VCF \
+                 extension (.vcf, .vcf.gz, .vcf.bgz, .bcf)?"
+                    .to_string(),
+            ));
+        }
+        let (header, records) = gather_conventionally(files, &comments)?;
+        Ok(Gathered::Conventionally(header, records))
     })();
 
     match gathered {
-        Ok((header, records)) => {
+        Ok(Gathered::WithBlockCopying(bytes)) => {
+            std::fs::write(&output, bytes)?;
+            Ok(())
+        }
+        Ok(Gathered::Conventionally(header, records)) => {
             let index_dictionary = if create_index {
                 sequence_dictionary.as_deref()
             } else {

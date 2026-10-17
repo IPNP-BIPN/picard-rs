@@ -262,7 +262,8 @@ struct Vcf {
 }
 
 fn read_vcf(path: &str) -> Vcf {
-    let text = std::fs::read_to_string(path).unwrap_or_else(|e| fail(&format!("{e}")));
+    let text =
+        picard_analysis::vcf_io::read_to_string(path).unwrap_or_else(|e| fail(&format!("{e}")));
     let mut contigs = Vec::new();
     let mut samples = Vec::new();
     let mut sites = Vec::new();

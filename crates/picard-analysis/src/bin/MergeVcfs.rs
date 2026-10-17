@@ -18,9 +18,9 @@ use htsjdk_vcf::header::{HeaderLine, VcfHeader};
 use htsjdk_vcf::merge::{smart_merge_headers, Source};
 use picard_analysis::merge_vcfs::{merge_sorted, MergeFailure};
 use picard_analysis::vcf_io::{
-    add_other_meta_data_line, die, header_dictionary, parse_sam_dictionary, read_path,
-    sample_names_in_order, set_sequence_dictionary, unroll_paths, write_output, LazyVcf, Record,
-    Sequence,
+    add_other_meta_data_line, die, header_dictionary, is_compressed_vcf, parse_sam_dictionary,
+    read_path, sample_names_in_order, set_sequence_dictionary, unroll_paths, write_output, LazyVcf,
+    Record, Sequence,
 };
 
 fn arg(args: &[String], key: &str) -> Option<String> {
@@ -87,8 +87,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if !output.ends_with(".vcf") {
-        return Err("only a .vcf OUTPUT is ported".into());
+    if !output.ends_with(".vcf") && !is_compressed_vcf(&output) {
+        return Err("only a .vcf or .vcf.gz OUTPUT is ported".into());
     }
 
     // Read through `SamReaderFactory`, as a SAM header: a `.dict`'s `@SQ` lines.

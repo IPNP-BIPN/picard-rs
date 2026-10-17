@@ -9,7 +9,7 @@
 //! not accept is filtered under the script's base name.
 
 use picard_analysis::filter_vcf::{add_header_lines, filter_record, Thresholds};
-use picard_analysis::vcf_io::{die, header_dictionary, read_path, write_output};
+use picard_analysis::vcf_io::{die, header_dictionary, is_compressed_vcf, read_path, write_output};
 
 fn arg(args: &[String], key: &str) -> Option<String> {
     args.iter()
@@ -108,10 +108,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             filters.dedup();
         }
     }
-    let index_dictionary = if create_index {
-        dictionary.as_deref()
-    } else {
+    // Only a `.vcf` or `.bcf` name sets the dictionary on the builder; a `.vcf.gz` is indexed
+    // without one.
+    let index_dictionary = if !create_index {
         None
+    } else if is_compressed_vcf(&output) {
+        Some(&[][..])
+    } else {
+        dictionary.as_deref()
     };
     write_output(&output, &header, &records, index_dictionary)?;
     Ok(())
