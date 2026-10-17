@@ -4,8 +4,8 @@
   "t": 2,
   "numeric_policy": "strict",
   "arguments_total": 19,
-  "arguments_in_array": 5,
-  "arguments_excluded": 14,
+  "arguments_in_array": 6,
+  "arguments_excluded": 13,
   "excluded": [
     {
       "argument": "--arguments_file",
@@ -41,13 +41,6 @@
       "reason": "excluded by the repository: spill threshold; it changes how much is buffered, not what is written, and lowering it on a 400-read corpus changes nothing at all",
       "held_at": null,
       "source": "none"
-    },
-    {
-      "argument": "--OUTPUT",
-      "type": "File",
-      "reason": "only one value available (fixture[0])",
-      "held_at": "/work/out/output.vcf",
-      "source": "fixture"
     },
     {
       "argument": "--QUIET",
@@ -106,9 +99,9 @@
       "source": "none"
     }
   ],
-  "rows": 31,
-  "tuples_total": 120,
-  "tuples_covered": 120,
+  "rows": 33,
+  "tuples_total": 169,
+  "tuples_covered": 169,
   "tuples_forbidden": 0,
   "constraint_notes": [
     "dropped constraint {'--FLOW_MODE': 'true'}: --FLOW_MODE is not an argument of this tool"
@@ -121,6 +114,7 @@
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[0]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
@@ -128,6 +122,7 @@
         "--COMMENT=null",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_2.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -138,13 +133,15 @@
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[1]",
+        "--OUTPUT": "fixture[1]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf.gz /work/fixtures/gather_2.vcf.gz",
+        "--OUTPUT=/work/out/output.vcf.gz",
         "--REORDER_INPUT_BY_FIRST_VARIANT=false",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -155,14 +152,16 @@
         "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[1]",
-        "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
+        "--OUTPUT": "fixture[0]",
+        "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--COMMENT=zeta alpha",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
-        "--REORDER_INPUT_BY_FIRST_VARIANT=true",
+        "--INPUT=/work/fixtures/gather_1.vcf.gz /work/fixtures/gather_2.vcf.gz",
+        "--OUTPUT=/work/out/output.vcf",
+        "--REORDER_INPUT_BY_FIRST_VARIANT=false",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
@@ -172,15 +171,17 @@
         "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "false",
         "--INPUT": "fixture[0]",
-        "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--OUTPUT": "fixture[1]",
+        "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--COMMENT=zeta alpha",
         "--CREATE_INDEX=false",
         "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_2.vcf",
-        "--REORDER_INPUT_BY_FIRST_VARIANT=false",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--OUTPUT=/work/out/output.vcf.gz",
+        "--REORDER_INPUT_BY_FIRST_VARIANT=true",
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -189,15 +190,17 @@
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[2]",
-        "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--OUTPUT": "fixture[1]",
+        "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
-        "--REORDER_INPUT_BY_FIRST_VARIANT=false",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--INPUT=/work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "--OUTPUT=/work/out/output.vcf.gz",
+        "--REORDER_INPUT_BY_FIRST_VARIANT=true",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -206,13 +209,15 @@
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[3]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf",
+        "--INPUT=/work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -223,15 +228,17 @@
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[4]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_overlap.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -240,13 +247,15 @@
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[5]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_2_swapped.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_overlap.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -257,13 +266,15 @@
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[6]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_2_swapped.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_2_swapped.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -274,13 +285,15 @@
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[7]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/merge_swapped_contigs.vcf",
+        "--INPUT=/work/fixtures/gather_2_swapped.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -291,13 +304,15 @@
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[8]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/merge_b_no_contigs.vcf /work/fixtures/gather_1.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/merge_swapped_contigs.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -308,13 +323,15 @@
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
         "--INPUT": "fixture[9]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/merge_b_no_contigs.vcf",
+        "--INPUT=/work/fixtures/merge_b_no_contigs.vcf /work/fixtures/gather_1.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -322,18 +339,20 @@
     {
       "row": 12,
       "labels": {
-        "--COMMENT": "fixture[1]",
-        "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[2]",
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[10]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
-        "--COMMENT=zeta alpha",
-        "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "--COMMENT=null",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/merge_b_no_contigs.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -341,16 +360,18 @@
       "labels": {
         "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[3]",
+        "--INPUT": "fixture[2]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--COMMENT=zeta alpha",
         "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf",
+        "--INPUT=/work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=false",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -358,16 +379,18 @@
       "labels": {
         "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[4]",
+        "--INPUT": "fixture[3]",
+        "--OUTPUT": "fixture[1]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
-        "--VALIDATION_STRINGENCY": "LENIENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--COMMENT=zeta alpha",
         "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_overlap.vcf",
+        "--INPUT=/work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "--OUTPUT=/work/out/output.vcf.gz",
         "--REORDER_INPUT_BY_FIRST_VARIANT=false",
-        "--VALIDATION_STRINGENCY=LENIENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -375,14 +398,16 @@
       "labels": {
         "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[5]",
+        "--INPUT": "fixture[4]",
+        "--OUTPUT": "fixture[1]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--COMMENT=zeta alpha",
         "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_2_swapped.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf",
+        "--OUTPUT=/work/out/output.vcf.gz",
         "--REORDER_INPUT_BY_FIRST_VARIANT=false",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -392,14 +417,16 @@
       "labels": {
         "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[6]",
+        "--INPUT": "fixture[5]",
+        "--OUTPUT": "fixture[1]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--COMMENT=zeta alpha",
         "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/gather_2_swapped.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_overlap.vcf",
+        "--OUTPUT=/work/out/output.vcf.gz",
         "--REORDER_INPUT_BY_FIRST_VARIANT=false",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -409,14 +436,16 @@
       "labels": {
         "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[7]",
+        "--INPUT": "fixture[6]",
+        "--OUTPUT": "fixture[1]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--COMMENT=zeta alpha",
         "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/merge_swapped_contigs.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_2_swapped.vcf",
+        "--OUTPUT=/work/out/output.vcf.gz",
         "--REORDER_INPUT_BY_FIRST_VARIANT=false",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -426,14 +455,16 @@
       "labels": {
         "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[8]",
+        "--INPUT": "fixture[7]",
+        "--OUTPUT": "fixture[1]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--COMMENT=zeta alpha",
         "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/merge_b_no_contigs.vcf /work/fixtures/gather_1.vcf",
+        "--INPUT=/work/fixtures/gather_2_swapped.vcf",
+        "--OUTPUT=/work/out/output.vcf.gz",
         "--REORDER_INPUT_BY_FIRST_VARIANT=false",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -443,14 +474,16 @@
       "labels": {
         "--COMMENT": "fixture[1]",
         "--CREATE_INDEX": "false",
-        "--INPUT": "fixture[9]",
+        "--INPUT": "fixture[8]",
+        "--OUTPUT": "fixture[1]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--COMMENT=zeta alpha",
         "--CREATE_INDEX=false",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/merge_b_no_contigs.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/merge_swapped_contigs.vcf",
+        "--OUTPUT=/work/out/output.vcf.gz",
         "--REORDER_INPUT_BY_FIRST_VARIANT=false",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
@@ -458,35 +491,39 @@
     {
       "row": 20,
       "labels": {
-        "--COMMENT": "fixture[0]",
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[0]",
-        "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
+        "--COMMENT": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[9]",
+        "--OUTPUT": "fixture[1]",
+        "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
         "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--COMMENT=null",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_2.vcf",
-        "--REORDER_INPUT_BY_FIRST_VARIANT=true",
+        "--COMMENT=zeta alpha",
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/merge_b_no_contigs.vcf /work/fixtures/gather_1.vcf",
+        "--OUTPUT=/work/out/output.vcf.gz",
+        "--REORDER_INPUT_BY_FIRST_VARIANT=false",
         "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
       "row": 21,
       "labels": {
-        "--COMMENT": "fixture[0]",
-        "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[0]",
-        "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--COMMENT": "fixture[1]",
+        "--CREATE_INDEX": "false",
+        "--INPUT": "fixture[10]",
+        "--OUTPUT": "fixture[1]",
+        "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
-        "--COMMENT=null",
-        "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_2.vcf",
-        "--REORDER_INPUT_BY_FIRST_VARIANT=true",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--COMMENT=zeta alpha",
+        "--CREATE_INDEX=false",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/merge_b_no_contigs.vcf",
+        "--OUTPUT=/work/out/output.vcf.gz",
+        "--REORDER_INPUT_BY_FIRST_VARIANT=false",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -494,16 +531,18 @@
       "labels": {
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[1]",
-        "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--INPUT": "fixture[0]",
+        "--OUTPUT": "fixture[0]",
+        "--REORDER_INPUT_BY_FIRST_VARIANT": "false",
+        "--VALIDATION_STRINGENCY": "LENIENT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
-        "--REORDER_INPUT_BY_FIRST_VARIANT=true",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_2.vcf",
+        "--OUTPUT=/work/out/output.vcf",
+        "--REORDER_INPUT_BY_FIRST_VARIANT=false",
+        "--VALIDATION_STRINGENCY=LENIENT"
       ]
     },
     {
@@ -511,14 +550,16 @@
       "labels": {
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[2]",
+        "--INPUT": "fixture[1]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf.gz /work/fixtures/gather_2.vcf.gz",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=STRICT"
       ]
@@ -528,16 +569,18 @@
       "labels": {
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[3]",
+        "--INPUT": "fixture[2]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
-        "--VALIDATION_STRINGENCY": "STRICT"
+        "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf",
+        "--INPUT=/work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
-        "--VALIDATION_STRINGENCY=STRICT"
+        "--VALIDATION_STRINGENCY=SILENT"
       ]
     },
     {
@@ -545,14 +588,16 @@
       "labels": {
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[4]",
+        "--INPUT": "fixture[3]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_overlap.vcf",
+        "--INPUT=/work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
@@ -562,16 +607,18 @@
       "labels": {
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[5]",
+        "--INPUT": "fixture[4]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
-        "--VALIDATION_STRINGENCY": "SILENT"
+        "--VALIDATION_STRINGENCY": "STRICT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_2_swapped.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
-        "--VALIDATION_STRINGENCY=SILENT"
+        "--VALIDATION_STRINGENCY=STRICT"
       ]
     },
     {
@@ -579,14 +626,16 @@
       "labels": {
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[6]",
+        "--INPUT": "fixture[5]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_2_swapped.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_overlap.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
@@ -596,14 +645,16 @@
       "labels": {
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[7]",
+        "--INPUT": "fixture[6]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/merge_swapped_contigs.vcf",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/gather_2_swapped.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
@@ -613,14 +664,16 @@
       "labels": {
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
-        "--INPUT": "fixture[8]",
+        "--INPUT": "fixture[7]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
       "arguments": [
         "--COMMENT=null",
         "--CREATE_INDEX=true",
-        "--INPUT=/work/fixtures/merge_b_no_contigs.vcf /work/fixtures/gather_1.vcf",
+        "--INPUT=/work/fixtures/gather_2_swapped.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=SILENT"
       ]
@@ -630,7 +683,46 @@
       "labels": {
         "--COMMENT": "fixture[0]",
         "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[8]",
+        "--OUTPUT": "fixture[0]",
+        "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--COMMENT=null",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/merge_swapped_contigs.vcf",
+        "--OUTPUT=/work/out/output.vcf",
+        "--REORDER_INPUT_BY_FIRST_VARIANT=true",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 31,
+      "labels": {
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "true",
         "--INPUT": "fixture[9]",
+        "--OUTPUT": "fixture[0]",
+        "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
+        "--VALIDATION_STRINGENCY": "SILENT"
+      },
+      "arguments": [
+        "--COMMENT=null",
+        "--CREATE_INDEX=true",
+        "--INPUT=/work/fixtures/merge_b_no_contigs.vcf /work/fixtures/gather_1.vcf",
+        "--OUTPUT=/work/out/output.vcf",
+        "--REORDER_INPUT_BY_FIRST_VARIANT=true",
+        "--VALIDATION_STRINGENCY=SILENT"
+      ]
+    },
+    {
+      "row": 32,
+      "labels": {
+        "--COMMENT": "fixture[0]",
+        "--CREATE_INDEX": "true",
+        "--INPUT": "fixture[10]",
+        "--OUTPUT": "fixture[0]",
         "--REORDER_INPUT_BY_FIRST_VARIANT": "true",
         "--VALIDATION_STRINGENCY": "SILENT"
       },
@@ -638,6 +730,7 @@
         "--COMMENT=null",
         "--CREATE_INDEX=true",
         "--INPUT=/work/fixtures/gather_1.vcf /work/fixtures/merge_b_no_contigs.vcf",
+        "--OUTPUT=/work/out/output.vcf",
         "--REORDER_INPUT_BY_FIRST_VARIANT=true",
         "--VALIDATION_STRINGENCY=SILENT"
       ]

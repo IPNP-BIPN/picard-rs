@@ -524,11 +524,11 @@ jobs:
             | tee /tmp/LiftOverHaplotypeMap.log
           python3 tools/coverage/run_array.py --tool MakeSitesOnlyVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/MakeSitesOnlyVcf --output-name output.vcf \
+            --port target/release/MakeSitesOnlyVcf --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/MakeSitesOnlyVcf.log
           python3 tools/coverage/run_array.py --tool RenameSampleInVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/RenameSampleInVcf --output-name output.vcf \
+            --port target/release/RenameSampleInVcf --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/RenameSampleInVcf.log
           python3 tools/coverage/run_array.py --tool VcfToIntervalList --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -536,31 +536,31 @@ jobs:
             | tee /tmp/VcfToIntervalList.log
           python3 tools/coverage/run_array.py --tool SortVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/SortVcf --output-name output.vcf \
+            --port target/release/SortVcf --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/SortVcf.log
           python3 tools/coverage/run_array.py --tool UpdateVcfSequenceDictionary --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/UpdateVcfSequenceDictionary --output-name output.vcf \
+            --port target/release/UpdateVcfSequenceDictionary --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/UpdateVcfSequenceDictionary.log
           python3 tools/coverage/run_array.py --tool MergeVcfs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/MergeVcfs --output-name output.vcf \
+            --port target/release/MergeVcfs --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/MergeVcfs.log
           python3 tools/coverage/run_array.py --tool GatherVcfs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/GatherVcfs --output-name output.vcf \
+            --port target/release/GatherVcfs --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/GatherVcfs.log
           python3 tools/coverage/run_array.py --tool SplitVcfs --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/SplitVcfs --output-name snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf \
+            --port target/release/SplitVcfs --output-name snp.vcf,indel.vcf,snp_b.vcf,indel_b.vcf,snp.vcf.gz,snp.vcf.gz.tbi,indel.vcf.gz,indel.vcf.gz.tbi \
             | tee /tmp/SplitVcfs.log
           python3 tools/coverage/run_array.py --tool VcfFormatConverter --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/VcfFormatConverter --output-name output.vcf,output.vcf.gz \
+            --port target/release/VcfFormatConverter --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/VcfFormatConverter.log
           python3 tools/coverage/run_array.py --tool FixVcfHeader --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/FixVcfHeader --output-name output.vcf \
+            --port target/release/FixVcfHeader --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/FixVcfHeader.log
           python3 tools/coverage/run_array.py --tool CollectWgsMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -612,7 +612,7 @@ jobs:
             | tee /tmp/CollectIndependentReplicateMetrics.log
           python3 tools/coverage/run_array.py --tool LiftoverVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/LiftoverVcf --output-name output.vcf,reject.vcf,reject_b.vcf \
+            --port target/release/LiftoverVcf --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi,reject.vcf,reject_b.vcf \
             | tee /tmp/LiftoverVcf.log
           python3 tools/coverage/run_array.py --tool CollectMultipleMetrics --t 2 \
             --fixtures-dir /tmp/corpus \
@@ -684,7 +684,7 @@ jobs:
             | tee /tmp/CheckTerminatorBlock.log
           python3 tools/coverage/run_array.py --tool FilterVcf --t 2 \
             --fixtures-dir /tmp/corpus \
-            --port target/release/FilterVcf --output-name output.vcf \
+            --port target/release/FilterVcf --output-name output.vcf,output.vcf.gz,output.vcf.gz.tbi \
             | tee /tmp/FilterVcf.log
           python3 tools/coverage/run_array.py --tool CheckFingerprint --t 2 \
             --fixtures-dir /tmp/corpus \
