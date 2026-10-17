@@ -47,6 +47,7 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
 use htsjdk_bam::writer::BamWriter;
+use picard_analysis::args::arg;
 use picard_analysis::merge_sam_files::merge_parsed;
 use picard_analysis::sort_sam::{
     mate_cigar_refusal_in_order, MateCigarCheck, RequestedOrder, SortOrder,
@@ -57,11 +58,6 @@ const READ_UNMAPPED: u16 = 0x4;
 const MATE_UNMAPPED: u16 = 0x8;
 const FIRST_OF_PAIR: u16 = 0x40;
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 /// Every value given for a repeatable argument, in command-line order.
 fn args_all(args: &[String], key: &str) -> Vec<String> {
     args.iter()
@@ -69,13 +65,9 @@ fn args_all(args: &[String], key: &str) -> Vec<String> {
         .collect()
 }
 
-fn flag(args: &[String], key: &str, default: bool) -> Result<bool, String> {
-    match arg(args, key).as_deref() {
-        None => Ok(default),
-        Some("true") => Ok(true),
-        Some("false") => Ok(false),
-        Some(other) => Err(format!("unknown value for {key}{other}")),
-    }
+/// A boolean argument, which the legacy parser builds as `new Boolean(value)`.
+fn flag(args: &[String], key: &str, default: bool) -> bool {
+    arg(args, key).map_or(default, |value| picard_analysis::args::is_true(&value))
 }
 
 fn index_path(output: &str) -> String {
@@ -217,11 +209,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sort_order = arg(&args, "SORT_ORDER=")
         .or_else(|| arg(&args, "SO="))
         .unwrap_or_else(|| "coordinate".to_string());
-    let assume_sorted = flag(&args, "ASSUME_SORTED=", false)?;
-    let merge_dictionaries = flag(&args, "MERGE_SEQUENCE_DICTIONARIES=", false)?;
+    let assume_sorted = flag(&args, "ASSUME_SORTED=", false);
+    let merge_dictionaries = flag(&args, "MERGE_SEQUENCE_DICTIONARIES=", false);
     // Accepted and ignored: it selects the writer's async I/O path, not its bytes.
-    let _use_threading = flag(&args, "USE_THREADING=", false)?;
-    let create_index = flag(&args, "CREATE_INDEX=", false)?;
+    let _use_threading = flag(&args, "USE_THREADING=", false);
+    let create_index = flag(&args, "CREATE_INDEX=", false);
     let stringency = match arg(&args, "VALIDATION_STRINGENCY=").as_deref() {
         None | Some("STRICT") => ValidationStringency::Strict,
         Some("LENIENT") => ValidationStringency::Lenient,

@@ -40,6 +40,7 @@ use htsjdk_vcf::encoder::{MissingFields, VcfEncoder};
 use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::reader::read_vcf;
 use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
+use picard_analysis::args::arg;
 use picard_analysis::genotype_concordance::{
     contingency, contingency_state_value, contingency_string, determine_state, file_names, is_var,
     normalize_alleles, CallState, Cell, Counts, GenotypeView, SiteView, TruthState,
@@ -59,11 +60,6 @@ enum VariantType {
     /// Every alternate symbolic: `isSymbolic()`, a site `writeVcfTuple` leaves out.
     Symbolic,
     Other,
-}
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
 }
 
 fn throw(message: &str) -> ! {
@@ -641,7 +637,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
-    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
+    let flag = |key: &str, default: bool| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(default)
+    };
     let number = |key: &str, default: i32| -> i32 {
         arg(&args, key)
             .and_then(|v| v.parse().ok())

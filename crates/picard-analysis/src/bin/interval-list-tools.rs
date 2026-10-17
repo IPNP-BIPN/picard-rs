@@ -13,26 +13,24 @@
 //! rather than about the tool: it filters a VCF input. `SCATTER_COUNT` (or `SCATTER_CONTENT`) above
 //! one turns `OUTPUT` into a directory of scattered lists, cut as `SUBDIVISION_MODE` says.
 
+use picard_analysis::args::arg;
 use picard_analysis::interval_list_tools::{
     interval_list_tools, scatter, Action, Options, ScatterMode,
 };
 
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("IntervalListTools");
     let args: Vec<String> = std::env::args().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
+    let input = picard_analysis::args::single_input(&args)?;
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
     let second_input = arg(&args, "SECOND_INPUT=").or_else(|| arg(&args, "SI="));
-    let flag = |key: &str, default: bool| arg(&args, key).map(|v| v == "true").unwrap_or(default);
+    let flag = |key: &str, default: bool| {
+        arg(&args, key)
+            .map(|v| picard_analysis::args::is_true(&v))
+            .unwrap_or(default)
+    };
 
     let action_name = arg(&args, "ACTION=").unwrap_or_else(|| "CONCAT".to_string());
     let action = match action_name.as_str() {
