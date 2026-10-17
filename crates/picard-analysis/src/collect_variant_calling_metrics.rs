@@ -491,3 +491,50 @@ pub fn accumulate_detail(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn site(reference: &str, alternates: &str) -> Site {
+        Site {
+            reference: reference.to_string(),
+            alternates: alternates.split(',').map(str::to_string).collect(),
+            filtered: false,
+            in_db_snp_snps: false,
+            in_db_snp_indels: false,
+            calls: Vec::new(),
+        }
+    }
+
+    /// `getType()`, `isComplexIndel()` and `isSimpleInsertion()` as htsjdk 5.0.0 answers them in
+    /// the oracle container: a spanning deletion `*` is a SNP, an MNP and a mixed site are neither
+    /// SNP nor indel, and a multiallelic indel or one whose first bases differ is complex.
+    #[test]
+    fn sites_are_typed_as_variant_context_types_them() {
+        for (reference, alternates, kind, complex, insertion) in [
+            ("A", "G", Kind::Snp, false, false),
+            ("A", "G,T", Kind::Snp, false, false),
+            ("AC", "GT", Kind::Mnp, false, false),
+            ("A", "AT", Kind::Indel, false, true),
+            ("AT", "A", Kind::Indel, false, false),
+            ("A", "G,AT", Kind::Mixed, false, false),
+            ("A", "<DEL>", Kind::Symbolic, false, false),
+            ("A", "*", Kind::Snp, false, false),
+            ("A", "G,*", Kind::Snp, false, false),
+            ("ACG", "T", Kind::Indel, true, false),
+            ("A", "ATT,ATTT", Kind::Indel, true, false),
+            ("AC", "A", Kind::Indel, false, false),
+        ] {
+            let s = site(reference, alternates);
+            assert_eq!(s.kind(), kind, "{reference}>{alternates}");
+            assert_eq!(s.is_complex_indel(), complex, "{reference}>{alternates}");
+            assert_eq!(
+                s.is_simple_insertion(),
+                insertion,
+                "{reference}>{alternates}"
+            );
+        }
+        assert_eq!(kind_of("A", &[]), Kind::NoVariation);
+    }
+}

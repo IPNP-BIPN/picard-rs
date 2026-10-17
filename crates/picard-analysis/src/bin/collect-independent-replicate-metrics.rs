@@ -502,22 +502,13 @@ fn main() {
         );
     }
 
-    // The query, then the filters, then the sets. The sites of each reference by start, each
-    // carrying the furthest end so far: a record overlaps one when the furthest end among those
-    // starting at or before its end reaches its start. A scan of every site for every record was
-    // reads times sites.
-    let mut spans: BTreeMap<i32, Vec<(i32, i32)>> = BTreeMap::new();
-    for q in sites.keys() {
-        spans.entry(q.reference).or_default().push((q.start, q.end));
-    }
-    for list in spans.values_mut() {
-        list.sort_unstable();
-        let mut furthest = i32::MIN;
-        for span in list.iter_mut() {
-            furthest = furthest.max(span.1);
-            span.1 = furthest;
-        }
-    }
+    // The query, then the filters, then the sets, the query through an overlap index of the
+    // sites: a scan of every site for every record was reads times sites.
+    let spans = picard_analysis::overlap::Spans::new(
+        sites
+            .keys()
+            .map(|q| (q.reference, i64::from(q.start), i64::from(q.end))),
+    );
     let kept: Vec<&BamRecord> = records
         .iter()
         .filter(|r| {
@@ -529,10 +520,11 @@ fn main() {
             } else {
                 r.alignment_end()
             };
-            spans.get(&r.reference_index).is_some_and(|list| {
-                let before = list.partition_point(|&(start, _)| start <= end);
-                before > 0 && list[before - 1].1 >= r.alignment_start
-            })
+            spans.overlaps(
+                &r.reference_index,
+                i64::from(r.alignment_start),
+                i64::from(end),
+            )
         })
         .filter(|r| r.flags & UNMAPPED == 0)
         .filter(|r| r.flags & (SECONDARY | SUPPLEMENTARY) == 0)

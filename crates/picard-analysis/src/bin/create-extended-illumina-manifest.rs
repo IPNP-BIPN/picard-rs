@@ -169,32 +169,19 @@ fn main() {
     let mut known: foldhash::HashMap<String, String> = foldhash::HashMap::default();
     if let Some(path) = &dbsnp {
         let vcf = read_path(path).unwrap_or_else(|e| thrown(&e));
-        // The loci a record may overlap, per contig, sorted by start with the furthest end so far:
-        // a record overlaps one of them when the furthest end among those starting at or before its
-        // stop reaches its start. A scan of every locus for every record was quadratic on a chip.
-        let mut loci: foldhash::HashMap<&str, Vec<(i64, i64)>> = foldhash::HashMap::default();
-        for (_, _, e) in &rows {
-            if !e.flag.is_fail() {
-                let start = i64::from(e.b37_pos);
-                let end = start + e.allele_a.len().max(e.allele_b.len()) as i64;
-                loci.entry(e.b37_chr.as_str())
-                    .or_default()
-                    .push((start, end));
-            }
-        }
-        for spans in loci.values_mut() {
-            spans.sort_unstable();
-            let mut furthest = i64::MIN;
-            for span in spans.iter_mut() {
-                furthest = furthest.max(span.1);
-                span.1 = furthest;
-            }
-        }
+        // The loci a record may overlap, found by an overlap index: a scan of every locus for
+        // every record was quadratic on a chip.
+        let loci = picard_analysis::overlap::Spans::new(
+            rows.iter()
+                .filter(|(_, _, e)| !e.flag.is_fail())
+                .map(|(_, _, e)| {
+                    let start = i64::from(e.b37_pos);
+                    let end = start + e.allele_a.len().max(e.allele_b.len()) as i64;
+                    (e.b37_chr.as_str(), start, end)
+                }),
+        );
         for v in vcf.records.iter().map(|r| &r.variant) {
-            let wanted = loci.get(v.contig.as_str()).is_some_and(|spans| {
-                let before = spans.partition_point(|&(start, _)| start <= v.stop);
-                before > 0 && spans[before - 1].1 >= v.start
-            });
+            let wanted = loci.overlaps(v.contig.as_str(), v.start, v.stop);
             if !wanted {
                 continue;
             }
