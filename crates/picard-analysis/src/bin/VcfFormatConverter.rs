@@ -21,7 +21,7 @@
 //! The plain writer's Tribble index takes records in any order. The tabix creator does not: a
 //! record that starts before the one written before it on the same contig is an uncaught
 //! `IllegalArgumentException` naming both, their file positions BGZF virtual offsets taken before
-//! each line is written. Both are `vcf_io::write_output`, which writes the `.tbi` beside a
+//! each line is written. Both are `vcf_io::VcfWriter`, which writes the `.tbi` beside a
 //! `.vcf.gz` and the `.idx` beside a `.vcf`.
 
 use picard_analysis::args::arg;

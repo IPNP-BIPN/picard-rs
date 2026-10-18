@@ -470,7 +470,7 @@ pub fn write_output_with(
 }
 
 /// An I/O failure as it is, and anything the JVM would have thrown, thrown.
-fn thrown<T>(error: WriteError) -> Result<T, WriteError> {
+pub fn thrown<T>(error: WriteError) -> Result<T, WriteError> {
     match error {
         WriteError::Io(_) | WriteError::Other(_) => Err(error),
         other => die(&other.exception()),
@@ -511,7 +511,7 @@ enum Sink {
     Bgzf(htsjdk_bgzf::BgzfWriter<std::io::BufWriter<std::fs::File>>),
     Bcf {
         out: JavaBuffered,
-        writer: htsjdk_vcf::bcf2::writer::Bcf2Writer,
+        writer: Box<htsjdk_vcf::bcf2::writer::Bcf2Writer>,
         at: u64,
     },
 }
@@ -575,7 +575,7 @@ impl VcfWriter {
             }
             Sink::Bcf {
                 out,
-                writer,
+                writer: Box::new(writer),
                 at: at as u64,
             }
         } else if is_compressed_vcf(path) {
@@ -1671,5 +1671,105 @@ mod tests {
         assert!(is_compressed_vcf("a.vcf.bgz"));
         assert!(!is_compressed_vcf("a.vcf"));
         assert!(!is_compressed_vcf("a.gz"));
+    }
+
+    /// What [`VcfReader`] hands over, record by record and then the failure, against [`read_path`].
+    fn streamed(path: &str) -> Result<(VcfFile, Vec<Record>), String> {
+        let mut reader = VcfReader::open(path)?;
+        let mut records = Vec::new();
+        while let Some(record) = reader.try_next() {
+            records.push(record?);
+        }
+        Ok((reader.file, records))
+    }
+
+    #[test]
+    fn the_stream_reads_what_the_whole_file_read_reads_and_fails_as_it_fails() {
+        let dir = std::env::temp_dir().join(format!("vcf_io_stream_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let record = "chr1\t200\t.\tC\tT\t.\t.\t.\tGT:GQ:DP\t0/0:.:.\t1/1:9:3\n";
+        let cases = [
+            ("sorted", format!("{}{record}", file("a\tb")).into_bytes()),
+            (
+                "unsorted",
+                format!("{}# x\r\n{record}", file("b\ta")).into_bytes(),
+            ),
+            ("no-newline", file("a\tb").trim_end().as_bytes().to_vec()),
+            (
+                "bad-record",
+                format!("{}chr1\t5\n{record}", file("a\tb")).into_bytes(),
+            ),
+            ("no-chrom", HEADER.as_bytes().to_vec()),
+            // A record refused early, a byte that is not UTF-8 later: the UTF-8 failure wins.
+            (
+                "utf8-after-record",
+                [
+                    format!("{}chr1\t5\n", file("a\tb")).as_bytes(),
+                    b"chr1\t9\t\xff\n",
+                ]
+                .concat(),
+            ),
+            (
+                "utf8-in-header",
+                [
+                    b"##fileformat=VCFv4.2\n##x=\xe2\n".as_slice(),
+                    file("a\tb").as_bytes(),
+                ]
+                .concat(),
+            ),
+        ];
+        for (name, bytes) in cases {
+            for gz in [false, true] {
+                let path = dir.join(format!("{name}.vcf{}", if gz { ".gz" } else { "" }));
+                let bytes = if gz {
+                    let mut bgzf = htsjdk_bgzf::BgzfWriter::new(Vec::new());
+                    std::io::Write::write_all(&mut bgzf, &bytes).unwrap();
+                    bgzf.into_inner().unwrap()
+                } else {
+                    bytes.clone()
+                };
+                std::fs::write(&path, bytes).unwrap();
+                let path = path.to_str().unwrap();
+                let whole = read_path(path).map(|vcf| {
+                    let mut file = vcf.file;
+                    file.records.clear();
+                    file.skipped.clear();
+                    (file, vcf.records)
+                });
+                assert_eq!(streamed(path), whole, "{name} gz={gz}");
+            }
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_refused_record_leaves_what_the_buffered_stream_had_flushed() {
+        let dir = std::env::temp_dir().join(format!("vcf_io_refused_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("out.vcf");
+        let path = path.to_str().unwrap();
+        let vcf = read_lazy(&file("a\tb")).unwrap();
+        let mut writer =
+            VcfWriter::create(path, &vcf.file.header, None, MissingFields::default()).unwrap();
+        // Whole lines past one buffer's worth: the first buffer reaches the file, the rest waits.
+        let line = write_records(&vcf.file.header, &vcf.records).unwrap()
+            [vcf.file.header.write().len()..]
+            .len();
+        let lines = JavaBuffered::SIZE / line + 2;
+        for _ in 0..lines {
+            writer.add(&vcf.records[0]).unwrap();
+        }
+        let flushed = std::fs::metadata(path).unwrap().len() as usize;
+        let header = vcf.file.header.write().len();
+        assert_eq!(
+            flushed,
+            header + (JavaBuffered::SIZE - header) / line * line
+        );
+        writer.finish().unwrap();
+        assert_eq!(
+            std::fs::metadata(path).unwrap().len() as usize,
+            header + lines * line
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
