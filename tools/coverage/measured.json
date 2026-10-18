@@ -826,9 +826,9 @@
       "rejected": 1,
       "distinct_outputs": 16,
       "distinct_rejections": 1,
-      "matched": 11,
+      "matched": 17,
       "t": 2,
-      "share": 0.6470588235294118
+      "share": 1.0
     },
     "MakeSitesOnlyVcf": {
       "rows": 12,
@@ -1146,9 +1146,9 @@
       "rejected": 13,
       "distinct_outputs": 12,
       "distinct_rejections": 9,
-      "matched": 19,
+      "matched": 25,
       "t": 2,
-      "share": 0.76
+      "share": 1.0
     },
     "UmiAwareMarkDuplicatesWithMateCigar": {
       "rows": 26,
