@@ -52,7 +52,7 @@ pub struct Options {
 }
 
 /// Whether `writeSamText` prints this record given the two status filters.
-fn keep(rec: &BamRecord, opts: &Options) -> bool {
+pub fn keep(rec: &BamRecord, opts: &Options) -> bool {
     let unmapped = rec.flags & READ_UNMAPPED != 0;
     match opts.alignment_status {
         AlignmentStatus::Aligned if unmapped => return false,
@@ -103,7 +103,7 @@ pub fn view_sam(input_sam: &str, opts: &Options) -> Result<String, ParseError> {
 }
 
 /// One record as Picard 3.5.0's ViewSam writes it: the alignment line and its trailing newline.
-fn render(header: &htsjdk_bam::header::SamHeader, rec: &BamRecord) -> String {
+pub fn render(header: &htsjdk_bam::header::SamHeader, rec: &BamRecord) -> String {
     let mut line = sam_string(header, rec);
     line.push('\n');
     line

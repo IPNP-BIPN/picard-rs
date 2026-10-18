@@ -23,9 +23,15 @@
 
 use std::io::{Read, Write};
 
-use htsjdk_bam::sam_file::write_sam;
+use htsjdk_bam::record::BamRecord;
+use htsjdk_bam::sam_file::read_sam_with;
+use htsjdk_bam::text_parse::{parse_line_with, ValidationStringency};
 use picard_analysis::args::arg;
-use picard_analysis::view_sam::{view_sam, AlignmentStatus, Options, PfStatus};
+use picard_analysis::view_sam::{keep, render, AlignmentStatus, Options, PfStatus};
+use rayon::prelude::*;
+
+/// How many records are rendered in parallel at a time.
+const CHUNK: usize = 16 * 1024;
 
 fn flag(args: &[String], key: &str) -> bool {
     arg(args, key)
@@ -65,26 +71,67 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // `SamReaderFactory` sniffs the stream rather than trusting the name, so a `.bam` and a `.sam`
-    // reach the same code by different doors.
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let text = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<Vec<_>, _>>()?;
-        write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?
+    // reach the same code by different doors. A BAM's records were written as SAM text and that
+    // text parsed back at LENIENT, as `view_sam` reads a SAM: each record makes the same round
+    // trip on its own.
+    let mut magic = Vec::new();
+    std::fs::File::open(&input)?
+        .take(4)
+        .read_to_end(&mut magic)?;
+    let bam = magic.starts_with(&[0x1f, 0x8b]) || picard_analysis::cram_input::is_cram(&magic);
+    let (read, records) =
+        picard_analysis::bam_stream::Input::open_with(&input, ValidationStringency::Lenient)?
+            .into_parts();
+    let header = if bam {
+        read_sam_with(&read.encode(), ValidationStringency::Lenient)
+            .map_err(|e| format!("{e:?}"))?
+            .0
     } else {
-        String::from_utf8(raw)?
+        read.clone()
+    };
+    let index_of = |name: &str| {
+        header
+            .sequences
+            .iter()
+            .position(|s| s.name == name)
+            .map(|i| i as i32)
+    };
+    let line = |record: &BamRecord| -> Result<Option<String>, String> {
+        let parsed;
+        let record = if bam {
+            let text = picard_analysis::bam_stream::sam_line(&read, record)
+                .ok_or("records failed to re-encode as SAM")?;
+            parsed = parse_line_with(&text, index_of, ValidationStringency::Lenient)
+                .map_err(|e| format!("{e:?}"))?;
+            &parsed
+        } else {
+            record
+        };
+        Ok(keep(record, &options).then(|| render(&header, record)))
     };
 
-    let out = view_sam(&text, &options).map_err(|e| format!("{e:?}"))?;
-    let mut stdout = std::io::BufWriter::new(std::io::stdout().lock());
-    stdout.write_all(out.as_bytes())?;
+    // The whole text was built before any of it was printed, so a run that fails prints nothing:
+    // a failure before the buffer first fills leaves it unprinted, as the whole text was.
+    let mut stdout = std::io::BufWriter::with_capacity(1 << 20, std::io::stdout().lock());
+    // RECORDS_ONLY suppresses the header; otherwise print it verbatim (getTextHeader).
+    if !options.records_only {
+        stdout.write_all(header.encode().as_bytes())?;
+    }
+    // HEADER_ONLY stops after the header, once every record has been read as before.
+    let mut records = records.peekable();
+    while records.peek().is_some() {
+        let chunk: Vec<BamRecord> = records.by_ref().take(CHUNK).collect();
+        for rendered in chunk.par_iter().map(line).collect::<Vec<_>>() {
+            match rendered {
+                Ok(Some(text)) if !options.header_only => stdout.write_all(text.as_bytes())?,
+                Ok(_) => {}
+                Err(e) => {
+                    std::mem::forget(stdout);
+                    return Err(e.into());
+                }
+            }
+        }
+    }
     stdout.flush()?;
     Ok(())
 }

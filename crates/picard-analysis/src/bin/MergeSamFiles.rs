@@ -38,18 +38,15 @@
 //! `USE_THREADING` only turns on the writer's async I/O, which changes nothing about the bytes;
 //! the port accepts it so a row naming it measures the tool.
 
-use std::io::{Read, Write};
-
-use htsjdk_bam::build_index::build_bam_index;
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
 use picard_analysis::args::arg;
-use picard_analysis::merge_sam_files::merge_parsed;
+use picard_analysis::merge_sam_files::{merge_headers, merge_parsed};
 use picard_analysis::sort_sam::{
     mate_cigar_refusal_in_order, MateCigarCheck, RequestedOrder, SortOrder,
 };
+use picard_analysis::stream_output::Output;
 
 const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
@@ -68,36 +65,37 @@ fn flag(args: &[String], key: &str, default: bool) -> bool {
     arg(args, key).map_or(default, |value| picard_analysis::args::is_true(&value))
 }
 
-fn index_path(output: &str) -> String {
-    match output.strip_suffix(".bam") {
-        Some(stem) => format!("{stem}.bai"),
-        None => format!("{output}.bai"),
-    }
-}
-
-fn read_one(
+/// Opens one input, BAM or SAM, read as `read_one` read it whole: whether it streams, so that it
+/// can be read again, and its header.
+fn open_one(
     path: &str,
     stringency: ValidationStringency,
-) -> Result<(SamHeader, Vec<BamRecord>), String> {
-    let mut raw = Vec::new();
-    std::fs::File::open(path)
-        .map_err(|e| e.to_string())?
-        .read_to_end(&mut raw)
-        .map_err(|e| e.to_string())?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok((header, records))
-    } else {
-        let text = String::from_utf8(raw).map_err(|e| e.to_string())?;
-        read_sam_with(&text, stringency).map_err(|e| format!("{e:?}"))
+) -> Result<(bool, SamHeader, picard_analysis::bam_stream::Records), String> {
+    let input =
+        picard_analysis::bam_stream::Input::open_with(path, stringency).map_err(|e| e.message())?;
+    let streams = input.streams();
+    let (header, records) = input.into_parts();
+    Ok((streams, header, records))
+}
+
+/// `queryOverlapping`: whether a record is one of the mapped records that overlap a uniqued
+/// interval. An unmapped record has no interval to overlap and is dropped.
+fn overlaps(header: &SamHeader, record: &BamRecord, intervals: &[Interval]) -> bool {
+    // "Unmapped reads are discarded" means *unplaced* ones. A read flagged unmapped but given its
+    // mate's position is still at a coordinate, so the index returns it, and with no cigar it
+    // spans the single base it starts on. Five of this corpus's records are exactly that, and
+    // dropping them was a five-record difference.
+    if record.reference_index < 0 || record.alignment_start < 1 {
+        return false;
     }
+    let Some(contig) = header.sequences.get(record.reference_index as usize) else {
+        return false;
+    };
+    let start = record.alignment_start;
+    let end = start + reference_span(&record.cigar).max(1) - 1;
+    intervals.iter().any(|interval| {
+        interval.contig == contig.name && start <= interval.end && end >= interval.start
+    })
 }
 
 /// One interval of a Picard interval list: 1-based, inclusive.
@@ -248,39 +246,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut parsed: Vec<(SamHeader, Vec<BamRecord>)> = inputs
-        .iter()
-        .map(|path| read_one(path, stringency))
-        .collect::<Result<_, _>>()?;
-
-    // `queryOverlapping`: the mapped records that overlap a uniqued interval, in the file's own
-    // coordinate order. An unmapped record has no interval to overlap and is dropped.
-    if let Some(intervals) = &intervals {
-        for (header, records) in parsed.iter_mut() {
-            records.retain(|record| {
-                // "Unmapped reads are discarded" means *unplaced* ones. A read flagged unmapped
-                // but given its mate's position is still at a coordinate, so the index returns it,
-                // and with no cigar it spans the single base it starts on. Five of this corpus's
-                // records are exactly that, and dropping them was a five-record difference.
-                if record.reference_index < 0 || record.alignment_start < 1 {
-                    return false;
-                }
-                let Some(contig) = header.sequences.get(record.reference_index as usize) else {
-                    return false;
-                };
-                let start = record.alignment_start;
-                let end = start + reference_span(&record.cigar).max(1) - 1;
-                intervals.iter().any(|interval| {
-                    interval.contig == contig.name && start <= interval.end && end >= interval.start
-                })
-            });
-        }
+    // Every input is read through before its records are merged; only its header is kept until
+    // its turn comes, so that no more than one input is open at a time.
+    let mut opened: Vec<(bool, SamHeader)> = Vec::with_capacity(inputs.len());
+    for path in &inputs {
+        let (streams, header, _) = open_one(path, stringency)?;
+        opened.push((streams, header));
     }
+    // An input again, its records in file order, those outside INTERVALS dropped.
+    let records_of = |index: usize| -> Result<Box<dyn Iterator<Item = BamRecord> + '_>, String> {
+        let (streams, header) = &opened[index];
+        let again = picard_analysis::bam_stream::Input::reopen(&inputs[index], *streams);
+        let records = again.map_err(|e| e.message())?.into_parts().1;
+        Ok(match &intervals {
+            Some(intervals) => {
+                Box::new(records.filter(move |record| overlaps(header, record, intervals)))
+            }
+            None => Box::new(records),
+        })
+    };
 
     // `matchedSortOrders`: every input already claims the order that was asked for.
-    let matched = parsed
+    let matched = opened
         .iter()
-        .all(|(header, _)| header.attributes.get("SO").unwrap_or("unsorted") == sort_order);
+        .all(|(_, header)| header.attributes.get("SO").unwrap_or("unsorted") == sort_order);
     let presorted = matched || sort_order == "unsorted" || assume_sorted || intervals.is_some();
 
     // A presorted writer keeps the merge order; only the other branch sorts, and then it sorts by
@@ -290,6 +279,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // it is `MergingSamRecordIterator`'s own comparator that asks for the mate cigar, and the
     // writer's `SortingCollection` that asks for it on the other branch. Either way the message is
     // the same and no output exists.
+    let comments: Vec<String> = args
+        .iter()
+        .filter_map(|a| a.strip_prefix("COMMENT=").or_else(|| a.strip_prefix("CO=")))
+        .map(|comment| format!("@CO\t{comment}"))
+        .collect();
+    // A presorted writer keeps the merge order, which is each input in turn: written as read.
+    if presorted && sort_order != "duplicate" {
+        let headers: Vec<SamHeader> = opened.iter().map(|(_, h)| h.clone()).collect();
+        let (mut header, remaps) = merge_headers(&headers, &sort_order, merge_dictionaries)
+            .map_err(|e| format!("{e:?}"))?;
+        // `header.addComment(comment)` for every COMMENT, after the inputs' own comments.
+        header.comments.extend(comments);
+        let mut out = Output::create(&output, &header, false)?;
+        for (index, remap) in remaps.iter().enumerate() {
+            for mut record in records_of(index)? {
+                remap.apply(&mut record);
+                out.write(&record)?;
+            }
+        }
+        let coordinate = header.attributes.get("SO") == Some("coordinate");
+        out.finish(create_index, create_index && coordinate)?;
+        return Ok(());
+    }
+    let parsed: Vec<(SamHeader, Vec<BamRecord>)> = (0..inputs.len())
+        .map(|index| Ok((opened[index].1.clone(), records_of(index)?.collect())))
+        .collect::<Result<_, String>>()?;
+
     if sort_order == "duplicate" {
         let checks: Vec<MateCigarCheck> = parsed
             .iter()
@@ -333,34 +349,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (mut header, records) = merge_parsed(parsed, &sort_order, merge_dictionaries, sort_with)
         .map_err(|e| format!("{e:?}"))?;
     // `header.addComment(comment)` for every COMMENT, after the inputs' own comments.
-    for comment in args
-        .iter()
-        .filter_map(|a| a.strip_prefix("COMMENT=").or_else(|| a.strip_prefix("CO=")))
-    {
-        header.comments.push(format!("@CO\t{comment}"));
-    }
-
-    if output.ends_with(".sam") {
-        let sam = write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?;
-        let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
-        out.write_all(sam.as_bytes())?;
-        out.flush()?;
-        return Ok(());
-    }
-
-    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)?;
+    header.comments.extend(comments);
+    let mut out = Output::create(&output, &header, false)?;
     for record in &records {
-        writer.write(record).map_err(|e| format!("{e:?}"))?;
+        out.write(record)?;
     }
-    let bam = writer.finish()?;
-    if picard_analysis::cram_output::is_cram(&output) {
-        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
-        return Ok(());
-    }
-    std::fs::write(&output, &bam)?;
-    if create_index && header.attributes.get("SO") == Some("coordinate") {
-        let index = build_bam_index(&bam).map_err(|e| format!("{e:?}"))?;
-        std::fs::write(index_path(&output), index)?;
-    }
+    let coordinate = header.attributes.get("SO") == Some("coordinate");
+    out.finish(create_index, create_index && coordinate)?;
     Ok(())
 }
