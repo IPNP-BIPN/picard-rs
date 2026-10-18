@@ -371,7 +371,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             emit(&record)?;
         }
     }
-    drop(emit);
     if let Some(out) = out {
         // `cram_output::write`: a CRAM takes `CREATE_INDEX` from the command line.
         out.finish(picard_analysis::cram_output::create_index_argument(), false)?;

@@ -425,7 +425,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(last) = pending {
         write(last)?;
     }
-    drop(write);
 
     if !presorted {
         match order.as_str() {
