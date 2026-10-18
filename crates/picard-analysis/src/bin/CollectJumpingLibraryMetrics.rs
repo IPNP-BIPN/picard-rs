@@ -9,10 +9,6 @@
 //! The refusal is the tool's, typo included: `SAM file must <name> must be sorted in coordintate
 //! order`.
 
-use std::io::Read;
-
-use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::args::arg;
@@ -71,22 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 /// One file's first ends, in file order, each with whether its mate lies to the right.
 fn pairs_of(input: &str) -> Result<Vec<(Pair, bool)>, Box<dyn std::error::Error>> {
-    let mut raw = Vec::new();
-    std::fs::File::open(input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let (header, records) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records: Vec<BamRecord> = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
+    let (header, records) = picard_analysis::bam_stream::Input::open(input)?.into_parts();
 
     if header.attributes.get("SO") != Some("coordinate") {
         let name = input.rsplit('/').next().unwrap_or(input);
@@ -99,7 +80,7 @@ fn pairs_of(input: &str) -> Result<Vec<(Pair, bool)>, Box<dyn std::error::Error>
 
     // "We're getting all our info from the first of each pair."
     Ok(records
-        .iter()
+        .into_iter()
         .filter(|rec| rec.flags & READ_PAIRED != 0 && rec.flags & FIRST_OF_PAIR != 0)
         .map(|rec| {
             let mate_quality = match rec.tags.get(Tag::new(b"MQ")) {

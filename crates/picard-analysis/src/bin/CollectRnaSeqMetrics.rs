@@ -24,7 +24,7 @@ use htsjdk_bam::interval::{Interval, IntervalList};
 use htsjdk_bam::overlap::OverlapDetector;
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::metrics_cli::{
-    absolute, check_coordinate_sorted, fail, read_group, read_input, thrown, Args, ReferenceWalker,
+    absolute, check_coordinate_sorted, fail, open_input, read_group, thrown, Args, ReferenceWalker,
 };
 use picard_analysis::refflat;
 use picard_analysis::rnaseq_metrics::{RnaSeqMetricsCollector, StrandSpecificity};
@@ -126,7 +126,7 @@ fn main() {
     }
 
     // makeItSo.
-    let (header, records) = read_input(&input);
+    let (header, records) = open_input(&input).into_parts();
     let mut walker = reference.as_ref().map(|_| ReferenceWalker::default());
     check_coordinate_sorted(&input, &header, assume_sorted);
 
@@ -248,7 +248,8 @@ fn main() {
     }
 
     let mut count = 0i64;
-    for record in &records {
+    for record in records {
+        let record = &record;
         if let Some(walker) = walker.as_mut() {
             if record.reference_index != -1 {
                 walker.get(record.reference_index);

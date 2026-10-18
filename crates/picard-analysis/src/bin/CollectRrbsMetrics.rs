@@ -28,7 +28,7 @@ use htsjdk_bam::sequence::{
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use picard_analysis::java_hash_map::JavaHashMap;
 use picard_analysis::metrics_cli::{
-    absolute, fail, read_group, read_input, refuse_validation, thrown, Args, ReferenceWalker,
+    absolute, fail, open_input, read_group, refuse_validation, thrown, Args, ReferenceWalker,
 };
 
 const TOOL: &str = "CollectRrbsMetrics";
@@ -369,7 +369,7 @@ fn main() {
     }
     let summary_out = format!("{prefix}rrbs_summary_metrics");
     let details_out = format!("{prefix}rrbs_detail_metrics");
-    let (header, records) = read_input(&input);
+    let (header, records) = open_input(&input).into_parts();
     if !assume_sorted && header.attributes.get("SO") != Some("coordinate") {
         thrown(&format!(
             "picard.PicardException: The input file {} does not appear to be coordinate sorted",
@@ -437,7 +437,8 @@ fn main() {
     }
 
     let mut walker = ReferenceWalker::default();
-    for record in &records {
+    for record in records {
+        let record = &record;
         if record.flags & UNMAPPED != 0 {
             continue;
         }
