@@ -503,7 +503,7 @@ fn read_lines(text: &str) -> Vec<&str> {
 fn read_text(path: &str) -> String {
     let raw = std::fs::read(path).unwrap_or_else(|e| fail(&format!("{e}")));
     let raw = if path.ends_with(".gz") || path.ends_with(".bgz") {
-        htsjdk_bgzf::decompress_all(&raw).unwrap_or_else(|e| fail(&format!("{e:?}")))
+        picard_analysis::bgzf::decompress_owned(raw).unwrap_or_else(|e| fail(&format!("{e:?}")))
     } else {
         raw
     };

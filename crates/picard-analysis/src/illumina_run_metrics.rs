@@ -65,10 +65,15 @@ pub fn basecalling_metrics(
         ..BasecallingMetrics::default()
     });
     let whole = rows.len() - 1;
+    // Each barcode's row by key, the first of a repeated one, rather than a scan per cluster.
+    let mut row_of: foldhash::HashMap<&str, usize> = Default::default();
+    for (at, declared) in barcodes.iter().enumerate() {
+        row_of.entry(declared.as_str()).or_insert(at);
+    }
     for (cluster, barcode) in clusters {
         let mut touched = vec![whole];
         if let Some(barcode) = barcode {
-            if let Some(index) = barcodes.iter().position(|declared| declared == barcode) {
+            if let Some(&index) = row_of.get(barcode.as_str()) {
                 touched.push(index);
             }
         }

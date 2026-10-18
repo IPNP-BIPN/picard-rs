@@ -222,6 +222,29 @@ pub fn fingerprint_files_concurrent(
     fingerprint_files_indexed(files, map, sam_options, require_index_files, &[], random)
 }
 
+/// Is `file` a CRAM with no index beside it (`SamFiles.lookForIndex`) and none in the map?
+fn cram_without_index(file: &str, index_map: &[(String, String)]) -> bool {
+    let mut head = [0u8; 4];
+    let is_cram = std::fs::File::open(file)
+        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut head))
+        .is_ok()
+        && crate::cram_input::is_cram(&head);
+    if !is_cram {
+        return false;
+    }
+    let explicit = index_map
+        .iter()
+        .any(|(input, _)| *input == crate::fingerprint::reference_path(file));
+    let mut candidates = Vec::new();
+    if let Some(stem) = file.strip_suffix(".cram") {
+        candidates.push(format!("{stem}.crai"));
+        candidates.push(format!("{file}.crai"));
+    }
+    candidates.push(format!("{file}.bai"));
+    candidates.push(format!("{file}.csi"));
+    !explicit && !candidates.iter().any(|c| std::path::Path::new(c).is_file())
+}
+
 /// The same, with the index map's explicit indexes: a file it names is read through that index,
 /// which satisfies `REQUIRE_INDEX_FILES` whether or not one lies beside the file.
 fn fingerprint_files_indexed(
@@ -236,6 +259,11 @@ fn fingerprint_files_indexed(
     for file in files {
         let reads = file.ends_with(".bam") || file.ends_with(".sam") || file.ends_with(".cram");
         let found: Vec<(IdDetails, Fingerprint)> = if reads {
+            // `getSamReader`: a CRAM is queryable only through an index `SamFiles.findIndex`
+            // finds or the index map names, and the refusal is raised inside the pool.
+            if require_index_files && cram_without_index(file, index_map) {
+                return Err("picard.PicardException: Failed to fingerprint".to_string());
+            }
             fingerprint_sam_file(
                 file,
                 map,

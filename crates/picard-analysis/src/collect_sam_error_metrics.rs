@@ -53,7 +53,7 @@ pub enum AlignmentType {
 }
 
 /// One read, as much of it as the tool reads.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Read {
     pub name: String,
     /// One-based, on the single (possibly concatenated) contig the reads are placed on.
@@ -70,6 +70,51 @@ pub struct Read {
     pub read_group: String,
     /// The template length, which the insert-length stratifier reads.
     pub insert_size: i32,
+    /// The read's and its mate's contig, which `PAIR_PROPERNESS` compares.
+    pub reference_index: i32,
+    pub mate_reference_index: i32,
+    /// `NM`, which `MISMATCHES_IN_READ` reads.
+    pub nm: Attribute,
+    /// Whether an `SA` tag is present, which `PAIR_PROPERNESS` asks.
+    pub has_sa: bool,
+    /// The consensus-calling tags `aD`, `bD` and `cD`, which `CONSENSUS` reads.
+    pub first_strand_copies: Attribute,
+    pub second_strand_copies: Attribute,
+    pub both_strands_copies: Attribute,
+}
+
+/// A tag read through `SAMRecord.getIntegerAttribute`, which takes any `Number` and throws on
+/// anything else.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Attribute {
+    #[default]
+    Absent,
+    Int(i64),
+    /// A float, kept as its bits: `Number.longValue` truncates it.
+    Float(u32),
+    /// Not a `Number`: the class `getClass` names.
+    Other(&'static str),
+}
+
+impl Attribute {
+    /// `getIntegerAttribute(tag)`: `None` when absent, the exception when not an integer.
+    pub fn integer(&self, tag: &str) -> Result<Option<i32>, String> {
+        let long = match *self {
+            Attribute::Absent => return Ok(None),
+            Attribute::Int(value) => value,
+            Attribute::Float(bits) => f32::from_bits(bits) as i64,
+            Attribute::Other(class) => {
+                return Err(format!(
+                    "java.lang.RuntimeException: Value for tag {tag} is not Number: class {class}"
+                ))
+            }
+        };
+        i32::try_from(long).map(Some).map_err(|_| {
+            format!(
+                "java.lang.RuntimeException: Value for tag {tag} is not in Integer range: {long}"
+            )
+        })
+    }
 }
 
 impl Read {
@@ -134,6 +179,10 @@ pub struct Options {
     /// The chance a locus is looked at at all; a locus that is not is neither counted nor
     /// skipped.
     pub probability: f64,
+    /// `LONG_HOMOPOLYMER`, the shortest homopolymer `BINNED_HOMOPOLYMER` calls long.
+    pub long_homopolymer: i32,
+    /// `LOCATION_BIN_SIZE`, what `FLOWCELL_X` and `FLOWCELL_Y` divide a coordinate by.
+    pub location_bin_size: i32,
 }
 
 impl Default for Options {
@@ -145,6 +194,8 @@ impl Default for Options {
             max_loci: 0,
             known_sites: Vec::new(),
             probability: 1.0,
+            long_homopolymer: 6,
+            location_bin_size: 2500,
         }
     }
 }
@@ -327,42 +378,79 @@ impl Calculator {
     }
 }
 
-/// The stratifiers whose binning is ported.
-///
-/// Every stratifier's file suffix is in [`stratifier_suffix`]; these are the ones that also put a
-/// base in a bin here, and [`Stratifier::parse`] names them.
+/// `ReadBaseStratification.Stratifier`, all thirty-two.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stratifier {
     All,
-    BaseQuality,
-    Cycle,
     GcContent,
-    ReadDirection,
     ReadOrdinality,
-    MappingQuality,
-    ReadGroup,
     ReadBase,
+    ReadDirection,
+    PairOrientation,
+    PairProperness,
     ReferenceBase,
-    InsertLength,
+    PreDinuc,
+    PostDinuc,
+    HomopolymerLength,
+    Homopolymer,
+    BinnedHomopolymer,
+    FlowcellTile,
+    FlowcellY,
+    FlowcellX,
+    ReadGroup,
+    Cycle,
+    BinnedCycle,
     SoftClips,
+    InsertLength,
+    BaseQuality,
+    MappingQuality,
+    MismatchesInRead,
+    OneBasePaddedContext,
+    TwoBasePaddedContext,
+    Consensus,
+    NsInRead,
+    InsertionsInRead,
+    DeletionsInRead,
+    IndelsInRead,
+    IndelLength,
 }
 
 impl Stratifier {
-    /// `ReadBaseStratification.Stratifier.valueOf`, for the stratifiers this port bins.
+    /// `ReadBaseStratification.Stratifier.valueOf`.
     pub fn parse(name: &str) -> Option<Stratifier> {
         Some(match name {
             "ALL" => Stratifier::All,
-            "BASE_QUALITY" => Stratifier::BaseQuality,
-            "CYCLE" => Stratifier::Cycle,
             "GC_CONTENT" => Stratifier::GcContent,
-            "READ_DIRECTION" => Stratifier::ReadDirection,
             "READ_ORDINALITY" => Stratifier::ReadOrdinality,
-            "MAPPING_QUALITY" => Stratifier::MappingQuality,
-            "READ_GROUP" => Stratifier::ReadGroup,
             "READ_BASE" => Stratifier::ReadBase,
+            "READ_DIRECTION" => Stratifier::ReadDirection,
+            "PAIR_ORIENTATION" => Stratifier::PairOrientation,
+            "PAIR_PROPERNESS" => Stratifier::PairProperness,
             "REFERENCE_BASE" => Stratifier::ReferenceBase,
-            "INSERT_LENGTH" => Stratifier::InsertLength,
+            "PRE_DINUC" => Stratifier::PreDinuc,
+            "POST_DINUC" => Stratifier::PostDinuc,
+            "HOMOPOLYMER_LENGTH" => Stratifier::HomopolymerLength,
+            "HOMOPOLYMER" => Stratifier::Homopolymer,
+            "BINNED_HOMOPOLYMER" => Stratifier::BinnedHomopolymer,
+            "FLOWCELL_TILE" => Stratifier::FlowcellTile,
+            "FLOWCELL_Y" => Stratifier::FlowcellY,
+            "FLOWCELL_X" => Stratifier::FlowcellX,
+            "READ_GROUP" => Stratifier::ReadGroup,
+            "CYCLE" => Stratifier::Cycle,
+            "BINNED_CYCLE" => Stratifier::BinnedCycle,
             "SOFT_CLIPS" => Stratifier::SoftClips,
+            "INSERT_LENGTH" => Stratifier::InsertLength,
+            "BASE_QUALITY" => Stratifier::BaseQuality,
+            "MAPPING_QUALITY" => Stratifier::MappingQuality,
+            "MISMATCHES_IN_READ" => Stratifier::MismatchesInRead,
+            "ONE_BASE_PADDED_CONTEXT" => Stratifier::OneBasePaddedContext,
+            "TWO_BASE_PADDED_CONTEXT" => Stratifier::TwoBasePaddedContext,
+            "CONSENSUS" => Stratifier::Consensus,
+            "NS_IN_READ" => Stratifier::NsInRead,
+            "INSERTIONS_IN_READ" => Stratifier::InsertionsInRead,
+            "DELETIONS_IN_READ" => Stratifier::DeletionsInRead,
+            "INDELS_IN_READ" => Stratifier::IndelsInRead,
+            "INDEL_LENGTH" => Stratifier::IndelLength,
             _ => return None,
         })
     }
@@ -410,8 +498,8 @@ pub fn stratifier_suffix(name: &str) -> Option<&'static str> {
     })
 }
 
-/// The twenty-seven directives a run collects when it is not told otherwise.
-pub const DEFAULT_ERROR_METRICS: [&str; 27] = [
+/// The twenty-six directives a run collects when it is not told otherwise.
+pub const DEFAULT_ERROR_METRICS: [&str; 26] = [
     "ERROR",
     "ERROR:BASE_QUALITY",
     "ERROR:INSERT_LENGTH",
@@ -437,7 +525,6 @@ pub const DEFAULT_ERROR_METRICS: [&str; 27] = [
     "OVERLAPPING_ERROR:READ_ORDINALITY:CYCLE",
     "OVERLAPPING_ERROR:READ_ORDINALITY:HOMOPOLYMER",
     "OVERLAPPING_ERROR:READ_ORDINALITY:GC_CONTENT",
-    "OVERLAPPING_ERROR:READ_ORDINALITY:PRE_DINUC",
     "INDEL_ERROR",
 ];
 
@@ -597,85 +684,361 @@ fn sequence_base(base: u8, reverse: bool) -> char {
     char::from(base.to_ascii_uppercase())
 }
 
-/// The bin one observation falls in, or nothing, which drops it.
+/// An enum constant: it sorts by declaration order and prints its name (or, for `ReadDirection`,
+/// its sign).
+fn ordinal(index: u8, text: &str) -> Part {
+    Part {
+        order: Order::Ordinal(index),
+        text: text.to_string(),
+    }
+}
+
+fn character(c: char) -> Part {
+    Part::text(c.to_string())
+}
+
+/// `AbstractRecordAndOffset.getReadBase` / `getBaseQuality`: the array read at the offset, which
+/// throws where it has no element (a deletion shown at offset -1, a read stored without qualities).
+fn element(array: &[u8], offset: i64) -> Result<u8, String> {
+    usize::try_from(offset)
+        .ok()
+        .and_then(|i| array.get(i).copied())
+        .ok_or_else(|| {
+            format!(
+                "java.lang.ArrayIndexOutOfBoundsException: Index {offset} out of bounds for length {}",
+                array.len()
+            )
+        })
+}
+
+/// The bin one observation falls in: `Ok(None)` drops it, `Err` is the exception the reference
+/// throws on it. A stratifier built from two others answers both parts, and nothing when either
+/// answers nothing.
 pub fn stratify(
     stratifier: Stratifier,
     reads: &[Read],
     observation: &Observation,
     reference_base: u8,
-) -> Option<Part> {
+    options: &Options,
+) -> Result<Option<Vec<Part>>, String> {
     let read = &reads[observation.read];
     let offset = observation.offset;
-    let at = |index: i64| -> Option<u8> {
-        usize::try_from(index)
+    let reverse = read.is_negative_strand();
+    // `stratifyReadBase`: the base `delta` cycles away in the read's own direction, or nothing
+    // off either end.
+    let read_base = |delta: i64| -> Option<Part> {
+        let requested = offset + if reverse { -delta } else { delta };
+        let base = usize::try_from(requested)
             .ok()
-            .and_then(|i| read.bases.get(i).copied())
+            .and_then(|i| read.bases.get(i).copied())?;
+        Some(character(sequence_base(base, reverse)))
     };
-    Some(match stratifier {
-        Stratifier::All => Part::text("all".to_string()),
-        Stratifier::BaseQuality => Part::number(i64::from(
-            *read.qualities.get(usize::try_from(offset).ok()?)?,
-        )),
-        Stratifier::Cycle => Part::number(cycle(read, offset) as i64),
+    // `stratifyReferenceBase`.
+    let reference = || -> Option<Part> {
+        (!is_no_call(reference_base)).then(|| character(sequence_base(reference_base, reverse)))
+    };
+    // `stratifyHomopolymerLength`: the run of bases read before this one that equal the one read
+    // just before it.
+    let homopolymer_length = || -> Option<i64> {
+        if is_no_call(reference_base) {
+            return None;
+        }
+        let length = read.bases.len() as i64;
+        if offset < 0 || offset >= length {
+            return None;
+        }
+        let bases = &read.bases;
+        let mut run = offset;
+        if !reverse {
+            loop {
+                run -= 1;
+                if run < 0 || bases[run as usize] != bases[(offset - 1) as usize] {
+                    break;
+                }
+            }
+            Some(offset - run - 1)
+        } else {
+            loop {
+                run += 1;
+                if run >= length || bases[run as usize] != bases[(offset + 1) as usize] {
+                    break;
+                }
+            }
+            Some(run - offset - 1)
+        }
+    };
+    let pre_dinuc = || -> Option<Vec<Part>> { Some(vec![read_base(-1)?, reference()?]) };
+    let cigar_bases = |operator: char| -> i64 {
+        read.cigar
+            .iter()
+            .filter(|(_, op)| *op == operator)
+            .map(|(length, _)| *length as i64)
+            .sum()
+    };
+    let one = |part: Part| Ok(Some(vec![part]));
+
+    match stratifier {
+        Stratifier::All => one(Part::text("all".to_string())),
+        Stratifier::BaseQuality => one(Part::number(i64::from(element(&read.qualities, offset)?))),
+        Stratifier::Cycle => one(Part::number(cycle(read, offset) as i64)),
+        Stratifier::BinnedCycle => {
+            let relative = cycle_signed(read, offset) as f64 / read.bases.len() as f64;
+            let bin = (0..5u8).find(|&i| {
+                let lower = [0.0, 0.2, 0.4, 0.6, 0.8][i as usize];
+                let upper = [0.2, 0.4, 0.6, 0.8, 1.0][i as usize];
+                relative >= lower && relative <= upper
+            });
+            match bin {
+                Some(i) => one(ordinal(i, &format!("QUINTILE_{}", i + 1))),
+                None => Err(format!(
+                    "java.lang.IllegalArgumentException: Value for CycleBin must be between 0 and 1 \
+                     (inclusive), found: {}",
+                    java_g(relative)
+                )),
+            }
+        }
         Stratifier::GcContent => {
             let value = gc_content(&read.bases);
-            Part {
+            one(Part {
                 order: Order::Number(value),
                 text: format_double(value),
-            }
+            })
         }
-        Stratifier::ReadDirection => {
-            if read.is_negative_strand() {
-                Part {
-                    order: Order::Ordinal(1),
-                    text: "-".to_string(),
-                }
-            } else {
-                Part {
-                    order: Order::Ordinal(0),
-                    text: "+".to_string(),
-                }
-            }
-        }
+        Stratifier::ReadDirection => one(if reverse {
+            ordinal(1, "-")
+        } else {
+            ordinal(0, "+")
+        }),
         Stratifier::ReadOrdinality => {
             if !read.is_paired() {
-                return None;
+                return Ok(None);
             }
-            if read.is_first_of_pair() {
-                Part {
-                    order: Order::Ordinal(0),
-                    text: "FIRST".to_string(),
-                }
+            one(if read.is_first_of_pair() {
+                ordinal(0, "FIRST")
             } else {
-                Part {
-                    order: Order::Ordinal(1),
-                    text: "SECOND".to_string(),
+                ordinal(1, "SECOND")
+            })
+        }
+        Stratifier::PairOrientation => {
+            // `PairOrientation.of`.
+            if !read.is_paired() || read.is_unmapped() || read.flags & 0x8 != 0 {
+                return Ok(None);
+            }
+            let mate_positive = read.flags & 0x20 == 0;
+            let (first_positive, second_positive) = if read.is_first_of_pair() {
+                (!reverse, mate_positive)
+            } else {
+                (mate_positive, !reverse)
+            };
+            one(match (first_positive == second_positive, first_positive) {
+                (true, true) => ordinal(3, "R1R2"),
+                (true, false) => ordinal(2, "F1F2"),
+                (false, true) => ordinal(0, "F1R2"),
+                (false, false) => ordinal(1, "F2R1"),
+            })
+        }
+        Stratifier::PairProperness => {
+            // `ProperPaired.of`.
+            let unmapped = read.is_unmapped();
+            let mate_unmapped = read.flags & 0x8 != 0;
+            let clipped = matches!(read.cigar.first(), Some((_, 'S' | 'H')))
+                || matches!(read.cigar.last(), Some((_, 'S' | 'H')));
+            one(
+                if read.is_paired()
+                    && !mate_unmapped
+                    && !unmapped
+                    && read.mate_reference_index != read.reference_index
+                {
+                    ordinal(3, "DISCORDANT")
+                } else if !unmapped && clipped && read.has_sa {
+                    ordinal(2, "CHIMERIC")
+                } else if unmapped || read.is_paired() && mate_unmapped {
+                    ordinal(4, "UNKNOWN")
+                } else if !read.is_paired() {
+                    // `getProperPairFlag` on a read that is not paired.
+                    return Err(
+                        "java.lang.IllegalStateException: Inappropriate call if not paired read"
+                            .to_string(),
+                    );
+                } else if read.flags & 0x2 == 0 {
+                    ordinal(1, "IMPROPER")
+                } else {
+                    ordinal(0, "PROPER")
+                },
+            )
+        }
+        Stratifier::MappingQuality => one(Part::number(i64::from(read.mapping_quality))),
+        Stratifier::ReadGroup => one(Part::text(read.read_group.clone())),
+        Stratifier::ReadBase => Ok(read_base(0).map(|part| vec![part])),
+        Stratifier::ReferenceBase => Ok(reference().map(|part| vec![part])),
+        Stratifier::PreDinuc => Ok(pre_dinuc()),
+        Stratifier::PostDinuc => Ok((|| Some(vec![reference()?, read_base(1)?]))()),
+        Stratifier::HomopolymerLength => Ok(homopolymer_length().map(|n| vec![Part::number(n)])),
+        Stratifier::Homopolymer => Ok((|| {
+            let mut parts = vec![Part::number(homopolymer_length()?)];
+            parts.extend(pre_dinuc()?);
+            Some(parts)
+        })()),
+        Stratifier::BinnedHomopolymer => Ok((|| {
+            let length = homopolymer_length()?;
+            let mut parts = vec![if length < i64::from(options.long_homopolymer) {
+                ordinal(0, "SHORT_HOMOPOLYMER")
+            } else {
+                ordinal(1, "LONG_HOMOPOLYMER")
+            }];
+            parts.extend(pre_dinuc()?);
+            Some(parts)
+        })()),
+        Stratifier::FlowcellTile | Stratifier::FlowcellX | Stratifier::FlowcellY => {
+            // A name the default parser cannot read leaves a fresh `PhysicalLocationInt` as it
+            // was made: tile, x and y all -1.
+            let location = crate::mark_duplicates::location(&read.name);
+            let (tile, x, y) = if location.known {
+                (i32::from(location.tile), location.x, location.y)
+            } else {
+                (-1, -1, -1)
+            };
+            let bin = |coordinate: i32| -> Result<Option<Vec<Part>>, String> {
+                if options.location_bin_size == 0 {
+                    return Err("java.lang.ArithmeticException: / by zero".to_string());
+                }
+                one(Part::number(i64::from(
+                    coordinate.wrapping_div(options.location_bin_size),
+                )))
+            };
+            match stratifier {
+                Stratifier::FlowcellTile => one(Part::number(i64::from(tile))),
+                Stratifier::FlowcellX => bin(x),
+                _ => bin(y),
+            }
+        }
+        Stratifier::InsertLength => one(Part::number(i64::from(
+            (read.bases.len() as i32 * 10).min(read.insert_size.wrapping_abs()),
+        ))),
+        Stratifier::SoftClips => one(Part::number(cigar_bases('S'))),
+        Stratifier::MismatchesInRead => {
+            let Some(mismatches) = read.nm.integer("NM")? else {
+                return Ok(None);
+            };
+            // Not counting the base itself, which is compared byte for byte.
+            let base = element(&read.bases, offset)?;
+            one(Part::number(i64::from(if base != reference_base {
+                mismatches.wrapping_sub(1)
+            } else {
+                mismatches
+            })))
+        }
+        Stratifier::OneBasePaddedContext | Stratifier::TwoBasePaddedContext => {
+            let pad = if stratifier == Stratifier::OneBasePaddedContext {
+                1
+            } else {
+                2
+            };
+            // `stratifySurroundingContext`: the reference base in the middle, read bases around
+            // it, and nothing when a read base is missing. A missing reference base is the
+            // string "null" in the middle, which is what `StringBuilder.append` writes for it.
+            let mut text = String::new();
+            for delta in -pad..=pad {
+                if delta == 0 {
+                    match reference() {
+                        Some(part) => text.push_str(&part.text),
+                        None => text.push_str("null"),
+                    }
+                } else {
+                    let Some(part) = read_base(delta) else {
+                        return Ok(None);
+                    };
+                    text.push_str(&part.text);
                 }
             }
+            one(Part::text(text))
         }
-        Stratifier::MappingQuality => Part::number(i64::from(read.mapping_quality)),
-        Stratifier::ReadGroup => Part::text(read.read_group.clone()),
-        Stratifier::ReadBase => {
-            let base = at(offset)?;
-            Part::text(sequence_base(base, read.is_negative_strand()).to_string())
+        Stratifier::Consensus => {
+            // `ConsensusStratifier.stratify`.
+            // Both strand tags or neither: one without the other is not even read.
+            let (first, second) = if read.first_strand_copies != Attribute::Absent
+                && read.second_strand_copies != Attribute::Absent
+            {
+                (
+                    read.first_strand_copies.integer("aD")?.unwrap_or(0),
+                    read.second_strand_copies.integer("bD")?.unwrap_or(0),
+                )
+            } else {
+                (0, 0)
+            };
+            let both = read.both_strands_copies.integer("cD")?.unwrap_or(0);
+            one(if both == 1 {
+                ordinal(0, "SIMPLEX_SINGLETON")
+            } else if second == 0 && both > 1 {
+                ordinal(1, "SIMPLEX_CONSENSUS")
+            } else if first > 0 && second > 0 && (first == 1 || second == 1) {
+                ordinal(2, "DUPLEX_SINGLETON")
+            } else if first > 1 && second > 1 {
+                ordinal(3, "DUPLEX_CONSENSUS")
+            } else {
+                ordinal(4, "UNKNOWN")
+            })
         }
-        Stratifier::ReferenceBase => {
-            if is_no_call(reference_base) {
-                return None;
-            }
-            Part::text(sequence_base(reference_base, read.is_negative_strand()).to_string())
-        }
-        Stratifier::InsertLength => Part::number(i64::from(
-            (read.bases.len() as i32 * 10).min(read.insert_size.abs()),
+        Stratifier::NsInRead => one(Part::number(
+            read.bases.iter().filter(|&&base| is_no_call(base)).count() as i64,
         )),
-        Stratifier::SoftClips => Part::number(
-            read.cigar
-                .iter()
-                .filter(|(_, operator)| *operator == 'S')
-                .map(|(length, _)| *length as i64)
-                .sum(),
-        ),
-    })
+        Stratifier::InsertionsInRead => one(Part::number(cigar_bases('I'))),
+        Stratifier::DeletionsInRead => one(Part::number(cigar_bases('D'))),
+        Stratifier::IndelsInRead => one(Part::number(cigar_bases('I') + cigar_bases('D'))),
+        Stratifier::IndelLength => {
+            // `stratifyIndelLength`.
+            let wanted = match observation.alignment {
+                AlignmentType::Match => return one(Part::number(0)),
+                AlignmentType::Insertion => 'I',
+                AlignmentType::Deletion => 'D',
+            };
+            match indel_element(read, observation) {
+                None => Ok(None),
+                Some((operator, _)) if operator != wanted => Err(
+                    "java.lang.IllegalStateException: Wrong CIGAR operator for the given position."
+                        .to_string(),
+                ),
+                Some((_, length)) => one(Part::number(length as i64)),
+            }
+        }
+    }
+}
+
+/// `stratifyCycle` without the floor [`cycle`] puts on it: `BINNED_CYCLE` divides the raw value.
+fn cycle_signed(read: &Read, offset: i64) -> i64 {
+    let length = read.bases.len() as i64;
+    let zero_based = if read.is_negative_strand() {
+        length - offset - 1
+    } else {
+        offset
+    };
+    zero_based + 1
+}
+
+/// `String.format("%g", value)`: six significant digits, scientific outside [1e-4, 1e6).
+fn java_g(value: f64) -> String {
+    if value.is_nan() {
+        return "NaN".to_string();
+    }
+    if value.is_infinite() {
+        return if value > 0.0 { "Infinity" } else { "-Infinity" }.to_string();
+    }
+    if value == 0.0 {
+        return "0.00000".to_string();
+    }
+    let exponent = value.abs().log10().floor() as i32;
+    if (-4..6).contains(&exponent) {
+        format!("{:.*}", (5 - exponent).max(0) as usize, value)
+    } else {
+        let text = format!("{value:.5e}");
+        let (mantissa, exp) = text.split_once('e').unwrap_or((&text, "0"));
+        let exp: i32 = exp.parse().unwrap_or(0);
+        format!(
+            "{mantissa}e{}{:02}",
+            if exp < 0 { '-' } else { '+' },
+            exp.abs()
+        )
+    }
 }
 
 /// The one-based cycle a base was read at, counted from whichever end the machine read from.
@@ -869,6 +1232,38 @@ pub fn collect_joint(
     stratifiers: &[Stratifier],
     options: &Options,
 ) -> Table {
+    try_collect_joint(
+        reads,
+        reference,
+        reference_start,
+        loci,
+        calculator,
+        stratifiers,
+        options,
+    )
+    .unwrap_or_else(|thrown| panic!("{}", thrown.message))
+}
+
+/// The exception a run throws, and where: the locus (in the order the run takes them) and the
+/// observation within it. The tool hands every observation to every aggregator before it moves
+/// on, so of several aggregators the one that throws first is the one at the earliest place.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Thrown {
+    pub locus: usize,
+    pub observation: usize,
+    pub message: String,
+}
+
+/// [`collect_joint`], with the exception the reference throws on a base as `Err`.
+pub fn try_collect_joint(
+    reads: &[Read],
+    reference: &[u8],
+    reference_start: i32,
+    loci: &[Locus],
+    calculator: Calculator,
+    stratifiers: &[Stratifier],
+    options: &Options,
+) -> Result<Table, Thrown> {
     let prior = prior_error(options.prior_q);
     let mut strata: BTreeMap<Key, Counts> = BTreeMap::new();
     let all = [Stratifier::All];
@@ -881,12 +1276,17 @@ pub fn collect_joint(
     // once, at the first, and only for the loci that were counted at all.
     let mut seen_deletions: HashSet<(usize, i32)> = HashSet::new();
 
-    for locus in loci {
+    for (locus_index, locus) in loci.iter().enumerate() {
         let reference_base = reference
             .get((locus.position - reference_start) as usize)
             .copied()
             .unwrap_or(b'N');
-        for observation in &locus.records {
+        for (observation_index, observation) in locus.records.iter().enumerate() {
+            let thrown = |message: String| Thrown {
+                locus: locus_index,
+                observation: observation_index,
+                message,
+            };
             if observation.alignment == AlignmentType::Deletion {
                 let already = seen_deletions.contains(&(observation.read, locus.position - 1));
                 seen_deletions.insert((observation.read, locus.position));
@@ -894,10 +1294,25 @@ pub fn collect_joint(
                     continue;
                 }
             }
-            let parts: Option<Vec<Part>> = stratifiers
-                .iter()
-                .map(|&stratifier| stratify(stratifier, reads, observation, reference_base))
-                .collect();
+            // Every stratifier is asked, left to right, before any answer of nothing drops the
+            // base: the pairs are built from the left and each asks both of its halves.
+            // `addRecordAndOffset` reads the base quality of anything but a deletion before any
+            // aggregator sees it, which throws for a read stored without qualities.
+            if observation.alignment != AlignmentType::Deletion {
+                element(&reads[observation.read].qualities, observation.offset).map_err(thrown)?;
+            }
+            let mut parts = Some(Vec::new());
+            for &stratifier in stratifiers {
+                let answer = stratify(stratifier, reads, observation, reference_base, options)
+                    .map_err(thrown)?;
+                parts = match (parts, answer) {
+                    (Some(mut so_far), Some(more)) => {
+                        so_far.extend(more);
+                        Some(so_far)
+                    }
+                    _ => None,
+                };
+            }
             let Some(parts) = parts else { continue };
             let counts = strata.entry(Key(parts)).or_default();
             let read = &reads[observation.read];
@@ -984,7 +1399,7 @@ pub fn collect_joint(
         }
     }
 
-    match calculator {
+    Ok(match calculator {
         Calculator::Error => Table::Base(
             strata
                 .into_iter()
@@ -1045,7 +1460,7 @@ pub fn collect_joint(
                 })
                 .collect(),
         ),
-    }
+    })
 }
 
 /// The table as the metrics file writes it: a header and one line per row, tab separated.
@@ -1135,6 +1550,7 @@ mod tests {
             mapping_quality: 60,
             read_group: "rg1".to_string(),
             insert_size: 0,
+            ..Read::default()
         }
     }
 

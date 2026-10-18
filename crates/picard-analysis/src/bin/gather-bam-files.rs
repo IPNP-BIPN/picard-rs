@@ -14,7 +14,6 @@
 use std::io::Read;
 
 use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
 use htsjdk_bam::writer::BamWriter;
@@ -46,9 +45,11 @@ fn unroll(inputs: &[String]) -> std::io::Result<Vec<String>> {
 fn read_any(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::error::Error>> {
     let mut raw = Vec::new();
     std::fs::File::open(path)?.read_to_end(&mut raw)?;
+    let raw = picard_analysis::cram_input::uncram(raw);
     if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
+        let reader =
+            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
         let header = reader.header.text.clone();
         let records = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))
@@ -93,9 +94,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for input in &inputs {
         records.extend(read_any(input)?.1);
     }
-    if output.ends_with(".cram") {
-        return Err("a CRAM output is not ported".into());
-    }
     if output.ends_with(".sam") {
         let sam = write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?;
         std::fs::write(&output, sam)?;
@@ -104,7 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for record in &records {
             writer.write(record).map_err(|e| format!("{e:?}"))?;
         }
-        std::fs::write(&output, writer.finish()?)?;
+        picard_analysis::cram_output::write(&output, writer.finish()?)?;
     }
     Ok(())
 }

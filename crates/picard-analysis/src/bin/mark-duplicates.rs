@@ -20,9 +20,11 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
+use picard_analysis::bam_stream::{Input, Records};
 use picard_analysis::mark_duplicates::{
-    mark_sorted, Options, Record, ScoringStrategy, TaggingPolicy,
+    base_quality_score, mark_sorted, Options, Record, ScoringStrategy, Span, TaggingPolicy,
 };
+use std::sync::Arc;
 
 const DUPLICATE_READ: u16 = 0x400;
 
@@ -95,15 +97,11 @@ fn molecular_identifier(
                 picard_analysis::view_sam::sam_string(header, record)
             ));
         };
-        let mate = Record {
-            alignment_start: record.mate_alignment_start,
-            cigar: mate_cigar,
-            ..marked.clone()
-        };
+        let mate = Span::of(&mate_cigar);
         let mate_five = if marked.mate_reverse_strand() {
-            mate.unclipped_end()
+            mate.unclipped_end(record.mate_alignment_start)
         } else {
-            mate.unclipped_start()
+            mate.unclipped_start(record.mate_alignment_start)
         };
         marked.first_of_pair() == (read_five <= mate_five)
     };
@@ -187,14 +185,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .is_some_and(|v| picard_analysis::args::is_true(&v))
                 .then(|| "coordinate".to_string())
         });
-    let read = |input: &String| picard_analysis::metrics_cli::read_input(input);
-    let (header, records) = picard_analysis::merge_sam_files::open_inputs(
-        inputs.iter().map(read).collect(),
-        assumed.as_deref(),
-    )
-    .unwrap_or_else(|thrown| picard_analysis::metrics_cli::thrown(&thrown));
-    // `buildSortedReadEndLists` reads every record before the order is checked.
-    let records = records.unwrap_or_else(|thrown| picard_analysis::metrics_cli::thrown(&thrown));
+    // Read twice, as Picard reads it: once for the marking, which keeps only what it needs of each
+    // record, and once for the writing. One input is streamed, and its first read checks the whole
+    // file, so a damaged one is refused here as reading it whole refused it. Several are merged in
+    // memory by `openInputs`, once per pass.
+    let open =
+        |streamed: Option<bool>| -> Result<(SamHeader, Records, bool), Box<dyn std::error::Error>> {
+            if let [input] = inputs.as_slice() {
+                let opened = match streamed {
+                    None => Input::open(input)?,
+                    Some(streamed) => Input::reopen(input, streamed)?,
+                };
+                let streams = opened.streams();
+                let (mut header, records) = opened.into_parts();
+                if let Some(order) = assumed.as_deref() {
+                    header.set_sort_order(order);
+                }
+                return Ok((header, records, streams));
+            }
+            let read = |input: &String| picard_analysis::metrics_cli::read_input(input);
+            let (header, records) = picard_analysis::merge_sam_files::open_inputs(
+                inputs.iter().map(read).collect(),
+                assumed.as_deref(),
+            )
+            .unwrap_or_else(|thrown| picard_analysis::metrics_cli::thrown(&thrown));
+            // `buildSortedReadEndLists` reads every record before the order is checked.
+            let records =
+                records.unwrap_or_else(|thrown| picard_analysis::metrics_cli::thrown(&thrown));
+            Ok((header, Records::Decoded(records.into_iter(), None), false))
+        };
+    let (header, records, streamed) = open(None)?;
     let header_order = header
         .attributes
         .get("SO")
@@ -212,53 +232,62 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // The read group's library, which is what a duplicate set is cut by, and the group's index in
-    // the header, which is what `closeEnough` compares.
-    let library_of = |record: &BamRecord| -> (String, i32) {
-        let id = string_tag(record, b"RG");
-        match id.and_then(|id| {
-            header
-                .read_groups
-                .iter()
-                .position(|group| group.id == id)
-                .map(|position| (position, &header.read_groups[position]))
-        }) {
-            Some((position, group)) => (
-                group
-                    .attributes
-                    .get("LB")
-                    .unwrap_or("Unknown Library")
-                    .to_string(),
-                position as i32,
-            ),
-            None => ("Unknown Library".to_string(), -1),
+    // the header, which is what `closeEnough` compares. One shared string per read group, so the
+    // records of a library hold a pointer each rather than a copy.
+    let unknown_library: Arc<str> = Arc::from("Unknown Library");
+    let libraries: Vec<Arc<str>> = header
+        .read_groups
+        .iter()
+        .map(|group| match group.attributes.get("LB") {
+            Some(library) => Arc::from(library),
+            None => unknown_library.clone(),
+        })
+        .collect();
+    let library_of = |record: &BamRecord| -> (Arc<str>, i32) {
+        let id = match record.tags.get(Tag::new(b"RG")) {
+            Some(TagValue::Str(s)) => Some(s.as_str()),
+            _ => None,
+        };
+        match id.and_then(|id| header.read_groups.iter().position(|group| group.id == id)) {
+            Some(position) => (libraries[position].clone(), position as i32),
+            None => (unknown_library.clone(), -1),
         }
     };
 
+    // `getChainedPgIds`'s program ids are gathered on the same walk: one new `@PG` for every
+    // program id the first pass saw on a record (no `PG` at all counting as one).
+    let mut seen: Vec<Option<String>> = Vec::new();
     let marked_records: Vec<Record> = records
-        .iter()
         .map(|record| {
-            let (library, read_group) = library_of(record);
+            let id = string_tag(&record, b"PG");
+            if !seen.contains(&id) {
+                seen.push(id);
+            }
+            let (library, read_group) = library_of(&record);
+            let barcode = options.barcode_tag.as_ref().and_then(|tag| {
+                match record
+                    .tags
+                    .get(Tag::new(tag.as_bytes().try_into().unwrap_or(b"RX")))
+                {
+                    Some(TagValue::Str(value)) => Some(value.clone()),
+                    _ => None,
+                }
+            });
+            let existing_dt = string_tag(&record, b"DT");
             Record {
-                name: record.read_name.clone(),
+                name: record.read_name,
                 flags: record.flags,
                 reference_index: record.reference_index,
                 alignment_start: record.alignment_start,
-                cigar: record.cigar.clone(),
-                qualities: record.base_qualities.clone(),
+                span: Span::of(&record.cigar),
+                read_length: record.read_bases.len() as u32,
+                base_quality_score: base_quality_score(&record.base_qualities),
                 mate_reference_index: record.mate_reference_index,
                 library,
                 read_group,
-                barcode: options.barcode_tag.as_ref().and_then(|tag| {
-                    match record
-                        .tags
-                        .get(Tag::new(tag.as_bytes().try_into().unwrap_or(b"RX")))
-                    {
-                        Some(TagValue::Str(value)) => Some(value.clone()),
-                        _ => None,
-                    }
-                }),
-                existing_dt: string_tag(record, b"DT"),
-                mate_cigar: None,
+                barcode,
+                existing_dt,
+                mate_span: None,
                 mate_alignment_start: record.mate_alignment_start,
             }
         })
@@ -285,16 +314,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter(|tag| tag != "null" && options.barcode_tag.is_some());
     let duplex = flag("DUPLEX_UMI=", false);
     let add_pg_tag = flag("ADD_PG_TAG_TO_READS=", true);
-    // `getChainedPgIds`: one new `@PG` for every program id the first pass saw on a record (no
-    // `PG` at all counting as one), in the `HashSet`'s order, each chained to the id it replaces;
-    // none when `PROGRAM_RECORD_ID` is `null`.
-    let mut seen: Vec<Option<String>> = Vec::new();
-    for record in &records {
-        let id = string_tag(record, b"PG");
-        if !seen.contains(&id) {
-            seen.push(id);
-        }
-    }
+    // `getChainedPgIds`: the ids seen above, in the `HashSet`'s order, each chained to the id it
+    // replaces; none when `PROGRAM_RECORD_ID` is `null`.
     let group = picard_analysis::command_line::ProgramGroup::of("MarkDuplicates");
     let chained = picard_analysis::command_line::chained_pg_ids(
         &mut out_header,
@@ -309,13 +330,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let coordinate_out = out_header.attributes.get("SO") == Some("coordinate");
     let mut previous: Option<(i32, i32)> = None;
 
-    let mut writer = BamWriter::new(Vec::new(), &out_header).map_err(|e| format!("{e:?}"))?;
-    for (index, record) in records.iter().enumerate() {
+    // The output is built whole before it is written, so it is given room for about the input's
+    // size at once: growing it by doubling holds the old and the new buffer together, and that was
+    // the run's peak.
+    let reserve: usize = inputs
+        .iter()
+        .map(|input| std::fs::metadata(input).map_or(0, |m| m.len() as usize))
+        .sum();
+    let mut writer = BamWriter::new(Vec::with_capacity(reserve + reserve / 8), &out_header)
+        .map_err(|e| format!("{e:?}"))?;
+    let (_, records, _) = open(Some(streamed))?;
+    for (index, record) in records.enumerate() {
         // `UmiUtil.setMolecularIdentifier`, reached for every record before the ones that are
         // removed are skipped, so a record that cannot be given one stops the run wherever it is.
         let molecular_identifier = match &molecular_identifier_tag {
             Some(_) => {
-                match molecular_identifier(&header, record, &marked_records[index], duplex) {
+                match molecular_identifier(&header, &record, &marked_records[index], duplex) {
                     Ok(value) => Some(value),
                     Err(thrown) => {
                         eprintln!("Exception in thread \"main\" {thrown}");
@@ -375,7 +405,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             previous = Some(here);
         }
 
-        let mut written = record.clone();
+        let flags = record.flags;
+        let mut written = record;
         written.flags &= !DUPLICATE_READ;
         if marking.duplicate[index] {
             written.flags |= DUPLICATE_READ;
@@ -386,7 +417,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .tags
                 .insert(Tag::new(b"DT"), TagValue::Str(code.clone()));
         }
-        if tag_duplicate_set_members && record.flags & (0x4 | 0x100 | 0x800) == 0 {
+        if tag_duplicate_set_members && flags & (0x4 | 0x100 | 0x800) == 0 {
             if let Some((representative, size)) = marking.duplicate_set[index] {
                 written
                     .tags
@@ -417,7 +448,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         writer.write(&written).map_err(|e| format!("{e:?}"))?;
     }
-    std::fs::write(&output, writer.finish().map_err(|e| format!("{e:?}"))?)?;
+    picard_analysis::cram_output::write(&output, writer.finish().map_err(|e| format!("{e:?}"))?)?;
 
     // The metrics file is written because the tool requires the argument, and its content is not
     // what this array compares: the OUTPUT is.
