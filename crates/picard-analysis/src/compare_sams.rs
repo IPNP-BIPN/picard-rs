@@ -279,7 +279,27 @@ pub fn compare_sams_with_options(
 ) -> Result<SamComparisonMetric, CompareError> {
     let (h1, recs1) = read_sam_with(left_sam, ValidationStringency::Silent)?;
     let (h2, recs2) = read_sam_with(right_sam, ValidationStringency::Silent)?;
+    compare_records(
+        &h1,
+        recs1.into_iter(),
+        &h2,
+        recs2.into_iter(),
+        left_name,
+        right_name,
+        opts,
+    )
+}
 
+/// [`compare_sams_with_options`] over records read as they are compared.
+pub fn compare_records(
+    h1: &SamHeader,
+    recs1: impl Iterator<Item = BamRecord>,
+    h2: &SamHeader,
+    recs2: impl Iterator<Item = BamRecord>,
+    left_name: &str,
+    right_name: &str,
+    opts: &CompareOptions,
+) -> Result<SamComparisonMetric, CompareError> {
     // htsjdk requires both files to share a sort order and dispatches on it: coordinate, queryname,
     // or (any other value) the unsorted path. Mismatched sort orders are deferred.
     let so1 = h1.attributes.get("SO").unwrap_or("unsorted");
@@ -294,35 +314,29 @@ pub fn compare_sams_with_options(
         ..Default::default()
     };
 
-    let left: Vec<&BamRecord> = recs1
-        .iter()
-        .filter(|r| !is_secondary_or_supplementary(r))
-        .collect();
-    let right: Vec<&BamRecord> = recs2
-        .iter()
-        .filter(|r| !is_secondary_or_supplementary(r))
-        .collect();
+    let left = recs1.filter(|r| !is_secondary_or_supplementary(r));
+    let right = recs2.filter(|r| !is_secondary_or_supplementary(r));
 
-    let (headers_equal, dictionaries_differ) = compare_headers(&h1, &h2, opts.lenient_header);
+    let (headers_equal, dictionaries_differ) = compare_headers(h1, h2, opts.lenient_header);
     // A coordinate comparison needs one dictionary; with two it compares nothing and fails.
     let alignments_equal = match so1 {
         "queryname" => {
-            compare_queryname(&left, &right, &h1, &h2, opts, &mut m);
+            compare_queryname(left, right, h1, h2, opts, &mut m);
             m.all_visited_equal()
         }
         "coordinate" if dictionaries_differ => false,
         "coordinate" => {
-            compare_coordinate(&left, &right, &h1, &h2, opts, &mut m);
+            compare_coordinate(left, right, h1, h2, opts, &mut m);
             m.all_visited_equal()
         }
         _ => {
-            compare_unsorted(&left, &right, &h1, &h2, opts, &mut m);
+            compare_unsorted(left, right, h1, h2, opts, &mut m);
             m.all_visited_equal()
         }
     };
     if opts.lenient_dup {
         let pairs = std::mem::take(&mut m.differing_duplicates);
-        m.duplicate_markings_differ += lenient_duplicate_differences(&h1, &h2, &pairs);
+        m.duplicate_markings_differ += lenient_duplicate_differences(h1, h2, &pairs);
     }
     m.are_equal = headers_equal && alignments_equal && m.duplicate_markings_differ == 0;
     Ok(m)
@@ -487,56 +501,53 @@ fn lenient_duplicate_differences(
 
 /// `compareQueryNameSortedAlignments`: a merge of the two name-ordered streams by `PrimaryAlignmentKey`.
 fn compare_queryname(
-    left: &[&BamRecord],
-    right: &[&BamRecord],
+    mut left: impl Iterator<Item = BamRecord>,
+    right: impl Iterator<Item = BamRecord>,
     h1: &SamHeader,
     h2: &SamHeader,
     opts: &CompareOptions,
     m: &mut SamComparisonMetric,
 ) {
-    let (mut i, mut j) = (0usize, 0usize);
-    while i < left.len() {
-        if j >= right.len() {
+    let mut right = right.peekable();
+    let mut next_left = left.next();
+    while let Some(l) = &next_left {
+        let Some(r) = right.peek() else {
             // htsjdk throws here; the port counts the trailing lefts (see the module note).
-            m.missing_right += (left.len() - i) as i64;
+            m.missing_right += 1 + left.count() as i64;
             break;
-        }
-        let lk = primary_alignment_key(left[i]);
-        let rk = primary_alignment_key(right[j]);
-        match lk.cmp(&rk) {
+        };
+        match primary_alignment_key(l).cmp(&primary_alignment_key(r)) {
             std::cmp::Ordering::Less => {
                 m.missing_right += 1;
-                i += 1;
+                next_left = left.next();
             }
             std::cmp::Ordering::Greater => {
                 m.missing_left += 1;
-                j += 1;
+                right.next();
             }
             std::cmp::Ordering::Equal => {
-                tally(h1, left[i], h2, right[j], opts, m);
-                i += 1;
-                j += 1;
+                tally(h1, l, h2, r, opts, m);
+                next_left = left.next();
+                right.next();
             }
         }
     }
-    if j < right.len() {
-        m.missing_left += (right.len() - j) as i64;
-    }
+    m.missing_left += right.count() as i64;
 }
 
 /// `compareAlignmentCoordinates`: unmapped reads (no reference) sort last and equal to each other,
 /// else order by reference index then alignment start.
-fn compare_alignment_coordinates(left: &BamRecord, right: &BamRecord) -> std::cmp::Ordering {
-    let lu = left.reference_index < 0;
+fn compare_alignment_coordinates(left: (i32, i32), right: &BamRecord) -> std::cmp::Ordering {
+    let lu = left.0 < 0;
     let ru = right.reference_index < 0;
     match (lu, ru) {
         (true, true) => std::cmp::Ordering::Equal,
         (true, false) => std::cmp::Ordering::Greater,
         (false, true) => std::cmp::Ordering::Less,
         (false, false) => left
-            .reference_index
+            .0
             .cmp(&right.reference_index)
-            .then(left.alignment_start.cmp(&right.alignment_start)),
+            .then(left.1.cmp(&right.alignment_start)),
     }
 }
 
@@ -545,78 +556,67 @@ fn compare_alignment_coordinates(left: &BamRecord, right: &BamRecord) -> std::cm
 /// per-type counts are commutative, so the port matches htsjdk's totals without reproducing its
 /// exact `LinkedHashMap` iteration order.
 fn compare_coordinate(
-    left: &[&BamRecord],
-    right: &[&BamRecord],
+    left: impl Iterator<Item = BamRecord>,
+    right: impl Iterator<Item = BamRecord>,
     h1: &SamHeader,
     h2: &SamHeader,
     opts: &CompareOptions,
     m: &mut SamComparisonMetric,
 ) {
+    use std::cmp::Ordering::{Equal, Greater};
     use std::collections::HashMap;
 
-    let (mut i, mut j) = (0usize, 0usize);
-    let mut left_unmatched: HashMap<(String, u8), &BamRecord> = HashMap::new();
-    let mut right_unmatched: HashMap<(String, u8), &BamRecord> = HashMap::new();
+    let (mut left, mut right) = (left.peekable(), right.peekable());
+    let mut left_unmatched: HashMap<(String, u8), BamRecord> = HashMap::new();
+    let mut right_unmatched: HashMap<(String, u8), BamRecord> = HashMap::new();
 
-    while i < left.len() {
-        if j >= right.len() {
+    while let Some(anchor) = left.next() {
+        if right.peek().is_none() {
             // Right exhausted: match remaining lefts against saved rights, else MISSING_RIGHT.
-            for l in &left[i..] {
-                match right_unmatched.remove(&primary_alignment_key(l)) {
-                    Some(r) => tally(h1, l, h2, r, opts, m),
+            for l in std::iter::once(anchor).chain(left.by_ref()) {
+                match right_unmatched.remove(&primary_alignment_key(&l)) {
+                    Some(r) => tally(h1, &l, h2, &r, opts, m),
                     None => m.missing_right += 1,
                 }
             }
             break;
         }
         // Grab all lefts sharing this coordinate.
-        let anchor = left[i];
-        let mut left_here: HashMap<(String, u8), &BamRecord> = HashMap::new();
-        while i < left.len()
-            && compare_alignment_coordinates(anchor, left[i]) == std::cmp::Ordering::Equal
-        {
-            left_here.insert(primary_alignment_key(left[i]), left[i]);
-            i += 1;
+        let here = (anchor.reference_index, anchor.alignment_start);
+        let mut left_here: HashMap<(String, u8), BamRecord> = HashMap::new();
+        left_here.insert(primary_alignment_key(&anchor), anchor);
+        while let Some(l) = left.next_if(|l| compare_alignment_coordinates(here, l) == Equal) {
+            left_here.insert(primary_alignment_key(&l), l);
         }
         // Advance right past everything ordered before this coordinate, saving those rights.
-        while j < right.len()
-            && compare_alignment_coordinates(anchor, right[j]) == std::cmp::Ordering::Greater
-        {
-            right_unmatched.insert(primary_alignment_key(right[j]), right[j]);
-            j += 1;
+        while let Some(r) = right.next_if(|r| compare_alignment_coordinates(here, r) == Greater) {
+            right_unmatched.insert(primary_alignment_key(&r), r);
         }
         // Rights at this coordinate: match against left_here by key, else save.
-        while j < right.len()
-            && compare_alignment_coordinates(anchor, right[j]) == std::cmp::Ordering::Equal
-        {
-            let rk = primary_alignment_key(right[j]);
+        while let Some(r) = right.next_if(|r| compare_alignment_coordinates(here, r) == Equal) {
+            let rk = primary_alignment_key(&r);
             match left_here.remove(&rk) {
-                Some(l) => tally(h1, l, h2, right[j], opts, m),
+                Some(l) => tally(h1, &l, h2, &r, opts, m),
                 None => {
-                    right_unmatched.insert(rk, right[j]);
+                    right_unmatched.insert(rk, r);
                 }
             }
-            j += 1;
         }
         // Unmatched lefts at this coordinate carry over.
-        for (k, l) in left_here {
-            left_unmatched.insert(k, l);
-        }
+        left_unmatched.extend(left_here);
     }
 
     // Remaining rights: match against saved lefts, else MISSING_LEFT.
-    for r in &right[j..] {
-        match left_unmatched.remove(&primary_alignment_key(r)) {
-            Some(l) => tally(h1, l, h2, r, opts, m),
+    for r in right {
+        match left_unmatched.remove(&primary_alignment_key(&r)) {
+            Some(l) => tally(h1, &l, h2, &r, opts, m),
             None => m.missing_left += 1,
         }
     }
     // Saved lefts: match against saved rights, else MISSING_RIGHT.
-    let keys: Vec<(String, u8)> = left_unmatched.keys().cloned().collect();
-    for k in keys {
-        let l = left_unmatched[&k];
-        match right_unmatched.remove(&k) {
-            Some(r) => tally(h1, l, h2, r, opts, m),
+    for (k, l) in &left_unmatched {
+        match right_unmatched.remove(k) {
+            Some(r) => tally(h1, l, h2, &r, opts, m),
             None => m.missing_right += 1,
         }
     }
@@ -627,8 +627,8 @@ fn compare_coordinate(
 /// match each right against it, and treat whatever is left over as missing. As above, the counts are
 /// commutative, so a plain map matches htsjdk's totals.
 fn compare_unsorted(
-    left: &[&BamRecord],
-    right: &[&BamRecord],
+    left: impl Iterator<Item = BamRecord>,
+    right: impl Iterator<Item = BamRecord>,
     h1: &SamHeader,
     h2: &SamHeader,
     opts: &CompareOptions,
@@ -636,13 +636,13 @@ fn compare_unsorted(
 ) {
     use std::collections::HashMap;
 
-    let mut left_unmatched: HashMap<(String, u8), &BamRecord> = HashMap::new();
+    let mut left_unmatched: HashMap<(String, u8), BamRecord> = HashMap::new();
     for l in left {
-        left_unmatched.insert(primary_alignment_key(l), l);
+        left_unmatched.insert(primary_alignment_key(&l), l);
     }
     for r in right {
-        match left_unmatched.remove(&primary_alignment_key(r)) {
-            Some(l) => tally(h1, l, h2, r, opts, m),
+        match left_unmatched.remove(&primary_alignment_key(&r)) {
+            Some(l) => tally(h1, &l, h2, &r, opts, m),
             None => m.missing_left += 1,
         }
     }
