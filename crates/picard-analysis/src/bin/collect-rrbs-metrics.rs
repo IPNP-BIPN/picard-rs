@@ -309,6 +309,8 @@ fn main() {
     let input = args.required("INPUT");
     let mut prefix = args.required("METRICS_FILE_PREFIX");
     let reference = args.required("REFERENCE");
+    // `getReferenceSequence` is overridden to answer `REFERENCE`, which is what the reader gets.
+    picard_analysis::cram_input::set_reader_reference(Some(reference.clone()));
     let t = Thresholds {
         min_read_length: args.int("MINIMUM_READ_LENGTH", 5),
         max_mismatch_rate: args.double("MAX_MISMATCH_RATE", 0.1),

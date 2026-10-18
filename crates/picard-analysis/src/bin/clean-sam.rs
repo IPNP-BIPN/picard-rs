@@ -26,13 +26,13 @@ use std::io::{Read, Write};
 
 use htsjdk_bam::build_index::build_bam_index;
 use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
 use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
-use picard_analysis::clean_sam::clean_records;
+use picard_analysis::clean_sam::{clean_records, CleanError};
+use picard_analysis::java_writer;
 
 /// `BAMFileWriter.createBamIndex`: the `.bam` suffix is dropped, anything else is kept.
 fn index_path(output: &str) -> String {
@@ -61,14 +61,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("SILENT") => ValidationStringency::Silent,
         Some(other) => return Err(format!("unknown VALIDATION_STRINGENCY: {other}").into()),
     };
+    picard_analysis::record_validation::set_stringency(
+        if matches!(stringency, ValidationStringency::Silent) {
+            picard_analysis::record_validation::Stringency::Silent
+        } else {
+            picard_analysis::record_validation::Stringency::Lenient
+        },
+    );
 
     let mut raw = Vec::new();
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+    let raw = picard_analysis::cram_input::uncram(raw);
     // BAM and SAM are told apart by the gzip magic, as `SamReaderFactory` tells them apart by
     // sniffing the stream rather than by the file's name.
     let (header, mut records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
+        let reader =
+            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
         let text = reader.header.text.clone();
         let decoded = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))
@@ -79,7 +88,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         read_sam_with(&text, stringency).map_err(|e| format!("{e:?}"))?
     };
 
-    clean_records(&header, &mut records);
+    // Per record, `doWork` cleans and then hands the record to a presorted writer, which checks
+    // the order: whichever of the two throws first, in file order, ends the run. The records before
+    // it were written, and what of them reached the disk is what the writer's buffers let through.
+    let thrown_at = match clean_records(&header, &mut records) {
+        Ok(()) => None,
+        Err(CleanError::Thrown { index, thrown }) => Some((index, thrown)),
+        Err(CleanError::Parse(e)) => return Err(format!("{e:?}").into()),
+    };
+    let filename = if output.ends_with(".sam") {
+        "null".to_string()
+    } else {
+        java_writer::bam_filename(&output)
+    };
+    let out_of_order = java_writer::first_out_of_order(&header, &records, &filename);
+    let failure = match (thrown_at, out_of_order) {
+        (Some(clean), Some(order)) => Some(if clean.0 <= order.0 { clean } else { order }),
+        (clean, order) => clean.or(order),
+    };
+    if let Some((index, thrown)) = failure {
+        let written = &records[..index];
+        let partial = if output.ends_with(".sam") {
+            let header_len = write_sam(&header, &[])
+                .ok_or("the header failed to encode as SAM")?
+                .len();
+            let sam = write_sam(&header, written).ok_or("records failed to re-encode as SAM")?;
+            java_writer::sam_on_disk(sam.as_bytes(), header_len).to_vec()
+        } else {
+            let mut writer = BamWriter::new(Vec::new(), &header)?;
+            for record in written {
+                writer.write(record).map_err(|e| format!("{e:?}"))?;
+            }
+            java_writer::bam_on_disk(&writer.finish()?)
+        };
+        std::fs::write(&output, partial)?;
+        eprintln!("Exception in thread \"main\" {thrown}");
+        std::process::exit(1);
+    }
 
     // The header is written back unchanged: CleanSam hands the reader's header straight to the
     // writer, adds no `@PG` of its own, and does not re-sort, so `SO` still describes the records.
@@ -96,6 +141,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         writer.write(record).map_err(|e| format!("{e:?}"))?;
     }
     let bam = writer.finish()?;
+    if picard_analysis::cram_output::is_cram(&output) {
+        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
+        return Ok(());
+    }
     std::fs::write(&output, &bam)?;
     // Only a coordinate-sorted file is indexed, and asking for an index on any other order is not
     // an error: `initializeBAMWriter` simply does not enable the indexer.

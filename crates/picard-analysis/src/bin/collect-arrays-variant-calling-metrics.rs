@@ -356,7 +356,8 @@ fn main() {
             ));
         }
     }
-    let known: Vec<(String, i64)> = dbsnp
+    // `DbSnpBitSetUtil`: a set of positions, not a list to scan per site.
+    let known: foldhash::HashSet<(String, i64)> = dbsnp
         .records
         .iter()
         .map(|r| &r.variant)
@@ -462,7 +463,7 @@ fn main() {
                 }
                 if is_snp {
                     m.snps += 1;
-                    if known.iter().any(|(c, p)| *c == vc.contig && *p == vc.start) {
+                    if known.contains(&(vc.contig.clone(), vc.start)) {
                         m.in_dbsnp += 1;
                     }
                 } else if is_indel {

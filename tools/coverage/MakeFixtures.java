@@ -1916,6 +1916,22 @@ public class MakeFixtures {
         }
     }
 
+    /**
+     * `<stem>_a.bam` and `<stem>_b.bam`: the records split by template, by the parity of the read
+     * name's hash with any `/1` or `/2` taken off, each half keeping the order it had.
+     */
+    static void writeHalves(File dir, String stem, SAMFileHeader header,
+                            java.util.List<SAMRecord> records) {
+        java.util.List<SAMRecord> a = new java.util.ArrayList<>();
+        java.util.List<SAMRecord> b = new java.util.ArrayList<>();
+        for (SAMRecord r : records) {
+            String template = r.getReadName().replaceAll("/[12]$", "");
+            (Math.floorMod(template.hashCode(), 2) == 0 ? a : b).add(r);
+        }
+        writeBam(new File(dir, stem + "_a.bam"), header, a, false);
+        writeBam(new File(dir, stem + "_b.bam"), header, b, false);
+    }
+
     static void writeSam(File f, SAMFileHeader header, java.util.List<SAMRecord> records) {
         try (SAMFileWriter w = new SAMFileWriterFactory().makeSAMWriter(header, true, f)) {
             for (SAMRecord r : records) w.addAlignment(r);
@@ -3249,6 +3265,9 @@ public class MakeFixtures {
                 aligned.removeAll(moved);
                 aligned.addAll(moved);
                 writeBam(new File(dir, "mba_aligned_simple.bam"), alignedHeader, aligned, false);
+                // The same alignments split by template into two files, for ALIGNED_BAM given
+                // twice: the merge reads them as one stream through a MergingSamRecordIterator.
+                writeHalves(dir, "mba_aligned_simple", alignedHeader, aligned);
                 // The same alignments as an aligner of single ends writes them, for
                 // READ1_ALIGNED_BAM and READ2_ALIGNED_BAM: each end in its own file, named with
                 // its /1 or /2 suffix, unpaired, coordinate-sorted. Fragments are in neither.
@@ -3273,6 +3292,7 @@ public class MakeFixtures {
                     }
                     ends.sort(new SAMRecordCoordinateComparator());
                     writeBam(new File(dir, "mba_aligned_r" + end + ".bam"), endHeader, ends, false);
+                    writeHalves(dir, "mba_aligned_r" + end, endHeader, ends);
                 }
                 // The alignments of reads whose first three bases were trimmed before alignment,
                 // for READ1_TRIM and READ2_TRIM: each read loses three bases at its five prime end

@@ -176,25 +176,41 @@ pub fn write_indexed(
     records: &[Record],
     indexed: Option<Indexed>,
 ) -> Result<(String, Option<Vec<u8>>), EncodeError> {
-    use htsjdk_tribble::index::{TribbleIndex, INTERVAL_TREE, LINEAR, VERSION};
-    use htsjdk_tribble::index_write::{BalanceApproach, BuiltIndex, DynamicIndexCreator, Feature};
-
     let text = write_records(header, records)?;
     let Some(indexed) = indexed else {
         return Ok((text, None));
     };
-    let mut creator = DynamicIndexCreator::new(BalanceApproach::ForSeekTime);
     let header_length = header.write().len();
+    let features = records.iter().map(|record| {
+        (
+            record.variant.contig.clone(),
+            record.variant.start,
+            record.variant.stop,
+        )
+    });
+    let index = tribble_index(&text, header_length, features, indexed);
+    Ok((text, index))
+}
+
+/// The `.idx` of a written VCF text: one feature per record line after the header's
+/// `header_length` bytes, each at the offset its line starts at.
+fn tribble_index(
+    text: &str,
+    header_length: usize,
+    features: impl Iterator<Item = (String, i64, i64)>,
+    indexed: Indexed,
+) -> Option<Vec<u8>> {
+    use htsjdk_tribble::index::{TribbleIndex, INTERVAL_TREE, LINEAR, VERSION};
+    use htsjdk_tribble::index_write::{BalanceApproach, BuiltIndex, DynamicIndexCreator, Feature};
+
+    let mut creator = DynamicIndexCreator::new(BalanceApproach::ForSeekTime);
     let mut at = header_length as i64;
-    for (record, line) in records
-        .iter()
-        .zip(text[header_length..].split_terminator('\n'))
-    {
+    for ((contig, start, end), line) in features.zip(text[header_length..].split_terminator('\n')) {
         creator.add_feature(
             &Feature {
-                contig: record.variant.contig.clone(),
-                start: record.variant.start as i32,
-                end: record.variant.stop as i32,
+                contig,
+                start: start as i32,
+                end: end as i32,
             },
             at,
         );
@@ -220,7 +236,7 @@ pub fn write_indexed(
             (INTERVAL_TREE, Vec::new(), by_name(intervals, |c| &c.name))
         }
         // Only an empty linear index refuses, and a VCF always has a header.
-        Err(_) => return Ok((text, None)),
+        Err(_) => return None,
     };
     let absolute = std::path::absolute(indexed.path).unwrap_or_else(|_| indexed.path.into());
     let index = TribbleIndex {
@@ -235,7 +251,67 @@ pub fn write_indexed(
         contigs,
         interval_contigs,
     };
-    Ok((text, index.write().ok()))
+    index.write().ok()
+}
+
+/// Write a VCF the tool rendered as text, and its `.idx` beside it the way
+/// `VariantContextWriterBuilder`'s default `INDEX_ON_THE_FLY` writes one for a `.vcf`: whatever
+/// `CREATE_INDEX` says, given the dictionary the writer was built with. A block-compressed or BCF
+/// output is written as it is, without an index here.
+///
+/// The features are read back off the record lines: the contig, `POS`, and the end, which is
+/// `INFO`'s `END` when there is one and the last base of `REF` otherwise, as `getEnd` has it.
+pub fn write_text_indexed(
+    path: &str,
+    text: &str,
+    dictionary: Option<&[Sequence]>,
+) -> std::io::Result<()> {
+    std::fs::write(path, text)?;
+    let lower = path.to_ascii_lowercase();
+    let Some(dictionary) = dictionary else {
+        return Ok(());
+    };
+    if [".gz", ".bgz", ".bcf"]
+        .iter()
+        .any(|ext| lower.ends_with(ext))
+    {
+        return Ok(());
+    }
+    let header_length = match text.find("\n#CHROM") {
+        Some(at) => text[at + 1..]
+            .find('\n')
+            .map_or(text.len(), |end| at + 1 + end + 1),
+        None => return Ok(()),
+    };
+    let features = text[header_length..].split_terminator('\n').map(|line| {
+        let fields: Vec<&str> = line.splitn(9, '\t').collect();
+        let start: i64 = fields.get(1).and_then(|p| p.parse().ok()).unwrap_or(0);
+        let reference = fields.get(3).map_or(1, |r| r.len() as i64);
+        let end = fields
+            .get(7)
+            .and_then(|info| {
+                info.split(';')
+                    .find_map(|entry| entry.strip_prefix("END="))
+                    .and_then(|end| end.parse().ok())
+            })
+            .unwrap_or(start + reference - 1);
+        (fields[0].to_string(), start, end)
+    });
+    let output = std::path::Path::new(path);
+    let timestamp = std::fs::metadata(output)?
+        .modified()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0);
+    let indexed = Indexed {
+        dictionary,
+        path: output,
+        timestamp,
+    };
+    if let Some(index) = tribble_index(text, header_length, features, indexed) {
+        std::fs::write(format!("{path}.idx"), index)?;
+    }
+    Ok(())
 }
 
 /// `LinkedHashMap.put` over a list: a repeated key keeps its first position and its last value.
@@ -271,9 +347,15 @@ pub fn write_output(
             path: output,
             timestamp,
         };
-        let (_, index) =
-            write_indexed(header, records, Some(indexed)).map_err(|e| format!("{e:?}"))?;
-        if let Some(index) = index {
+        // The index of the text already written, rather than a second rendering of the records.
+        let features = records.iter().map(|record| {
+            (
+                record.variant.contig.clone(),
+                record.variant.start,
+                record.variant.stop,
+            )
+        });
+        if let Some(index) = tribble_index(&text, header.write().len(), features, indexed) {
             std::fs::write(format!("{path}.idx"), index)?;
         }
     }
@@ -286,7 +368,7 @@ pub fn write_output(
 pub fn read_path(path: &str) -> Result<LazyVcf, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("java.io.IOException: {e}"))?;
     let bytes = if bytes.starts_with(&[0x1f, 0x8b]) {
-        htsjdk_bgzf::read::decompress_all(&bytes)
+        crate::bgzf::decompress_owned(bytes)
             .map_err(|e| format!("htsjdk.samtools.SAMException: {e:?}"))?
     } else {
         bytes

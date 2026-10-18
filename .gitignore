@@ -101,7 +101,6 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/MergePedIntoVcf.t2.txt
 !tools/coverage/corpus/BamToBfq.t2.txt
 !tools/coverage/corpus/CompareMetrics.t2.txt
-!tools/coverage/corpus/MergeBamAlignment.t2.txt
 !tools/coverage/corpus/CollectSamErrorMetrics.t2.txt
 !tools/coverage/corpus/AccumulateVariantCallingMetrics.t2.txt
 !tools/coverage/corpus/BaitDesigner.t2.txt

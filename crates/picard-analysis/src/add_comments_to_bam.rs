@@ -12,9 +12,9 @@
 //! out of scope here. The tool's `.sam` rejection is a filename check in `doWork`; this function
 //! takes BAM bytes, and a non-BAM input is rejected by `reheader_bam` (`ReheaderError::NotABam`).
 
+use crate::bgzf::decompress_all;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::reheader::{reheader_bam, ReheaderError};
-use htsjdk_bgzf::decompress_all;
 
 /// Why `AddCommentsToBam` could not run.
 #[derive(Debug)]

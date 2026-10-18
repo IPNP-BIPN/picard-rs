@@ -31,9 +31,7 @@
 //! Ported from `picard.sam.markduplicates.MarkDuplicatesWithMateCigar` and
 //! `picard.sam.markduplicates.SimpleMarkDuplicatesWithMateCigar` in Picard 3.4.0.
 
-use htsjdk_bam::cigar::Cigar;
-
-use crate::mark_duplicates::{Marking, Options, Record};
+use crate::mark_duplicates::{Marking, Options, Record, Span};
 
 /// The sort order the header declares, which both tools check before anything else.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,7 +144,7 @@ pub fn describe_with_contig(record: &Record, contig: Option<&str>) -> String {
         });
     }
     out.push(' ');
-    out.push_str(&record.qualities.len().to_string());
+    out.push_str(&record.read_length.to_string());
     out.push('b');
     if record.unmapped() {
         out.push_str(" unmapped read.");
@@ -154,7 +152,7 @@ pub fn describe_with_contig(record: &Record, contig: Option<&str>) -> String {
         let name = contig
             .map(str::to_string)
             .unwrap_or_else(|| record.reference_index.to_string());
-        let end = record.alignment_start + record.cigar.reference_length() as i32 - 1;
+        let end = record.alignment_start + record.span.reference_length as i32 - 1;
         out.push_str(&format!(
             " aligned to {name}:{}-{end}.",
             record.alignment_start
@@ -164,8 +162,8 @@ pub fn describe_with_contig(record: &Record, contig: Option<&str>) -> String {
 }
 
 /// A record's mate cigar, where it carries one.
-pub fn mate_cigar(record: &Record) -> Option<&Cigar> {
-    record.mate_cigar.as_ref()
+pub fn mate_cigar(record: &Record) -> Option<&Span> {
+    record.mate_span.as_ref()
 }
 
 /// Whether a record is a mapped read with a mapped mate, which is the only shape that needs `MC`.

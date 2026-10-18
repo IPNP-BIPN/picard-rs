@@ -41,8 +41,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !raw.starts_with(&[0x1f, 0x8b]) {
         refuse("Input file must be bam file, not sam file.");
     }
-    let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
-    let reader = htsjdk_bam::reader::BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+    let plain = picard_analysis::bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+    let reader =
+        picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
     if reader.header.text.attributes.get("SO") != Some("coordinate") {
         refuse("Input bam file must be sorted by coordinate");
     }

@@ -285,6 +285,16 @@ fn the_names_are_padded_to_the_count() {
     assert_eq!(make_bait_name("target1", 9, 12), "target1_bait#09");
 }
 
+/// Both numbers go through `NumberFormat.getIntegerInstance()`, which groups digits: Picard 3.5.0
+/// named the baits of a 11,876-bait target `t0_bait#000001` and `t0_bait#01,200` (the oracle, on
+/// tools/benchmark/screen_nonbam.sh's bait_targets.interval_list).
+#[test]
+fn the_names_group_their_digits_as_the_number_format_does() {
+    assert_eq!(make_bait_name("t0", 1, 11876), "t0_bait#000001");
+    assert_eq!(make_bait_name("t0", 1200, 11876), "t0_bait#01,200");
+    assert_eq!(make_bait_name("t0", 11876, 11876), "t0_bait#11,876");
+}
+
 /// The design writes a directory of files named after it.
 #[test]
 fn the_output_is_a_directory() {

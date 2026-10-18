@@ -33,8 +33,6 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 
-use htsjdk_bam::cigar::Op;
-
 use htsjdk_metrics::file::{MetricBean, Value};
 
 use crate::duplicate_set::{compare, duplicate_sets, library_ids};
@@ -52,32 +50,6 @@ pub enum Strand {
     Top,
     Bottom,
     Unknown,
-}
-
-/// `SAMUtils.getMateUnclippedStart`, off the `MC` tag.
-fn mate_unclipped_start(record: &Record) -> Option<i32> {
-    let cigar = record.mate_cigar.as_ref()?;
-    let mut start = record.mate_alignment_start;
-    for element in &cigar.elements {
-        match element.op {
-            Op::S | Op::H => start -= element.length as i32,
-            _ => break,
-        }
-    }
-    Some(start)
-}
-
-/// `SAMUtils.getMateUnclippedEnd`, off the `MC` tag.
-fn mate_unclipped_end(record: &Record) -> Option<i32> {
-    let cigar = record.mate_cigar.as_ref()?;
-    let mut end = record.mate_alignment_start + cigar.reference_length() as i32 - 1;
-    for element in cigar.elements.iter().rev() {
-        match element.op {
-            Op::S | Op::H => end += element.length as i32,
-            _ => break,
-        }
-    }
-    Some(end)
 }
 
 /// `UmiUtil.getStrand`.
@@ -114,9 +86,9 @@ pub fn strand(record: &Record) -> Result<Strand, String> {
         )
     };
     let mate_five_prime = if record.mate_reverse_strand() {
-        mate_unclipped_end(record).ok_or_else(missing)?
+        record.mate_unclipped_end().ok_or_else(missing)?
     } else {
-        mate_unclipped_start(record).ok_or_else(missing)?
+        record.mate_unclipped_start().ok_or_else(missing)?
     };
     Ok(
         if record.first_of_pair() == (read_five_prime <= mate_five_prime) {
@@ -510,7 +482,7 @@ pub fn run(
         }
         let iteration = integer_hash_order(&first_seen);
 
-        let library = records[representative].library.clone();
+        let library = records[representative].library.to_string();
         if !metrics_index.contains_key(&library) {
             metrics.push(UmiMetrics::new(&library));
             metrics_index.insert(library.clone(), metrics.len() - 1);

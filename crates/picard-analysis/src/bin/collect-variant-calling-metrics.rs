@@ -16,8 +16,6 @@
 //! The dbSNP answer is two answers: a bitset of SNP sites and another of indel sites, each asked
 //! for the site's own type.
 
-use std::collections::HashSet;
-
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use htsjdk_vcf::reader::read_vcf;
 use htsjdk_vcf::variant::VariantContext;
@@ -27,6 +25,7 @@ use picard_analysis::collect_variant_calling_metrics::{
     VariantType,
 };
 use picard_analysis::java_hash_map::string_hash_code;
+use picard_analysis::overlap::{PositionSet, Spans};
 
 /// One interval of an interval list, uniqued the way `IntervalList.uniqued` does.
 struct Interval {
@@ -82,14 +81,6 @@ fn read_intervals(text: &str) -> Vec<Interval> {
     merged
 }
 
-fn within(record: &VariantContext, intervals: &[Interval]) -> bool {
-    intervals.iter().any(|interval| {
-        record.contig == interval.contig
-            && record.start <= interval.end
-            && record.stop >= interval.start
-    })
-}
-
 /// A decoded record's reference and alternates, a symbolic alternate as written (`<DEL>`) so its
 /// type can be told, and a `.` ALT dropped.
 fn alleles_of(record: &VariantContext) -> (String, Vec<String>) {
@@ -117,8 +108,8 @@ fn alleles_of(record: &VariantContext) -> (String, Vec<String>) {
 fn site_of(
     record: &VariantContext,
     samples: &[String],
-    snps: &HashSet<(String, i64)>,
-    indels: &HashSet<(String, i64)>,
+    snps: &PositionSet,
+    indels: &PositionSet,
 ) -> Site {
     let (reference, alternates) = alleles_of(record);
     let index_of = |allele: &htsjdk_vcf::allele::Allele| -> usize {
@@ -153,13 +144,12 @@ fn site_of(
             }
         })
         .collect();
-    let key = (record.contig.clone(), record.start);
     Site {
         reference,
         alternates,
         filtered: record.filters.as_ref().is_some_and(|f| !f.is_empty()),
-        in_db_snp_snps: snps.contains(&key),
-        in_db_snp_indels: indels.contains(&key),
+        in_db_snp_snps: snps.contains(&record.contig, record.start),
+        in_db_snp_indels: indels.contains(&record.contig, record.start),
         calls,
     }
 }
@@ -377,10 +367,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // `createSnpAndIndelBitSets`: one set of SNP sites and one of indel sites, over the intervals.
-    let mut snp_sites: HashSet<(String, i64)> = HashSet::new();
-    let mut indel_sites: HashSet<(String, i64)> = HashSet::new();
+    // A record sets every position from its start to its end, and only a SNP or an INDEL sets
+    // anything: an MNP, a mixed or a symbolic record is in neither set.
+    let targets = Spans::new(intervals.iter().map(|i| (i.contig.clone(), i.start, i.end)));
+    let within = |r: &VariantContext| targets.overlaps(r.contig.as_str(), r.start, r.stop);
+    let mut snp_sites = PositionSet::default();
+    let mut indel_sites = PositionSet::default();
     for record in &known.records {
-        if !intervals.is_empty() && !within(record, &intervals) {
+        if !intervals.is_empty() && !within(record) {
             continue;
         }
         // `kv.isSNP()` or `kv.isIndel()`, every position from start to end; the rest are in neither.
@@ -390,8 +384,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             VariantType::Indel => &mut indel_sites,
             _ => continue,
         };
-        sites
-            .extend((record.start..=record.stop).map(|position| (record.contig.clone(), position)));
+        sites.set_range(&record.contig, record.start, record.stop);
     }
 
     let samples = vcf.header.samples.clone();
@@ -401,7 +394,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         samples.iter().map(|_| Default::default()).collect();
 
     for record in &vcf.records {
-        if !intervals.is_empty() && !within(record, &intervals) {
+        if !intervals.is_empty() && !within(record) {
             continue;
         }
         let site = site_of(record, &samples, &snp_sites, &indel_sites);

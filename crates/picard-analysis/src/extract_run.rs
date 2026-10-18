@@ -270,7 +270,7 @@ pub fn run(args: &Args, extract_contamination: bool, locus_max_reads: i64) {
     });
     header.lines.push(HeaderLine::Unstructured {
         key: "fileDate".to_string(),
-        value: "<now>".to_string(),
+        value: crate::command_line::java_date_now(),
     });
     header.lines.push(HeaderLine::format(
         "PL",
@@ -310,7 +310,8 @@ pub fn run(args: &Args, extract_contamination: bool, locus_max_reads: i64) {
         .collect();
     let text =
         crate::vcf_io::write_records(&header, &rows).unwrap_or_else(|e| thrown(&format!("{e:?}")));
-    if let Err(e) = std::fs::write(&output, text) {
+    // `getVariantContextWriter`: the builder's default options, so the `.vcf` gets its `.idx`.
+    if let Err(e) = crate::vcf_io::write_text_indexed(&output, &text, Some(&dictionary)) {
         thrown(&format!("htsjdk.samtools.SAMException: {e}"));
     }
 }

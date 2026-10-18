@@ -16,13 +16,12 @@
 
 use std::io::Read;
 
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
 use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
 use picard_analysis::revert_original_quals_add_mate_cigar::{
-    can_skip, revert_original_records_with, Options, SortOrder,
+    can_skip, revert_original_records_with, Options, RevertError, SortOrder,
 };
 
 /// The order the writer will be given: the argument, or the input header's when there is none.
@@ -68,9 +67,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut raw = Vec::new();
     std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+    let raw = picard_analysis::cram_input::uncram(raw);
     let text = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
+        let reader =
+            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
         let header = reader.header.text.clone();
         let records: Vec<BamRecord> = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))
@@ -82,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // `canSkipSAMFile`, on its own pass over the input. When it skips, nothing is written: the
     // output file does not exist, which is the answer the reference gives too.
-    let (_, records) = read_sam(&text).map_err(|e| format!("{e:?}"))?;
+    let (input_header, records) = read_sam(&text).map_err(|e| format!("{e:?}"))?;
     if can_skip(&records, &options).skips() {
         return Ok(());
     }
@@ -104,8 +105,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    let (header, records) =
-        revert_original_records_with(&text, &options).map_err(|e| format!("{e:?}"))?;
+    let (header, records) = match revert_original_records_with(&text, &options) {
+        Ok(reverted) => reverted,
+        // The exception is thrown while the sorted records are walked, after the writer was built
+        // and before it was handed a record (it sorts, so it holds them all until it is closed). A
+        // SAM writer has flushed its header by then; a BAM writer has written only the blocks its
+        // header filled. Neither is closed, so neither the index nor the MD5 file appears.
+        Err(RevertError::Thrown(thrown)) => {
+            let mut header = input_header;
+            header.set_sort_order(
+                resolved_order(&text, &options)
+                    .unwrap_or(SortOrder::Unsorted)
+                    .name(),
+            );
+            let partial = if output.ends_with(".sam") {
+                write_sam(&header, &[])
+                    .ok_or("the header failed to encode as SAM")?
+                    .into_bytes()
+            } else {
+                let writer =
+                    BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+                picard_analysis::java_writer::bam_on_disk(
+                    &writer.finish().expect("in-memory BAM writer never fails"),
+                )
+            };
+            std::fs::write(&output, partial)?;
+            eprintln!("Exception in thread \"main\" {thrown}");
+            std::process::exit(1);
+        }
+        Err(other) => return Err(format!("{other:?}").into()),
+    };
     if output.ends_with(".sam") {
         let sam = write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?;
         std::fs::write(&output, sam)?;
@@ -117,7 +146,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .write(record)
             .expect("records that parsed re-encode as BAM");
     }
-    std::fs::write(
+    picard_analysis::cram_output::write(
         &output,
         writer.finish().expect("in-memory BAM writer never fails"),
     )?;
