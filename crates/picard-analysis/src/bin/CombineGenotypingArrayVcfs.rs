@@ -227,12 +227,12 @@ fn main() {
         }
         step += 1;
     }
-    // `DEFAULT_OPTIONS` already holds `INDEX_ON_THE_FLY`, so a `.vcf.gz` is indexed whatever
-    // `CREATE_INDEX` says, with or without a dictionary.
-    let index = if create_index {
-        dictionary.as_deref()
-    } else if is_compressed_vcf(&output) {
+    // `DEFAULT_OPTIONS` already holds `INDEX_ON_THE_FLY`, so a `.vcf` and a `.vcf.gz` are indexed
+    // whatever `CREATE_INDEX` says, the `.vcf.gz` with or without a dictionary.
+    let index = if is_compressed_vcf(&output) {
         Some(dictionary.as_deref().unwrap_or_default())
+    } else if plain || create_index {
+        dictionary.as_deref()
     } else {
         None
     };
