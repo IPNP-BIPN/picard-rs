@@ -257,6 +257,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `getChainedPgIds`'s program ids are gathered on the same walk: one new `@PG` for every
     // program id the first pass saw on a record (no `PG` at all counting as one).
     let mut seen: Vec<Option<String>> = Vec::new();
+    // `buildSortedReadEndLists` keys every primary mapped read whose mate is mapped on
+    // `rec.getReadGroup().getReadGroupId()`, which is null with no RG tag or one the header does
+    // not declare. The pass stops at the first unplaced unmapped read when coordinate-sorted.
+    let mut past_unplaced = false;
     let marked_records: Vec<Record> = records
         .map(|record| {
             let id = string_tag(&record, b"PG");
@@ -264,6 +268,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 seen.push(id);
             }
             let (library, read_group) = library_of(&record);
+            past_unplaced |= record.flags & 0x4 != 0
+                && record.reference_index == -1
+                && header_order == "coordinate";
+            if !past_unplaced
+                && record.flags & (0x1 | 0x4 | 0x8 | 0x100 | 0x800) == 0x1
+                && read_group == -1
+            {
+                eprintln!(
+                    "Exception in thread \"main\" java.lang.NullPointerException: Cannot invoke \
+                     \"htsjdk.samtools.SAMReadGroupRecord.getReadGroupId()\" because the return value of \
+                     \"htsjdk.samtools.SAMRecord.getReadGroup()\" is null"
+                );
+                std::process::exit(1);
+            }
             let barcode = options.barcode_tag.as_ref().and_then(|tag| {
                 match record
                     .tags
