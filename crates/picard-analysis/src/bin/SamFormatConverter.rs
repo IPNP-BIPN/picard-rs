@@ -21,12 +21,9 @@
 //! magic, and `makeSAMOrBAMWriter` writes SAM only for a `.sam` name and BAM for anything else,
 //! including the `output.txt` the arrays pass.
 
-use std::io::{Read, Write};
+use std::io::Write;
 
 use htsjdk_bam::build_index::build_bam_index;
-use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
 use picard_analysis::args::arg;
 
@@ -61,22 +58,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(other) => return Err(format!("unknown VALIDATION_STRINGENCY: {other}").into()),
     };
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let (header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let text = reader.header.text.clone();
-        let decoded = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<Vec<_>, _>>()?;
-        (text, decoded)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam_with(&text, stringency).map_err(|e| format!("{e:?}"))?
-    };
+    let (header, records) =
+        picard_analysis::bam_stream::Input::open_with(&input, stringency)?.into_parts();
 
     // `new SAMFileWriterFactory().makeWriter(...)` opens the output before the check below runs,
     // which is why the refused row leaves an empty file rather than no file.
@@ -92,24 +75,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if output.ends_with(".sam") {
-        let sam = write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?;
         let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
-        out.write_all(sam.as_bytes())?;
+        out.write_all(header.encode().as_bytes())?;
+        for record in records {
+            // `write_sam` refused the file for one record it could not encode, which left the
+            // empty file opened above: written line by line, the same file is emptied again.
+            let Some(line) = picard_analysis::bam_stream::sam_line(&header, &record) else {
+                drop(out);
+                std::fs::File::create(&output)?;
+                return Err("records failed to re-encode as SAM".into());
+            };
+            out.write_all(line.as_bytes())?;
+            out.write_all(b"\n")?;
+        }
         out.flush()?;
         return Ok(());
     }
 
-    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)?;
-    for record in &records {
-        writer.write(record).map_err(|e| format!("{e:?}"))?;
-    }
-    let bam = writer.finish()?;
     if picard_analysis::cram_output::is_cram(&output) {
+        let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)?;
+        for record in records {
+            writer.write(&record).map_err(|e| format!("{e:?}"))?;
+        }
+        let bam = writer.finish()?;
         picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
         return Ok(());
     }
-    std::fs::write(&output, &bam)?;
+    let file = std::io::BufWriter::new(std::fs::File::create(&output)?);
+    let mut writer = picard_analysis::output::bam_writer(file, &header)?;
+    for record in records {
+        if let Err(e) = writer.write(&record) {
+            // The BAM was built whole before it was written, so a record the encoder refused left
+            // the empty file opened above.
+            drop(writer);
+            std::fs::File::create(&output)?;
+            return Err(format!("{e:?}").into());
+        }
+    }
+    writer.finish()?.flush()?;
     if create_index {
+        let bam = std::fs::read(&output)?;
         let index = build_bam_index(&bam).map_err(|e| format!("{e:?}"))?;
         std::fs::write(index_path(&output), index)?;
     }
