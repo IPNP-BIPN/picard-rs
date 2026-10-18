@@ -15,15 +15,11 @@
 //! `doWork` adds its own `@PG` (`getPGRecord`) with the seed it used as `rs`, after moving the seed
 //! off any an earlier run recorded in the header (`downsample_sam::reseed`).
 
-use std::io::{Read, Write};
-
-use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::write_sam;
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::args::arg;
 use picard_analysis::downsample_sam::{keep_flags, Strategy, DEFAULT_SEED};
 use picard_analysis::quality_yield::{Options, QualityYieldMetricsCollector};
+use picard_analysis::stream_output::Output;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("DownsampleSam");
@@ -55,25 +51,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(DEFAULT_SEED);
     let metrics_file = arg(&args, "METRICS_FILE=").or_else(|| arg(&args, "M="));
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let (header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<Vec<_>, _>>()?;
-        (header, records)
-    } else {
-        htsjdk_bam::sam_file::read_sam_with(
-            &String::from_utf8(raw)?,
-            htsjdk_bam::text_parse::ValidationStringency::Lenient,
-        )
-        .map_err(|e| format!("{e:?}"))?
-    };
+    // `SamReaderFactory` at LENIENT for a SAM; a BAM's records are validated as they are read.
+    let opened = picard_analysis::bam_stream::Input::open_with(
+        &input,
+        htsjdk_bam::text_parse::ValidationStringency::Lenient,
+    )?;
+    let streamed = opened.streams();
+    let (header, records) = opened.into_parts();
+    // The decisions need every name first, so the records are read twice: once for the names, then
+    // again to write the ones kept.
+    let names: Vec<String> = records.map(|r| r.read_name).collect();
 
     // The seed is moved off any an earlier run recorded, and this run's `@PG` records the one used.
     let seed = picard_analysis::downsample_sam::reseed(&header, strategy, seed);
@@ -85,7 +72,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     header.programs.push(pg);
 
-    let names: Vec<String> = records.iter().map(|r| r.read_name.clone()).collect();
     let keep = match keep_flags(&names, strategy, probability, accuracy, seed) {
         Ok(keep) => keep,
         Err(thrown) => {
@@ -93,36 +79,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     };
-    let kept: Vec<BamRecord> = records
-        .into_iter()
-        .zip(keep)
-        .filter_map(|(record, keep)| keep.then_some(record))
-        .collect();
-
-    if output.ends_with(".sam") {
-        let sam = write_sam(&header, &kept).ok_or("records failed to re-encode as SAM")?;
-        let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
-        out.write_all(sam.as_bytes())?;
-        out.flush()?;
-    } else {
-        // `SAMFileWriterFactory.makeWriter` again: anything that is not `.sam` is a BAM.
-        let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)
-            .map_err(|e| format!("{e:?}"))?;
-        for record in &kept {
-            writer.write(record).map_err(|e| format!("{e:?}"))?;
-        }
-        picard_analysis::cram_output::write(
-            &output,
-            writer.finish().map_err(|e| format!("{e:?}"))?,
-        )?;
-    }
-
+    let records = picard_analysis::bam_stream::Input::reopen(&input, streamed)?
+        .into_parts()
+        .1;
+    // `SAMFileWriterFactory.makeWriter` again: `.sam` is SAM, and anything else a BAM (or a CRAM).
+    let mut out = Output::create(&output, &header, false)?;
     // `QualityYieldMetricsCollector(true, false, false)` over what was written.
-    if let Some(path) = metrics_file {
-        let mut collector = QualityYieldMetricsCollector::new(Options::default());
-        for record in &kept {
-            collector.accept(record);
+    let mut collector = metrics_file
+        .as_ref()
+        .map(|_| QualityYieldMetricsCollector::new(Options::default()));
+    for (record, keep) in records.zip(keep) {
+        if keep {
+            out.write(&record)?;
+            if let Some(collector) = &mut collector {
+                collector.accept(&record);
+            }
         }
+    }
+    // `cram_output::write`: a CRAM takes `CREATE_INDEX` from the command line, a BAM no index.
+    out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
+
+    if let (Some(path), Some(mut collector)) = (metrics_file, collector) {
         collector.finish();
         let mut file = MetricsFile::new();
         for header in picard_analysis::command_line::default_headers("DownsampleSam") {

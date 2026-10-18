@@ -24,7 +24,8 @@ static OPEN: Mutex<Vec<(String, bool)>> = Mutex::new(Vec::new());
 /// [`crate::metrics_cli::thrown`] before it exits.
 pub fn on_thrown() {
     let open = OPEN.lock().map(|mut open| std::mem::take(&mut *open));
-    for (path, empty) in open.unwrap_or_default() {
+    // Last opened first, so that a directory goes after the files in it.
+    for (path, empty) in open.unwrap_or_default().into_iter().rev() {
         leave(&path, empty);
     }
 }
@@ -34,8 +35,41 @@ fn leave(path: &str, empty: bool) {
     let _ = if empty {
         File::create(path).map(drop)
     } else {
-        std::fs::remove_file(path)
+        // An [`OutputDir`] goes with the outputs already finished in it.
+        std::fs::remove_file(path).or_else(|_| std::fs::remove_dir_all(path))
     };
+}
+
+/// An output directory the tool creates, removed again with everything in it if the run fails
+/// before [`OutputDir::keep`], as the whole-file writers had not created it yet.
+pub struct OutputDir(Option<String>);
+
+impl OutputDir {
+    pub fn create(path: &str) -> io::Result<OutputDir> {
+        if std::path::Path::new(path).exists() {
+            return Ok(OutputDir(None));
+        }
+        std::fs::create_dir_all(path)?;
+        OPEN.lock()
+            .expect("not poisoned")
+            .push((path.to_string(), false));
+        Ok(OutputDir(Some(path.to_string())))
+    }
+
+    pub fn keep(mut self) {
+        if let Some(path) = self.0.take() {
+            close(&path);
+        }
+    }
+}
+
+impl Drop for OutputDir {
+    fn drop(&mut self) {
+        if let Some(path) = self.0.take() {
+            close(&path);
+            let _ = std::fs::remove_dir_all(path);
+        }
+    }
 }
 
 /// Takes `path` off the open list: whether it was on it, and how a failure leaves it.

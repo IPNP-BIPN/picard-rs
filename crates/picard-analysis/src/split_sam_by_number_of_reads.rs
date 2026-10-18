@@ -75,36 +75,58 @@ pub fn split_records(
     records: Vec<BamRecord>,
     opts: &SplitOptions,
 ) -> Result<(SamHeader, Vec<Vec<BamRecord>>), SplitError> {
-    check_options(opts)?;
-
-    let total_reads = if opts.total_reads_in_input == 0 {
-        records.len() as i64
-    } else {
-        opts.total_reads_in_input
-    };
-    let split_to_n_files = if opts.split_to_n_files != 0 {
-        opts.split_to_n_files
-    } else {
-        ceil_div(total_reads, opts.split_to_n_reads)
-    };
-    let reads_per_file = ceil_div(total_reads, split_to_n_files);
-
-    let mut shards: Vec<Vec<BamRecord>> = Vec::new();
+    let mut shards = Shards::new(records.len() as i64, opts)?;
+    let mut out: Vec<Vec<BamRecord>> = Vec::new();
     let mut current: Vec<BamRecord> = Vec::new();
-    let mut reads_written: i64 = 0;
-    let mut last_read_name = String::new();
-
     for rec in records {
-        if reads_written >= reads_per_file && last_read_name != rec.read_name {
-            shards.push(std::mem::take(&mut current));
-            reads_written = 0;
+        if shards.starts_new(&rec) {
+            out.push(std::mem::take(&mut current));
         }
-        last_read_name = rec.read_name.clone();
         current.push(rec);
-        reads_written += 1;
     }
-    shards.push(current);
-    Ok((header, shards))
+    out.push(current);
+    Ok((header, out))
+}
+
+/// Where the shards break, record by record: a shard is full after `reads_per_file` records, and
+/// the next one starts at the first record that does not share the last one's name.
+pub struct Shards {
+    reads_per_file: i64,
+    reads_written: i64,
+    last_read_name: String,
+}
+
+impl Shards {
+    /// The split of an input of `counted` records, unless `TOTAL_READS_IN_INPUT` says otherwise.
+    pub fn new(counted: i64, opts: &SplitOptions) -> Result<Shards, SplitError> {
+        check_options(opts)?;
+        let total_reads = if opts.total_reads_in_input == 0 {
+            counted
+        } else {
+            opts.total_reads_in_input
+        };
+        let split_to_n_files = if opts.split_to_n_files != 0 {
+            opts.split_to_n_files
+        } else {
+            ceil_div(total_reads, opts.split_to_n_reads)
+        };
+        Ok(Shards {
+            reads_per_file: ceil_div(total_reads, split_to_n_files),
+            reads_written: 0,
+            last_read_name: String::new(),
+        })
+    }
+
+    /// Whether `rec`, the next record, starts a new shard.
+    pub fn starts_new(&mut self, rec: &BamRecord) -> bool {
+        let new = self.reads_written >= self.reads_per_file && self.last_read_name != rec.read_name;
+        if new {
+            self.reads_written = 0;
+        }
+        self.last_read_name.clone_from(&rec.read_name);
+        self.reads_written += 1;
+        new
+    }
 }
 
 /// `SplitSamByNumberOfReads.doWork`: the shards in order, each a whole SAM (input header verbatim +
