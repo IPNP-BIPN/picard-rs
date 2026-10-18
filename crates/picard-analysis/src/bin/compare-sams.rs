@@ -11,12 +11,8 @@ use std::io::Read;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::sam_file::write_sam;
 use htsjdk_metrics::file::{Histogram, MetricsFile};
+use picard_analysis::args::arg;
 use picard_analysis::compare_sams::{compare_sams_with_options, CompareOptions};
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// The file as SAM text, whichever form it is stored in.
 fn as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {

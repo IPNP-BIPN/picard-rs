@@ -9,11 +9,7 @@
 //! no command line and no start time to canonicalize away.
 
 use picard_analysis::accumulate_quality_yield_metrics::accumulate_quality_yield_metrics;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
+use picard_analysis::args::arg;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("AccumulateQualityYieldMetrics");

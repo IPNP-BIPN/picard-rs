@@ -127,9 +127,7 @@ impl Args {
     pub fn bool(&self, name: &str, default: bool) -> bool {
         match self.get(name) {
             None => default,
-            Some(v) if v.eq_ignore_ascii_case("true") => true,
-            Some(v) if v.eq_ignore_ascii_case("false") => false,
-            Some(v) => fail(&format!("Argument '{name}' cannot be set to '{v}'")),
+            Some(v) => crate::args::is_true(v),
         }
     }
 }

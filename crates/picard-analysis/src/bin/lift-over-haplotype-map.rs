@@ -11,13 +11,9 @@
 //! The alleles are carried over unchanged: the chain may put a SNP on the negative strand and the
 //! tool still writes the bases it read, never their complements.
 
+use picard_analysis::args::arg;
 use picard_analysis::haplotype_map::{format_frequency, parse_haplotype_database};
 use picard_analysis::lift_over_haplotype_map::lift_over_haplotype_map;
-
-fn arg(args: &[String], key: &str) -> Option<String> {
-    args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
-}
 
 /// `SAMSequenceDictionaryExtractor.extractDictionary`: a FASTA is not parsed, the `.dict` beside
 /// it is.

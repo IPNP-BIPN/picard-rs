@@ -311,12 +311,12 @@
       "share": 1.0
     },
     "CollectJumpingLibraryMetrics": {
-      "rows": 9,
-      "accepted": 6,
-      "rejected": 3,
-      "distinct_outputs": 4,
+      "rows": 15,
+      "accepted": 9,
+      "rejected": 6,
+      "distinct_outputs": 6,
       "distinct_rejections": 1,
-      "matched": 9,
+      "matched": 15,
       "t": 2,
       "share": 1.0
     },
@@ -791,12 +791,12 @@
       "share": 1.0
     },
     "IntervalListTools": {
-      "rows": 32,
-      "accepted": 15,
-      "rejected": 17,
-      "distinct_outputs": 5,
+      "rows": 34,
+      "accepted": 16,
+      "rejected": 18,
+      "distinct_outputs": 12,
       "distinct_rejections": 8,
-      "matched": 32,
+      "matched": 34,
       "t": 2,
       "share": 1.0
     },
@@ -851,22 +851,22 @@
       "share": 1.0
     },
     "MarkDuplicates": {
-      "rows": 31,
-      "accepted": 16,
-      "rejected": 15,
-      "distinct_outputs": 14,
-      "distinct_rejections": 5,
-      "matched": 31,
+      "rows": 47,
+      "accepted": 21,
+      "rejected": 26,
+      "distinct_outputs": 19,
+      "distinct_rejections": 9,
+      "matched": 47,
       "t": 2,
       "share": 1.0
     },
     "MarkDuplicatesWithMateCigar": {
-      "rows": 27,
-      "accepted": 5,
-      "rejected": 22,
-      "distinct_outputs": 3,
+      "rows": 30,
+      "accepted": 6,
+      "rejected": 24,
+      "distinct_outputs": 5,
       "distinct_rejections": 3,
-      "matched": 27,
+      "matched": 30,
       "t": 2,
       "share": 1.0
     },
@@ -1081,12 +1081,12 @@
       "share": 1.0
     },
     "SimpleMarkDuplicatesWithMateCigar": {
-      "rows": 30,
-      "accepted": 11,
-      "rejected": 19,
+      "rows": 35,
+      "accepted": 9,
+      "rejected": 26,
       "distinct_outputs": 7,
-      "distinct_rejections": 2,
-      "matched": 30,
+      "distinct_rejections": 3,
+      "matched": 35,
       "t": 2,
       "share": 1.0
     },
@@ -1155,7 +1155,7 @@
       "accepted": 16,
       "rejected": 10,
       "distinct_outputs": 13,
-      "distinct_rejections": 5,
+      "distinct_rejections": 6,
       "matched": 26,
       "t": 2,
       "share": 1.0
