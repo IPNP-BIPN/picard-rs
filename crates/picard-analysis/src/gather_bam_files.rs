@@ -13,6 +13,7 @@
 //! `CREATE_MD5_FILE` default false. `IOUtil.unrollFiles` (expanding `.list` inputs) is a CLI concern;
 //! this function takes the already-resolved BAM byte streams in order.
 
+use htsjdk_bam::gather_bam_files_to as gather_block_copy_to;
 use htsjdk_bam::gather_bam_files_with as gather_block_copy;
 use htsjdk_bam::reheader::ReheaderError;
 
@@ -35,6 +36,15 @@ impl From<ReheaderError> for GatherError {
 pub fn gather_bam_files(inputs: &[&[u8]]) -> Result<Vec<u8>, GatherError> {
     let (level, deflater) = crate::output::current();
     Ok(gather_block_copy(inputs, level, deflater)?)
+}
+
+/// [`gather_bam_files`] from the input files to `out`, as they are read, in constant memory.
+pub fn gather_bam_files_to<W: std::io::Write>(
+    inputs: Vec<std::fs::File>,
+    out: &mut W,
+) -> Result<(), GatherError> {
+    let (level, deflater) = crate::output::current();
+    Ok(gather_block_copy_to(inputs, out, level, deflater)?)
 }
 
 #[cfg(test)]
