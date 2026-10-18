@@ -4,13 +4,9 @@
 //! Ported from Picard 3.4.0 `CollectTargetedMetrics`, `CollectHsMetrics` and
 //! `CollectTargetedPcrMetrics`. What runs is [`crate::targeted_metrics`].
 
-use std::io::Read;
-
 use htsjdk_bam::fasta::read_fasta_file;
-use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::interval::IntervalList;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use htsjdk_metrics::format::format_double;
@@ -307,26 +303,6 @@ fn probe_name(path: &str) -> String {
     }
 }
 
-fn read_input(input: &str) -> Result<(SamHeader, Vec<BamRecord>), String> {
-    let mut raw = Vec::new();
-    std::fs::File::open(input)
-        .and_then(|mut f| f.read_to_end(&mut raw))
-        .map_err(|e| format!("{e}"))?;
-    let raw = crate::cram_input::uncram(raw);
-    if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = crate::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = crate::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok((header, records))
-    } else {
-        let text = String::from_utf8(raw).map_err(|e| format!("{e}"))?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))
-    }
-}
-
 /// `IntervalList.fromFiles`: every file's intervals, in file order, not uniqued.
 fn read_intervals(paths: &[&str], names: &[String]) -> Vec<Span> {
     let mut out = Vec::new();
@@ -503,7 +479,9 @@ pub fn main_for(tool: Tool) {
         .filter(|v| not_null(v))
         .map(str::to_string);
 
-    let (header, records) = read_input(&input).unwrap_or_else(|e| fail(&e));
+    let (header, records) = crate::bam_stream::Input::open(&input)
+        .unwrap_or_else(|e| fail(&e.message()))
+        .into_parts();
     let names: Vec<String> = header.sequences.iter().map(|s| s.name.clone()).collect();
     let raw_targets = read_intervals(&targets_paths, &names);
     let probes = uniqued(read_intervals(&probe_paths, &names));
@@ -544,7 +522,7 @@ pub fn main_for(tool: Tool) {
         groups.iter().position(|g| g.id == id)
     };
     let outcome =
-        collect(&records, group_of, &groups, &panel, &options).unwrap_or_else(|e| thrown(&e));
+        collect(records, group_of, &groups, &panel, &options).unwrap_or_else(|e| thrown(&e));
 
     // The targets as `uniqued()` leaves them, names joined with `|`, for the two coverage files.
     let mut all_targets = IntervalList::new(names.clone());
