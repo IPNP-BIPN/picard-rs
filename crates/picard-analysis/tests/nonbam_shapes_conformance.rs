@@ -60,17 +60,9 @@ fn base64(text: &str) -> Vec<u8> {
     out
 }
 
-/// `GtcToVcf` is `gtc-to-vcf`: the class name's words, lower-cased and joined by hyphens.
+/// Every binary is named after its Picard class, beside `GtcToVcf`.
 fn binary(class: &str) -> PathBuf {
-    let mut name = String::new();
-    for (at, c) in class.chars().enumerate() {
-        if c.is_ascii_uppercase() && at > 0 {
-            name.push('-');
-        }
-        name.push(c.to_ascii_lowercase());
-    }
-    let exe = PathBuf::from(env!("CARGO_BIN_EXE_GtcToVcf"));
-    exe.with_file_name(name)
+    PathBuf::from(env!("CARGO_BIN_EXE_GtcToVcf")).with_file_name(class)
 }
 
 /// `exit` with the code, or `thrown` with the exception the port printed for the JVM's.
