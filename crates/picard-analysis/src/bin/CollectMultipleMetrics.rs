@@ -23,7 +23,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use picard_analysis::metrics_cli::{
-    check_coordinate_sorted, fail, read_input, refuse_validation, thrown, Args, ReferenceWalker,
+    check_coordinate_sorted, fail, open_input, refuse_validation, thrown, Args, ReferenceWalker,
 };
 
 const TOOL: &str = "CollectMultipleMetrics";
@@ -383,13 +383,14 @@ fn main() {
 
     // makeItSo's shared refusals: the sort check, then the walker over the records the pass
     // would reach.
-    let (header, records) = read_input(&input);
+    let (header, records) = open_input(&input).into_parts();
     check_coordinate_sorted(&input, &header, assume_sorted);
     if reference.is_some() {
         let any_use_no_ref_reads = programs.iter().any(|p| p.uses_no_ref_reads());
         let mut walker = ReferenceWalker::default();
         let mut count = 0i64;
-        for record in &records {
+        for record in records {
+            let record = &record;
             if record.reference_index != -1 {
                 walker.get(record.reference_index);
             }
