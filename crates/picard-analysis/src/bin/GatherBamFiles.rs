@@ -11,12 +11,12 @@
 //! `IOUtil.unrollFiles` expands an input that is not a SAM, BAM or CRAM by name into the files it
 //! lists, one per line.
 
-use std::io::Read;
+use std::io::{Read, Write};
 
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
-use picard_analysis::gather_bam_files::gather_bam_files;
+use picard_analysis::gather_bam_files::gather_bam_files_to;
 
 /// `IOUtil.unrollFiles(inputs, ".bam", ".sam", ".cram")`.
 fn unroll(inputs: &[String]) -> std::io::Result<Vec<String>> {
@@ -82,10 +82,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if inputs.iter().all(|input| input.ends_with(".bam")) {
-        let raw: Vec<Vec<u8>> = inputs.iter().map(std::fs::read).collect::<Result<_, _>>()?;
-        let borrowed: Vec<&[u8]> = raw.iter().map(Vec::as_slice).collect();
-        let gathered = gather_bam_files(&borrowed).map_err(|e| format!("{e:?}"))?;
-        std::fs::write(&output, gathered)?;
+        let files: Vec<std::fs::File> = inputs
+            .iter()
+            .map(std::fs::File::open)
+            .collect::<Result<_, _>>()?;
+        // Copied block by block as each input is read; the whole-file gather wrote nothing when
+        // an input was refused, so neither does this.
+        let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
+        let gathered = gather_bam_files_to(files, &mut out)
+            .map_err(|e| format!("{e:?}"))
+            .and_then(|()| out.flush().map_err(|e| e.to_string()));
+        if let Err(e) = gathered {
+            drop(out);
+            let _ = std::fs::remove_file(&output);
+            return Err(e.into());
+        }
         return Ok(());
     }
 
