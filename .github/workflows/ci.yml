@@ -1073,19 +1073,19 @@ jobs:
             suites: "combinearrays bamtobfq vcftoadpc markadapters checkfingerprint"
           - group: oracle-backed
             index: "19/23"
-            suites: "markduplicates matecigarduplicates umiduplicates crosscheckfingerprints fingerprintmetrics"
+            suites: "markduplicates matecigarduplicates umiduplicates umiduplicates-noreadgroup crosscheckfingerprints"
           - group: oracle-backed
             index: "20/23"
-            suites: "samerrormetrics checkilluminadirectory illuminalanemetrics extractilluminabarcodes basecallstofastq"
+            suites: "fingerprintmetrics samerrormetrics checkilluminadirectory illuminalanemetrics extractilluminabarcodes"
           - group: oracle-backed
             index: "21/23"
-            suites: "basecallingmetrics basecallstosam pffailmetrics fifobuffer liftovervcf"
+            suites: "basecallstofastq basecallingmetrics basecallstosam pffailmetrics fifobuffer"
           - group: oracle-backed
             index: "22/23"
-            suites: "mendelianviolations baitdesigner bpmtocsv comparegtc gtctovcf"
+            suites: "liftovervcf mendelianviolations baitdesigner bpmtocsv comparegtc"
           - group: oracle-backed
             index: "23/23"
-            suites: "createextendedmanifest headerlines"
+            suites: "gtctovcf createextendedmanifest headerlines"
     steps:
       - uses: actions/checkout@v7
 
