@@ -19,8 +19,8 @@ use crate::record_validation::Validator;
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::{BamReader, ReadError};
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
-use htsjdk_bam::text_parse::ParseError;
+use htsjdk_bam::sam_file::read_sam_with;
+use htsjdk_bam::text_parse::{ParseError, ValidationStringency};
 use htsjdk_bgzf::BgzfError;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
@@ -45,7 +45,7 @@ pub enum InputError {
     Bgzf(BgzfError),
     /// [`BamReader::new`], or a record it iterated to.
     Bam(ReadError),
-    /// [`read_sam`].
+    /// [`htsjdk_bam::sam_file::read_sam`].
     Sam(ParseError),
 }
 
@@ -77,6 +77,22 @@ impl InputError {
     }
 }
 
+/// One record's line of `write_sam`, without its newline, or `None` for a record the text form
+/// cannot carry: a writer can then stream the file `write_sam` builds whole.
+pub fn sam_line(header: &SamHeader, record: &BamRecord) -> Option<String> {
+    let name_of = |index: i32| -> &str {
+        usize::try_from(index)
+            .ok()
+            .and_then(|index| header.sequences.get(index))
+            .map_or("*", |sequence| sequence.name.as_str())
+    };
+    htsjdk_bam::text::write_alignment(
+        record,
+        name_of(record.reference_index),
+        name_of(record.mate_reference_index),
+    )
+}
+
 /// An input that has been checked, ready to hand over its records.
 pub struct Input {
     pub header: SamHeader,
@@ -87,6 +103,12 @@ impl Input {
     /// Reads the input at `path`, BAM or SAM, and answers as reading it whole did; the records of
     /// a BAM that passes are then decoded as they are taken.
     pub fn open(path: &str) -> Result<Input, InputError> {
+        Input::open_with(path, ValidationStringency::default())
+    }
+
+    /// [`Self::open`], a SAM input parsed at `stringency`, as the tools that pass their
+    /// `VALIDATION_STRINGENCY` to `SamReaderFactory` read one.
+    pub fn open_with(path: &str, stringency: ValidationStringency) -> Result<Input, InputError> {
         let mut head = Vec::new();
         File::open(path)
             .and_then(|f| f.take(4).read_to_end(&mut head))
@@ -109,7 +131,7 @@ impl Input {
                 .and_then(|mut f| f.read_to_end(&mut raw))
                 .map_err(InputError::Io)?;
             let text = String::from_utf8(raw).map_err(InputError::Utf8)?;
-            let (header, records) = read_sam(&text).map_err(InputError::Sam)?;
+            let (header, records) = read_sam_with(&text, stringency).map_err(InputError::Sam)?;
             // shortcut: a SAM is not validated; SAMLineParser's checks are their own port.
             return Ok(Input {
                 header,
@@ -550,7 +572,7 @@ mod tests {
             Ok((header, records))
         } else {
             let text = String::from_utf8(raw).map_err(|e| format!("{e}"))?;
-            read_sam(&text).map_err(|e| format!("{e:?}"))
+            htsjdk_bam::sam_file::read_sam(&text).map_err(|e| format!("{e:?}"))
         }
     }
 
@@ -579,9 +601,23 @@ mod tests {
         text
     }
 
+    #[test]
+    fn records_one_line_at_a_time_write_the_sam_the_whole_slice_does() {
+        let (header, records) = htsjdk_bam::sam_file::read_sam(&sam_text(50)).unwrap();
+        let mut text = header.encode();
+        for record in &records {
+            text.push_str(&sam_line(&header, record).unwrap());
+            text.push('\n');
+        }
+        assert_eq!(
+            Some(text),
+            htsjdk_bam::sam_file::write_sam(&header, &records)
+        );
+    }
+
     /// The plain BAM stream of `n` records, and where its records begin.
     fn plain_bam(n: usize) -> (Vec<u8>, usize) {
-        let (header, records) = read_sam(&sam_text(n)).unwrap();
+        let (header, records) = htsjdk_bam::sam_file::read_sam(&sam_text(n)).unwrap();
         let mut writer = htsjdk_bam::writer::BamWriter::new(Vec::new(), &header).unwrap();
         for record in &records {
             writer.write(record).unwrap();

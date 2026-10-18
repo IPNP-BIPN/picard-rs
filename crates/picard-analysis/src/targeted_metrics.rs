@@ -704,7 +704,7 @@ fn key_of(level: Level, group: &ReadGroup) -> Option<String> {
 /// Runs the collector over `records`. `group_of` gives each record's `@RG`, if it has one the
 /// header knows.
 pub fn collect(
-    records: &[BamRecord],
+    records: impl IntoIterator<Item = BamRecord>,
     group_of: impl Fn(&BamRecord) -> Option<usize>,
     groups: &[ReadGroup],
     panel: &Panel,
@@ -749,6 +749,7 @@ pub fn collect(
     }
 
     for record in records {
+        let record = &record;
         let group = group_of(record).map(|i| &groups[i]);
         for d in distributors.iter_mut() {
             if d.level == Level::AllReads {

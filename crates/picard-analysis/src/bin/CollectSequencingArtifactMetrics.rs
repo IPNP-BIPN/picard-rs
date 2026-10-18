@@ -17,7 +17,7 @@ use picard_analysis::collect_sequencing_artifact_metrics::{
 };
 use picard_analysis::java_hash_map::JavaHashMap;
 use picard_analysis::metrics_cli::{
-    check_coordinate_sorted, original_qualities, read_group, read_input, read_interval_list,
+    check_coordinate_sorted, open_input, original_qualities, read_group, read_interval_list,
     refuse_validation, thrown, Args, DbSnpMask, IntervalMask, ReferenceWalker,
 };
 
@@ -127,7 +127,7 @@ fn main() {
     let context_size = context_size as usize;
 
     // makeItSo.
-    let (header, records) = read_input(&input);
+    let (header, records) = open_input(&input).into_parts();
     let contigs = read_fasta_file(&reference)
         .unwrap_or_else(|e| picard_analysis::metrics_cli::fail(&format!("{e:?}")));
     check_coordinate_sorted(&input, &header, assume_sorted);
@@ -203,7 +203,8 @@ fn main() {
     let mut walker = ReferenceWalker::default();
     let mut upper: Option<(i32, Vec<u8>)> = None;
     let mut count = 0i64;
-    for record in &records {
+    for record in records {
+        let record = &record;
         if record.reference_index != -1 {
             walker.get(record.reference_index);
         }
