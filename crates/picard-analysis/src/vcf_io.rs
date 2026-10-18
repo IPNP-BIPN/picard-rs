@@ -557,7 +557,7 @@ pub fn write_block_compressed(
                 index_dictionary,
                 &lengths,
                 record,
-                bgzf.file_pointer(),
+                bgzf.file_pointer()?,
             );
         }
         bgzf.write_all(line.as_bytes())?;
@@ -566,7 +566,7 @@ pub fn write_block_compressed(
     // position, and `BlockCompressedOutputStream.flush()` deflates the pending block: the last
     // chunk ends at the next block's address with offset zero, not inside the last block.
     bgzf.flush()?;
-    let end = bgzf.file_pointer() as i64;
+    let end = bgzf.file_pointer()? as i64;
     bgzf.into_inner()?
         .into_inner()
         .map_err(|e| e.into_error())?;
@@ -643,10 +643,10 @@ impl LinePositions {
     }
 
     /// Where the next line starts.
-    pub fn position(&self) -> u64 {
-        match &self.at {
+    pub fn position(&mut self) -> u64 {
+        match &mut self.at {
             Position::Text(written) => *written,
-            Position::Bgzf(bgzf) => bgzf.file_pointer(),
+            Position::Bgzf(bgzf) => bgzf.file_pointer().expect("a sink accepts it"),
         }
     }
 
