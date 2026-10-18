@@ -177,34 +177,6 @@ pub fn encode_exception(error: &EncodeError) -> String {
     }
 }
 
-/// What reaches the file through `IOUtil.maybeBufferOutputStream(out, Defaults.BUFFER_SIZE)`,
-/// counted per `write` call as the writer makes them: a write that does not fit flushes what is
-/// buffered first, and one at least as large as the buffer goes straight through. Nothing else
-/// flushes before `close()`, which a run that throws never reaches, so a refusal leaves exactly
-/// `flushed` bytes on disk -- none on a small file, whole buffers' worth on a large one.
-#[derive(Default)]
-struct Buffered {
-    buffered: usize,
-    flushed: usize,
-}
-
-impl Buffered {
-    /// `samjdk.buffer_size`'s default.
-    const SIZE: usize = 128 * 1024;
-
-    fn write(&mut self, len: usize) {
-        if len > Self::SIZE - self.buffered {
-            self.flushed += self.buffered;
-            self.buffered = 0;
-        }
-        if len >= Self::SIZE {
-            self.flushed += len;
-        } else {
-            self.buffered += len;
-        }
-    }
-}
-
 /// The two encoders one record line goes through: the full one, and one over the same lines with
 /// no samples for the site columns of a lazy record, which writes no FORMAT of its own because the
 /// copied block supplies it.
@@ -306,8 +278,7 @@ fn tribble_index(
     file_length: i64,
     indexed: &Indexed,
 ) -> Option<Vec<u8>> {
-    use htsjdk_tribble::index::{TribbleIndex, INTERVAL_TREE, LINEAR, VERSION};
-    use htsjdk_tribble::index_write::{BalanceApproach, BuiltIndex, DynamicIndexCreator, Feature};
+    use htsjdk_tribble::index_write::{BalanceApproach, DynamicIndexCreator, Feature};
 
     let mut creator = DynamicIndexCreator::new(BalanceApproach::ForSeekTime);
     for ((contig, start, end), &at) in features.into_iter().zip(positions) {
@@ -320,6 +291,18 @@ fn tribble_index(
             at,
         );
     }
+    finish_tribble(creator, file_length, indexed)
+}
+
+/// The `.idx` of the features `creator` was given, the file being `file_length` bytes long.
+fn finish_tribble(
+    creator: htsjdk_tribble::index_write::DynamicIndexCreator,
+    file_length: i64,
+    indexed: &Indexed,
+) -> Option<Vec<u8>> {
+    use htsjdk_tribble::index::{TribbleIndex, INTERVAL_TREE, LINEAR, VERSION};
+    use htsjdk_tribble::index_write::BuiltIndex;
+
     let mut properties: Vec<(String, String)> = indexed
         .dictionary
         .iter()
@@ -469,9 +452,9 @@ pub fn write_output(
     )?)
 }
 
-/// [`write_output`] under the writer's `ALLOW_MISSING_FIELDS_IN_HEADER` option. A `.bcf` is written
-/// by `BCF2Writer`, a block-compressed name through BGZF with its `.tbi`, anything else as text with
-/// its `.idx`; a record the text writer refuses leaves what the buffered stream had flushed.
+/// [`write_output`] under the writer's `ALLOW_MISSING_FIELDS_IN_HEADER` option: every record through
+/// one [`VcfWriter`]. What the writer refuses is the JVM's exception and exit, with what the
+/// buffered stream had flushed left on disk; an I/O failure is returned.
 pub fn write_output_with(
     path: &str,
     header: &VcfHeader,
@@ -479,190 +462,336 @@ pub fn write_output_with(
     index_dictionary: Option<&[Sequence]>,
     missing: MissingFields,
 ) -> Result<(), WriteError> {
-    if is_bcf(path) {
-        return write_bcf(path, header, records, index_dictionary).map_err(WriteError::Other);
+    let mut writer = VcfWriter::create(path, header, index_dictionary, missing).or_else(thrown)?;
+    for record in records {
+        writer.add(record).or_else(thrown)?;
     }
-    if is_compressed_vcf(path) {
-        return write_block_compressed(path, header, records, index_dictionary, missing);
+    writer.finish().or_else(thrown)
+}
+
+/// An I/O failure as it is, and anything the JVM would have thrown, thrown.
+fn thrown<T>(error: WriteError) -> Result<T, WriteError> {
+    match error {
+        WriteError::Io(_) | WriteError::Other(_) => Err(error),
+        other => die(&other.exception()),
     }
-    let output = std::path::Path::new(path);
-    let (text, refused) = written(header, records, missing);
-    if let Some(error) = refused {
-        // `VCFWriter` writes the header, then each line, as one call each.
-        let header_length = header.write().len();
-        let mut stream = Buffered::default();
-        stream.write(header_length);
-        for line in text[header_length..].split_inclusive('\n') {
-            stream.write(line.len());
-        }
-        std::fs::write(output, &text.as_bytes()[..stream.flushed])?;
-        die(&encode_exception(&error));
-    }
-    std::fs::write(output, &text)?;
-    if let Some(dictionary) = index_dictionary {
-        let indexed = Indexed {
-            dictionary,
-            path: output,
-            timestamp: modified_millis(output)?,
-        };
-        // From the text written under `missing`: re-encoding would refuse what it allowed.
-        if let Some(index) = text_index(header, &text, records, &indexed) {
-            std::fs::write(format!("{path}.idx"), index)?;
-        }
-    }
-    Ok(())
 }
 
 /// `Defaults.BUFFER_SIZE`, the `BufferedOutputStream` the builder puts between the BGZF stream and
 /// the file.
 const BUFFER_SIZE: usize = 128 * 1024;
 
-/// A `BLOCK_COMPRESSED_VCF`: `VCFWriter` over a `BlockCompressedOutputStream` at the installed level
-/// and deflater, and with `INDEX_ON_THE_FLY` a `TabixIndexCreator(refDict, TabixFormat.VCF)` whose
-/// `.tbi` is written at `close()` through the same deflater.
+/// What `VariantContextWriterBuilder` builds for a name, one record at a time: `BCF2Writer` for a
+/// `.bcf`, `VCFWriter` over BGZF for a block-compressed name, `VCFWriter` over text for any other,
+/// each with `INDEX_ON_THE_FLY` when it is given a dictionary.
 ///
-/// `IndexingVariantContextWriter.add` hands the creator the BGZF virtual offset BEFORE the line is
-/// written. Unlike the `.idx` creator, the tabix one checks the order: a record that goes back on
-/// its contig, or a contig that comes back, is an uncaught `IllegalArgumentException`, and the JVM
-/// exits with whatever the buffered stream had already passed to the file.
-pub fn write_block_compressed(
-    path: &str,
-    header: &VcfHeader,
-    records: &[Record],
-    index_dictionary: Option<&[Sequence]>,
-    missing: MissingFields,
-) -> Result<(), WriteError> {
-    use htsjdk_tribble::tabix::{TabixFormat, TabixIndexCreator};
-    use std::io::Write;
-
-    let file = std::io::BufWriter::with_capacity(BUFFER_SIZE, std::fs::File::create(path)?);
-    let mut bgzf = crate::output::bgzf_writer(file);
-    bgzf.write_all(header.write().as_bytes())?;
-    let mut creator = index_dictionary.map(|_| TabixIndexCreator::new(TabixFormat::VCF));
-    let lengths: std::collections::HashMap<&str, i32> = index_dictionary
-        .unwrap_or_default()
-        .iter()
-        .map(|sequence| (sequence.name.as_str(), sequence.length as i32))
-        .collect();
-    let encoders = Encoders::new(header, missing);
-    let mut line = String::new();
-    for record in records {
-        line.clear();
-        if let Err(error) = encoders.encode(record, &mut line) {
-            die(&encode_exception(&error));
-        }
-        if let Some(creator) = creator.as_mut() {
-            add_to_tabix(
-                creator,
-                index_dictionary,
-                &lengths,
-                record,
-                bgzf.file_pointer()?,
-            );
-        }
-        bgzf.write_all(line.as_bytes())?;
-    }
-    // `VCFWriter.close()` flushes before `IndexingVariantContextWriter.close()` asks for the final
-    // position, and `BlockCompressedOutputStream.flush()` deflates the pending block: the last
-    // chunk ends at the next block's address with offset zero, not inside the last block.
-    bgzf.flush()?;
-    let end = bgzf.file_pointer()? as i64;
-    bgzf.into_inner()?
-        .into_inner()
-        .map_err(|e| e.into_error())?;
-    if let Some(creator) = creator {
-        let index = creator
-            .finish(end)
-            .unwrap_or_else(|error| die(&format!("{}: {}", error.java_class(), error.message())));
-        let (level, deflater) = crate::output::current();
-        std::fs::write(
-            format!("{path}.tbi"),
-            index.write_with_level(level, deflater),
-        )?;
-    }
-    Ok(())
-}
-
-/// `TabixIndexCreator.addFeature(vc, position)`, refusing as the creator does: a feature out of
-/// order, a chunk that does not move forward, or a contig a non-empty dictionary lacks.
-pub fn add_to_tabix(
-    creator: &mut htsjdk_tribble::tabix::TabixIndexCreator,
-    index_dictionary: Option<&[Sequence]>,
-    lengths: &std::collections::HashMap<&str, i32>,
-    record: &Record,
-    position: u64,
-) {
-    let variant = &record.variant;
-    // `sequenceDictionary.getSequence(name).getSequenceLength()` when a new contig opens, which
-    // throws on a contig the dictionary lacks.
-    let sequence_length = match (index_dictionary, lengths.get(variant.contig.as_str())) {
-        (Some([_, ..]), None) => die(MISSING_SEQUENCE),
-        (_, length) => length.copied().unwrap_or(0),
-    };
-    let feature = htsjdk_tribble::tabix::FeatureRef {
-        contig: &variant.contig,
-        start: variant.start as i32,
-        end: variant.stop as i32,
-        // `VariantContext.toString()`, which only the contig-out-of-order refusal quotes and which
-        // this port does not reproduce.
-        description: &variant.contig,
-        sequence_length,
-    };
-    if let Err(error) = creator.add_feature(feature, position as i64) {
-        die(&format!("{}: {}", error.java_class(), error.message()));
-    }
-}
-
-/// One `VCFWriter` replayed line by line, for where each line starts: a byte count for a text VCF,
-/// the BGZF virtual offset for a block-compressed one. Nothing is written anywhere.
-pub struct LinePositions {
+/// `IndexingVariantContextWriter.add` hands the indexer each record's position BEFORE the record is
+/// encoded and written, so a record's block starts where its line does and the header is counted
+/// in every position. The `.idx` creator takes features in any order: a file out of coordinate
+/// order is written and indexed without complaint -- measured on the oracle, which is why
+/// MakeSitesOnlyVcf can index an unsorted input that SortVcf exists to fix. The tabix creator a
+/// block-compressed name gets checks the order: a record that goes back on its contig, or a contig
+/// that comes back, is an uncaught `IllegalArgumentException`.
+///
+/// A refusal is returned rather than thrown, so that a caller still reading its input can let a
+/// read failure further on win, as it does when the whole input is read first. Nothing is flushed
+/// after one: the file holds what the stream had already passed on.
+pub struct VcfWriter {
+    path: String,
+    sink: Sink,
+    index: Index,
     encoders: Encoders,
-    at: Position,
+    line: String,
 }
 
-enum Position {
-    Text(u64),
-    Bgzf(htsjdk_bgzf::BgzfWriter<std::io::Sink>),
+enum Sink {
+    /// The byte count, which is a text line's position.
+    Text { out: JavaBuffered, at: u64 },
+    /// `VCFWriter` over a `BlockCompressedOutputStream` at the installed level and deflater.
+    Bgzf(htsjdk_bgzf::BgzfWriter<std::io::BufWriter<std::fs::File>>),
+    Bcf {
+        out: JavaBuffered,
+        writer: htsjdk_vcf::bcf2::writer::Bcf2Writer,
+        at: u64,
+    },
 }
 
-impl LinePositions {
-    /// The output at `path` with its header written.
-    pub fn new(path: &str, header: &VcfHeader) -> Self {
-        let text = header.write();
-        let at = if is_compressed_vcf(path) {
-            let mut bgzf = crate::output::bgzf_writer(std::io::sink());
-            std::io::Write::write_all(&mut bgzf, text.as_bytes()).expect("a sink accepts it");
-            Position::Bgzf(bgzf)
-        } else {
-            Position::Text(text.len() as u64)
+enum Index {
+    None,
+    /// The `.idx` of a `.vcf` or `.bcf`, and the dictionary its `DICT:` properties come from.
+    Tribble {
+        creator: htsjdk_tribble::index_write::DynamicIndexCreator,
+        dictionary: Vec<Sequence>,
+    },
+    /// `TabixIndexCreator(refDict, TabixFormat.VCF)`, written as `.tbi` at `close()` through the
+    /// same deflater.
+    Tabix {
+        creator: htsjdk_tribble::tabix::TabixIndexCreator,
+        dictionary: Vec<Sequence>,
+        lengths: std::collections::HashMap<String, i32>,
+    },
+}
+
+impl VcfWriter {
+    /// The writer, its header written. The builder opens the file before the writer exists, so a
+    /// header `BCF2Writer` refuses leaves an empty file behind.
+    pub fn create(
+        path: &str,
+        header: &VcfHeader,
+        index_dictionary: Option<&[Sequence]>,
+        missing: MissingFields,
+    ) -> Result<Self, WriteError> {
+        use htsjdk_tribble::index_write::{BalanceApproach, DynamicIndexCreator};
+        use htsjdk_tribble::tabix::{TabixFormat, TabixIndexCreator};
+
+        let bcf = is_bcf(path);
+        let index = match index_dictionary {
+            None => Index::None,
+            Some(dictionary) if !bcf && is_compressed_vcf(path) => Index::Tabix {
+                creator: TabixIndexCreator::new(TabixFormat::VCF),
+                lengths: dictionary
+                    .iter()
+                    .map(|sequence| (sequence.name.clone(), sequence.length as i32))
+                    .collect(),
+                dictionary: dictionary.to_vec(),
+            },
+            Some(dictionary) => Index::Tribble {
+                creator: DynamicIndexCreator::new(BalanceApproach::ForSeekTime),
+                dictionary: dictionary.to_vec(),
+            },
         };
-        LinePositions {
-            encoders: Encoders::new(header, MissingFields::default()),
-            at,
-        }
+        let file = std::fs::File::create(path)?;
+        let sink = if bcf {
+            let writer = htsjdk_vcf::bcf2::writer::Bcf2Writer::new(header, false)
+                .map_err(|e| WriteError::Exception(e.to_string()))?;
+            let bytes = writer.header_bytes();
+            let mut out = JavaBuffered::new(file);
+            // `BCFVersion.write` is the magic as one call and each version byte as another, and
+            // `BCF2Type.INT32.write` is four single bytes.
+            let mut at = 0;
+            for len in [3, 1, 1, 1, 1, 1, 1, bytes.len() - 9] {
+                out.write(&bytes[at..at + len])?;
+                at += len;
+            }
+            Sink::Bcf {
+                out,
+                writer,
+                at: at as u64,
+            }
+        } else if is_compressed_vcf(path) {
+            let mut bgzf =
+                crate::output::bgzf_writer(std::io::BufWriter::with_capacity(BUFFER_SIZE, file));
+            std::io::Write::write_all(&mut bgzf, header.write().as_bytes())?;
+            Sink::Bgzf(bgzf)
+        } else {
+            let text = header.write();
+            let mut out = JavaBuffered::new(file);
+            out.write(text.as_bytes())?;
+            Sink::Text {
+                out,
+                at: text.len() as u64,
+            }
+        };
+        Ok(VcfWriter {
+            path: path.to_string(),
+            sink,
+            index,
+            encoders: Encoders::new(header, missing),
+            line: String::new(),
+        })
     }
 
-    /// Where the next line starts.
-    pub fn position(&mut self) -> u64 {
-        match &mut self.at {
-            Position::Text(written) => *written,
-            Position::Bgzf(bgzf) => bgzf.file_pointer().expect("a sink accepts it"),
-        }
+    /// `IndexingVariantContextWriter.add`: the indexer, then the writer.
+    pub fn add(&mut self, record: &Record) -> Result<(), WriteError> {
+        let at = self.position()?;
+        self.index(record, at)?;
+        self.write(record)
     }
 
-    /// `VCFWriter.add` once the indexer has its position: the record encoded, or the exception
-    /// the encoder throws, and its line written.
-    pub fn write_record(&mut self, record: &Record) {
-        let mut line = String::new();
-        if let Err(error) = self.encoders.encode(record, &mut line) {
-            die(&encode_exception(&error));
-        }
-        match &mut self.at {
-            Position::Text(written) => *written += line.len() as u64,
-            Position::Bgzf(bgzf) => {
-                std::io::Write::write_all(bgzf, line.as_bytes()).expect("a sink accepts it")
+    /// Where the next record starts: a byte count, or the BGZF virtual offset.
+    pub fn position(&mut self) -> Result<u64, WriteError> {
+        Ok(match &mut self.sink {
+            Sink::Text { at, .. } | Sink::Bcf { at, .. } => *at,
+            Sink::Bgzf(bgzf) => bgzf.file_pointer()?,
+        })
+    }
+
+    /// This writer's indexer given `record` at `position`, which may be another file's: a
+    /// builder can hand one tabix creator to two writers.
+    pub fn index(&mut self, record: &Record, position: u64) -> Result<(), WriteError> {
+        let variant = &record.variant;
+        match &mut self.index {
+            Index::None => {}
+            Index::Tribble { creator, .. } => creator.add_feature(
+                &htsjdk_tribble::index_write::Feature {
+                    contig: variant.contig.clone(),
+                    start: variant.start as i32,
+                    end: variant.stop as i32,
+                },
+                position as i64,
+            ),
+            Index::Tabix {
+                creator,
+                dictionary,
+                lengths,
+            } => {
+                // `sequenceDictionary.getSequence(name).getSequenceLength()` when a new contig
+                // opens, which throws on a contig the dictionary lacks.
+                let sequence_length = match lengths.get(&variant.contig) {
+                    None if !dictionary.is_empty() => {
+                        return Err(WriteError::Exception(MISSING_SEQUENCE.to_string()))
+                    }
+                    length => length.copied().unwrap_or(0),
+                };
+                let feature = htsjdk_tribble::tabix::FeatureRef {
+                    contig: &variant.contig,
+                    start: variant.start as i32,
+                    end: variant.stop as i32,
+                    // `VariantContext.toString()`, which only the contig-out-of-order refusal
+                    // quotes and which this port does not reproduce.
+                    description: &variant.contig,
+                    sequence_length,
+                };
+                creator
+                    .add_feature(feature, position as i64)
+                    .map_err(|error| {
+                        WriteError::Exception(format!(
+                            "{}: {}",
+                            error.java_class(),
+                            error.message()
+                        ))
+                    })?;
             }
         }
+        Ok(())
+    }
+
+    /// `VCFWriter.add` or `BCF2Writer.add` once the indexer has the position: the record encoded,
+    /// or the encoder's refusal, and its bytes written.
+    pub fn write(&mut self, record: &Record) -> Result<(), WriteError> {
+        match &mut self.sink {
+            Sink::Text { out, at } => {
+                self.line.clear();
+                self.encoders.encode(record, &mut self.line)?;
+                out.write(self.line.as_bytes())?;
+                *at += self.line.len() as u64;
+            }
+            Sink::Bgzf(bgzf) => {
+                self.line.clear();
+                self.encoders.encode(record, &mut self.line)?;
+                std::io::Write::write_all(bgzf, self.line.as_bytes())?;
+            }
+            Sink::Bcf { out, writer, at } => {
+                use htsjdk_vcf::bcf2::writer::Origin;
+                let origin = if record.fully_decoded {
+                    Origin::Bcf2Codec
+                } else {
+                    Origin::VcfCodec
+                };
+                let encoded = writer
+                    .encode(&record.variant, origin)
+                    .map_err(|e| WriteError::Exception(e.to_string()))?;
+                // `writeBlock`: two INT32 lengths, then the site block and the genotype block.
+                let sites = u32::from_le_bytes(encoded[..4].try_into().expect("a length")) as usize;
+                let mut from = 0;
+                for len in [1, 1, 1, 1, 1, 1, 1, 1, sites, encoded.len() - 8 - sites] {
+                    out.write(&encoded[from..from + len])?;
+                    from += len;
+                }
+                *at += encoded.len() as u64;
+            }
+        }
+        Ok(())
+    }
+
+    /// `close()`: the file, then its index beside it.
+    pub fn finish(self) -> Result<(), WriteError> {
+        let output = std::path::Path::new(&self.path);
+        let length = match self.sink {
+            Sink::Text { out, at } | Sink::Bcf { out, at, .. } => {
+                out.finish()?;
+                at as i64
+            }
+            Sink::Bgzf(mut bgzf) => {
+                // `VCFWriter.close()` flushes before `IndexingVariantContextWriter.close()` asks
+                // for the final position, and `BlockCompressedOutputStream.flush()` deflates the
+                // pending block: the last chunk ends at the next block's address with offset
+                // zero, not inside the last block.
+                std::io::Write::flush(&mut bgzf)?;
+                let end = bgzf.file_pointer()? as i64;
+                bgzf.into_inner()?
+                    .into_inner()
+                    .map_err(|e| e.into_error())?;
+                end
+            }
+        };
+        match self.index {
+            Index::None => {}
+            Index::Tribble {
+                creator,
+                dictionary,
+            } => {
+                let indexed = Indexed {
+                    dictionary: &dictionary,
+                    path: output,
+                    timestamp: modified_millis(output)?,
+                };
+                if let Some(index) = finish_tribble(creator, length, &indexed) {
+                    std::fs::write(format!("{}.idx", self.path), index)?;
+                }
+            }
+            Index::Tabix { creator, .. } => {
+                let index = creator.finish(length).map_err(|error| {
+                    WriteError::Exception(format!("{}: {}", error.java_class(), error.message()))
+                })?;
+                let (level, deflater) = crate::output::current();
+                std::fs::write(
+                    format!("{}.tbi", self.path),
+                    index.write_with_level(level, deflater),
+                )?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// What reaches the file through `IOUtil.maybeBufferOutputStream(out, Defaults.BUFFER_SIZE)`,
+/// counted per `write` call as the writer makes them: a write that does not fit flushes what is
+/// buffered first, and one at least as large as the buffer goes straight through. Nothing else
+/// flushes before `close()`, which a run that throws never reaches, so a refusal leaves exactly
+/// `flushed` bytes on disk -- none on a small file, whole buffers' worth on a large one.
+struct JavaBuffered {
+    file: std::fs::File,
+    buffer: Vec<u8>,
+}
+
+impl JavaBuffered {
+    /// `samjdk.buffer_size`'s default.
+    const SIZE: usize = 128 * 1024;
+
+    fn new(file: std::fs::File) -> Self {
+        JavaBuffered {
+            file,
+            buffer: Vec::with_capacity(Self::SIZE),
+        }
+    }
+
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        use std::io::Write;
+        if bytes.len() > Self::SIZE - self.buffer.len() {
+            self.file.write_all(&self.buffer)?;
+            self.buffer.clear();
+        }
+        if bytes.len() >= Self::SIZE {
+            self.file.write_all(bytes)
+        } else {
+            self.buffer.extend_from_slice(bytes);
+            Ok(())
+        }
+    }
+
+    fn finish(mut self) -> std::io::Result<()> {
+        std::io::Write::write_all(&mut self.file, &self.buffer)
     }
 }
 
@@ -678,6 +807,19 @@ pub enum WriteError {
     Io(std::io::Error),
     /// What the BCF2 writer refused with.
     Other(Box<dyn std::error::Error>),
+    /// Anything else the writer or its indexer throws, as the JVM prints it.
+    Exception(String),
+}
+
+impl WriteError {
+    /// The exception the JVM prints for it.
+    pub fn exception(&self) -> String {
+        match self {
+            WriteError::Encode(error) => encode_exception(error),
+            WriteError::Exception(exception) => exception.clone(),
+            other => other.to_string(),
+        }
+    }
 }
 
 impl From<EncodeError> for WriteError {
@@ -698,6 +840,7 @@ impl std::fmt::Display for WriteError {
             WriteError::Encode(error) => write!(f, "{error:?}"),
             WriteError::Io(error) => write!(f, "{error}"),
             WriteError::Other(error) => write!(f, "{error}"),
+            WriteError::Exception(exception) => write!(f, "{exception}"),
         }
     }
 }
@@ -748,70 +891,6 @@ fn modified_millis(path: &std::path::Path) -> std::io::Result<i64> {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_millis() as i64)
         .unwrap_or(0))
-}
-
-/// `BCF2Writer`, with its `.idx` when indexing on the fly.
-///
-/// The builder opens the file before the writer exists, so a refusal from `writeHeader` leaves an
-/// empty file behind, and one from a record leaves what the [`Buffered`] stream had flushed.
-pub fn write_bcf(
-    path: &str,
-    header: &VcfHeader,
-    records: &[Record],
-    index_dictionary: Option<&[Sequence]>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    use htsjdk_vcf::bcf2::writer::{Bcf2Writer, Origin};
-
-    let output = std::path::Path::new(path);
-    std::fs::write(output, [])?;
-    let mut writer = Bcf2Writer::new(header, false).unwrap_or_else(|e| die(&e.to_string()));
-    let mut bytes = writer.header_bytes();
-    // `BCFVersion.write` is the magic as one call and each version byte as another, and
-    // `BCF2Type.INT32.write` is four single bytes.
-    let mut stream = Buffered::default();
-    for len in [3, 1, 1, 1, 1, 1, 1, bytes.len() - 9] {
-        stream.write(len);
-    }
-    let mut positions = Vec::with_capacity(records.len());
-    for record in records {
-        positions.push(bytes.len() as i64);
-        let origin = if record.fully_decoded {
-            Origin::Bcf2Codec
-        } else {
-            Origin::VcfCodec
-        };
-        match writer.encode(&record.variant, origin) {
-            Ok(encoded) => {
-                // `writeBlock`: two INT32 lengths, then the site block and the genotype block.
-                let sites = u32::from_le_bytes(encoded[..4].try_into().expect("a length")) as usize;
-                for len in [1, 1, 1, 1, 1, 1, 1, 1, sites, encoded.len() - 8 - sites] {
-                    stream.write(len);
-                }
-                bytes.extend_from_slice(&encoded);
-            }
-            Err(e) => {
-                std::fs::write(output, &bytes[..stream.flushed])?;
-                die(&e.to_string())
-            }
-        }
-    }
-    std::fs::write(output, &bytes)?;
-    if let Some(dictionary) = index_dictionary {
-        let indexed = Indexed {
-            dictionary,
-            path: output,
-            timestamp: modified_millis(output)?,
-        };
-        if let Some(index) = tribble_index(
-            features_of(records),
-            &positions,
-            bytes.len() as i64,
-            &indexed,
-        ) {
-            std::fs::write(format!("{path}.idx"), index)?;
-        }
-    }
-    Ok(())
 }
 
 /// `VCFFileReader` on a `.bcf`: the BCF2 codec, every record fully decoded.
@@ -866,6 +945,386 @@ pub fn read_path(path: &str) -> Result<LazyVcf, String> {
     let text = read_text(path)?;
     read_lazy(&text)
         .map_err(|failure| format!("{}: {}", failure.error.class(), failure.error.message()))
+}
+
+/// [`read_path`] a record at a time: the header when it is opened, then each record as it is read,
+/// with `lazy_genotypes` as [`read_lazy`] keeps it.
+///
+/// A tool that streams still answers a bad input with the exception the whole-file read gave,
+/// which is the first of: the gzip stream's failure anywhere in the file, the first byte that is
+/// not UTF-8, the header's refusal, the first record's refusal. So any failure, the reader's own
+/// or one the tool raises on the way through ([`VcfReader::fail`]), first reads the rest of the
+/// input for a failure that outranks it.
+///
+/// shortcut: a `.bcf` input is still read whole by the BCF2 codec, then handed over a record at a
+/// time; stream it when a BCF input that size turns up.
+pub struct VcfReader {
+    /// The header and versions; `records` stays empty.
+    pub file: VcfFile,
+    source: Source,
+}
+
+enum Source {
+    Bcf(std::vec::IntoIter<Record>),
+    Text(Box<TextSource>),
+}
+
+struct TextSource {
+    lines: Lines,
+    /// Bytes read so far, which is where a UTF-8 failure is counted from.
+    offset: u64,
+    /// `lineNo` as the codec counts it.
+    line_number: usize,
+    samples: std::sync::Arc<[String]>,
+    /// `samplesWereAlreadySorted`, which decides whether the codec decodes each record.
+    sorted: bool,
+    /// Whether [`read_lazy`] keeps the genotype block.
+    lazy: bool,
+    line: Vec<u8>,
+    /// Set once a failure was reported: nothing further is read.
+    done: bool,
+}
+
+/// The input's lines, `\n` included, inflated when the file is gzip.
+enum Lines {
+    Plain(std::io::BufReader<std::fs::File>),
+    Bgzf {
+        reader: htsjdk_bgzf::BgzfReader<std::io::BufReader<std::fs::File>>,
+        block: Vec<u8>,
+        at: usize,
+    },
+}
+
+/// A failure, by what outranks what in a whole-file read.
+enum Failure {
+    /// The file or its gzip stream: nothing is read after it.
+    Bytes(String),
+    Utf8(String),
+    Parse(String),
+}
+
+impl Lines {
+    /// The next line appended to `line`, or false at the end of the input.
+    fn read(&mut self, line: &mut Vec<u8>) -> Result<bool, String> {
+        use std::io::BufRead;
+        match self {
+            Lines::Plain(reader) => reader
+                .read_until(b'\n', line)
+                .map(|n| n > 0)
+                .map_err(|e| format!("java.io.IOException: {e}")),
+            Lines::Bgzf { reader, block, at } => loop {
+                let rest = &block[*at..];
+                if let Some(end) = rest.iter().position(|&b| b == b'\n') {
+                    line.extend_from_slice(&rest[..=end]);
+                    *at += end + 1;
+                    return Ok(true);
+                }
+                line.extend_from_slice(rest);
+                match reader
+                    .next_block()
+                    .map_err(|e| format!("htsjdk.samtools.SAMException: {e:?}"))?
+                {
+                    Some(next) => {
+                        *block = next.data;
+                        *at = 0;
+                    }
+                    None => {
+                        block.clear();
+                        *at = 0;
+                        return Ok(!line.is_empty());
+                    }
+                }
+            },
+        }
+    }
+}
+
+/// `String.from_utf8` over the whole file, for one line `offset` bytes in.
+fn utf8_at(line: &[u8], offset: u64) -> Result<&str, String> {
+    std::str::from_utf8(line).map_err(|e| {
+        let at = offset + e.valid_up_to() as u64;
+        match e.error_len() {
+            Some(len) => {
+                format!(
+                    "java.io.IOException: invalid utf-8 sequence of {len} bytes from index {at}"
+                )
+            }
+            None => format!("java.io.IOException: incomplete utf-8 byte sequence from index {at}"),
+        }
+    })
+}
+
+/// `str::lines`' line: without its `\n`, and without a `\r` before that.
+fn without_terminator(line: &str) -> &str {
+    match line.strip_suffix('\n') {
+        Some(line) => line.strip_suffix('\r').unwrap_or(line),
+        None => line,
+    }
+}
+
+impl TextSource {
+    /// The exception the whole-file read would have thrown, given the first failure met here:
+    /// the rest of the input is read for one that outranks it.
+    fn resolve(&mut self, first: Failure) -> String {
+        self.done = true;
+        let (mut utf8, parse) = match first {
+            Failure::Bytes(exception) => return exception,
+            Failure::Utf8(exception) => (Some(exception), None),
+            Failure::Parse(exception) => (None, Some(exception)),
+        };
+        loop {
+            self.line.clear();
+            match self.lines.read(&mut self.line) {
+                Err(exception) => return exception,
+                Ok(false) => break,
+                Ok(true) => {}
+            }
+            if utf8.is_none() {
+                utf8 = utf8_at(&self.line, self.offset).err();
+            }
+            self.offset += self.line.len() as u64;
+        }
+        utf8.or(parse).expect("a failure")
+    }
+
+    fn next(&mut self, file: &VcfFile) -> Option<Result<Record, String>> {
+        use htsjdk_vcf::genotype_parse::{parse_genotypes, GenotypeContext};
+        use htsjdk_vcf::genotypes_context::GenotypesContext;
+        use htsjdk_vcf::record_parse::{decode_line, split_condensed_borrowed};
+
+        if self.done {
+            return None;
+        }
+        loop {
+            let mut buffer = std::mem::take(&mut self.line);
+            buffer.clear();
+            match self.lines.read(&mut buffer) {
+                Err(exception) => return Some(Err(self.resolve(Failure::Bytes(exception)))),
+                Ok(false) => {
+                    self.done = true;
+                    return None;
+                }
+                Ok(true) => {}
+            }
+            let offset = self.offset;
+            self.offset += buffer.len() as u64;
+            let decoded = utf8_at(&buffer, offset)
+                .map_err(Failure::Utf8)
+                .and_then(|text| {
+                    let line = without_terminator(text);
+                    let decoded =
+                        decode_line(line, &file.header, self.line_number, file.codec_version)
+                            .map_err(|e| {
+                                Failure::Parse(format!("{}: {}", e.class(), e.message()))
+                            })?;
+                    let Some(decoded) = decoded else {
+                        // A `#` line: no record, no refusal, and no increment of the counter.
+                        return Ok(None);
+                    };
+                    // `parseVCFLine` increments on entry.
+                    self.line_number += 1;
+                    let mut variant = decoded.variant;
+                    if let Some(block) = decoded.genotype_block {
+                        let context = GenotypeContext {
+                            line,
+                            header: &file.header,
+                            version: file.codec_version,
+                            contig: &variant.contig,
+                            pos: variant.start,
+                            line_number: self.line_number,
+                        };
+                        let genotypes = parse_genotypes(&block, &variant.alleles, &context)
+                            .map_err(|e| {
+                                Failure::Parse(format!("{}: {}", e.class(), e.message()))
+                            })?;
+                        variant.genotypes =
+                            GenotypesContext::lazy(genotypes, block, self.samples.clone());
+                        if !self.sorted {
+                            variant.genotypes.decode();
+                        }
+                    }
+                    let lazy_genotypes = self
+                        .lazy
+                        .then(|| {
+                            split_condensed_borrowed(line, '\t', NUM_STANDARD_FIELDS + 1, true)
+                                .into_iter()
+                                .nth(NUM_STANDARD_FIELDS)
+                                .map(str::to_string)
+                        })
+                        .flatten();
+                    Ok(Some(Record {
+                        variant,
+                        lazy_genotypes,
+                        fully_decoded: false,
+                    }))
+                });
+            self.line = buffer;
+            match decoded {
+                Ok(Some(record)) => return Some(Ok(record)),
+                Ok(None) => continue,
+                Err(failure) => return Some(Err(self.resolve(failure))),
+            }
+        }
+    }
+}
+
+impl VcfReader {
+    /// `VCFFileReader(file, false)` up to its header: the file opened and the header read, or the
+    /// exception the whole-file read gave.
+    pub fn open(path: &str) -> Result<VcfReader, String> {
+        use std::io::BufRead;
+
+        if is_bcf(path) {
+            let LazyVcf { mut file, records } = read_bcf_path(path)?;
+            file.records = Vec::new();
+            return Ok(VcfReader {
+                file,
+                source: Source::Bcf(records.into_iter()),
+            });
+        }
+        let mut reader = std::io::BufReader::with_capacity(
+            BUFFER_SIZE,
+            std::fs::File::open(path).map_err(|e| format!("java.io.IOException: {e}"))?,
+        );
+        let gzip = reader
+            .fill_buf()
+            .map_err(|e| format!("java.io.IOException: {e}"))?
+            .starts_with(&[0x1f, 0x8b]);
+        let lines = if gzip {
+            Lines::Bgzf {
+                reader: htsjdk_bgzf::BgzfReader::new(reader),
+                block: Vec::new(),
+                at: 0,
+            }
+        } else {
+            Lines::Plain(reader)
+        };
+        let mut source = TextSource {
+            lines,
+            offset: 0,
+            line_number: 0,
+            samples: std::sync::Arc::from(Vec::new()),
+            sorted: true,
+            lazy: false,
+            line: Vec::new(),
+            done: false,
+        };
+
+        // The header is every `##` line and the one after them, which `read_header_frame` takes
+        // as `#CHROM` or refuses.
+        let mut header = Vec::new();
+        loop {
+            let start = header.len();
+            match source.lines.read(&mut header) {
+                Err(exception) => return Err(source.resolve(Failure::Bytes(exception))),
+                Ok(false) => break,
+                Ok(true) => {}
+            }
+            source.line_number += 1;
+            if !header[start..].starts_with(b"##") {
+                break;
+            }
+        }
+        source.offset = header.len() as u64;
+        let text = match utf8_at(&header, 0) {
+            Ok(text) => text,
+            Err(exception) => return Err(source.resolve(Failure::Utf8(exception))),
+        };
+        let file = match read_vcf(text) {
+            Ok(file) => file,
+            Err(failure) => {
+                return Err(source.resolve(Failure::Parse(format!(
+                    "{}: {}",
+                    failure.error.class(),
+                    failure.error.message()
+                ))))
+            }
+        };
+        let samples = &file.header.samples;
+        source.samples = std::sync::Arc::from(samples.clone());
+        source.sorted = samples.windows(2).all(|pair| {
+            htsjdk_vcf::genotype_type::compare_sample_names(&pair[0], &pair[1])
+                != std::cmp::Ordering::Greater
+        });
+        source.lazy = is_sorted(samples) && !samples.is_empty();
+        Ok(VcfReader {
+            file,
+            source: Source::Text(Box::new(source)),
+        })
+    }
+
+    /// The next record, or the exception the whole-file read gave.
+    pub fn try_next(&mut self) -> Option<Result<Record, String>> {
+        match &mut self.source {
+            Source::Bcf(records) => records.next().map(Ok),
+            Source::Text(source) => source.next(&self.file),
+        }
+    }
+
+    /// The rest of the input read, and the exception the whole-file read gave if there is one.
+    pub fn check(&mut self) -> Result<(), String> {
+        while let Some(record) = self.try_next() {
+            record?;
+        }
+        Ok(())
+    }
+
+    /// Throw `exception` as a tool that had read its whole input first would: unless the rest of
+    /// the input fails to read, which it would have thrown instead.
+    pub fn fail(&mut self, exception: &str) -> ! {
+        if let Err(read) = self.check() {
+            die(&read);
+        }
+        die(exception)
+    }
+
+    /// [`VcfReader::fail`] for what a writer refused: its exception, or an I/O failure as a
+    /// `main` returning it prints it.
+    pub fn fail_write(&mut self, error: WriteError) -> ! {
+        if let Err(read) = self.check() {
+            die(&read);
+        }
+        match error {
+            WriteError::Io(_) | WriteError::Other(_) => {
+                eprintln!("Error: {error:?}");
+                std::process::exit(1)
+            }
+            refused => die(&refused.exception()),
+        }
+    }
+
+    /// Every record, through `map`, into a writer at `path` with `header`: one record in memory at
+    /// a time. What `map` or the writer refuses is thrown through [`VcfReader::fail`].
+    pub fn copy_to(
+        &mut self,
+        path: &str,
+        header: &VcfHeader,
+        index_dictionary: Option<&[Sequence]>,
+        mut map: impl FnMut(Record) -> Result<Record, String>,
+    ) {
+        let mut writer =
+            VcfWriter::create(path, header, index_dictionary, MissingFields::default())
+                .unwrap_or_else(|error| self.fail_write(error));
+        while let Some(record) = self.next() {
+            let record = map(record).unwrap_or_else(|exception| self.fail(&exception));
+            writer
+                .add(&record)
+                .unwrap_or_else(|error| self.fail_write(error));
+        }
+        writer
+            .finish()
+            .unwrap_or_else(|error| self.fail_write(error));
+    }
+}
+
+/// The records, dying with the whole-file read's exception at the first that fails.
+impl Iterator for VcfReader {
+    type Item = Record;
+
+    fn next(&mut self) -> Option<Record> {
+        self.try_next()
+            .map(|record| record.unwrap_or_else(|exception| die(&exception)))
+    }
 }
 
 /// `FileExtensions.VCF_LIST`: what `IOUtil.unrollPaths` takes as a variant file rather than a list.

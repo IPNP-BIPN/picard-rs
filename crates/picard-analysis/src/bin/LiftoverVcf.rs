@@ -33,7 +33,7 @@ use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
 use picard_analysis::metrics_cli::{absolute, Args};
 use picard_analysis::vcf_io::{
-    add_other_meta_data_line, die, encode_exception, log_error, parse_sam_dictionary, read_path,
+    add_other_meta_data_line, die, log_error, parse_sam_dictionary, read_path,
     set_sequence_dictionary, write_output_with, Record, Sequence, WriteError,
 };
 
@@ -416,7 +416,7 @@ fn write_all(
 ) {
     match write_output_with(path, header, records, index_dictionary, missing) {
         Ok(()) => {}
-        Err(WriteError::Encode(e)) => die(&encode_exception(&e)),
+        Err(e @ (WriteError::Encode(_) | WriteError::Exception(_))) => die(&e.exception()),
         Err(WriteError::Io(e)) => die(&format!("htsjdk.tribble.TribbleException: {e}")),
         // The BCF2 writer's own failure, which it reports as an I/O one.
         Err(WriteError::Other(e)) => die(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")),

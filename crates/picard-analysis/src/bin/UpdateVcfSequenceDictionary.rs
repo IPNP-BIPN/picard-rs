@@ -16,7 +16,7 @@
 use htsjdk_vcf::vcf_file::reject_vcf_v43_headers;
 use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
-    die, extract_dictionary, is_compressed_vcf, read_path, set_sequence_dictionary, write_output,
+    die, extract_dictionary, is_compressed_vcf, set_sequence_dictionary, VcfReader,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -42,20 +42,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let dictionary = extract_dictionary(&sequence_dictionary)?;
-    let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
 
     // A VCF without contig lines extracts to `null`. The builder takes that happily unless it is
     // to index, and then refuses; otherwise the refusal is `setSequenceDictionary`'s.
     // The builder's refusal is `VCF`'s alone: a `BLOCK_COMPRESSED_VCF` gets a tabix creator with
     // or without a dictionary.
     if create_index && dictionary.is_none() && !is_compressed_vcf(&output) {
-        die(
+        vcf.fail(
             "java.lang.IllegalArgumentException: A reference dictionary is required for creating \
              Tribble indices on the fly",
         );
     }
     let Some(dictionary) = dictionary else {
-        die(
+        vcf.fail(
             "java.lang.NullPointerException: Cannot invoke \
              \"htsjdk.samtools.SAMSequenceDictionary.getSequences()\" because \"dictionary\" is null",
         );
@@ -66,7 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut header = vcf.file.header.clone();
     set_sequence_dictionary(&mut header, &dictionary);
     if let Err(message) = reject_vcf_v43_headers(vcf.file.header_version) {
-        die(&format!("java.lang.IllegalArgumentException: {message}"));
+        vcf.fail(&format!("java.lang.IllegalArgumentException: {message}"));
     }
 
     let index_dictionary = if create_index {
@@ -74,6 +74,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         None
     };
-    write_output(&output, &header, &vcf.records, index_dictionary)?;
+    vcf.copy_to(&output, &header, index_dictionary, Ok);
     Ok(())
 }

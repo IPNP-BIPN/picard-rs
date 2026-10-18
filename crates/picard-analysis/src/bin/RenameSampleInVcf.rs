@@ -16,7 +16,7 @@
 //! the first of zero samples, which is the JVM's index-out-of-bounds.
 
 use picard_analysis::args::arg;
-use picard_analysis::vcf_io::{die, header_dictionary, is_compressed_vcf, read_path, write_output};
+use picard_analysis::vcf_io::{die, header_dictionary, is_compressed_vcf, VcfReader};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("RenameSampleInVcf");
@@ -40,15 +40,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
-    let samples = &vcf.file.header.samples;
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
+    let samples = vcf.file.header.samples.clone();
     if samples.len() > 1 {
-        die("java.lang.IllegalArgumentException: Input VCF must be single-sample.");
+        vcf.fail("java.lang.IllegalArgumentException: Input VCF must be single-sample.");
     }
     if let Some(old) = &old_sample_name {
         match samples.first() {
-            None => die("java.lang.IndexOutOfBoundsException: Index 0 out of bounds for length 0"),
-            Some(found) if found != old => die(&format!(
+            None => {
+                vcf.fail("java.lang.IndexOutOfBoundsException: Index 0 out of bounds for length 0")
+            }
+            Some(found) if found != old => vcf.fail(&format!(
                 "java.lang.IllegalArgumentException: Input VCF did not contain expected sample. \
                  Contained: {found}"
             )),
@@ -64,7 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The builder's refusal is `VCF`'s alone: a `BLOCK_COMPRESSED_VCF` gets a tabix creator with
     // or without a dictionary.
     if create_index && dictionary.is_none() && !is_compressed_vcf(&output) {
-        die(
+        vcf.fail(
             "java.lang.IllegalArgumentException: A reference dictionary is required for creating \
              Tribble indices on the fly",
         );
@@ -74,6 +76,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         None
     };
-    write_output(&output, &header, &vcf.records, index_dictionary)?;
+    vcf.copy_to(&output, &header, index_dictionary, Ok);
     Ok(())
 }

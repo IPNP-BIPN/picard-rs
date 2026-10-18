@@ -27,8 +27,7 @@ use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::standard_header_lines::{standard_format_line, PRIMARY_KEYS};
 use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
-    die, header_dictionary, is_bcf, is_compressed_vcf, read_path, sample_names_in_order,
-    write_output,
+    die, header_dictionary, is_bcf, is_compressed_vcf, sample_names_in_order, VcfReader,
 };
 
 const MISSING: &str = "Missing description: this {} line was added by Picard's FixVCFHeader";
@@ -60,22 +59,24 @@ fn same_line(a: &HeaderLine, b: &HeaderLine) -> bool {
 }
 
 /// `enforceSameSamples`: the sorted names, pairwise.
-fn assert_same_samples(reader: &VcfHeader, input: &VcfHeader) {
+fn assert_same_samples(reader: &VcfHeader, input: &VcfHeader) -> Result<(), String> {
     let reader_samples = sample_names_in_order(reader);
     let input_samples = sample_names_in_order(input);
     if reader_samples.len() != input_samples.len() {
-        die(
+        return Err(
             "picard.PicardException: The input VCF had a different # of samples than the input \
-             VCF header.",
+             VCF header."
+                .to_string(),
         );
     }
     for (i, (a, b)) in reader_samples.iter().zip(&input_samples).enumerate() {
         if a != b {
-            die(&format!(
+            return Err(format!(
                 "picard.PicardException: Mismatch in the {i}th sample: '{a}' != '{b}'"
             ));
         }
     }
+    Ok(())
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -114,21 +115,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
-    let existing = &vcf.file.header;
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
+    let existing = vcf.file.header.clone();
 
     let out_header = match &header_path {
         Some(path) => {
-            let replacement = read_path(path).unwrap_or_else(|exception| die(&exception));
+            // Read whole, as the port has always read it: a record it cannot read fails the run,
+            // unless the input fails to read first.
+            let mut replacement =
+                VcfReader::open(path).unwrap_or_else(|exception| vcf.fail(&exception));
+            if let Err(exception) = replacement.check() {
+                vcf.fail(&exception);
+            }
             if enforce_same_samples {
                 let header = replacement.file.header;
-                assert_same_samples(existing, &header);
+                if let Err(exception) = assert_same_samples(&existing, &header) {
+                    vcf.fail(&exception);
+                }
                 header
             } else {
                 // `new VCFHeader(inputHeader.getMetaDataInInputOrder(), getSampleNamesInOrder())`.
                 VcfHeader {
                     lines: replacement.file.header.lines,
-                    samples: sample_names_in_order(existing),
+                    samples: sample_names_in_order(&existing),
                 }
             }
         }
@@ -137,9 +146,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut infos: Vec<HeaderLine> = Vec::new();
             let mut formats: Vec<HeaderLine> = Vec::new();
             let scanned = if check_first_n > 0 {
-                vcf.records.len().min(check_first_n as usize)
+                check_first_n as usize
             } else {
-                vcf.records.len()
+                usize::MAX
             };
             let defines = |lines: &[HeaderLine], id: &str| {
                 lines.iter().any(|line| match line {
@@ -149,7 +158,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => false,
                 })
             };
-            for record in &vcf.records[..scanned] {
+            // Every record is read, scanned or not, so that a bad one fails here as it fails the
+            // whole-file read; the writing is a second pass over the file.
+            for record in vcf.by_ref().take(scanned) {
                 let ctx = &record.variant;
                 for filter in ctx.filters.iter().flatten() {
                     if !existing.has_filter_line(filter) && !defines(&filters, filter) {
@@ -188,6 +199,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     lines.push(line);
                 }
             };
+            if let Err(exception) = vcf.check() {
+                die(&exception);
+            }
+            vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
             existing.lines.iter().cloned().for_each(&mut add);
             PRIMARY_KEYS
                 .iter()
@@ -198,18 +213,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             formats.into_iter().for_each(&mut add);
             VcfHeader {
                 lines,
-                samples: sample_names_in_order(existing),
+                samples: sample_names_in_order(&existing),
             }
         }
     };
 
     // `setOption(INDEX_ON_THE_FLY)` with `setReferenceDictionary(outHeader.getSequenceDictionary())`.
     let Some(dictionary) = header_dictionary(&out_header) else {
-        die(
+        vcf.fail(
             "java.lang.IllegalArgumentException: A reference dictionary is required for creating \
              Tribble indices on the fly",
         );
     };
-    write_output(&output, &out_header, &vcf.records, Some(&dictionary))?;
+    vcf.copy_to(&output, &out_header, Some(&dictionary), Ok);
     Ok(())
 }

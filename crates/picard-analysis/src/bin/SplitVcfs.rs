@@ -13,12 +13,11 @@
 //! `SEQUENCE_DICTIONARY` only replaces the dictionary the indexes are built against, which is
 //! also why a VCF with no contig lines is refused without it only when indexing.
 
-use htsjdk_tribble::tabix::{TabixFormat, TabixIndexCreator};
+use htsjdk_vcf::encoder::MissingFields;
 use htsjdk_vcf::variant::VariantContext;
 use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
-    add_to_tabix, die, header_dictionary, is_bcf, is_compressed_vcf, parse_sam_dictionary,
-    read_path, write_output, LinePositions,
+    die, header_dictionary, is_bcf, is_compressed_vcf, parse_sam_dictionary, VcfReader, VcfWriter,
 };
 
 /// `VariantContext.getType()`'s name.
@@ -81,14 +80,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("only .vcf, .vcf.gz and .bcf outputs are ported".into());
     }
 
-    let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
     // Read through `SamReaderFactory`, as a SAM header: a `.dict`'s `@SQ` lines.
     let dictionary = match &sequence_dictionary {
         Some(path) => Some(parse_sam_dictionary(&std::fs::read_to_string(path)?)),
         None => header_dictionary(&vcf.file.header),
     };
     if create_index && dictionary.is_none() {
-        die(
+        vcf.fail(
             "picard.PicardException: A sequence dictionary must be available (either through the \
              input file or by setting it explicitly) when creating indexed output.",
         );
@@ -105,61 +104,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // block-compressed SNP_OUTPUT in a field and hands that same creator to the INDEL writer it
     // builds next, unless that one is block-compressed and gets its own: two files' positions then
     // reach one index.
-    let tabix = |path: &str| {
-        (index_dictionary.is_some() && is_compressed_vcf(path))
-            .then(|| TabixIndexCreator::new(TabixFormat::VCF))
-    };
-    let mut snp_creator = tabix(&snp_output);
-    let shared = snp_creator.is_some() && !is_compressed_vcf(&indel_output);
-    let mut indel_creator = tabix(&indel_output);
+    let shared = index_dictionary.is_some()
+        && is_compressed_vcf(&snp_output)
+        && !is_compressed_vcf(&indel_output);
     if shared && is_bcf(&indel_output) {
         return Err("a .bcf INDEL_OUTPUT indexed beside a .vcf.gz SNP_OUTPUT is not ported".into());
     }
-    let lines = |path: &str| (!is_bcf(path)).then(|| LinePositions::new(path, &vcf.file.header));
-    let mut snp_lines = lines(&snp_output);
-    let mut indel_lines = lines(&indel_output);
-    let lengths: std::collections::HashMap<&str, i32> = index_dictionary
-        .unwrap_or_default()
-        .iter()
-        .map(|sequence| (sequence.name.as_str(), sequence.length as i32))
-        .collect();
+    let header = vcf.file.header.clone();
+    let mut writer = |path: &str, index_dictionary| {
+        VcfWriter::create(path, &header, index_dictionary, MissingFields::default())
+            .unwrap_or_else(|error| vcf.fail_write(error))
+    };
+    let mut snps = writer(&snp_output, index_dictionary);
+    let mut indels = writer(&indel_output, index_dictionary.filter(|_| !shared));
 
-    let mut snps = Vec::new();
-    let mut indels = Vec::new();
-    for record in vcf.records {
-        let (lines, creator, kept) = match type_name(&record.variant) {
-            "INDEL" => (
-                &mut indel_lines,
-                if shared {
-                    &mut snp_creator
-                } else {
-                    &mut indel_creator
-                },
-                &mut indels,
-            ),
-            "SNP" => (&mut snp_lines, &mut snp_creator, &mut snps),
+    while let Some(record) = vcf.next() {
+        let added = match type_name(&record.variant) {
+            "INDEL" if shared => indels
+                .position()
+                .and_then(|at| snps.index(&record, at))
+                .and_then(|()| indels.write(&record)),
+            "INDEL" => indels.add(&record),
+            "SNP" => snps.add(&record),
             other => {
                 if strict {
-                    die(&format!(
+                    vcf.fail(&format!(
                         "java.lang.IllegalStateException: Found a record with type {other}"
                     ));
                 }
                 continue;
             }
         };
-        if let Some(lines) = lines {
-            if let Some(creator) = creator {
-                add_to_tabix(
-                    creator,
-                    index_dictionary,
-                    &lengths,
-                    &record,
-                    lines.position(),
-                );
-            }
-            lines.write_record(&record);
-        }
-        kept.push(record);
+        added.unwrap_or_else(|error| vcf.fail_write(error));
     }
     // shortcut: both writers close the shared index, finalizing it twice, and that is not ported;
     // every array row with this shape is refused while adding, before either writer closes.
@@ -171,7 +147,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    write_output(&snp_output, &vcf.file.header, &snps, index_dictionary)?;
-    write_output(&indel_output, &vcf.file.header, &indels, index_dictionary)?;
+    snps.finish().unwrap_or_else(|error| vcf.fail_write(error));
+    indels
+        .finish()
+        .unwrap_or_else(|error| vcf.fail_write(error));
     Ok(())
 }

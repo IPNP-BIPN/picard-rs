@@ -25,7 +25,7 @@
 //! `.vcf.gz` and the `.idx` beside a `.vcf`.
 
 use picard_analysis::args::arg;
-use picard_analysis::vcf_io::{die, header_dictionary, is_compressed_vcf, read_path, write_output};
+use picard_analysis::vcf_io::{die, header_dictionary, is_compressed_vcf, VcfReader};
 
 /// `IOUtil.hasBlockCompressedExtension`.
 fn has_block_compressed_extension(path: &str) -> bool {
@@ -56,13 +56,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     // `new VCFFileReader(INPUT, REQUIRE_INDEX)`: the header is read before the index is looked for.
-    let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
     if require_index {
         let tabix = has_block_compressed_extension(&input)
             && std::path::Path::new(&format!("{input}.tbi")).exists();
         if !tabix && !std::path::Path::new(&format!("{input}.idx")).exists() {
             let absolute = std::path::absolute(&input)?;
-            die(&format!(
+            vcf.fail(&format!(
                 "htsjdk.tribble.TribbleException: An index is required, but none found with file \
                  ending .idx, for input source: file://{}",
                 absolute.display()
@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let header = vcf.file.header.clone();
     let dictionary = header_dictionary(&header);
     if create_index && dictionary.is_none() {
-        die(
+        vcf.fail(
             "picard.PicardException: A sequence dictionary must be available in the input file \
              when creating indexed output.",
         );
@@ -89,9 +89,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         || is_compressed_vcf(&output)
         || picard_analysis::vcf_io::is_bcf(&output)
     {
-        write_output(&output, &header, &vcf.records, index_dictionary)?;
+        vcf.copy_to(&output, &header, index_dictionary, Ok);
     } else {
-        die(
+        vcf.fail(
             "java.lang.IllegalArgumentException: Output format type is not set, or could not be \
              inferred from the output path. If a path was used, does it have a valid VCF \
              extension (.vcf, .vcf.gz, .vcf.bgz, .bcf)?",
