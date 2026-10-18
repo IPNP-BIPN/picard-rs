@@ -13,10 +13,7 @@
 use std::io::Read;
 
 use htsjdk_bam::fasta::read_fasta_file;
-use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::interval::IntervalList;
-use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use htsjdk_metrics::format::format_double;
 
@@ -168,25 +165,11 @@ fn has_index(input: &str) -> bool {
     false
 }
 
-fn read_input(input: &str) -> Result<(SamHeader, Vec<BamRecord>, bool), String> {
-    let mut raw = Vec::new();
-    std::fs::File::open(input)
-        .and_then(|mut f| f.read_to_end(&mut raw))
-        .map_err(|e| format!("{e}"))?;
-    let raw = crate::cram_input::uncram(raw);
-    if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = crate::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = crate::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok((header, records, has_index(input)))
-    } else {
-        let text = String::from_utf8(raw).map_err(|e| format!("{e}"))?;
-        let (header, records) = read_sam(&text).map_err(|e| format!("{e:?}"))?;
-        Ok((header, records, false))
-    }
+/// Whether the input is read as SAM text: neither BGZF nor CRAM, which arrives as a BAM.
+fn is_sam(input: &str) -> bool {
+    let mut head = Vec::new();
+    let _ = std::fs::File::open(input).and_then(|f| f.take(4).read_to_end(&mut head));
+    !(head.starts_with(&[0x1f, 0x8b]) || crate::cram_input::is_cram(&head))
 }
 
 /// The histogram section, written directly: the shared writer looks up each key by scanning,
@@ -306,7 +289,10 @@ pub fn main_for(tool: Tool) {
     let read_length = int_arg(&args, "READ_LENGTH", None, 150) as i32;
     let intervals_path = optional_path(&args, "INTERVALS", None);
 
-    let (header, records, indexed) = read_input(&input).unwrap_or_else(|e| fail(&e));
+    let (header, records) = crate::bam_stream::Input::open(&input)
+        .unwrap_or_else(|e| fail(&e.message()))
+        .into_parts();
+    let indexed = !is_sam(&input) && has_index(&input);
 
     // CollectWgsMetricsWithNonZeroCoverage builds its collector up front, so the collector's own
     // refusal comes before anything the iterator would say.
@@ -387,7 +373,7 @@ pub fn main_for(tool: Tool) {
         },
     };
     let result =
-        walk(&records, &references, &lengths, source, &options).unwrap_or_else(|e| thrown(&e));
+        walk(records, &references, &lengths, source, &options).unwrap_or_else(|e| thrown(&e));
 
     let class_name = tool.class_name();
     let mut columns: Vec<&'static str> = Vec::new();
