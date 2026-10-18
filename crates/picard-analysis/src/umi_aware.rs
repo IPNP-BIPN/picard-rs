@@ -432,6 +432,15 @@ pub fn run(
             )?);
         }
 
+        // `set.getRepresentative().getReadGroup().getLibrary()`, read before the UMIs are joined:
+        // `getReadGroup()` is null for a record with no RG tag.
+        if records[representative].read_group == -1 {
+            return Err("java.lang.NullPointerException: Cannot invoke \
+                 \"htsjdk.samtools.SAMReadGroupRecord.getLibrary()\" because the return value of \
+                 \"htsjdk.samtools.SAMRecord.getReadGroup()\" is null"
+                .to_string());
+        }
+
         // `groupingBy`: a HashMap filled by `computeIfAbsent`, whose key order numbers the UMIs.
         let mut order: JavaHashMap<usize> = JavaHashMap::new();
         let mut distinct: Vec<String> = Vec::new();
