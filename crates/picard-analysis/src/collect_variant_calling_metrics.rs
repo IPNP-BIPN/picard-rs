@@ -224,35 +224,74 @@ pub struct HiddenCounts {
 /// One sample's call at a site, as the accumulator reads it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Call {
-    /// `None` for a no-call; otherwise the allele indices, `0` being the reference.
-    pub alleles: Option<Vec<usize>>,
+    /// The allele indices, `0` being the reference and `None` a no-call allele.
+    pub alleles: Vec<Option<usize>>,
     pub gq: i32,
     /// One depth per allele, reference first.
     pub allele_depths: Option<Vec<i32>>,
 }
 
 impl Call {
-    pub fn is_called(&self) -> bool {
-        self.alleles.is_some()
+    fn called(&self) -> Vec<usize> {
+        self.alleles.iter().flatten().copied().collect()
     }
-    fn indices(&self) -> &[usize] {
-        self.alleles.as_deref().unwrap_or(&[])
+    /// `Genotype.isNoCall`: only a call whose every allele is `.`; `.|1` is MIXED, not a no-call.
+    pub fn is_called(&self) -> bool {
+        self.alleles.iter().any(Option::is_some)
+    }
+    /// The three zygosities `Genotype.getType` gives a call with no `.` allele; a MIXED call has
+    /// none of them.
+    fn fully_called(&self) -> Option<Vec<usize>> {
+        let called = self.called();
+        (!called.is_empty() && called.len() == self.alleles.len()).then_some(called)
     }
     pub fn is_hom_ref(&self) -> bool {
-        !self.indices().is_empty() && self.indices().iter().all(|allele| *allele == 0)
+        self.fully_called()
+            .is_some_and(|called| called.iter().all(|allele| *allele == 0))
     }
     pub fn is_hom_var(&self) -> bool {
-        !self.indices().is_empty()
-            && self
-                .indices()
-                .iter()
-                .all(|allele| *allele == self.indices()[0])
-            && self.indices()[0] != 0
+        self.fully_called().is_some_and(|called| {
+            called[0] != 0 && called.iter().all(|allele| *allele == called[0])
+        })
     }
     pub fn is_het(&self) -> bool {
-        let indices = self.indices();
-        !indices.is_empty() && indices.iter().any(|allele| *allele != indices[0])
+        self.fully_called()
+            .is_some_and(|called| called.iter().any(|allele| *allele != called[0]))
     }
+}
+
+/// `VariantContext.Type`, which decides which counter a site reaches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VariantType {
+    NoVariation,
+    Snp,
+    Mnp,
+    Indel,
+    Symbolic,
+    Mixed,
+}
+
+/// `VariantContext.determineType`: each alternate typed against the reference, MIXED as soon as
+/// two disagree. A symbolic alternate is passed as written (`<DEL>`), and `*` is one base long.
+pub fn variant_type(reference: &str, alternates: &[String]) -> VariantType {
+    let mut kind = VariantType::NoVariation;
+    for (index, alternate) in alternates.iter().enumerate() {
+        let this = if htsjdk_vcf::allele::would_be_symbolic(alternate.as_bytes()) {
+            VariantType::Symbolic
+        } else if alternate.len() != reference.len() {
+            VariantType::Indel
+        } else if alternate.len() == 1 {
+            VariantType::Snp
+        } else {
+            VariantType::Mnp
+        };
+        if index == 0 {
+            kind = this;
+        } else if this != kind {
+            return VariantType::Mixed;
+        }
+    }
+    kind
 }
 
 /// One site, as the accumulator reads it: the alleles, the filter, both dbSNP answers, and one
@@ -271,24 +310,34 @@ pub struct Site {
 }
 
 impl Site {
-    /// `VariantContext.isSNP()`: one reference base against single-base alternates.
+    pub fn variant_type(&self) -> VariantType {
+        variant_type(&self.reference, &self.alternates)
+    }
     pub fn is_snp(&self) -> bool {
-        self.reference.len() == 1 && self.alternates.iter().all(|allele| allele.len() == 1)
+        self.variant_type() == VariantType::Snp
+    }
+    pub fn is_indel(&self) -> bool {
+        self.variant_type() == VariantType::Indel
     }
     pub fn is_biallelic(&self) -> bool {
         self.alternates.len() == 1
     }
-    /// `isComplexIndel`: an indel whose reference and alternate share neither a prefix nor the
-    /// simple insertion or deletion shape.
+    /// `isSimpleIndel`: a biallelic indel sharing its first base, one side a single base.
+    fn is_simple_indel(&self) -> bool {
+        let reference = self.reference.as_bytes();
+        self.is_indel()
+            && self.is_biallelic()
+            && !reference.is_empty()
+            && self.alternates[0].as_bytes().first() == Some(&reference[0])
+            && (reference.len() == 1 || self.alternates[0].len() == 1)
+    }
+    /// `isComplexIndel`: every indel that is not a simple insertion or deletion, multiallelic
+    /// ones included.
     pub fn is_complex_indel(&self) -> bool {
-        if self.is_snp() || self.alternates.len() != 1 {
-            return false;
-        }
-        let alternate = &self.alternates[0];
-        !(alternate.starts_with(&self.reference) || self.reference.starts_with(alternate.as_str()))
+        self.is_indel() && !self.is_simple_indel()
     }
     pub fn is_simple_insertion(&self) -> bool {
-        self.alternates.len() == 1 && self.alternates[0].len() > self.reference.len()
+        self.is_simple_indel() && self.reference.len() == 1
     }
     /// `isVariantExcluded`: a site with no alternate, or one where every call is homozygous
     /// reference, never reaches a counter at all.
@@ -342,7 +391,7 @@ pub fn accumulate_site(
     if site.filtered {
         if site.is_snp() {
             counts.filtered_snps += 1;
-        } else {
+        } else if site.is_indel() {
             counts.filtered_indels += 1;
         }
         return;
@@ -391,7 +440,7 @@ pub fn accumulate_site(
         if site.in_db_snp_snps {
             counts.num_in_db_snp_multiallelic += 1;
         }
-    } else if !site.is_snp() && !site.is_complex_indel() {
+    } else if site.is_indel() && !site.is_complex_indel() {
         counts.total_indels += 1;
         let insertion = site.is_simple_insertion();
         if site.in_db_snp_indels {
