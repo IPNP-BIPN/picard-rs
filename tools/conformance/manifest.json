@@ -1352,6 +1352,31 @@
       ]
     },
     {
+      "id": "sortsam-spill",
+      "tools": [
+        "SortSam"
+      ],
+      "title": "SortSam spilling to TMP_DIR",
+      "status": "oracle-backed",
+      "harness": "tools/sortsam-spill-conformance",
+      "why": "SortSam sorts through htsjdk's SortingCollection, which spills every MAX_RECORDS_IN_RAM records to TMP_DIR as a sorted run and merges the runs. 600 records, most of them equal under the comparator, sorted with MAX_RECORDS_IN_RAM=50 (twelve runs): coordinate to an indexed BAM, queryname to a BAM and a SAM. The dump refuses to emit unless the same sorts in memory write the same bytes and the small threshold really spills, so the golden also records that where the runs end changes nothing that is written.",
+      "compare": {
+        "mode": "keyed"
+      },
+      "expect_rows": 5,
+      "expect_contains": [
+        "XI:i:599"
+      ],
+      "$expect_why": "A row count is not evidence: the input row carries every record, and the dump exits non-zero (emitting nothing a freeze could take) unless spilled and in-memory sorts agree byte for byte.",
+      "cases": [
+        {
+          "dump": "SortSamSpillDump",
+          "golden": "crates/picard-analysis/tests/data/sort_sam_spill.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as candidate-goldens-golden-pending-23 by run 39071327915 on PR 368, and identical to the local smoke run: the input, a coordinate BAM and its BAI, a queryname BAM and a queryname SAM, each written after twelve spills under Picard's default command line, so GKL deflates the BAMs."
+        }
+      ]
+    },
+    {
       "id": "setnmmduq",
       "tools": [
         "SetNmMdAndUqTags"

@@ -277,9 +277,17 @@ pub fn write_indexed(
     indexed: Option<Indexed>,
 ) -> Result<(String, Option<Vec<u8>>), EncodeError> {
     let text = write_records(header, records)?;
-    let Some(indexed) = indexed else {
-        return Ok((text, None));
-    };
+    let index = indexed.and_then(|indexed| text_index(header, &text, records, &indexed));
+    Ok((text, index))
+}
+
+/// The `.idx` of `text`, already written: each line's feature at the position its bytes start at.
+fn text_index(
+    header: &VcfHeader,
+    text: &str,
+    records: &[Record],
+    indexed: &Indexed,
+) -> Option<Vec<u8>> {
     let header_length = header.write().len();
     let mut at = header_length as i64;
     let mut positions = Vec::with_capacity(records.len());
@@ -287,8 +295,7 @@ pub fn write_indexed(
         positions.push(at);
         at += line.len() as i64 + 1;
     }
-    let index = tribble_index(records, &positions, text.len() as i64, &indexed);
-    Ok((text, index))
+    tribble_index(records, &positions, text.len() as i64, indexed)
 }
 
 /// The `.idx` `IndexingVariantContextWriter` writes at `close()`: each record's feature at the
@@ -422,8 +429,8 @@ pub fn write_output_with(
             path: output,
             timestamp: modified_millis(output)?,
         };
-        let (_, index) = write_indexed(header, records, Some(indexed))?;
-        if let Some(index) = index {
+        // From the text written under `missing`: re-encoding would refuse what it allowed.
+        if let Some(index) = text_index(header, &text, records, &indexed) {
             std::fs::write(format!("{path}.idx"), index)?;
         }
     }
@@ -449,7 +456,7 @@ pub fn write_block_compressed(
     index_dictionary: Option<&[Sequence]>,
     missing: MissingFields,
 ) -> Result<(), WriteError> {
-    use htsjdk_tribble::tabix::{FeatureRef, TabixFormat, TabixIndexCreator};
+    use htsjdk_tribble::tabix::{TabixFormat, TabixIndexCreator};
     use std::io::Write;
 
     let file = std::io::BufWriter::with_capacity(BUFFER_SIZE, std::fs::File::create(path)?);
@@ -469,25 +476,13 @@ pub fn write_block_compressed(
             die(&encode_exception(&error));
         }
         if let Some(creator) = creator.as_mut() {
-            let variant = &record.variant;
-            // `sequenceDictionary.getSequence(name).getSequenceLength()` when a new contig opens,
-            // which throws on a contig the dictionary lacks.
-            let sequence_length = match (index_dictionary, lengths.get(variant.contig.as_str())) {
-                (Some([_, ..]), None) => die(MISSING_SEQUENCE),
-                (_, length) => length.copied().unwrap_or(0),
-            };
-            let feature = FeatureRef {
-                contig: &variant.contig,
-                start: variant.start as i32,
-                end: variant.stop as i32,
-                // `VariantContext.toString()`, which only the contig-out-of-order refusal quotes
-                // and which this port does not reproduce.
-                description: &variant.contig,
-                sequence_length,
-            };
-            if let Err(error) = creator.add_feature(feature, bgzf.file_pointer()? as i64) {
-                die(&format!("{}: {}", error.java_class(), error.message()));
-            }
+            add_to_tabix(
+                creator,
+                index_dictionary,
+                &lengths,
+                record,
+                bgzf.file_pointer()?,
+            );
         }
         bgzf.write_all(line.as_bytes())?;
     }
@@ -510,6 +505,89 @@ pub fn write_block_compressed(
         )?;
     }
     Ok(())
+}
+
+/// `TabixIndexCreator.addFeature(vc, position)`, refusing as the creator does: a feature out of
+/// order, a chunk that does not move forward, or a contig a non-empty dictionary lacks.
+pub fn add_to_tabix(
+    creator: &mut htsjdk_tribble::tabix::TabixIndexCreator,
+    index_dictionary: Option<&[Sequence]>,
+    lengths: &std::collections::HashMap<&str, i32>,
+    record: &Record,
+    position: u64,
+) {
+    let variant = &record.variant;
+    // `sequenceDictionary.getSequence(name).getSequenceLength()` when a new contig opens, which
+    // throws on a contig the dictionary lacks.
+    let sequence_length = match (index_dictionary, lengths.get(variant.contig.as_str())) {
+        (Some([_, ..]), None) => die(MISSING_SEQUENCE),
+        (_, length) => length.copied().unwrap_or(0),
+    };
+    let feature = htsjdk_tribble::tabix::FeatureRef {
+        contig: &variant.contig,
+        start: variant.start as i32,
+        end: variant.stop as i32,
+        // `VariantContext.toString()`, which only the contig-out-of-order refusal quotes and which
+        // this port does not reproduce.
+        description: &variant.contig,
+        sequence_length,
+    };
+    if let Err(error) = creator.add_feature(feature, position as i64) {
+        die(&format!("{}: {}", error.java_class(), error.message()));
+    }
+}
+
+/// One `VCFWriter` replayed line by line, for where each line starts: a byte count for a text VCF,
+/// the BGZF virtual offset for a block-compressed one. Nothing is written anywhere.
+pub struct LinePositions {
+    encoders: Encoders,
+    at: Position,
+}
+
+enum Position {
+    Text(u64),
+    Bgzf(htsjdk_bgzf::BgzfWriter<std::io::Sink>),
+}
+
+impl LinePositions {
+    /// The output at `path` with its header written.
+    pub fn new(path: &str, header: &VcfHeader) -> Self {
+        let text = header.write();
+        let at = if is_compressed_vcf(path) {
+            let mut bgzf = crate::output::bgzf_writer(std::io::sink());
+            std::io::Write::write_all(&mut bgzf, text.as_bytes()).expect("a sink accepts it");
+            Position::Bgzf(bgzf)
+        } else {
+            Position::Text(text.len() as u64)
+        };
+        LinePositions {
+            encoders: Encoders::new(header, MissingFields::default()),
+            at,
+        }
+    }
+
+    /// Where the next line starts.
+    pub fn position(&mut self) -> u64 {
+        match &mut self.at {
+            Position::Text(written) => *written,
+            Position::Bgzf(bgzf) => bgzf.file_pointer().expect("a sink accepts it"),
+        }
+    }
+
+    /// `VCFWriter.add` once the indexer has its position: the record encoded, or the exception
+    /// the encoder throws, and its line written.
+    pub fn write_record(&mut self, record: &Record) {
+        let mut line = String::new();
+        if let Err(error) = self.encoders.encode(record, &mut line) {
+            die(&encode_exception(&error));
+        }
+        match &mut self.at {
+            Position::Text(written) => *written += line.len() as u64,
+            Position::Bgzf(bgzf) => {
+                std::io::Write::write_all(bgzf, line.as_bytes()).expect("a sink accepts it")
+            }
+        }
+    }
 }
 
 /// The helpful `NullPointerException` the tabix creator throws for a contig its dictionary lacks.
