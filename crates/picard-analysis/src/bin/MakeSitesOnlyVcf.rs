@@ -18,9 +18,7 @@
 //! false, in which case the same file is accepted.
 
 use picard_analysis::args::arg;
-use picard_analysis::vcf_io::{
-    die, header_dictionary, java_compare, read_path, write_output, Record,
-};
+use picard_analysis::vcf_io::{die, header_dictionary, java_compare, VcfReader};
 
 /// A collection argument: every occurrence appends, and the value `null` empties it (Barclay).
 fn collection(args: &[String], keys: &[&str]) -> Vec<String> {
@@ -61,10 +59,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     samples.sort_by(|a, b| java_compare(a, b));
     samples.dedup();
 
-    let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
     let dictionary = header_dictionary(&vcf.file.header);
     if create_index && dictionary.is_none() {
-        die(
+        vcf.fail(
             "picard.PicardException: A sequence dictionary must be available (either through the \
              input file or by setting it explicitly) when creating indexed output.",
         );
@@ -75,28 +73,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut header = vcf.file.header.clone();
     header.samples = samples.clone();
 
-    let records: Vec<Record> = vcf
-        .records
-        .into_iter()
-        .map(|mut record| {
-            // `ctx.getGenotypes().subsetToSamples(samples)`: an empty set is `NO_GENOTYPES`, and
-            // otherwise each named sample the record has, looked up by name.
-            record.decode();
-            let genotypes = std::mem::take(&mut record.variant.genotypes);
-            record.variant.genotypes = samples
-                .iter()
-                .filter_map(|sample| genotypes.iter().find(|g| &g.sample_name == sample))
-                .cloned()
-                .collect();
-            record
-        })
-        .collect();
-
     let index_dictionary = if create_index {
         dictionary.as_deref()
     } else {
         None
     };
-    write_output(&output, &header, &records, index_dictionary)?;
+    vcf.copy_to(&output, &header, index_dictionary, |mut record| {
+        // `ctx.getGenotypes().subsetToSamples(samples)`: an empty set is `NO_GENOTYPES`, and
+        // otherwise each named sample the record has, looked up by name.
+        record.decode();
+        let genotypes = std::mem::take(&mut record.variant.genotypes);
+        record.variant.genotypes = samples
+            .iter()
+            .filter_map(|sample| genotypes.iter().find(|g| &g.sample_name == sample))
+            .cloned()
+            .collect();
+        Ok(record)
+    });
     Ok(())
 }

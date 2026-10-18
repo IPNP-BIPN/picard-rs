@@ -14,14 +14,15 @@
 //! under one key, so of several comments only the first given is written.
 
 use htsjdk_vcf::comparator::VariantContextComparator;
+use htsjdk_vcf::encoder::MissingFields;
 use htsjdk_vcf::header::{HeaderLine, VcfHeader};
 use htsjdk_vcf::merge::{smart_merge_headers, Source};
 use picard_analysis::args::arg;
-use picard_analysis::merge_vcfs::{merge_sorted, MergeFailure};
+use picard_analysis::merge_vcfs::{merge_streams, MergeFailure};
 use picard_analysis::vcf_io::{
     add_other_meta_data_line, die, header_dictionary, is_compressed_vcf, parse_sam_dictionary,
-    read_path, sample_names_in_order, set_sequence_dictionary, unroll_paths, write_output, LazyVcf,
-    Record, Sequence,
+    sample_names_in_order, set_sequence_dictionary, unroll_paths, Record, Sequence, VcfReader,
+    VcfWriter,
 };
 
 /// A collection argument: every occurrence appends, and the value `null` empties it (Barclay).
@@ -98,67 +99,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let paths = unroll_paths(&inputs).unwrap_or_else(|exception| die(&exception));
-    let mut files: Vec<LazyVcf> = Vec::with_capacity(paths.len());
+    let mut files: Vec<VcfReader> = Vec::with_capacity(paths.len());
     let mut comparator: Option<VariantContextComparator> = None;
     let mut sample_list: Vec<String> = Vec::new();
     for path in &paths {
-        let mut vcf = read_path(path).unwrap_or_else(|exception| die(&exception));
-        if contig_lines(&vcf.file.header).is_empty() {
-            match &dictionary {
-                None => die(&format!(
-                    "java.lang.IllegalArgumentException: {SEQ_DICT_REQUIRED}"
-                )),
-                Some(given) => set_sequence_dictionary(&mut vcf.file.header, given),
-            }
-        }
-
-        let lines = contig_lines(&vcf.file.header);
-        match &comparator {
-            None => {
-                comparator = Some(
-                    VariantContextComparator::from_header_lines(&lines).unwrap_or_else(|e| {
-                        die(&format!("{}: {}", e.class(), e.message()));
-                    }),
-                );
-            }
-            Some(existing) => {
-                if !existing.is_compatible(&lines) {
-                    die(&format!(
-                        "java.lang.IllegalArgumentException: The contig entries in input path {} \
-                         are not compatible with the others.",
-                        absolute(path)
-                    ));
-                }
-            }
-        }
-
-        if dictionary.is_none() {
-            dictionary = header_dictionary(&vcf.file.header);
-        }
-
-        let samples = sample_names_in_order(&vcf.file.header);
-        if sample_list.is_empty() {
-            sample_list = samples;
-        } else if sample_list != samples {
-            die(&format!(
-                "java.lang.IllegalArgumentException: Input path {} has sample entries that don't \
-                 match the other files.",
-                absolute(path)
-            ));
-        }
-
-        if files.is_empty() {
-            for comment in &comments {
-                add_other_meta_data_line(&mut vcf.file.header, "MergeVcfs.comment", comment);
-            }
-        }
+        let vcf =
+            VcfReader::open(path).unwrap_or_else(|exception| fail_all(&mut files, &exception));
         files.push(vcf);
+        let first = files.len() == 1;
+        let header = &mut files.last_mut().expect("just pushed").file.header;
+        let admitted = admit(header, path, &dictionary, &mut comparator, &mut sample_list);
+        if let Err(exception) = admitted {
+            fail_all(&mut files, &exception);
+        }
+        if dictionary.is_none() {
+            dictionary = header_dictionary(header);
+        }
+        if first {
+            for comment in &comments {
+                add_other_meta_data_line(header, "MergeVcfs.comment", comment);
+            }
+        }
     }
 
     if create_index && dictionary.is_none() {
-        die(&format!(
-            "picard.PicardException: Index creation failed. {SEQ_DICT_REQUIRED}"
-        ));
+        fail_all(
+            &mut files,
+            &format!("picard.PicardException: Index creation failed. {SEQ_DICT_REQUIRED}"),
+        );
     }
 
     // `new VCFHeader(VCFUtils.smartMergeHeaders(headers, false), sampleList)`.
@@ -174,40 +142,120 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             version: *version,
         })
         .collect();
-    let (merged, _) = smart_merge_headers(&sources, false)
-        .unwrap_or_else(|e| die(&format!("{}: {}", e.class(), e.message())));
+    let merged = smart_merge_headers(&sources, false)
+        .map(|(merged, _)| merged)
+        .map_err(|e| format!("{}: {}", e.class(), e.message()));
+    let merged = merged.unwrap_or_else(|exception| fail_all(&mut files, &exception));
     let header = VcfHeader {
         lines: merged,
         samples: sample_list,
     };
-
-    let comparator = comparator.expect("at least one input");
-    let inputs: Vec<Vec<Record>> = files.into_iter().map(|f| f.records).collect();
-    let (order, failure) = merge_sorted(
-        &inputs,
-        "htsjdk.variant.variantcontext.VariantContextComparator",
-        |a: &Record, b: &Record| {
-            comparator
-                .compare(&a.variant, &b.variant)
-                .map(|c| c.cmp(&0))
-        },
-    );
-    if let Some(failure) = failure {
-        match failure {
-            MergeFailure::Compare(_) => die(NPE_UNKNOWN_CONTIG),
-            MergeFailure::NotSorted(message) => die(&message),
-        }
-    }
-    let records: Vec<Record> = order
-        .into_iter()
-        .map(|(input, position)| inputs[input][position].clone())
-        .collect();
 
     let index_dictionary = if create_index {
         dictionary.as_deref()
     } else {
         None
     };
-    write_output(&output, &header, &records, index_dictionary)?;
+    let mut writer =
+        VcfWriter::create(&output, &header, index_dictionary, MissingFields::default())
+            .unwrap_or_else(|error| fail_all(&mut files, &error.exception()));
+    let comparator = comparator.expect("at least one input");
+    let inputs = files.len();
+    let files = std::cell::RefCell::new(files);
+    let failure = merge_streams(
+        inputs,
+        |input| {
+            let mut files = files.borrow_mut();
+            // An input is read whole before the next one is opened, in the run this streams.
+            match files[input].try_next()? {
+                Ok(record) => Some(record),
+                Err(exception) => fail_all(&mut files[..input], &exception),
+            }
+        },
+        "htsjdk.variant.variantcontext.VariantContextComparator",
+        |a: &Record, b: &Record| {
+            comparator
+                .compare(&a.variant, &b.variant)
+                .map(|c| c.cmp(&0))
+        },
+        |record| {
+            if let Err(error) = writer.add(record) {
+                fail_all(&mut files.borrow_mut(), &error.exception());
+            }
+        },
+    );
+    let mut files = files.into_inner();
+    if let Some(failure) = failure {
+        match failure {
+            MergeFailure::Compare(_) => fail_all(&mut files, NPE_UNKNOWN_CONTIG),
+            MergeFailure::NotSorted(message) => fail_all(&mut files, &message),
+        }
+    }
+    writer
+        .finish()
+        .unwrap_or_else(|error| fail_all(&mut files, &error.exception()));
     Ok(())
+}
+
+/// One input's header checked against the ones before it, as `doWork` checks each file it opens,
+/// and its dictionary filled in from `SEQUENCE_DICTIONARY` when it has no contig lines.
+fn admit(
+    header: &mut VcfHeader,
+    path: &str,
+    dictionary: &Option<Vec<Sequence>>,
+    comparator: &mut Option<VariantContextComparator>,
+    sample_list: &mut Vec<String>,
+) -> Result<(), String> {
+    if contig_lines(header).is_empty() {
+        match dictionary {
+            None => {
+                return Err(format!(
+                    "java.lang.IllegalArgumentException: {SEQ_DICT_REQUIRED}"
+                ))
+            }
+            Some(given) => set_sequence_dictionary(header, given),
+        }
+    }
+
+    let lines = contig_lines(header);
+    match comparator {
+        None => {
+            *comparator = Some(
+                VariantContextComparator::from_header_lines(&lines)
+                    .map_err(|e| format!("{}: {}", e.class(), e.message()))?,
+            );
+        }
+        Some(existing) => {
+            if !existing.is_compatible(&lines) {
+                return Err(format!(
+                    "java.lang.IllegalArgumentException: The contig entries in input path {} \
+                     are not compatible with the others.",
+                    absolute(path)
+                ));
+            }
+        }
+    }
+
+    let samples = sample_names_in_order(header);
+    if sample_list.is_empty() {
+        *sample_list = samples;
+    } else if *sample_list != samples {
+        return Err(format!(
+            "java.lang.IllegalArgumentException: Input path {} has sample entries that don't \
+             match the other files.",
+            absolute(path)
+        ));
+    }
+    Ok(())
+}
+
+/// Throw `exception` as a run that had read every input whole first would: unless one of them
+/// fails to read, the first in input order, which it would have thrown instead.
+fn fail_all(files: &mut [VcfReader], exception: &str) -> ! {
+    for file in files {
+        if let Err(read) = file.check() {
+            die(&read);
+        }
+    }
+    die(exception)
 }

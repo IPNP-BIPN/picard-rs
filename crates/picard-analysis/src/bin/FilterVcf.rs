@@ -10,7 +10,7 @@
 
 use picard_analysis::args::arg;
 use picard_analysis::filter_vcf::{add_header_lines, filter_record, Thresholds};
-use picard_analysis::vcf_io::{die, header_dictionary, is_compressed_vcf, read_path, write_output};
+use picard_analysis::vcf_io::{die, header_dictionary, is_compressed_vcf, VcfReader};
 
 fn number<T: std::str::FromStr>(args: &[String], key: &str, default: T) -> T {
     match arg(args, key) {
@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         min_qd: number(&args, "MIN_QD=", 0.0),
     };
 
-    let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
     // `VariantContextJavascriptFilter`, made once the reader is open: the script is read and
     // compiled, and the filter is named for the file's base name.
     let script = arg(&args, "JAVASCRIPT_FILE=")
@@ -51,9 +51,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter(|path| path != "null");
     let mut javascript = script.as_ref().map(|path| {
         let text = std::fs::read_to_string(path)
-            .unwrap_or_else(|_| die("picard.PicardException: javascript-related error"));
+            .unwrap_or_else(|_| vcf.fail("picard.PicardException: javascript-related error"));
         let filter = picard_analysis::javascript::JavascriptFilter::new(&text)
-            .unwrap_or_else(|message| die(&message));
+            .unwrap_or_else(|message| vcf.fail(&message));
         let file = std::path::Path::new(path);
         let stem = file
             .file_stem()
@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
     if (name.ends_with(".vcf") || name.ends_with(".bcf")) && dictionary.is_none() {
-        die(
+        vcf.fail(
             "picard.PicardException: The input vcf must have a sequence dictionary in order to \
              create indexed vcf or bcfs.",
         );
@@ -86,25 +86,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &format!("Variant Filtered by Javascript file {path}"),
         ));
     }
-    let mut records = vcf.records;
-    for record in &mut records {
-        record.decode();
-        // The script sees the variant as it was read, before any filter of this run.
-        let rejected = match &mut javascript {
-            Some((filter, name, _)) => (!filter
-                .accept_variant(&record.variant)
-                .unwrap_or_else(|message| die(&message)))
-            .then(|| name.clone()),
-            None => None,
-        };
-        filter_record(&mut record.variant, &thresholds)
-            .unwrap_or_else(|message| die(&format!("java.lang.NumberFormatException: {message}")));
-        if let (Some(name), Some(filters)) = (rejected, record.variant.filters.as_mut()) {
-            filters.push(name);
-            filters.sort_unstable();
-            filters.dedup();
-        }
-    }
     // Only a `.vcf` or `.bcf` name sets the dictionary on the builder; a `.vcf.gz` is indexed
     // without one.
     let index_dictionary = if !create_index {
@@ -114,6 +95,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         dictionary.as_deref()
     };
-    write_output(&output, &header, &records, index_dictionary)?;
+    vcf.copy_to(&output, &header, index_dictionary, |mut record| {
+        record.decode();
+        // The script sees the variant as it was read, before any filter of this run.
+        let rejected = match &mut javascript {
+            Some((filter, name, _)) => {
+                (!filter.accept_variant(&record.variant)?).then(|| name.clone())
+            }
+            None => None,
+        };
+        filter_record(&mut record.variant, &thresholds)
+            .map_err(|message| format!("java.lang.NumberFormatException: {message}"))?;
+        if let (Some(name), Some(filters)) = (rejected, record.variant.filters.as_mut()) {
+            filters.push(name);
+            filters.sort_unstable();
+            filters.dedup();
+        }
+        Ok(record)
+    });
     Ok(())
 }
