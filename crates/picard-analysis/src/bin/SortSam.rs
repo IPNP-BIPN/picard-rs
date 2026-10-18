@@ -22,6 +22,7 @@ use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::text::write_alignment;
 use htsjdk_bgzf::read::BgzfReader;
 use picard_analysis::args::arg;
+use picard_analysis::record_validation::Validator;
 use picard_analysis::sort_sam::{
     mate_cigar_refusal, MateCigarCheck, RequestedOrder, SortingCollection,
     DEFAULT_MAX_RECORDS_IN_RAM,
@@ -120,12 +121,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut head = Vec::new();
     std::fs::File::open(&input)?
-        .take(2)
+        .take(4)
         .read_to_end(&mut head)?;
     let (mut header, records): (
         SamHeader,
         Box<dyn Iterator<Item = Result<BamRecord, String>>>,
-    ) = if head == [0x1f, 0x8b] {
+    ) = if picard_analysis::cram_input::is_cram(&head) {
+        // shortcut: a CRAM is decoded whole, then validated as the BAM it decodes to.
+        let raw = picard_analysis::cram_input::uncram(std::fs::read(&input)?);
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
+        let reader =
+            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
+        let header = reader.header.text.clone();
+        let records = reader
+            .map(|r| r.map_err(|e| format!("{e:?}")))
+            .collect::<Vec<_>>();
+        (header, Box::new(records.into_iter()))
+    } else if head.starts_with(&[0x1f, 0x8b]) {
         let (header, stream) = BamStream::open(&input)?;
         (header, Box::new(stream))
     } else {
@@ -186,6 +198,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
+    if picard_analysis::cram_output::is_cram(&output) {
+        let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)?;
+        for record in sorted {
+            writer.write(&record?).map_err(|e| format!("{e:?}"))?;
+        }
+        let bam = writer.finish()?;
+        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
+        return Ok(());
+    }
+
     let out = BufWriter::new(std::fs::File::create(&output)?);
     let mut writer = picard_analysis::output::bam_writer(out, &header)?;
     if create_index {
@@ -212,6 +234,8 @@ struct BamStream {
     buf: Vec<u8>,
     pos: usize,
     eof: bool,
+    /// The checks htsjdk's reader runs on each record it returns; set once the header is read.
+    validator: Option<Validator>,
 }
 
 impl BamStream {
@@ -221,12 +245,15 @@ impl BamStream {
             buf: Vec::new(),
             pos: 0,
             eof: false,
+            validator: None,
         };
         loop {
             match BamReader::new(&stream.buf) {
                 Ok(reader) => {
                     let header = reader.header.text.clone();
+                    let validator = Validator::new(&header, &reader.header.binary_sequences);
                     stream.pos = reader.records_start();
+                    stream.validator = Some(validator);
                     return Ok((header, stream));
                 }
                 Err(e) => {
@@ -268,6 +295,9 @@ impl Iterator for BamStream {
             let answer = BamRecord::decode(&self.buf[self.pos..]);
             if let Ok(Some((record, used))) = answer {
                 self.pos += used;
+                if let Some(Err(message)) = self.validator.as_mut().map(|v| v.check(&record)) {
+                    picard_analysis::metrics_cli::thrown(&message);
+                }
                 return Some(Ok(record));
             }
             match self.pull() {

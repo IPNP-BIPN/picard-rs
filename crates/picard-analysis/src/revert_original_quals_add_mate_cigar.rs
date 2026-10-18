@@ -36,6 +36,23 @@ const SUPPLEMENTARY_ALIGNMENT: u16 = 0x800;
 const FIRST_OF_PAIR: u16 = 0x40;
 const SECOND_OF_PAIR: u16 = 0x80;
 const MATE_UNMAPPED: u16 = 0x8;
+const READ_UNMAPPED: u16 = 0x4;
+const READ_NEGATIVE_STRAND: u16 = 0x10;
+const MATE_NEGATIVE_STRAND: u16 = 0x20;
+
+/// Why a run stops: the input did not parse, or the reference threw while it walked the templates.
+#[derive(Debug)]
+pub enum RevertError {
+    Parse(ParseError),
+    /// The exception, class and message, as `Exception in thread "main"` prints it.
+    Thrown(String),
+}
+
+impl From<ParseError> for RevertError {
+    fn from(e: ParseError) -> Self {
+        RevertError::Parse(e)
+    }
+}
 
 /// The output sort orders, which are `SAMFileHeader.SortOrder`'s five.
 ///
@@ -149,9 +166,14 @@ fn restore_original_qualities(rec: &mut BamRecord) {
     }
 }
 
-/// `SamPairUtil.SetMateInfoIterator(setMateCigar=true)`: over queryname-sorted records, set mate info
-/// and the mate cigar on each template's primary pair.
-fn add_mate_info(records: &mut [BamRecord]) {
+/// `SamPairUtil.SetMateInfoIterator(setMateCigar=true, ignoreMissingMates=false)`: over
+/// queryname-sorted records, set mate info and the mate cigar on each template's primary pair, and
+/// on its supplementary records from the other end's primary.
+///
+/// Secondary records are carried through untouched. A template whose paired primaries are not
+/// exactly one first and one second end is the `SAMException` the iterator throws: a second primary
+/// on the same end as soon as it is met, a missing end once the template is read.
+fn add_mate_info(records: &mut [BamRecord]) -> Result<(), String> {
     let mut start = 0;
     while start < records.len() {
         let mut end = start + 1;
@@ -161,42 +183,121 @@ fn add_mate_info(records: &mut [BamRecord]) {
 
         let mut first_primary: Option<usize> = None;
         let mut second_primary: Option<usize> = None;
+        let mut contains_supplementary = false;
         for (offset, r) in records[start..end].iter().enumerate() {
             let i = start + offset;
-            assert!(
-                is_primary(r),
-                "RevertOriginalBaseQualitiesAndAddMateCigar: secondary/supplementary records are not ported"
-            );
-            if r.flags & READ_PAIRED != 0 {
+            if r.flags & READ_PAIRED == 0 {
+                continue;
+            }
+            if is_primary(r) {
                 if r.flags & FIRST_OF_PAIR != 0 {
-                    assert!(first_primary.is_none(), "two first-of-pair primaries");
+                    if first_primary.is_some() {
+                        return Err(format!(
+                            "htsjdk.samtools.SAMException: Found two records that are paired, not \
+                             supplementary, and first of the pair: {}",
+                            r.read_name
+                        ));
+                    }
                     first_primary = Some(i);
                 } else if r.flags & SECOND_OF_PAIR != 0 {
-                    assert!(second_primary.is_none(), "two second-of-pair primaries");
+                    if second_primary.is_some() {
+                        return Err(format!(
+                            "htsjdk.samtools.SAMException: Found two records that are paired, not \
+                             supplementary, and second of the pair: {}",
+                            r.read_name
+                        ));
+                    }
                     second_primary = Some(i);
                 }
             }
-        }
-
-        if let (Some(f), Some(s)) = (first_primary, second_primary) {
-            let (lo, hi) = (f.min(s), f.max(s));
-            let (left, right) = records.split_at_mut(hi);
-            let (a, b) = (&mut left[lo], &mut right[0]);
-            if f < s {
-                set_mate_info(a, b, true);
-            } else {
-                set_mate_info(b, a, true);
+            if r.flags & SUPPLEMENTARY_ALIGNMENT != 0 {
+                contains_supplementary = true;
             }
         }
 
+        match (first_primary, second_primary) {
+            (Some(f), Some(s)) => {
+                let (lo, hi) = (f.min(s), f.max(s));
+                let (left, right) = records.split_at_mut(hi);
+                let (a, b) = (&mut left[lo], &mut right[0]);
+                if f < s {
+                    set_mate_info(a, b, true);
+                } else {
+                    set_mate_info(b, a, true);
+                }
+                if contains_supplementary {
+                    let first = records[f].clone();
+                    let second = records[s].clone();
+                    for r in &mut records[start..end] {
+                        if r.flags & READ_PAIRED != 0 && r.flags & SUPPLEMENTARY_ALIGNMENT != 0 {
+                            let mate = if r.flags & FIRST_OF_PAIR != 0 {
+                                &second
+                            } else {
+                                &first
+                            };
+                            set_mate_info_on_supplementary(r, mate);
+                        }
+                    }
+                }
+            }
+            (Some(f), None) => {
+                return Err(format!(
+                    "htsjdk.samtools.SAMException: Missing second read of pair: {}",
+                    records[f].read_name
+                ));
+            }
+            (None, Some(s)) => {
+                return Err(format!(
+                    "htsjdk.samtools.SAMException: Missing first read of pair: {}",
+                    records[s].read_name
+                ));
+            }
+            (None, None) => {}
+        }
+
         start = end;
+    }
+    Ok(())
+}
+
+/// `SamPairUtil.setMateInformationOnSupplementalAlignment(supplemental, matePrimary, true)`, in its
+/// setter order: the tags are `MC` then `MQ`, which is the order a record that had neither gains them.
+fn set_mate_info_on_supplementary(supplemental: &mut BamRecord, mate: &BamRecord) {
+    supplemental.mate_reference_index = mate.reference_index;
+    supplemental.mate_alignment_start = mate.alignment_start;
+    set_flag(
+        supplemental,
+        MATE_NEGATIVE_STRAND,
+        mate.flags & READ_NEGATIVE_STRAND != 0,
+    );
+    let mate_unmapped = mate.flags & READ_UNMAPPED != 0;
+    set_flag(supplemental, MATE_UNMAPPED, mate_unmapped);
+    supplemental.inferred_insert_size = mate.inferred_insert_size.wrapping_neg();
+    if mate_unmapped {
+        supplemental.tags.remove(Tag::new(b"MC"));
+    } else {
+        supplemental
+            .tags
+            .insert(Tag::new(b"MC"), TagValue::Str(mate.cigar.to_text()));
+    }
+    supplemental.tags.insert(
+        Tag::new(b"MQ"),
+        TagValue::Int(i64::from(mate.mapping_quality)),
+    );
+}
+
+fn set_flag(rec: &mut BamRecord, bit: u16, value: bool) {
+    if value {
+        rec.flags |= bit;
+    } else {
+        rec.flags &= !bit;
     }
 }
 
 /// `RevertOriginalBaseQualitiesAndAddMateCigar.doWork` for a single SAM input, default options.
 pub fn revert_original_base_qualities_and_add_mate_cigar(
     input_sam: &str,
-) -> Result<String, ParseError> {
+) -> Result<String, RevertError> {
     let (header, records) = revert_original_records(input_sam)?;
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
 }
@@ -205,7 +306,7 @@ pub fn revert_original_base_qualities_and_add_mate_cigar(
 /// mate-info'd, sorted records. Shared by the SAM and BAM renderers so they cannot drift.
 fn revert_original_records(
     input_sam: &str,
-) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
+) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), RevertError> {
     revert_original_records_with(input_sam, &Options::default())
 }
 
@@ -218,7 +319,7 @@ fn revert_original_records(
 pub fn revert_original_records_with(
     input_sam: &str,
     options: &Options,
-) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
+) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), RevertError> {
     // The tool opens the input EAGERLY_DECODE at whatever VALIDATION_STRINGENCY; stringency does not
     // reach the bytes.
     let (mut header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
@@ -238,7 +339,7 @@ pub fn revert_original_records_with(
 
     // Queryname sort to group templates, add mate info + mate cigar, then re-sort to the output order.
     records.sort_by(query_name::compare);
-    add_mate_info(&mut records);
+    add_mate_info(&mut records).map_err(RevertError::Thrown)?;
     match output_order {
         SortOrder::Coordinate => records.sort_by(coordinate::compare),
         // `SO:duplicate`'s comparator is htsjdk's `SAMRecordDuplicateComparator`, the same one the
@@ -255,7 +356,7 @@ pub fn revert_original_records_with(
 /// `SO:duplicate`: htsjdk's duplicate comparator over the records, which needs each record's
 /// library and read group as well as its own fields.
 fn sort_by_duplicate_order(header: &htsjdk_bam::header::SamHeader, records: &mut [BamRecord]) {
-    use crate::mark_duplicates::{Record, ScoringStrategy};
+    use crate::mark_duplicates::{base_quality_score, Record, ScoringStrategy, Span};
     let library_of = |record: &BamRecord| -> (String, i32) {
         let id = match record.tags.get(Tag::new(b"RG")) {
             Some(TagValue::Str(value)) => Some(value.clone()),
@@ -286,15 +387,19 @@ fn sort_by_duplicate_order(header: &htsjdk_bam::header::SamHeader, records: &mut
             flags: record.flags,
             reference_index: record.reference_index,
             alignment_start: record.alignment_start,
-            cigar: record.cigar.clone(),
-            qualities: record.base_qualities.clone(),
+            span: Span::of(&record.cigar),
+            read_length: record.read_bases.len() as u32,
+            base_quality_score: base_quality_score(&record.base_qualities),
             mate_reference_index: record.mate_reference_index,
-            library,
+            library: library.into(),
             read_group,
             barcode: None,
             existing_dt: None,
-            mate_cigar: match record.tags.get(Tag::new(b"MC")) {
-                Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text).ok(),
+            mate_span: match record.tags.get(Tag::new(b"MC")) {
+                Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text)
+                    .ok()
+                    .as_ref()
+                    .map(Span::of),
                 _ => None,
             },
             mate_alignment_start: record.mate_alignment_start,
@@ -305,10 +410,10 @@ fn sort_by_duplicate_order(header: &htsjdk_bam::header::SamHeader, records: &mut
         .iter()
         .map(|record| {
             let converted = as_record(record);
-            let library = match libraries.iter().position(|k| *k == converted.library) {
+            let library = match libraries.iter().position(|k| **k == *converted.library) {
                 Some(at) => at as i32,
                 None => {
-                    libraries.push(converted.library.clone());
+                    libraries.push(converted.library.to_string());
                     (libraries.len() - 1) as i32
                 }
             };
@@ -334,7 +439,7 @@ fn sort_by_duplicate_order(header: &htsjdk_bam::header::SamHeader, records: &mut
 /// the SAM path already reproduces, and `BamWriter` is oracle-gated over arbitrary records).
 pub fn revert_original_base_qualities_and_add_mate_cigar_to_bam(
     input_sam: &str,
-) -> Result<Vec<u8>, ParseError> {
+) -> Result<Vec<u8>, RevertError> {
     let (header, records) = revert_original_records(input_sam)?;
     let mut w =
         crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");

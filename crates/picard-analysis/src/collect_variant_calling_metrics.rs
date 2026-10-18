@@ -336,6 +336,7 @@ impl Site {
     pub fn is_complex_indel(&self) -> bool {
         self.is_indel() && !self.is_simple_indel()
     }
+    /// `isSimpleInsertion`: a simple indel whose reference is the one base.
     pub fn is_simple_insertion(&self) -> bool {
         self.is_simple_indel() && self.reference.len() == 1
     }
@@ -489,5 +490,52 @@ pub fn accumulate_detail(
         } else if call.is_hom_var() {
             hidden.number_of_hom_var += 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn site(reference: &str, alternates: &str) -> Site {
+        Site {
+            reference: reference.to_string(),
+            alternates: alternates.split(',').map(str::to_string).collect(),
+            filtered: false,
+            in_db_snp_snps: false,
+            in_db_snp_indels: false,
+            calls: Vec::new(),
+        }
+    }
+
+    /// `getType()`, `isComplexIndel()` and `isSimpleInsertion()` as htsjdk 5.0.0 answers them in
+    /// the oracle container: a spanning deletion `*` is a SNP, an MNP and a mixed site are neither
+    /// SNP nor indel, and a multiallelic indel or one whose first bases differ is complex.
+    #[test]
+    fn sites_are_typed_as_variant_context_types_them() {
+        for (reference, alternates, kind, complex, insertion) in [
+            ("A", "G", VariantType::Snp, false, false),
+            ("A", "G,T", VariantType::Snp, false, false),
+            ("AC", "GT", VariantType::Mnp, false, false),
+            ("A", "AT", VariantType::Indel, false, true),
+            ("AT", "A", VariantType::Indel, false, false),
+            ("A", "G,AT", VariantType::Mixed, false, false),
+            ("A", "<DEL>", VariantType::Symbolic, false, false),
+            ("A", "*", VariantType::Snp, false, false),
+            ("A", "G,*", VariantType::Snp, false, false),
+            ("ACG", "T", VariantType::Indel, true, false),
+            ("A", "ATT,ATTT", VariantType::Indel, true, false),
+            ("AC", "A", VariantType::Indel, false, false),
+        ] {
+            let s = site(reference, alternates);
+            assert_eq!(s.variant_type(), kind, "{reference}>{alternates}");
+            assert_eq!(s.is_complex_indel(), complex, "{reference}>{alternates}");
+            assert_eq!(
+                s.is_simple_insertion(),
+                insertion,
+                "{reference}>{alternates}"
+            );
+        }
+        assert_eq!(variant_type("A", &[]), VariantType::NoVariation);
     }
 }

@@ -75,22 +75,47 @@ impl CircularBuffer {
 /// which produces the same bytes because the buffer is the only thing between them. A buffer of
 /// ONE byte still copies everything, one byte at a time.
 pub fn copy(input: &[u8], buffer_size: usize, io_size: usize) -> Vec<u8> {
-    let mut buffer = CircularBuffer::new(buffer_size);
     let mut output = Vec::with_capacity(input.len());
+    let mut reader = input;
+    pump(&mut reader, &mut output, buffer_size, io_size).expect("a slice and a vector do not fail");
+    output
+}
+
+/// The same turns over streams: read up to `IO_SIZE` bytes, put what fits into the ring, and write
+/// out what the ring holds, until the input ends and the ring is empty. Nothing is held beyond the
+/// ring, so the tool keeps up with a pipeline rather than waiting for the end of its input.
+pub fn pump(
+    input: &mut impl std::io::Read,
+    output: &mut impl std::io::Write,
+    buffer_size: usize,
+    io_size: usize,
+) -> std::io::Result<()> {
+    let mut buffer = CircularBuffer::new(buffer_size);
     let chunk = io_size.max(1);
-    let mut written = 0;
+    let mut incoming = vec![0u8; chunk];
+    let mut pending = 0..0;
     let mut scratch = vec![0u8; chunk];
-    while written < input.len() || buffer.filled > 0 {
-        if written < input.len() {
-            let end = (written + chunk).min(input.len());
-            written += buffer.write(&input[written..end]);
+    let mut ended = false;
+    loop {
+        if pending.is_empty() && !ended {
+            let n = loop {
+                match input.read(&mut incoming) {
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    other => break other?,
+                }
+            };
+            ended = n == 0;
+            pending = 0..n;
+        }
+        if !pending.is_empty() {
+            pending.start += buffer.write(&incoming[pending.clone()]);
         }
         let taken = buffer.read(&mut scratch);
-        output.extend_from_slice(&scratch[..taken]);
-        if taken == 0 && written >= input.len() {
+        output.write_all(&scratch[..taken])?;
+        if ended && pending.is_empty() && buffer.filled == 0 {
             break;
         }
     }
     buffer.close();
-    output
+    output.flush()
 }

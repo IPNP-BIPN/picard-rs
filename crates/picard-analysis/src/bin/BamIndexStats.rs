@@ -42,6 +42,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     // The stream is sniffed before the index is looked for, which is the order the two refusals
     // come out in: a SAM text file is `Invalid GZIP header` and never reaches the index check.
+    // A CRAM is read as BGZF too, and its first block runs off the end of the file.
+    if picard_analysis::cram_input::is_cram(&bam) {
+        eprintln!(
+            "Exception in thread \"main\" htsjdk.samtools.FileTruncatedException: \
+             Premature end of file: {}",
+            picard_analysis::fingerprint::reference_path(&input)
+        );
+        std::process::exit(1);
+    }
     if !bam.starts_with(&[0x1f, 0x8b]) {
         eprintln!(
             "Exception in thread \"main\" htsjdk.samtools.SAMFormatException: Invalid GZIP header"

@@ -17,12 +17,8 @@
 //! header's read groups, in header order, and a read whose group lacks the field goes to an
 //! `unknown` unit made when the first such read arrives.
 
-use std::io::Read;
-
 use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::args::arg;
 use picard_analysis::insert_size::{InsertSizeMetricsCollector, Options};
@@ -193,19 +189,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|v| v.parse().ok())
         .unwrap_or(0);
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let (header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        read_sam(&String::from_utf8(raw)?).map_err(|e| format!("{e:?}"))?
-    };
+    let (header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
 
     let found = match header.attributes.get("SO") {
         Some("coordinate") => SortOrder::Coordinate,
@@ -222,7 +206,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut distributors = Distributors::new(&levels, &header, options);
     let mut current: Option<i32> = None;
     let mut count = 0i64;
-    for record in &records {
+    for record in records {
+        let record = &record;
         if with_reference && record.reference_index != -1 {
             match walk_reference(current, record.reference_index) {
                 Ok(next) => current = Some(next),

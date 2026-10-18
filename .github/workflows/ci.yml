@@ -901,6 +901,7 @@ jobs:
             --log /tmp/ExtractIlluminaBarcodes.log \
             --log /tmp/IlluminaBasecallsToFastq.log \
             --log /tmp/IlluminaBasecallsToSam.log \
+            --pending MergeBamAlignment \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -1000,7 +1001,6 @@ jobs:
             tools/coverage/corpus/MergePedIntoVcf.t2.txt \
             tools/coverage/corpus/BamToBfq.t2.txt \
             tools/coverage/corpus/CompareMetrics.t2.txt \
-            tools/coverage/corpus/MergeBamAlignment.t2.txt \
             tools/coverage/corpus/CollectSamErrorMetrics.t2.txt \
             tools/coverage/corpus/AccumulateVariantCallingMetrics.t2.txt \
             tools/coverage/corpus/BaitDesigner.t2.txt \
@@ -1206,7 +1206,10 @@ jobs:
             suites: "comparegtc gtctovcf createextendedmanifest headerlines bcf"
           - group: oracle-backed
             index: "24/24"
-            suites: "bcf-partial"
+            suites: "bcf-partial inputshapes nonbamshapes"
+          - group: golden-pending
+            index: "1/1"
+            suites: "cram-io strict-validation filterandmerge rawrecords"
     steps:
       - uses: actions/checkout@v7
 

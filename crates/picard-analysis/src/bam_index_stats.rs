@@ -50,7 +50,7 @@ pub fn bam_index_stats(bam: &[u8]) -> Result<String, BamIndexStatsError> {
 /// `BamIndexStats.doWork` does.
 pub fn bam_index_stats_with_index(bam: &[u8], bai: &[u8]) -> Result<String, BamIndexStatsError> {
     let decoded =
-        htsjdk_bgzf::decompress_all(bam).map_err(|e| BamIndexStatsError::Bgzf(format!("{e:?}")))?;
+        crate::bgzf::decompress_all(bam).map_err(|e| BamIndexStatsError::Bgzf(format!("{e:?}")))?;
     let reader =
         BamReader::new(&decoded).map_err(|e| BamIndexStatsError::Bgzf(format!("{e:?}")))?;
     let sequences = reader.header.text.sequences.clone();

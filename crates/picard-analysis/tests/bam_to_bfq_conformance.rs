@@ -15,8 +15,8 @@
 use std::io::Read;
 
 use picard_analysis::bam_to_bfq::{
-    base_code, encode, encode_base_and_quality, is_unknown_base, no_call_quality, output_file_name,
-    output_file_prefix, FILE_BYTES_ARE_REPRODUCIBLE, MUTUALLY_EXCLUSIVE_MESSAGE,
+    base_code, encode, encode_base_and_quality, gzip_writer, is_unknown_base, no_call_quality,
+    output_file_name, output_file_prefix, MUTUALLY_EXCLUSIVE_MESSAGE,
 };
 
 fn corpus() -> String {
@@ -200,12 +200,24 @@ fn the_unknown_base_branch_cannot_be_reached_through_a_bam() {
         refusal.contains("Bad base passed to charToCompressedBaseHigh"),
         "{refusal}"
     );
-    // And the bytes on disk are GZIP, which this port does not reproduce: the golden holds both
-    // forms, and the constant says which of the two is a claim.
-    let raw = field(&text, "bfq", "a-pair/run.0.1.bfq").expect("the file");
-    assert!(raw.starts_with("1f8b08"), "{raw}");
-    assert_eq!(
-        FILE_BYTES_ARE_REPRODUCIBLE,
-        raw == field(&text, "plain", "a-pair/run.0.1.bfq").expect("the payload")
-    );
+}
+
+/// The bytes on disk are one gzip member of the payload at the default level 5, every file of
+/// the golden to the byte.
+#[test]
+fn every_file_is_the_reference_gzip_of_its_payload() {
+    use std::io::Write;
+    let text = corpus();
+    let mut compared = 0;
+    for line in text.lines().filter(|l| l.starts_with("bfq\t")) {
+        let name = line.split('\t').nth(1).expect("a file name");
+        let (case, file) = name.split_once('/').expect("case/file");
+        let mut writer = gzip_writer(Vec::new(), 5);
+        writer.write_all(&payload(&text, case, file)).unwrap();
+        let bytes = writer.finish().unwrap();
+        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(hex, field(&text, "bfq", name).expect("the file"), "{name}");
+        compared += 1;
+    }
+    assert!(compared > 0);
 }

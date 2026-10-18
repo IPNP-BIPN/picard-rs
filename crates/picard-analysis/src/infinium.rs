@@ -338,9 +338,16 @@ pub struct Egt {
     pub mean_theta: Vec<[f32; 3]>,
     pub total_score: Vec<f32>,
     pub rs_names: Vec<String>,
+    /// `rsNameToIndex`: where each name is in `rs_names`, so a lookup is not a scan of a chip.
+    pub rs_index: foldhash::HashMap<String, usize>,
 }
 
 impl Egt {
+    /// `rsNameToIndex.get(name)`.
+    pub fn index_of(&self, name: &str) -> Option<usize> {
+        self.rs_index.get(name).copied()
+    }
+
     /// `new InfiniumEGTFile(file)`.
     pub fn parse(bytes: &[u8]) -> Result<Egt, ReadError> {
         let mut r = Reader::new(bytes);
@@ -372,6 +379,7 @@ impl Egt {
             mean_theta: Vec::with_capacity(codes),
             total_score: Vec::with_capacity(codes),
             rs_names: Vec::with_capacity(codes),
+            rs_index: foldhash::HashMap::with_capacity_and_hasher(codes, Default::default()),
         };
         let triple_f = |r: &mut Reader| -> Result<[f32; 3], ReadError> {
             Ok([r.float()?, r.float()?, r.float()?])
@@ -397,11 +405,12 @@ impl Egt {
         }
         for _ in 0..codes {
             let name = r.string()?;
-            if egt.rs_names.contains(&name) {
+            if egt.rs_index.contains_key(&name) {
                 return Err(ReadError::Picard(format!(
                     "Non-unique rsName '{name}' found in cluster file"
                 )));
             }
+            egt.rs_index.insert(name.clone(), egt.rs_names.len());
             egt.rs_names.push(name);
         }
         Ok(egt)

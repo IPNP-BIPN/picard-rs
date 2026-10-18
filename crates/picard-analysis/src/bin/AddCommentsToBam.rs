@@ -61,6 +61,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         std::process::exit(1);
     }
+    // `reheaderBamFile` copies BGZF blocks, and a CRAM has none: the termination check refuses it,
+    // naming the input by its URI.
+    if picard_analysis::cram_input::is_cram(&bam) {
+        eprintln!(
+            "Exception in thread \"main\" htsjdk.samtools.SAMException: \
+             {} does not have a valid GZIP block at the end of the file.",
+            picard_analysis::fingerprint::file_uri(&input)
+        );
+        std::process::exit(1);
+    }
     let borrowed: Vec<&str> = comments.iter().map(String::as_str).collect();
     let out = match add_comments_to_bam(&bam, &borrowed) {
         Ok(out) => out,

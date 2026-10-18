@@ -2999,14 +2999,20 @@
         "COMMAND_LINE, which must come together, are forbidden to differ in being given. The attribute lists and",
         "EXPECTED_ORIENTATIONS are $lists; ATTRIBUTES_TO_REVERSE(_COMPLEMENT) append to their defaults, so OQ (E2) keeps",
         "the default and `null` empties it. MATCHING_DICTIONARY_TAGS appends to M5 and LN, and `null` is the refusal",
-        "for leaving them out. PAIRED_RUN is ignored by the tool and CREATE_INDEX writes a side file only."
+        "for leaving them out. PAIRED_RUN is ignored by the tool and CREATE_INDEX writes a side file only.",
+        "ALIGNED_BAM, READ1_ALIGNED_BAM and READ2_ALIGNED_BAM are $lists too: their last values are two files each, the",
+        "same alignments split by template (MakeFixtures' writeHalves), which the merge reads as one stream through a",
+        "MergingSamRecordIterator, in queryname order for ALIGNED_BAM and in coordinate order for each end."
       ],
       "$lists": [
         "--ATTRIBUTES_TO_RETAIN",
         "--ATTRIBUTES_TO_REMOVE",
         "--ATTRIBUTES_TO_REVERSE",
         "--ATTRIBUTES_TO_REVERSE_COMPLEMENT",
-        "--EXPECTED_ORIENTATIONS"
+        "--EXPECTED_ORIENTATIONS",
+        "--ALIGNED_BAM",
+        "--READ1_ALIGNED_BAM",
+        "--READ2_ALIGNED_BAM"
       ],
       "--UNMAPPED_BAM": [
         "/work/fixtures/mba_unmapped.bam",
@@ -3016,6 +3022,7 @@
         "/work/fixtures/mba_aligned.bam",
         "/work/fixtures/mba_aligned_simple.bam",
         "/work/fixtures/mba_aligned_trim.bam",
+        "/work/fixtures/mba_aligned_simple_a.bam /work/fixtures/mba_aligned_simple_b.bam",
         "<absent>"
       ],
       "--OUTPUT": [
@@ -3095,11 +3102,13 @@
       ],
       "--READ1_ALIGNED_BAM": [
         "<absent>",
-        "/work/fixtures/mba_aligned_r1.bam"
+        "/work/fixtures/mba_aligned_r1.bam",
+        "/work/fixtures/mba_aligned_r1_a.bam /work/fixtures/mba_aligned_r1_b.bam"
       ],
       "--READ2_ALIGNED_BAM": [
         "<absent>",
-        "/work/fixtures/mba_aligned_r2.bam"
+        "/work/fixtures/mba_aligned_r2.bam",
+        "/work/fixtures/mba_aligned_r2_a.bam /work/fixtures/mba_aligned_r2_b.bam"
       ],
       "--JUMP_SIZE": [
         "<absent>",
@@ -7799,6 +7808,146 @@
         "--PROGRAM_GROUP_VERSION": "<absent>"
       },
       "why": "PROGRAM_RECORD_ID, PROGRAM_GROUP_VERSION and PROGRAM_GROUP_COMMAND_LINE must all be given or none, and a partial set is one refusal that would fill the array"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned.bam",
+        "--READ1_ALIGNED_BAM": "/work/fixtures/mba_aligned_r1_a.bam /work/fixtures/mba_aligned_r1_b.bam"
+      },
+      "why": "ALIGNED_BAM and READ1_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned.bam",
+        "--READ2_ALIGNED_BAM": "/work/fixtures/mba_aligned_r2_a.bam /work/fixtures/mba_aligned_r2_b.bam"
+      },
+      "why": "ALIGNED_BAM and READ2_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_simple.bam",
+        "--READ1_ALIGNED_BAM": "/work/fixtures/mba_aligned_r1_a.bam /work/fixtures/mba_aligned_r1_b.bam"
+      },
+      "why": "ALIGNED_BAM and READ1_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_simple.bam",
+        "--READ2_ALIGNED_BAM": "/work/fixtures/mba_aligned_r2_a.bam /work/fixtures/mba_aligned_r2_b.bam"
+      },
+      "why": "ALIGNED_BAM and READ2_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_trim.bam",
+        "--READ1_ALIGNED_BAM": "/work/fixtures/mba_aligned_r1_a.bam /work/fixtures/mba_aligned_r1_b.bam"
+      },
+      "why": "ALIGNED_BAM and READ1_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_trim.bam",
+        "--READ2_ALIGNED_BAM": "/work/fixtures/mba_aligned_r2_a.bam /work/fixtures/mba_aligned_r2_b.bam"
+      },
+      "why": "ALIGNED_BAM and READ2_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_simple_a.bam /work/fixtures/mba_aligned_simple_b.bam",
+        "--READ1_ALIGNED_BAM": "/work/fixtures/mba_aligned_r1.bam"
+      },
+      "why": "ALIGNED_BAM and READ1_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_simple_a.bam /work/fixtures/mba_aligned_simple_b.bam",
+        "--READ1_ALIGNED_BAM": "/work/fixtures/mba_aligned_r1_a.bam /work/fixtures/mba_aligned_r1_b.bam"
+      },
+      "why": "ALIGNED_BAM and READ1_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_simple_a.bam /work/fixtures/mba_aligned_simple_b.bam",
+        "--READ2_ALIGNED_BAM": "/work/fixtures/mba_aligned_r2.bam"
+      },
+      "why": "ALIGNED_BAM and READ2_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_simple_a.bam /work/fixtures/mba_aligned_simple_b.bam",
+        "--READ2_ALIGNED_BAM": "/work/fixtures/mba_aligned_r2_a.bam /work/fixtures/mba_aligned_r2_b.bam"
+      },
+      "why": "ALIGNED_BAM and READ2_ALIGNED_BAM are mutually exclusive in the reference's argument definitions; Barclay refuses the pair before the tool runs, so each is varied against the other's absence"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--READ1_TRIM": "3",
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_simple_a.bam /work/fixtures/mba_aligned_simple_b.bam"
+      },
+      "why": "a trim of three on alignments of untrimmed reads makes every read's cigar longer than its bases, which the reference refuses on the first record"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--READ2_TRIM": "3",
+        "--ALIGNED_BAM": "/work/fixtures/mba_aligned_simple_a.bam /work/fixtures/mba_aligned_simple_b.bam"
+      },
+      "why": "a trim of three on alignments of untrimmed reads makes every read's cigar longer than its bases, which the reference refuses on the first record"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--READ1_TRIM": "3",
+        "--READ1_ALIGNED_BAM": "/work/fixtures/mba_aligned_r1_a.bam /work/fixtures/mba_aligned_r1_b.bam"
+      },
+      "why": "a trim of three on alignments of untrimmed reads makes every read's cigar longer than its bases, which the reference refuses on the first record"
+    },
+    {
+      "tools": [
+        "MergeBamAlignment"
+      ],
+      "forbid": {
+        "--READ2_TRIM": "3",
+        "--READ2_ALIGNED_BAM": "/work/fixtures/mba_aligned_r2_a.bam /work/fixtures/mba_aligned_r2_b.bam"
+      },
+      "why": "a trim of three on alignments of untrimmed reads makes every read's cigar longer than its bases, which the reference refuses on the first record"
     },
     {
       "tools": [

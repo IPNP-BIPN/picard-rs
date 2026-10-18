@@ -20,7 +20,6 @@ use std::io::{Read, Write};
 
 use htsjdk_bam::build_index::build_bam_index;
 use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
 use picard_analysis::add_oa_tag::add_oa_records;
@@ -53,13 +52,15 @@ fn index_path(output: &str) -> String {
 fn read_input(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::error::Error>> {
     let mut raw = Vec::new();
     std::fs::File::open(path)?.read_to_end(&mut raw)?;
+    let raw = picard_analysis::cram_input::uncram(raw);
     if !is_bgzf(&raw) {
         let text = String::from_utf8(raw)?;
         let (header, records) = read_sam(&text).map_err(|e| format!("{e:?}"))?;
         return Ok((header, records));
     }
-    let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
-    let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
+    let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
+    let reader =
+        picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
     let header = reader.header.text.clone();
     let records: Vec<BamRecord> = reader
         .map(|r| r.map_err(|e| format!("{e:?}")))
@@ -128,6 +129,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bam = writer.finish()?;
     t = phase("encode_bam", t);
 
+    if picard_analysis::cram_output::is_cram(&output) {
+        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
+        return Ok(());
+    }
     std::fs::write(&output, &bam)?;
     if create_index {
         let index = build_bam_index(&bam).map_err(|e| format!("{e:?}"))?;

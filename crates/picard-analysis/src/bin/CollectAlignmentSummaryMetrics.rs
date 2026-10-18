@@ -17,13 +17,9 @@
 //! `MetricsFile` writer. A benchmark that measured a different code path would be worthless.
 
 use std::collections::BTreeMap;
-use std::io::Read;
 
 use htsjdk_bam::fasta::read_fasta_file;
-use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{Histogram as OutHistogram, MetricsFile};
 use picard_analysis::alignment_summary::{GroupCollector, Options};
@@ -141,27 +137,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Picard streams; this reads the whole file. That is a real difference in memory profile and
-    // it is stated rather than hidden, because it is part of what any timing measures.
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    t = phase("read_file", t);
-    // A BAM begins with a BGZF block, whose first two bytes are gzip's magic; anything else is
-    // read as SAM. Picard tells the two apart the same way rather than by the file's name, and
-    // the covering array hands this tool both.
-    let (header, records) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
-        let header: SamHeader = reader.header.text.clone();
-        let records: Vec<BamRecord> = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
-    t = phase("decode", t);
+    // Picard streams, and so does this: the input is checked whole first, so that a damaged
+    // file is refused as reading it whole refused it, and its records are then decoded as the
+    // collectors take them.
+    let (header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
+    t = phase("check_input", t);
 
     let contigs = match &reference {
         Some(path) => read_fasta_file(path).map_err(|e| format!("{e:?}"))?,
@@ -256,11 +236,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     // `makeItSo` stops once `STOP_AFTER` records have been handed over; zero or less reads all.
-    let records = match usize::try_from(stop_after) {
-        Ok(n) if n > 0 => &records[..n.min(records.len())],
-        _ => &records[..],
+    let limit = match usize::try_from(stop_after) {
+        Ok(n) if n > 0 => n,
+        _ => usize::MAX,
     };
-    for rec in records {
+    for rec in records.take(limit) {
+        let rec = &rec;
         // The record's own contig. The benchmark corpus has one and the covering array's fixture
         // has two, and handing every record the first contig's bases makes every mismatch on the
         // second one imaginary.
