@@ -8,27 +8,48 @@
 
 use std::io::Read;
 
-use htsjdk_bam::sam_file::write_sam;
+use htsjdk_bam::header::SamHeader;
+use htsjdk_bam::record::BamRecord;
+use htsjdk_bam::sam_file::read_sam_with;
+use htsjdk_bam::text_parse::{parse_line_with, ValidationStringency};
 use htsjdk_metrics::file::{Histogram, MetricsFile};
 use picard_analysis::args::arg;
-use picard_analysis::compare_sams::{compare_sams_with_options, CompareOptions};
+use picard_analysis::bam_stream::{Input, InputError};
+use picard_analysis::compare_sams::{compare_records, CompareError, CompareOptions};
 
-/// The file as SAM text, whichever form it is stored in.
-fn as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let mut raw = Vec::new();
-    std::fs::File::open(path)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    if !raw.starts_with(&[0x1f, 0x8b]) {
-        return Ok(String::from_utf8(raw)?);
+type Records = Box<dyn Iterator<Item = Result<BamRecord, String>>>;
+
+/// The file's header and records as the comparison reads them, from its SAM text at SILENT: a
+/// BAM's records are written as SAM lines and parsed back one at a time, as the whole text was.
+/// A record that fails is the run's error, with the message the whole-file read gave.
+fn as_sam(path: &str) -> Result<(SamHeader, Records), Box<dyn std::error::Error>> {
+    let mut magic = Vec::new();
+    std::fs::File::open(path)?.take(4).read_to_end(&mut magic)?;
+    let bam = magic.starts_with(&[0x1f, 0x8b]) || picard_analysis::cram_input::is_cram(&magic);
+    let (header, records) = match Input::open_with(path, ValidationStringency::Silent) {
+        Err(InputError::Sam(e)) => return Err(format!("{:?}", CompareError::Parse(e)).into()),
+        opened => opened?.into_parts(),
+    };
+    if !bam {
+        return Ok((header, Box::new(records.map(Ok))));
     }
-    let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-    let reader =
-        picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-    let header = reader.header.text.clone();
-    let records: Vec<_> = reader
-        .map(|r| r.map_err(|e| format!("{e:?}")))
-        .collect::<Result<_, _>>()?;
-    Ok(write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?)
+    let (text, _) = read_sam_with(&header.encode(), ValidationStringency::Silent)
+        .map_err(|e| format!("{:?}", CompareError::Parse(e)))?;
+    let parsed = text.clone();
+    let records = records.map(move |record| {
+        let line = picard_analysis::bam_stream::sam_line(&header, &record)
+            .ok_or("records failed to re-encode as SAM")?;
+        let index_of = |name: &str| {
+            parsed
+                .sequences
+                .iter()
+                .position(|s| s.name == name)
+                .map(|i| i as i32)
+        };
+        parse_line_with(&line, index_of, ValidationStringency::Silent)
+            .map_err(|e| format!("{:?}", CompareError::Parse(e)))
+    });
+    Ok((text, Box::new(records)))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -63,14 +84,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| path.to_string())
         }
     };
-    let metric = compare_sams_with_options(
-        &as_sam(files[0])?,
-        &as_sam(files[1])?,
+    let (h1, left) = as_sam(files[0])?;
+    let (h2, right) = as_sam(files[1])?;
+    let (mut left_error, mut right_error) = (None, None);
+    let metric = compare_records(
+        &h1,
+        left.map_while(|r| r.map_err(|e| left_error = Some(e)).ok()),
+        &h2,
+        right.map_while(|r| r.map_err(|e| right_error = Some(e)).ok()),
         &absolute(files[0]),
         &absolute(files[1]),
         &options,
-    )
-    .map_err(|e| format!("{e:?}"))?;
+    );
+    if let Some(e) = left_error.or(right_error) {
+        return Err(e.into());
+    }
+    let metric = metric.map_err(|e| format!("{e:?}"))?;
     if let Some(output) = arg(&args, "OUTPUT=").or_else(|| arg(&args, "O=")) {
         let mut file = MetricsFile::new();
         for header in picard_analysis::command_line::default_headers("CompareSAMs") {

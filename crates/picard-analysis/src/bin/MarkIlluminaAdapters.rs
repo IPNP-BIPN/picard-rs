@@ -17,11 +17,7 @@
 //! `ADAPTER_TRUNCATION_LENGTH` first, which is what makes `INDEXED` and `DUAL_INDEXED` the same
 //! adapter.
 
-use std::io::Read;
-
-use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{Histogram, MetricsFile};
 use picard_analysis::args::arg;
@@ -141,6 +137,7 @@ impl Pruning {
 }
 
 fn throw(message: &str) -> ! {
+    picard_analysis::stream_output::on_thrown();
     eprintln!("Exception in thread \"main\" picard.PicardException: {message}");
     std::process::exit(1);
 }
@@ -254,22 +251,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let (header, mut records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
+    let (header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
     let queryname = header.attributes.get("SO") == Some("queryname");
 
     // `AdapterMarker.setNumAdaptersToKeep`, called while the marker is built, before any read.
@@ -281,19 +263,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let mut pruning = Pruning::new(prune_after, num_adapters_to_keep as usize);
 
+    // `CREATE_INDEX` is accepted and writes nothing: an index needs a coordinate-sorted file, and
+    // this tool refuses anything but queryname order as soon as it sees a paired read. htsjdk logs
+    // that it is not creating one and writes the file anyway, which is a line on stderr rather
+    // than a difference in the answer. The output is a BAM whatever its name, and nothing is left
+    // of it when the run throws.
+    let mut out = output
+        .as_deref()
+        .map(|output| picard_analysis::stream_output::Output::bam(output, &header, false))
+        .transpose()?;
+    // `histo.increment(r.getReadLength() - clip + 1)`: the bases a read would lose if it were
+    // clipped at the tag, counted for every marked record and for no other.
+    let mut bins: std::collections::BTreeMap<i64, f64> = std::collections::BTreeMap::new();
     let xt = Tag::new(b"XT");
-    let mut index = 0usize;
-    while index < records.len() {
-        let paired = records[index].flags & READ_PAIRED_FLAG != 0;
+    let mut emit = |record: &BamRecord| -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(TagValue::Int(tag)) = record.tags.get(xt) {
+            let clipped = record.read_bases.len() as i64 - tag + 1;
+            *bins.entry(clipped).or_insert(0.0) += 1.0;
+        }
+        match &mut out {
+            Some(out) => out.write(record),
+            None => Ok(()),
+        }
+    };
+    let mut records = records;
+    while let Some(mut record) = records.next() {
+        let paired = record.flags & READ_PAIRED_FLAG != 0;
         // `rec.getReadPairedFlag() && iterator.hasNext() ? iterator.next() : null`: the second
         // record is consumed BEFORE anything is checked, so a paired record at the end of the file
         // is a missing mate rather than a single-end read.
-        let mate = if paired && index + 1 < records.len() {
-            Some(index + 1)
-        } else {
-            None
-        };
-        records[index].tags.remove(xt);
+        let mate = if paired { records.next() } else { None };
+        record.tags.remove(xt);
 
         if paired {
             // The order is asserted only once a paired read is seen, so a single-end file in any
@@ -301,40 +301,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !queryname {
                 throw("Input file must be sorted by queryname");
             }
-            let Some(second) = mate else {
+            let Some(mut second) = mate else {
                 throw(&format!(
                     "Missing mate pair for paired read: {}",
-                    records[index].read_name
+                    record.read_name
                 ));
             };
-            records[second].tags.remove(xt);
-            if records[index].read_name != records[second].read_name {
+            second.tags.remove(xt);
+            if record.read_name != second.read_name {
                 throw(&format!(
                     "Adjacent reads expected to be mate-pairs have different names: {}, {}",
-                    records[index].read_name, records[second].read_name
+                    record.read_name, second.read_name
                 ));
             }
-            let (first_of_pair, second_of_pair) = if records[index].flags & FIRST_OF_PAIR_FLAG != 0
-                && records[second].flags & SECOND_OF_PAIR_FLAG != 0
+            let (first_of_pair, second_of_pair) = if record.flags & FIRST_OF_PAIR_FLAG != 0
+                && second.flags & SECOND_OF_PAIR_FLAG != 0
             {
-                (index, second)
-            } else if records[index].flags & SECOND_OF_PAIR_FLAG != 0
-                && records[second].flags & FIRST_OF_PAIR_FLAG != 0
+                (&mut record, &mut second)
+            } else if record.flags & SECOND_OF_PAIR_FLAG != 0
+                && second.flags & FIRST_OF_PAIR_FLAG != 0
             {
-                (second, index)
+                (&mut second, &mut record)
             } else {
                 throw(&format!(
                     "Two reads with same name but not correctly marked as 1st/2nd of pair: {}",
-                    records[index].read_name
+                    record.read_name
                 ));
             };
             let first_bases = read_bases_in_read_order(
-                &records[first_of_pair].read_bases,
-                records[first_of_pair].flags & READ_STRAND_FLAG != 0,
+                &first_of_pair.read_bases,
+                first_of_pair.flags & READ_STRAND_FLAG != 0,
             );
             let second_bases = read_bases_in_read_order(
-                &records[second_of_pair].read_bases,
-                records[second_of_pair].flags & READ_STRAND_FLAG != 0,
+                &second_of_pair.read_bases,
+                second_of_pair.flags & READ_STRAND_FLAG != 0,
             );
             let trim = trim_paired_reads(
                 &first_bases,
@@ -344,68 +344,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 max_error_pe,
             );
             if let Some(tag) = trim.first_tag {
-                records[first_of_pair]
-                    .tags
-                    .insert(xt, TagValue::Int(tag as i64));
+                first_of_pair.tags.insert(xt, TagValue::Int(tag as i64));
             }
             if let Some(tag) = trim.second_tag {
-                records[second_of_pair]
-                    .tags
-                    .insert(xt, TagValue::Int(tag as i64));
+                second_of_pair.tags.insert(xt, TagValue::Int(tag as i64));
             }
             if let Some(position) = trim.matched {
                 if !pruning.tally(&mut adapters, position) {
-                    records[first_of_pair].tags.remove(xt);
-                    records[second_of_pair].tags.remove(xt);
+                    first_of_pair.tags.remove(xt);
+                    second_of_pair.tags.remove(xt);
                 }
             }
+            emit(&record)?;
+            emit(&second)?;
         } else {
-            let bases = read_bases_in_read_order(
-                &records[index].read_bases,
-                records[index].flags & READ_STRAND_FLAG != 0,
-            );
+            let bases =
+                read_bases_in_read_order(&record.read_bases, record.flags & READ_STRAND_FLAG != 0);
             if let Some((position, found)) =
                 trim_single_read(&bases, &adapters, min_match_se, max_error_se)
             {
-                records[index]
-                    .tags
-                    .insert(xt, TagValue::Int((found + 1) as i64));
+                record.tags.insert(xt, TagValue::Int((found + 1) as i64));
                 if !pruning.tally(&mut adapters, position) {
-                    records[index].tags.remove(xt);
+                    record.tags.remove(xt);
                 }
             }
-        }
-        index += if mate.is_some() { 2 } else { 1 };
-    }
-
-    // `histo.increment(r.getReadLength() - clip + 1)`: the bases a read would lose if it were
-    // clipped at the tag, counted for every marked record and for no other.
-    let mut bins: std::collections::BTreeMap<i64, f64> = std::collections::BTreeMap::new();
-    for record in &records {
-        if let Some(TagValue::Int(tag)) = record.tags.get(xt) {
-            let clipped = record.read_bases.len() as i64 - tag + 1;
-            *bins.entry(clipped).or_insert(0.0) += 1.0;
+            emit(&record)?;
         }
     }
-
-    // `CREATE_INDEX` is accepted and writes nothing: an index needs a coordinate-sorted file, and
-    // this tool refuses anything but queryname order as soon as it sees a paired read. htsjdk logs
-    // that it is not creating one and writes the file anyway, which is a line on stderr rather
-    // than a difference in the answer.
-    if let Some(output) = output {
-        let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)
-            .expect("in-memory BAM writer never fails");
-        for record in &records {
-            writer
-                .write(record)
-                .expect("records that parsed re-encode as BAM");
-        }
-        picard_analysis::cram_output::write(
-            &output,
-            writer
-                .finish()
-                .expect("in-memory BAM writer never fails to finish"),
-        )?;
+    drop(emit);
+    if let Some(out) = out {
+        // `cram_output::write`: a CRAM takes `CREATE_INDEX` from the command line.
+        out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
     }
 
     let mut file = MetricsFile::new();
