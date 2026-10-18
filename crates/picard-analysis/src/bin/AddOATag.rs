@@ -16,14 +16,12 @@
 //! Set `RAYON_NUM_THREADS=1` to measure the single-threaded floor, and leave it unset (all cores)
 //! to measure the parallel path.
 
-use std::io::{Read, Write};
-
-use htsjdk_bam::build_index::build_bam_index;
-use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::{read_sam, write_sam};
 use picard_analysis::add_oa_tag::add_oa_records;
 use picard_analysis::args::arg;
+use picard_analysis::stream_output::Output;
+
+/// How many records are tagged in parallel at a time, between reading and writing.
+const CHUNK: usize = 16 * 1024;
 
 /// Coarse phase timing to stderr when `PICARD_RS_TIMING=1`, matching the metrics bench binary.
 fn phase(label: &str, start: std::time::Instant) -> std::time::Instant {
@@ -31,41 +29,6 @@ fn phase(label: &str, start: std::time::Instant) -> std::time::Instant {
         eprintln!("{label}\t{:.3}", start.elapsed().as_secs_f64());
     }
     std::time::Instant::now()
-}
-
-/// A BAM begins with a BGZF block, whose first two bytes are gzip's magic.
-fn is_bgzf(raw: &[u8]) -> bool {
-    raw.starts_with(&[0x1f, 0x8b])
-}
-
-/// The name htsjdk gives the index it writes beside an output.
-///
-/// `SAMFileWriterFactory` replaces a `.bam` suffix with `.bai` and otherwise appends one, so an
-/// output called `output.txt` is indexed as `output.txt.bai`.
-fn index_path(output: &str) -> String {
-    match output.strip_suffix(".bam") {
-        Some(stem) => format!("{stem}.bai"),
-        None => format!("{output}.bai"),
-    }
-}
-
-fn read_input(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::error::Error>> {
-    let mut raw = Vec::new();
-    std::fs::File::open(path)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    if !is_bgzf(&raw) {
-        let text = String::from_utf8(raw)?;
-        let (header, records) = read_sam(&text).map_err(|e| format!("{e:?}"))?;
-        return Ok((header, records));
-    }
-    let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-    let reader =
-        picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-    let header = reader.header.text.clone();
-    let records: Vec<BamRecord> = reader
-        .map(|r| r.map_err(|e| format!("{e:?}")))
-        .collect::<Result<_, _>>()?;
-    Ok((header, records))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -92,52 +55,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let (header, mut records) = read_input(&input)?;
-    t = phase("read_input", t);
-
-    // The parallel per-record OA stamping; the whole point of the benchmark.
-    match arg(&args, "INTERVAL_LIST=").or_else(|| arg(&args, "L=")) {
+    let (header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
+    let intervals = match arg(&args, "INTERVAL_LIST=").or_else(|| arg(&args, "L=")) {
         Some(path) => {
             let text = std::fs::read_to_string(&path)?;
             let list = htsjdk_bam::interval::IntervalList::parse_body(Vec::new(), &text)
                 .map_err(|e| format!("{e:?}"))?;
-            picard_analysis::add_oa_tag::add_oa_records_overlapping(
-                &header,
-                &mut records,
-                &list.intervals,
-            );
+            Some(list.intervals)
         }
-        None => add_oa_records(&header, &mut records),
-    }
-    t = phase("add_oa", t);
+        None => None,
+    };
+    t = phase("open", t);
 
-    // The extension decides the format, and everything that is not `.sam` is a BAM.
-    if output.ends_with(".sam") {
-        let sam = write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?;
-        t = phase("encode_sam", t);
-        let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
-        out.write_all(sam.as_bytes())?;
-        out.flush()?;
-        phase("write_file", t);
-        return Ok(());
+    // The extension decides the format, and everything that is not `.sam` is a BAM. Nothing was
+    // written before every record had been tagged and encoded, so a failure leaves no file.
+    let mut out = Output::create(&output, &header, false)?;
+    let mut records = records.peekable();
+    while records.peek().is_some() {
+        let mut chunk: Vec<_> = records.by_ref().take(CHUNK).collect();
+        // The parallel per-record OA stamping; the whole point of the benchmark.
+        match &intervals {
+            Some(intervals) => picard_analysis::add_oa_tag::add_oa_records_overlapping(
+                &header, &mut chunk, intervals,
+            ),
+            None => add_oa_records(&header, &mut chunk),
+        }
+        for record in &chunk {
+            out.write(record)?;
+        }
     }
-
-    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)?;
-    for record in &records {
-        writer.write(record).map_err(|e| format!("{e:?}"))?;
-    }
-    let bam = writer.finish()?;
-    t = phase("encode_bam", t);
-
-    if picard_analysis::cram_output::is_cram(&output) {
-        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
-        return Ok(());
-    }
-    std::fs::write(&output, &bam)?;
-    if create_index {
-        let index = build_bam_index(&bam).map_err(|e| format!("{e:?}"))?;
-        std::fs::write(index_path(&output), index)?;
-    }
+    out.finish(create_index, create_index)?;
     phase("write_file", t);
     Ok(())
 }

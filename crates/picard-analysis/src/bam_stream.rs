@@ -161,6 +161,14 @@ impl Input {
         }
     }
 
+    /// The same input with its records not validated, as `BamReader::new` hands them over.
+    pub fn unvalidated(mut self) -> Input {
+        match &mut self.records {
+            Records::Stream(_, validator) | Records::Decoded(_, validator) => *validator = None,
+        }
+        self
+    }
+
     /// The header, and the records in file order.
     pub fn into_parts(self) -> (SamHeader, Records) {
         (self.header, self.records)
@@ -180,7 +188,7 @@ impl IntoIterator for Input {
 pub enum Records {
     Stream(
         RecordStream<MultithreadedInflater<BufReader<File>>>,
-        Validator,
+        Option<Validator>,
     ),
     Decoded(std::vec::IntoIter<BamRecord>, Option<Validator>),
 }
@@ -197,7 +205,7 @@ impl Iterator for Records {
                 stream
                     .record()
                     .unwrap_or_else(|e| panic!("the input changed while it was read: {e:?}")),
-                Some(validator),
+                validator.as_mut(),
             ),
         };
         if let (Some(rec), Some(validator)) = (&record, validator) {
@@ -221,7 +229,7 @@ fn stream(path: &str) -> Result<Input, InputError> {
     let validator = Validator::new(&header, &stream.binary_sequences);
     Ok(Input {
         header,
-        records: Records::Stream(stream, validator),
+        records: Records::Stream(stream, Some(validator)),
     })
 }
 

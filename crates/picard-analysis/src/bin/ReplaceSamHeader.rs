@@ -28,49 +28,30 @@
 //! RNAME/RNEXT against the new dictionary at that index; when the two dictionaries share their
 //! `@SQ` block, as here, the reads are untouched.
 
-use std::io::{Read, Write};
+use std::io::Read;
 
-use htsjdk_bam::build_index::build_bam_index;
 use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
-use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
 use picard_analysis::args::arg;
+use picard_analysis::bam_stream::Input;
+use picard_analysis::stream_output::Output;
 
-fn index_path(output: &str) -> String {
-    match output.strip_suffix(".bam") {
-        Some(stem) => format!("{stem}.bai"),
-        None => format!("{output}.bai"),
-    }
-}
-
-/// Read a SAM or BAM, told apart by the gzip magic as `SamReaderFactory` tells them apart.
-fn read_any(path: &str) -> Result<(SamHeader, Vec<BamRecord>, bool), String> {
-    let mut raw = Vec::new();
+/// Read a SAM or BAM, told apart by the gzip magic as `SamReaderFactory` tells them apart: whether
+/// it is a BAM, and the input, its records not validated.
+fn read_any(path: &str) -> Result<(Input, bool), String> {
+    let mut magic = Vec::new();
     std::fs::File::open(path)
-        .map_err(|e| e.to_string())?
-        .read_to_end(&mut raw)
+        .and_then(|f| f.take(2).read_to_end(&mut magic))
         .map_err(|e| e.to_string())?;
     // `BamFileIoUtils.isBamFile` decides the block copy, and a CRAM is not one: it is decoded and
     // takes the standard path.
-    let is_bam = raw.starts_with(&[0x1f, 0x8b]);
-    let raw = picard_analysis::cram_input::uncram(raw);
-    if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok((header, records, is_bam))
-    } else {
-        let text = String::from_utf8(raw).map_err(|e| e.to_string())?;
-        // `standardReheader` opens INPUT at SILENT whatever VALIDATION_STRINGENCY says.
-        let (header, records) =
-            read_sam_with(&text, ValidationStringency::Silent).map_err(|e| format!("{e:?}"))?;
-        Ok((header, records, false))
-    }
+    let is_bam = magic == [0x1f, 0x8b];
+    // `standardReheader` opens INPUT at SILENT whatever VALIDATION_STRINGENCY says, and a BAM's
+    // records are read by `BamReader::new`, unvalidated.
+    let input = Input::open_with(path, ValidationStringency::Silent)
+        .map_err(|e| e.message())?
+        .unvalidated();
+    Ok((input, is_bam))
 }
 
 /// `SAMFileHeader.getSortOrder()`: an absent `SO` is `unsorted`, and the name is what the refusal
@@ -98,8 +79,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(false);
 
-    let (input_header, records, input_is_bam) = read_any(&input)?;
-    let (replacement, _, _) = read_any(&header_path)?;
+    let (input_file, input_is_bam) = read_any(&input)?;
+    let (input_header, records) = input_file.into_parts();
+    // HEADER is read as INPUT is, whole, so it fails as it did; only its header is kept.
+    let replacement = read_any(&header_path)?.0.header;
 
     if input_is_bam {
         // `reheaderBamFile` asserts the INPUT is readable and then WRITABLE, before it copies a
@@ -150,29 +133,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    if output.ends_with(".sam") {
-        let sam = write_sam(&replacement, &records).ok_or("records failed to re-encode as SAM")?;
-        let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
-        out.write_all(sam.as_bytes())?;
-        out.flush()?;
-        return Ok(());
+    let mut out = Output::create(&output, &replacement, false)?;
+    for record in records {
+        out.write(&record)?;
     }
-
-    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &replacement)?;
-    for record in &records {
-        writer.write(record).map_err(|e| format!("{e:?}"))?;
-    }
-    let bam = writer.finish()?;
-    if picard_analysis::cram_output::is_cram(&output) {
-        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
-        return Ok(());
-    }
-    std::fs::write(&output, &bam)?;
     // `reheaderBamFile` is handed CREATE_INDEX, and the writer factory indexes a coordinate-sorted
     // BAM only.
-    if create_index && sort_order(&replacement) == "coordinate" {
-        let index = build_bam_index(&bam).map_err(|e| format!("{e:?}"))?;
-        std::fs::write(index_path(&output), index)?;
-    }
+    out.finish(
+        create_index,
+        create_index && sort_order(&replacement) == "coordinate",
+    )?;
     Ok(())
 }
