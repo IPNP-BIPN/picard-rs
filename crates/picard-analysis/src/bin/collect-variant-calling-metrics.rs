@@ -23,8 +23,10 @@ use htsjdk_vcf::reader::read_vcf;
 use htsjdk_vcf::variant::VariantContext;
 use picard_analysis::args::arg;
 use picard_analysis::collect_variant_calling_metrics::{
-    accumulate_detail, accumulate_site, file_names, Call, Counts, HiddenCounts, Site,
+    accumulate_detail, accumulate_site, file_names, variant_type, Call, Counts, HiddenCounts, Site,
+    VariantType,
 };
+use picard_analysis::java_hash_map::string_hash_code;
 
 /// One interval of an interval list, uniqued the way `IntervalList.uniqued` does.
 struct Interval {
@@ -88,20 +90,28 @@ fn within(record: &VariantContext, intervals: &[Interval]) -> bool {
     })
 }
 
-/// `VariantContext.isSNP()` over a decoded record.
-fn record_is_snp(record: &VariantContext) -> bool {
+/// A decoded record's reference and alternates, a symbolic alternate as written (`<DEL>`) so its
+/// type can be told, and a `.` ALT dropped.
+fn alleles_of(record: &VariantContext) -> (String, Vec<String>) {
     let reference = record
         .alleles
         .iter()
         .find(|allele| allele.is_reference())
         .map(|allele| allele.base_string())
         .unwrap_or_default();
-    reference.len() == 1
-        && record
-            .alleles
-            .iter()
-            .filter(|allele| !allele.is_reference())
-            .all(|allele| allele.base_string().len() == 1)
+    let alternates = record
+        .alleles
+        .iter()
+        .filter(|allele| !allele.is_reference() && !allele.is_no_call())
+        .map(|allele| {
+            if allele.is_symbolic() {
+                allele.display_string()
+            } else {
+                allele.base_string()
+            }
+        })
+        .collect();
+    (reference, alternates)
 }
 
 fn site_of(
@@ -110,18 +120,7 @@ fn site_of(
     snps: &HashSet<(String, i64)>,
     indels: &HashSet<(String, i64)>,
 ) -> Site {
-    let reference = record
-        .alleles
-        .iter()
-        .find(|allele| allele.is_reference())
-        .map(|allele| allele.base_string())
-        .unwrap_or_default();
-    let alternates: Vec<String> = record
-        .alleles
-        .iter()
-        .filter(|allele| !allele.is_reference() && !allele.is_no_call())
-        .map(|allele| allele.base_string())
-        .collect();
+    let (reference, alternates) = alleles_of(record);
     let index_of = |allele: &htsjdk_vcf::allele::Allele| -> usize {
         record
             .alleles
@@ -138,16 +137,16 @@ fn site_of(
                 .find(|genotype| genotype.sample_name == *sample);
             match genotype {
                 None => Call {
-                    alleles: None,
+                    alleles: vec![None],
                     gq: -1,
                     allele_depths: None,
                 },
                 Some(genotype) => Call {
-                    alleles: if genotype.alleles.iter().any(|allele| allele.is_no_call()) {
-                        None
-                    } else {
-                        Some(genotype.alleles.iter().map(index_of).collect())
-                    },
+                    alleles: genotype
+                        .alleles
+                        .iter()
+                        .map(|allele| (!allele.is_no_call()).then(|| index_of(allele)))
+                        .collect(),
                     gq: genotype.gq.unwrap_or(-1),
                     allele_depths: genotype.ad.clone(),
                 },
@@ -384,12 +383,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if !intervals.is_empty() && !within(record, &intervals) {
             continue;
         }
-        let key = (record.contig.clone(), record.start);
-        if record_is_snp(record) {
-            snp_sites.insert(key);
-        } else {
-            indel_sites.insert(key);
-        }
+        // `kv.isSNP()` or `kv.isIndel()`, every position from start to end; the rest are in neither.
+        let (reference, alternates) = alleles_of(record);
+        let sites = match variant_type(&reference, &alternates) {
+            VariantType::Snp => &mut snp_sites,
+            VariantType::Indel => &mut indel_sites,
+            _ => continue,
+        };
+        sites
+            .extend((record.start..=record.stop).map(|position| (record.contig.clone(), position)));
     }
 
     let samples = vcf.header.samples.clone();
@@ -443,7 +445,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for header in picard_analysis::command_line::default_headers("CollectVariantCallingMetrics") {
         detail_file.add_header(&header);
     }
-    for (index, sample) in samples.iter().enumerate() {
+    // The accumulator's sample map is a `HashMap`, so the rows come out in its iteration order.
+    let order = picard_analysis::fingerprint::java_hash_order(
+        samples
+            .iter()
+            .enumerate()
+            .map(|(index, sample)| (string_hash_code(sample), index))
+            .collect(),
+    );
+    for index in order {
+        let sample = &samples[index];
         let (counts, hidden) = details[index].clone();
         detail_file.add_metric(&DetailRow {
             sample: sample.clone(),
