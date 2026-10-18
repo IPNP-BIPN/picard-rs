@@ -1209,7 +1209,7 @@ jobs:
             suites: "bcf-partial inputshapes nonbamshapes"
           - group: golden-pending
             index: "1/1"
-            suites: "cram-io strict-validation filterandmerge rawrecords"
+            suites: "markduplicates-noreadgroup cram-io strict-validation filterandmerge rawrecords"
     steps:
       - uses: actions/checkout@v7
 

@@ -2922,6 +2922,36 @@
       ]
     },
     {
+      "id": "markduplicates-noreadgroup",
+      "status": "golden-pending",
+      "title": "what the duplicate markers do with a read that has no read group",
+      "harness": "tools/markduplicates-conformance",
+      "tools": [
+        "MarkDuplicates",
+        "MarkDuplicatesWithMateCigar",
+        "SimpleMarkDuplicatesWithMateCigar"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "MarkDuplicates' first pass keys every primary mapped read whose mate is mapped on rec.getReadGroup().getReadGroupId(), so a mapped pair with no RG tag throws a NullPointerException before anything is written, whether or not the header declares an @RG line and in a queryname-sorted file too. A single-end read or one with an unmapped mate never reaches the key, and the two mate-cigar markers never build it, so those mark the same files without complaint.",
+      "expect_rows": 16,
+      "expect_contains": [
+        "error\tMarkDuplicates/pairs-without-rg-and-no-rg-lines\tjava.lang.NullPointerException:Cannot invoke \"htsjdk.samtools.SAMReadGroupRecord.getReadGroupId()\" because the return value of \"htsjdk.samtools.SAMRecord.getReadGroup()\" is null",
+        "error\tMarkDuplicates/queryname-pairs-without-rg\tjava.lang.NullPointerException",
+        "marked\tMarkDuplicates/mate-unmapped-without-rg\t",
+        "marked\tMarkDuplicatesWithMateCigar/pairs-without-rg\t"
+      ],
+      "$expect_why": "A row count is not evidence: the throw with and without @RG lines and under queryname order, a pair with an unmapped mate getting past it, and a mate-cigar marker marking the very file MarkDuplicates refuses.",
+      "cases": [
+        {
+          "dump": "NoReadGroupDump",
+          "golden": null,
+          "why": "No golden yet: CI publishes the dump from a real x86-64 runner, and the Rust test that reads it lands with the freeze."
+        }
+      ]
+    },
+    {
       "id": "matecigarduplicates",
       "status": "oracle-backed",
       "title": "the two mate-cigar duplicate markers, beside MarkDuplicates on the same inputs",
