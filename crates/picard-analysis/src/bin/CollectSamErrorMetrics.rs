@@ -3,7 +3,7 @@
 //! Ports `picard.sam.SamErrorMetric.CollectSamErrorMetrics.doWork` at tag 3.4.0 around the counters
 //! in `picard_analysis::collect_sam_error_metrics`:
 //!
-//! * `--ERROR_METRICS` is a collection with a default, so each value is APPENDED to the twenty-seven
+//! * `--ERROR_METRICS` is a collection with a default, so each value is APPENDED to the twenty-six
 //!   the tool carries and `null` empties the list first; the aggregators are built before any file
 //!   is read, and two with the same suffix are refused;
 //! * `customCommandLineValidation`, every message at once;
@@ -24,8 +24,8 @@ use htsjdk_bam::fasta::read_fasta_file;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use picard_analysis::collect_sam_error_metrics::{
-    aggregation_suffix, collect_joint, pileup, processed_loci, suffixes, Calculator, Options, Read,
-    Stratifier, Table, DEFAULT_ERROR_METRICS,
+    aggregation_suffix, pileup, processed_loci, suffixes, try_collect_joint, Attribute, Calculator,
+    Options, Read, Stratifier, Table, DEFAULT_ERROR_METRICS,
 };
 use picard_analysis::metrics_cli::{
     fail, read_input, read_interval_list, refuse_validation, sort_order, thrown, Args, IntervalMask,
@@ -156,9 +156,9 @@ fn parse_directive(directive: &str) -> (Calculator, Vec<Stratifier>) {
     let stratifiers = terms
         .map(|name| {
             Stratifier::parse(name).unwrap_or_else(|| {
-                fail(&format!(
-                    "{TOOL}: the stratifier {name} is not ported, so a run that names it cannot \
-                     be answered"
+                thrown(&format!(
+                    "java.lang.IllegalArgumentException: No enum constant \
+                     picard.sam.SamErrorMetric.ReadBaseStratification.Stratifier.{name}"
                 ))
             })
         })
@@ -170,6 +170,21 @@ fn parse_directive(directive: &str) -> (Calculator, Vec<Stratifier>) {
         ))
     });
     (calculator, stratifiers)
+}
+
+/// A tag as `getIntegerAttribute` will meet it.
+fn attribute(record: &htsjdk_bam::record::BamRecord, tag: &[u8; 2]) -> Attribute {
+    match record.tags.get(Tag::new(tag)) {
+        None => Attribute::Absent,
+        Some(TagValue::Int(value)) => Attribute::Int(*value),
+        Some(TagValue::Float(value)) => Attribute::Float(value.to_bits()),
+        Some(TagValue::Char(_)) => Attribute::Other("java.lang.Character"),
+        Some(TagValue::Str(_)) => Attribute::Other("java.lang.String"),
+        Some(TagValue::ByteArray { .. }) => Attribute::Other("[B"),
+        Some(TagValue::ShortArray { .. }) => Attribute::Other("[S"),
+        Some(TagValue::IntArray { .. }) => Attribute::Other("[I"),
+        Some(_) => Attribute::Other("[F"),
+    }
 }
 
 /// The index file `VCFFileReader(path, true)` demands next to a VCF.
@@ -206,6 +221,7 @@ fn main() {
     let prior_q = args.int("PRIOR_Q", 30);
     let max_loci = args.int("MAX_LOCI", 0);
     let long_homopolymer = args.int("LONG_HOMOPOLYMER", 6);
+    let location_bin_size = args.int("LOCATION_BIN_SIZE", 2500);
     let probability = args.double("PROBABILITY", 1.0);
 
     // customCommandLineValidation.
@@ -356,6 +372,13 @@ fn main() {
                 mapping_quality: record.mapping_quality,
                 read_group: group,
                 insert_size: record.inferred_insert_size,
+                reference_index: record.reference_index,
+                mate_reference_index: record.mate_reference_index,
+                nm: attribute(record, b"NM"),
+                has_sa: record.tags.get(Tag::new(b"SA")).is_some(),
+                first_strand_copies: attribute(record, b"aD"),
+                second_strand_copies: attribute(record, b"bD"),
+                both_strands_copies: attribute(record, b"cD"),
             }
         })
         .collect();
@@ -389,6 +412,8 @@ fn main() {
         max_loci: max_loci as u64,
         known_sites,
         probability,
+        long_homopolymer: long_homopolymer as i32,
+        location_bin_size: location_bin_size as i32,
     };
     let mut loci = pileup(&reads, &options);
     if !masks.is_empty() {
@@ -411,8 +436,13 @@ fn main() {
     }
     let loci = processed_loci(loci, &options);
 
-    for ((calculator, stratifiers), suffix) in aggregators.iter().zip(&written) {
-        let table = collect_joint(
+    // Every observation goes to every aggregator before the next, and the files are written only
+    // once the walk is over: a run that throws anywhere writes none of them, and the exception is
+    // the one met first in that order.
+    let mut tables = Vec::new();
+    let mut first: Option<(usize, usize, usize, String)> = None;
+    for (aggregator, (calculator, stratifiers)) in aggregators.iter().enumerate() {
+        match try_collect_joint(
             &reads,
             &joined,
             1,
@@ -420,9 +450,25 @@ fn main() {
             *calculator,
             stratifiers,
             &options,
-        );
+        ) {
+            Ok(table) => tables.push(table),
+            Err(at) => {
+                let place = (at.locus, at.observation, aggregator, at.message);
+                if first
+                    .as_ref()
+                    .is_none_or(|known| (place.0, place.1, place.2) < (known.0, known.1, known.2))
+                {
+                    first = Some(place);
+                }
+            }
+        }
+    }
+    if let Some((_, _, _, message)) = first {
+        thrown(&message);
+    }
+    for (table, suffix) in tables.iter().zip(&written) {
         let path = format!("{output}.{suffix}{extension}");
-        if let Err(e) = std::fs::write(&path, file_of(&table).write()) {
+        if let Err(e) = std::fs::write(&path, file_of(table).write()) {
             fail(&format!("{e}"));
         }
     }

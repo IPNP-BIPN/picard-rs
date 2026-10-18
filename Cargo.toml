@@ -12,12 +12,24 @@ repository = "https://github.com/IPNP-BIPN/picard-rs"
 # here (decision 0013). A floating dependency would let the I/O layer change under a
 # byte-identity claim without anything failing.
 [workspace.dependencies]
-htsjdk-bam = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "aeb8df9a8a502bbc89d252482bf3926a9e5f290d" }
-htsjdk-bgzf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "aeb8df9a8a502bbc89d252482bf3926a9e5f290d" }
-htsjdk-metrics = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "aeb8df9a8a502bbc89d252482bf3926a9e5f290d" }
-htsjdk-vcf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "aeb8df9a8a502bbc89d252482bf3926a9e5f290d" }
+htsjdk-bam = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "229979352dbc1bd9a4fdbd894d70c3d505cdfc1d" }
+htsjdk-bgzf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "229979352dbc1bd9a4fdbd894d70c3d505cdfc1d" }
+# CRAM, read and written as htsjdk 5.0.0 does: Picard 3.5.0 writes CRAM 3.1.
+htsjdk-cram = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "229979352dbc1bd9a4fdbd894d70c3d505cdfc1d" }
+htsjdk-metrics = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "229979352dbc1bd9a4fdbd894d70c3d505cdfc1d" }
+htsjdk-vcf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "229979352dbc1bd9a4fdbd894d70c3d505cdfc1d" }
 # The `.idx` a VCF writer indexing on the fly puts beside its output.
-htsjdk-tribble = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "aeb8df9a8a502bbc89d252482bf3926a9e5f290d" }
+htsjdk-tribble = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "229979352dbc1bd9a4fdbd894d70c3d505cdfc1d" }
 # jmath, for the Math.log10 that QualityUtil.getPhredScoreFromObsAndErrors runs through, and for
 # Math.round, which is not floor(x + 0.5): see htsjdk-rs PR 50.
-jmath = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "aeb8df9a8a502bbc89d252482bf3926a9e5f290d" }
+jmath = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "229979352dbc1bd9a4fdbd894d70c3d505cdfc1d" }
+
+# The published binaries: whole-program optimisation, because the hot paths cross from the tools
+# into htsjdk-rs on every record and only fat LTO with one codegen unit lets those calls inline.
+# Its own profile because it costs ~8 minutes per full build, and CI builds `release` in every job.
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+
+

@@ -155,7 +155,9 @@ every pair of argument values on both sides. All 121 arrays match on every row.
 
 At 2,000,000 reads on real x86-64, picard-rs runs **1.46x** faster than Picard in wall-clock time
 (1.36x net of JVM startup), with byte-identical output. On small inputs the gap is larger, because
-there is no JVM to start. No optimisation work has been done yet.
+there is no JVM to start. That figure predates the first optimisation pass (BGZF input inflated
+on every core, mimalloc, MarkDuplicates' quadratic lookups removed), which has not yet been
+re-measured on x86-64.
 [Decision 0004](docs/decisions/0004-the-speedup-is-mostly-jvm-startup-until-it-is-not.md) has the
 measurements.
 

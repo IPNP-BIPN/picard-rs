@@ -12,43 +12,176 @@
 //! is a separate surface: a record carrying an `MC` tag would need it too, so the port asserts there
 //! is none rather than silently leaving a mate cigar unclipped.
 
-use htsjdk_bam::cigar::{soft_clip_end_of_read, Cigar, Op};
+use htsjdk_bam::cigar::{soft_clip_end_of_read, Cigar, CigarElement, Op};
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam_with, write_sam};
-use htsjdk_bam::tag::Tag;
+use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::text_parse::{ParseError, ValidationStringency};
 
+const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
+const MATE_UNMAPPED: u16 = 0x8;
 
-/// `createNewCigarIfMapsOffEndOfReference` for the read, then the unmapped-MAPQ fix.
-fn clean_record(rec: &mut BamRecord, header: &SamHeader) {
-    assert!(
-        rec.tags.get(Tag::new(b"MC")).is_none(),
-        "CleanSam: a record carries an MC tag; the mate clip is not ported"
-    );
-
+/// `AbstractAlignmentMerger.createNewCigarsIfMapsOffEndOfReference` for the read and then for its
+/// mate's cigar, then the unmapped-MAPQ fix. `Err` is the exception the reference throws on the
+/// record, class and message.
+fn clean_record(rec: &mut BamRecord, header: &SamHeader) -> Result<(), String> {
     if rec.flags & READ_UNMAPPED == 0 {
-        let ref_len = header.sequences[rec.reference_index as usize].length;
         // getAlignmentEnd = alignmentStart + referenceLength - 1.
         let alignment_end = rec.alignment_start + rec.cigar.reference_length() as i32 - 1;
-        let overhang = alignment_end - ref_len;
-        if overhang > 0 {
-            // 1-based first read base to clip.
-            let mut clip_from = rec.read_length() as i32 - overhang + 1;
-            // If the last element is already a soft clip, subtract it from clipFrom.
-            if let Some(last) = rec.cigar.elements.last() {
-                if last.op == Op::S {
-                    clip_from -= last.length as i32;
+        if let Some(clipped) = clip_off_end(
+            header,
+            rec.reference_index,
+            alignment_end,
+            rec.read_length() as i32,
+            &rec.cigar,
+        )? {
+            rec.cigar = clipped;
+        }
+    }
+
+    // `SAMUtils.hasMateCigar`: paired, mate mapped, and an `MC` (read as a String, which throws on
+    // any other type).
+    if rec.flags & READ_PAIRED != 0 && rec.flags & MATE_UNMAPPED == 0 {
+        if let Some(value) = rec.tags.get(Tag::new(b"MC")) {
+            let text = match value {
+                TagValue::Str(text) => text.clone(),
+                other => {
+                    return Err(format!(
+                        "htsjdk.samtools.SAMException: Value for tag MC is not a String: class {}",
+                        java_class(other)
+                    ))
                 }
+            };
+            let mate_cigar = decode_text_cigar(&text)?;
+            // `SAMUtils.getMateAlignmentEnd`: CoordMath.getEnd(mateStart, referenceLength).
+            let mate_end = rec.mate_alignment_start + mate_cigar.reference_length() as i32 - 1;
+            if let Some(clipped) = clip_off_end(
+                header,
+                rec.mate_reference_index,
+                mate_end,
+                mate_cigar.read_length() as i32,
+                &mate_cigar,
+            )? {
+                rec.tags
+                    .insert(Tag::new(b"MC"), TagValue::Str(clipped.to_text()));
             }
-            let new_elements = soft_clip_end_of_read(clip_from, &rec.cigar.elements);
-            rec.cigar = Cigar::new(new_elements);
         }
     }
 
     if rec.flags & READ_UNMAPPED != 0 && rec.mapping_quality != 0 {
         rec.mapping_quality = 0;
+    }
+    Ok(())
+}
+
+/// `AbstractAlignmentMerger.createNewCigarIfMapsOffEndOfReference` for an alignment the caller has
+/// already found mapped: the cigar soft-clipped where it runs off its contig, or `None` when it
+/// does not. A reference index the header has no sequence for is the reference's null `refseq`.
+fn clip_off_end(
+    header: &SamHeader,
+    reference_index: i32,
+    alignment_end: i32,
+    read_length: i32,
+    cigar: &Cigar,
+) -> Result<Option<Cigar>, String> {
+    let refseq = usize::try_from(reference_index)
+        .ok()
+        .and_then(|index| header.sequences.get(index))
+        .ok_or(
+            "java.lang.NullPointerException: Cannot invoke \"htsjdk.samtools.SAMSequenceRecord.\
+             getSequenceLength()\" because \"refseq\" is null",
+        )?;
+    let overhang = alignment_end - refseq.length;
+    if overhang <= 0 {
+        return Ok(None);
+    }
+    // 1-based first read base to clip.
+    let mut clip_from = read_length - overhang + 1;
+    // If the last element is already a soft clip, subtract it from clipFrom. An empty cigar has
+    // no last element, which the reference meets as an index of -1.
+    let last = cigar
+        .elements
+        .last()
+        .ok_or("java.lang.IndexOutOfBoundsException: Index -1 out of bounds for length 0")?;
+    if last.op == Op::S {
+        clip_from -= last.length as i32;
+    }
+    Ok(Some(Cigar::new(soft_clip_end_of_read(
+        clip_from,
+        &cigar.elements,
+    ))))
+}
+
+/// `TextCigarCodec.decode`, with the exception each malformed string meets there: a non-digit where
+/// a length starts, an operator `CigarOperator.characterToEnum` does not know, or a string that ends
+/// in digits and reads past its last byte. Lengths overflow as Java's `int` does.
+fn decode_text_cigar(text: &str) -> Result<Cigar, String> {
+    if text == "*" {
+        return Ok(Cigar::default());
+    }
+    let bytes = text.as_bytes();
+    let mut elements = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if !bytes[i].is_ascii_digit() {
+            return Err(format!(
+                "java.lang.IllegalArgumentException: Malformed CIGAR string: {text}"
+            ));
+        }
+        let mut length = i32::from(bytes[i] - b'0');
+        i += 1;
+        loop {
+            let Some(&b) = bytes.get(i) else {
+                return Err(format!(
+                    "java.lang.ArrayIndexOutOfBoundsException: Index {i} out of bounds for length {}",
+                    bytes.len()
+                ));
+            };
+            if !b.is_ascii_digit() {
+                break;
+            }
+            length = length.wrapping_mul(10).wrapping_add(i32::from(b - b'0'));
+            i += 1;
+        }
+        let op = match bytes[i] {
+            b'M' => Op::M,
+            b'I' => Op::I,
+            b'D' => Op::D,
+            b'N' => Op::N,
+            b'S' => Op::S,
+            b'H' => Op::H,
+            b'P' => Op::P,
+            b'=' => Op::Eq,
+            b'X' => Op::X,
+            other => {
+                return Err(format!(
+                    "java.lang.IllegalArgumentException: Unrecognized CigarOperator: {}",
+                    other as i8
+                ))
+            }
+        };
+        elements.push(CigarElement {
+            length: length as u32,
+            op,
+        });
+        i += 1;
+    }
+    Ok(Cigar::new(elements))
+}
+
+/// The class `getStringAttribute` names when an attribute is not a String.
+fn java_class(value: &TagValue) -> &'static str {
+    match value {
+        TagValue::Char(_) => "java.lang.Character",
+        TagValue::Int(_) => "java.lang.Integer",
+        TagValue::Float(_) => "java.lang.Float",
+        TagValue::Str(_) => "java.lang.String",
+        TagValue::ByteArray { .. } => "[B",
+        TagValue::ShortArray { .. } => "[S",
+        TagValue::IntArray { .. } => "[I",
+        _ => "[F",
     }
 }
 
@@ -56,7 +189,7 @@ fn clean_record(rec: &mut BamRecord, header: &SamHeader) {
 ///
 /// Reads at LENIENT stringency, as CleanSam does (it downgrades STRICT to LENIENT), so it can
 /// accept the very records it exists to fix, such as an unmapped read with a nonzero MAPQ.
-pub fn clean_sam(input_sam: &str) -> Result<String, ParseError> {
+pub fn clean_sam(input_sam: &str) -> Result<String, CleanError> {
     let (header, records) = clean(input_sam)?;
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
 }
@@ -70,17 +203,48 @@ pub fn clean_sam(input_sam: &str) -> Result<String, ParseError> {
 /// Each record is cleaned independently from the (immutable, shared) header, and `par_iter_mut`
 /// mutates them in place without reordering, so the result is byte-identical to a serial loop
 /// regardless of how the work is split across cores. See decision 0006.
-pub fn clean_records(header: &SamHeader, records: &mut [BamRecord]) {
+pub fn clean_records(header: &SamHeader, records: &mut [BamRecord]) -> Result<(), CleanError> {
     use rayon::prelude::*;
-    records
+    let outcomes: Vec<Result<(), String>> = records
         .par_iter_mut()
-        .for_each(|rec| clean_record(rec, header));
+        .map(|rec| clean_record(rec, header))
+        .collect();
+    // The reference stops at the first record that throws, in file order.
+    match outcomes
+        .into_iter()
+        .enumerate()
+        .find_map(|(index, outcome)| {
+            outcome
+                .err()
+                .map(|thrown| CleanError::Thrown { index, thrown })
+        }) {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
+}
+
+/// Why a run stops: the input did not parse, or the reference threw on a record.
+#[derive(Debug)]
+pub enum CleanError {
+    Parse(ParseError),
+    /// The record the exception was thrown on, and the exception as `Exception in thread "main"`
+    /// prints it. The records before it were handed to the writer.
+    Thrown {
+        index: usize,
+        thrown: String,
+    },
+}
+
+impl From<ParseError> for CleanError {
+    fn from(e: ParseError) -> Self {
+        CleanError::Parse(e)
+    }
 }
 
 /// `CleanSam.doWork` up to the write: the header and the cleaned records.
-fn clean(input_sam: &str) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
+fn clean(input_sam: &str) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), CleanError> {
     let (header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
-    clean_records(&header, &mut records);
+    clean_records(&header, &mut records)?;
     Ok((header, records))
 }
 
@@ -89,7 +253,7 @@ fn clean(input_sam: &str) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecor
 /// `USE_JDK_DEFLATER=true` output follows transitively: the records are the ones `clean_sam` already
 /// reproduces (the CleanSam oracle), and the `BamWriter` is proven byte-identical over arbitrary
 /// records (the SamFormatConverter oracle and htsjdk-rs's `every_file_is_byte_identical_to_htsjdks`).
-pub fn clean_sam_to_bam(input_sam: &str) -> Result<Vec<u8>, ParseError> {
+pub fn clean_sam_to_bam(input_sam: &str) -> Result<Vec<u8>, CleanError> {
     use htsjdk_bam::writer::BamWriter;
     let (header, records) = clean(input_sam)?;
     let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
@@ -170,13 +334,13 @@ mod tests {
 
         let mut serial = make();
         for r in &mut serial {
-            clean_record(r, &header);
+            clean_record(r, &header).unwrap();
         }
 
         let mut parallel = make();
         parallel
             .par_iter_mut()
-            .for_each(|r| clean_record(r, &header));
+            .for_each(|r| clean_record(r, &header).unwrap());
 
         assert_eq!(write_sam(&header, &serial), write_sam(&header, &parallel));
     }

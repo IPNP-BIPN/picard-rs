@@ -12,6 +12,11 @@
 //! supplementary one. Each record keeps the unmapped BAM's bases, qualities and tags and takes the
 //! aligner's position, cigar, mapping quality, strand and non-reserved tags.
 //!
+//! `ALIGNED_BAM` may name several files, and so may `READ1_ALIGNED_BAM` and `READ2_ALIGNED_BAM`.
+//! Each set is read as one stream through a `MergingSamRecordIterator` under one
+//! `SamFileHeaderMerger`: in queryname order for the aligned files, in coordinate order for each
+//! end, whatever order the files themselves are in.
+//!
 //! Three things happen where a reader might not look for them:
 //!
 //! * **The aligned iterator runs one group ahead,** and a group with more than one hit is resolved
@@ -173,6 +178,73 @@ fn unclipped_end(rec: &BamRecord) -> i32 {
 /// `SAMRecord.toString()`.
 fn describe(rec: &BamRecord, header: &SamHeader) -> String {
     picard_analysis::view_sam::sam_string(header, rec)
+}
+
+/// A Java array read out of bounds: `java.lang.ArrayIndexOutOfBoundsException`'s message.
+fn out_of_bounds(index: i64, length: usize) -> String {
+    format!(
+        "java.lang.ArrayIndexOutOfBoundsException: Index {index} out of bounds for length {length}"
+    )
+}
+
+/// The first array read `SequenceUtil.calculateMdAndNmTags` makes out of bounds, if any. A match
+/// block stops at the end of the reference and ends the walk there, but reads the read's base
+/// first only after that test, so it overruns a read the cigar is longer than; a deletion reads
+/// the reference with no test at all.
+fn md_out_of_bounds(rec: &BamRecord, reference: &[u8]) -> Option<String> {
+    let mut reference_position = rec.alignment_start as i64 - 1;
+    let mut read_position: i64 = 0;
+    for element in &rec.cigar.elements {
+        let length = element.length as i64;
+        match element.op {
+            Op::M | Op::Eq | Op::X => {
+                for offset in 0..length {
+                    if reference.len() as i64 <= reference_position + offset {
+                        return None;
+                    }
+                    if read_position + offset >= rec.read_bases.len() as i64 {
+                        return Some(out_of_bounds(read_position + offset, rec.read_bases.len()));
+                    }
+                }
+                reference_position += length;
+                read_position += length;
+            }
+            Op::D => {
+                for offset in 0..length {
+                    let index = reference_position + offset;
+                    if index >= reference.len() as i64 {
+                        return Some(out_of_bounds(index, reference.len()));
+                    }
+                    if reference[index as usize] == 0 {
+                        return None;
+                    }
+                }
+                reference_position += length;
+            }
+            Op::I | Op::S => read_position += length,
+            Op::N => reference_position += length,
+            Op::H | Op::P => {}
+        }
+    }
+    None
+}
+
+/// The first array read `SequenceUtil.sumQualitiesOfMismatches` makes out of bounds, if any: it
+/// walks every alignment block with no bound, reading the read's base before the reference's.
+fn uq_out_of_bounds(rec: &BamRecord, reference: &[u8]) -> Option<String> {
+    for (read_start, reference_start, length) in alignment_blocks(&rec.cigar, rec.alignment_start) {
+        for offset in 0..length as i64 {
+            let read_index = read_start as i64 - 1 + offset;
+            if read_index >= rec.read_bases.len() as i64 {
+                return Some(out_of_bounds(read_index, rec.read_bases.len()));
+            }
+            let reference_index = reference_start as i64 - 1 + offset;
+            if reference_index >= reference.len() as i64 {
+                return Some(out_of_bounds(reference_index, reference.len()));
+            }
+        }
+    }
+    None
 }
 
 /// One `AlignmentBlock`: 1-based read start, 1-based reference start, length.
@@ -1988,18 +2060,204 @@ impl CommandLine {
     }
 }
 
-/// `SeparateEndAlignmentIterator`: the first ends' and the second ends' alignments, each read with
-/// its `/1` or `/2` suffix trimmed and its pair flags set, taken in turn by read name. The header is
-/// the two files' merged one, which for one file each is the first file's.
-fn separate_ends(read1: &[String], read2: &[String]) -> (SamHeader, Vec<BamRecord>) {
-    if read1.len() != 1 || read2.len() != 1 {
-        thrown(
-            "java.lang.UnsupportedOperationException: more than one READ1_ALIGNED_BAM or \
-             READ2_ALIGNED_BAM is not supported by this port",
-        );
+/// `SAMSequenceRecord.toString()`.
+fn sequence_string(sequence: &SequenceRecord, index: usize) -> String {
+    let alternates: Vec<&str> = sequence
+        .attributes
+        .get("AN")
+        .map(|names| names.split(',').collect())
+        .unwrap_or_default();
+    format!(
+        "SAMSequenceRecord(name={},length={},dict_index={index},assembly={},alternate_names=[{}])",
+        sequence.name,
+        sequence.length,
+        sequence.attributes.get("AS").unwrap_or("null"),
+        alternates.join(", ")
+    )
+}
+
+/// `SAMSequenceRecord.isSameSequence` for two records at the same index.
+fn is_same_sequence(a: &SequenceRecord, b: &SequenceRecord) -> bool {
+    if a.length != 0 && b.length != 0 && a.length != b.length {
+        return false;
     }
-    let (header, first) = read_input(&read1[0]);
-    let (_, second) = read_input(&read2[0]);
+    match (a.attributes.get("M5"), b.attributes.get("M5")) {
+        (Some(x), Some(y)) => x
+            .trim_start_matches('0')
+            .eq_ignore_ascii_case(y.trim_start_matches('0')),
+        _ => {
+            let alternates = |s: &SequenceRecord, name: &str| {
+                s.attributes
+                    .get("AN")
+                    .is_some_and(|names| names.split(',').any(|n| n == name))
+            };
+            a.name == b.name || alternates(a, &b.name) || alternates(b, &a.name)
+        }
+    }
+}
+
+/// `SAMSequenceDictionary.assertSameDictionary`, which the `ALIGNED_BAM` path calls on every
+/// file against the first; an `AssertionError` is not caught by anything.
+fn assert_same_dictionary(this: &[SequenceRecord], that: &[SequenceRecord]) {
+    let fail = |detail: String| -> ! {
+        thrown(&format!(
+            "java.lang.AssertionError: SAM dictionaries are not the same: {detail}."
+        ))
+    };
+    for (index, this_sequence) in this.iter().enumerate() {
+        match that.get(index) {
+            None => fail(format!(
+                "{} is present in only one dictionary",
+                sequence_string(this_sequence, index)
+            )),
+            Some(that_sequence) if !is_same_sequence(that_sequence, this_sequence) => {
+                fail(format!(
+                    "{} was found when {} was expected",
+                    sequence_string(that_sequence, index),
+                    sequence_string(this_sequence, index)
+                ))
+            }
+            Some(_) => {}
+        }
+    }
+    if let Some(extra) = that.get(this.len()) {
+        fail(format!(
+            "{} is present in only one dictionary",
+            sequence_string(extra, this.len())
+        ));
+    }
+}
+
+/// `SequenceUtil.assertSequenceListsEqual`, which `SamFileHeaderMerger` runs over the headers in
+/// order when it is not merging dictionaries.
+fn assert_sequence_lists_equal(headers: &[SamHeader]) {
+    let fail = |detail: String| -> ! {
+        thrown(&format!(
+            "htsjdk.samtools.util.SequenceUtil$SequenceListsDifferException: {detail}"
+        ))
+    };
+    let Some(first) = headers.first() else {
+        return;
+    };
+    let (s1, attributes) = (&first.sequences, |s: &SequenceRecord| {
+        s.attributes
+            .iter()
+            .map(|(k, v)| format!("/{k}={v}"))
+            .collect::<String>()
+    });
+    for header in &headers[1..] {
+        let s2 = &header.sequences;
+        if s1.len() != s2.len() {
+            fail(format!(
+                "Sequence dictionaries are not the same size ({}, {})",
+                s1.len(),
+                s2.len()
+            ));
+        }
+        for (i, (a, b)) in s1.iter().zip(s2).enumerate() {
+            if !is_same_sequence(a, b) {
+                fail(format!(
+                    "Sequences at index {i} don't match: {i}/{}/{}{} {i}/{}/{}{}",
+                    a.length,
+                    a.name,
+                    attributes(a),
+                    b.length,
+                    b.name,
+                    attributes(b)
+                ));
+            }
+        }
+    }
+}
+
+/// `SamFileHeaderMerger` without dictionary merging, over headers whose dictionaries are already
+/// known to agree, with its exceptions as the reference words them.
+fn merge_for_iteration(
+    inputs: Vec<(SamHeader, Vec<BamRecord>)>,
+    sort_order: &str,
+) -> (SamHeader, Vec<Vec<BamRecord>>) {
+    use picard_analysis::merge_sam_files::{merge_headers_for_iteration, MergeError};
+    let file_header = |header: &SamHeader| {
+        let attributes: Vec<String> = header
+            .attributes
+            .iter()
+            .map(|(k, v)| format!("{k}={v}"))
+            .collect();
+        format!("SAMFileHeader{{{}}}", attributes.join(", "))
+    };
+    let duplicate = |inputs: &[(SamHeader, Vec<BamRecord>)], kind: &str, id: &str| -> String {
+        let header = inputs
+            .iter()
+            .map(|(h, _)| h)
+            .find(|h| {
+                let ids: Vec<&str> = if kind == "RG" {
+                    h.read_groups.iter().map(|g| g.id.as_str()).collect()
+                } else {
+                    h.programs.iter().map(|p| p.id.as_str()).collect()
+                };
+                ids.iter().filter(|&&i| i == id).count() > 1
+            })
+            .map(file_header)
+            .unwrap_or_default();
+        format!(
+            "htsjdk.samtools.SAMException: Input file: {header} contains more than one {kind} \
+             with the same id ({id})"
+        )
+    };
+    let headers: Vec<(SamHeader, Vec<BamRecord>)> = inputs
+        .iter()
+        .map(|(h, _)| (h.clone(), Vec::new()))
+        .collect();
+    match merge_headers_for_iteration(inputs, sort_order) {
+        Ok(merged) => merged,
+        Err(MergeError::DuplicateReadGroupId(id)) => thrown(&duplicate(&headers, "RG", &id)),
+        Err(MergeError::DuplicateProgramId(id)) => thrown(&duplicate(&headers, "PG", &id)),
+        Err(MergeError::ProgramChainBroken) => thrown(
+            "htsjdk.samtools.SAMException: program groups weren't processed. Do their PP ids \
+             point to existing PGs? ",
+        ),
+        Err(other) => thrown(&format!("htsjdk.samtools.SAMException: {other:?}")),
+    }
+}
+
+/// `getQuerynameSortedAlignedRecords` for `ALIGNED_BAM`: the files' dictionaries asserted equal
+/// to the first's, their headers merged in queryname order, and their records merged by a
+/// `MergingSamRecordIterator` that assumes each file is sorted. The program record is the first
+/// file's that carries exactly one.
+fn aligned_files(paths: &[String]) -> (SamHeader, Vec<BamRecord>, Option<ProgramRecord>) {
+    let inputs: Vec<(SamHeader, Vec<BamRecord>)> = paths.iter().map(|p| read_input(p)).collect();
+    let program = inputs
+        .iter()
+        .find(|(h, _)| h.programs.len() == 1)
+        .map(|(h, _)| h.programs[0].clone());
+    for (header, _) in &inputs[1..] {
+        assert_same_dictionary(&inputs[0].0.sequences, &header.sequences);
+    }
+    let (header, per_input) = merge_for_iteration(inputs, "queryname");
+    let records = picard_analysis::merge_sam_files::priority_merge(
+        per_input,
+        htsjdk_bam::query_name::compare,
+    );
+    (header, records, program)
+}
+
+/// `SeparateEndAlignmentIterator`: one header merger over every first-end and second-end file, in
+/// COORDINATE order, and two merging iterators from it, one over the first ends and one over the
+/// second. Each read has its `/1` or `/2` suffix trimmed and its pair flags set, and the two are
+/// taken in turn by read name. The program record is the merged header's when it has exactly one.
+fn separate_ends(
+    read1: &[String],
+    read2: &[String],
+) -> (SamHeader, Vec<BamRecord>, Option<ProgramRecord>) {
+    let inputs: Vec<(SamHeader, Vec<BamRecord>)> =
+        read1.iter().chain(read2).map(|p| read_input(p)).collect();
+    let headers: Vec<SamHeader> = inputs.iter().map(|(h, _)| h.clone()).collect();
+    assert_sequence_lists_equal(&headers);
+    let (header, mut per_input) = merge_for_iteration(inputs, "coordinate");
+    let seconds = per_input.split_off(read1.len());
+    let merge = |files| {
+        picard_analysis::merge_sam_files::priority_merge(files, htsjdk_bam::coordinate::compare)
+    };
     let mark = |mut record: BamRecord, suffix: &str, first_of_pair: bool| -> BamRecord {
         if let Some(name) = record.read_name.strip_suffix(suffix) {
             record.read_name = name.to_string();
@@ -2009,8 +2267,14 @@ fn separate_ends(read1: &[String], read2: &[String]) -> (SamHeader, Vec<BamRecor
         record.flags |= if first_of_pair { 0x40 } else { 0x80 };
         record
     };
-    let mut ones = first.into_iter().map(|r| mark(r, "/1", true)).peekable();
-    let mut twos = second.into_iter().map(|r| mark(r, "/2", false)).peekable();
+    let mut ones = merge(per_input)
+        .into_iter()
+        .map(|r| mark(r, "/1", true))
+        .peekable();
+    let mut twos = merge(seconds)
+        .into_iter()
+        .map(|r| mark(r, "/2", false))
+        .peekable();
     let mut merged = Vec::new();
     loop {
         let take_one = match (ones.peek(), twos.peek()) {
@@ -2022,7 +2286,8 @@ fn separate_ends(read1: &[String], read2: &[String]) -> (SamHeader, Vec<BamRecor
         let next = if take_one { ones.next() } else { twos.next() };
         merged.extend(next);
     }
-    (header, merged)
+    let program = (header.programs.len() == 1).then(|| header.programs[0].clone());
+    (header, merged, program)
 }
 
 fn main() {
@@ -2229,16 +2494,10 @@ fn main() {
     }
 
     let (unmapped_header, unmapped) = read_input(&unmapped_path);
-    let (aligned_header, aligned) = if aligned_bams.is_empty() {
+    let (aligned_header, aligned, aligned_program) = if aligned_bams.is_empty() {
         separate_ends(&read1, &read2)
     } else {
-        if aligned_bams.len() != 1 {
-            thrown(
-                "java.lang.UnsupportedOperationException: more than one ALIGNED_BAM is not \
-                 supported by this port",
-            );
-        }
-        read_input(&aligned_bams[0])
+        aligned_files(&aligned_bams)
     };
     let dictionary_text =
         std::fs::read_to_string(std::path::Path::new(&reference).with_extension("dict"))
@@ -2283,9 +2542,9 @@ fn main() {
         }
         header.programs.push(pg);
         program_id = Some(id.clone());
-    } else if aligned_header.programs.len() == 1 {
-        header.programs.push(aligned_header.programs[0].clone());
-        program_id = Some(aligned_header.programs[0].id.clone());
+    } else if let Some(program) = aligned_program {
+        program_id = Some(program.id.clone());
+        header.programs.push(program);
     }
 
     let mut picker = Picker {
@@ -2340,6 +2599,11 @@ fn main() {
             }
             let name = header.sequences[rec.reference_index as usize].name.clone();
             let reference_bases = bases.get(name.as_str()).copied().unwrap_or(&[]);
+            // `calculateMdAndNmTags` stops where the reference does, but not where the read
+            // does: a cigar consuming more bases than the read holds reads past its end.
+            if let Some(failure) = md_out_of_bounds(rec, reference_bases) {
+                thrown(&failure);
+            }
             // The bisulfite NM is counted base by base against the reference.
             if settings.bisulfite
                 && !picard_analysis::set_nm_md_and_uq_tags::aligned_within_reference(
@@ -2355,6 +2619,12 @@ fn main() {
                     describe(rec, &header)
                 ));
             }
+            // `fixUq` after it: `sumQualitiesOfMismatches` has no bound on either array.
+            if !rec.base_qualities.is_empty() {
+                if let Some(failure) = uq_out_of_bounds(rec, reference_bases) {
+                    thrown(&failure);
+                }
+            }
             fix_record(
                 rec,
                 reference_bases,
@@ -2367,6 +2637,16 @@ fn main() {
     }
     header.set_sort_order(&settings.sort_order);
 
+    // The extension decides the format, and everything that is not `.sam` is a BAM.
+    if output.ends_with(".sam") {
+        let text = htsjdk_bam::sam_file::write_sam(&header, &records).unwrap_or_else(|| {
+            thrown("htsjdk.samtools.SAMException: records failed to re-encode as SAM")
+        });
+        if let Err(e) = std::fs::write(&output, text) {
+            thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}"));
+        }
+        return;
+    }
     let mut writer = BamWriter::new(Vec::new(), &header)
         .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")));
     for rec in &records {
@@ -2377,7 +2657,7 @@ fn main() {
     let bytes = writer
         .finish()
         .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")));
-    if let Err(e) = std::fs::write(&output, bytes) {
+    if let Err(e) = picard_analysis::cram_output::write(&output, bytes) {
         thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}"));
     }
 }

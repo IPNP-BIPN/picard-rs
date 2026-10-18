@@ -113,9 +113,59 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reference = arg(&args, "REFERENCE=")
         .or_else(|| arg(&args, "R="))
         .ok_or("REFERENCE= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    // `FileExtensions.FASTA`: what the reference's name has to end in.
+    const FASTA: [&str; 10] = [
+        ".fasta",
+        ".fasta.gz",
+        ".fas",
+        ".fas.gz",
+        ".fa",
+        ".fa.gz",
+        ".fna",
+        ".fna.gz",
+        ".txt",
+        ".txt.gz",
+    ];
+    let path = std::path::Path::new(&reference);
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let extension = FASTA.iter().find(|e| name.ends_with(*e));
+    // `customCommandLineValidation`: no OUTPUT is the reference's own name with its FASTA
+    // extension replaced by `.dict` (`getDefaultDictionaryForReferenceSequence`).
+    let output = match arg(&args, "OUTPUT=").or_else(|| arg(&args, "O=")) {
+        Some(output) => output,
+        None => {
+            let Some(extension) = extension else {
+                eprintln!(
+                    "Exception in thread \"main\" java.lang.IllegalArgumentException: File is not a supported reference file type: {}",
+                    picard_analysis::fingerprint::reference_path(&reference)
+                );
+                std::process::exit(1);
+            };
+            let stem = &name[..name.len() - extension.len()];
+            path.with_file_name(format!("{stem}.dict"))
+                .to_string_lossy()
+                .into_owned()
+        }
+    };
+    // `doWork` refuses to overwrite a dictionary before it reads anything.
+    if std::path::Path::new(&output).exists() {
+        eprintln!(
+            "Exception in thread \"main\" picard.PicardException: {} already exists.  Delete this file and try again, or specify a different output file.",
+            picard_analysis::fingerprint::file_uri(&output)
+        );
+        std::process::exit(1);
+    }
+    // Then the reference is opened by its extension, and one that is not a FASTA's throws inside
+    // the writing block, whose handler deletes the dictionary it had begun and says so.
+    if extension.is_none() {
+        eprintln!(
+            "Exception in thread \"main\" picard.PicardException: Unknown problem. Partial dictionary file was deleted."
+        );
+        std::process::exit(1);
+    }
 
     let truncate = arg(&args, "TRUNCATE_NAMES_AT_WHITESPACE=")
         .is_none_or(|v| picard_analysis::args::is_true(&v));

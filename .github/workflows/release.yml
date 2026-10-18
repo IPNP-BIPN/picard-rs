@@ -42,14 +42,14 @@ jobs:
           toolchain: "1.97.1"
 
       - name: Build every tool
-        run: cargo build --release --locked
+        run: cargo build --profile dist --locked
 
       - name: Package
         run: |
           name="picard-rs-${TAG}-${{ matrix.target }}"
           mkdir -p "dist/${name}/bin"
           for src in crates/picard-analysis/src/bin/*.rs; do
-            cp "target/release/$(basename "${src}" .rs)" "dist/${name}/bin/"
+            cp "target/dist/$(basename "${src}" .rs)" "dist/${name}/bin/"
           done
           cp LICENSE README.md "dist/${name}/"
           tar -C dist -czf "${name}.tar.gz" "${name}"
