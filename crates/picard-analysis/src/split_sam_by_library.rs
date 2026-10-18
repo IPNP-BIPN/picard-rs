@@ -70,7 +70,15 @@ pub fn split_outputs(
     input_sam: &str,
 ) -> Result<Vec<(String, SamHeader, Vec<BamRecord>)>, SplitLibError> {
     let (header, records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
+    split_records(header, records)
+}
 
+/// [`split_outputs`] over records already read: a BAM's come decoded, and nothing is set on them,
+/// so each keeps the bytes it was read from, as htsjdk keeps them.
+pub fn split_records(
+    header: SamHeader,
+    records: Vec<BamRecord>,
+) -> Result<Vec<(String, SamHeader, Vec<BamRecord>)>, SplitLibError> {
     // Group read groups by library, preserving header order; those with no LB seed the unknown header.
     let mut lib_order: Vec<String> = Vec::new();
     let mut lib_to_rgs: HashMap<String, Vec<ReadGroup>> = HashMap::new();

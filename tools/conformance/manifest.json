@@ -3584,6 +3584,40 @@
           "why": "No golden yet: CI publishes the dump from a real x86-64 runner, and the port test that replays it lands with the freeze."
         }
       ]
+    },
+    {
+      "id": "rawrecords",
+      "title": "records htsjdk did not write, passed through: an untouched one keeps its tags' order and types, a touched one is re-encoded",
+      "status": "golden-pending",
+      "harness": "tools/rawrecords-conformance",
+      "tools": [
+        "SortSam",
+        "MarkDuplicates",
+        "MergeSamFiles",
+        "SamFormatConverter",
+        "CleanSam",
+        "ReorderSam",
+        "DownsampleSam",
+        "FixMateInformation",
+        "AddOrReplaceReadGroups",
+        "SplitSamByLibrary",
+        "SplitSamByNumberOfReads"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "expect_contains": [
+        "records\tsortsam_queryname\t",
+        "records\taddorreplacereadgroups\t",
+        "4e4d4301",
+        "4d51433a"
+      ],
+      "cases": [
+        {
+          "dump": "RawRecordsDump",
+          "golden": null
+        }
+      ]
     }
   ],
   "probes": [
