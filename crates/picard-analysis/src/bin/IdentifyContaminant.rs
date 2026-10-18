@@ -9,6 +9,7 @@ use picard_analysis::metrics_cli::Args;
 
 fn main() {
     picard_analysis::argument_check::check("IdentifyContaminant");
+    picard_analysis::output::install();
     // The `ExtractFingerprint` it delegates to is handed the argument collection and not the
     // `REFERENCE_SEQUENCE` file its checker reads with, so a CRAM has no reference.
     picard_analysis::cram_input::set_reader_reference(None);

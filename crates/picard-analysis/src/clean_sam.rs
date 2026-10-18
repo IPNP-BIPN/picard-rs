@@ -254,9 +254,9 @@ fn clean(input_sam: &str) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecor
 /// reproduces (the CleanSam oracle), and the `BamWriter` is proven byte-identical over arbitrary
 /// records (the SamFormatConverter oracle and htsjdk-rs's `every_file_is_byte_identical_to_htsjdks`).
 pub fn clean_sam_to_bam(input_sam: &str) -> Result<Vec<u8>, CleanError> {
-    use htsjdk_bam::writer::BamWriter;
     let (header, records) = clean(input_sam)?;
-    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut writer =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &records {
         writer
             .write(rec)

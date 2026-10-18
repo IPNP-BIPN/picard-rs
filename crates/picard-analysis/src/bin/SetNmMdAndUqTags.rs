@@ -18,13 +18,13 @@ use std::io::Read;
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
-use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
 use picard_analysis::set_nm_md_and_uq_tags::{fix_record, Options};
 
 // `pub` because `SetNmAndUqTags`, Picard's older name for the same tool, includes this file.
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SetNmMdAndUqTags");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -96,7 +96,8 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         fix_record(record, reference_bases, options);
     }
 
-    let mut writer = BamWriter::new(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
+    let mut writer =
+        picard_analysis::output::bam_writer(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
     for record in &records {
         writer.write(record).map_err(|e| format!("{e:?}"))?;
     }

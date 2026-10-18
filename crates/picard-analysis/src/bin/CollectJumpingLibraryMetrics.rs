@@ -28,6 +28,7 @@ const DUPLICATE: u16 = 0x400;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CollectJumpingLibraryMetrics");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let inputs = picard_analysis::args::inputs(&args)?;
     let output = arg(&args, "OUTPUT=")

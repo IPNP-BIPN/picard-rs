@@ -204,6 +204,7 @@ fn rows(
 
 fn main() {
     picard_analysis::argument_check::check("CollectGcBiasMetrics");
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

@@ -8,6 +8,7 @@ use picard_analysis::metrics_cli::{thrown, Args};
 
 fn main() {
     picard_analysis::argument_check::check("CrosscheckFingerprints");
+    picard_analysis::output::install();
     // The checker reads every file in an `ExecutorService`, so a CRAM that cannot be decoded is
     // reported as the pool's failure.
     picard_analysis::cram_input::wrap_failures_as("picard.PicardException: Failed to fingerprint");

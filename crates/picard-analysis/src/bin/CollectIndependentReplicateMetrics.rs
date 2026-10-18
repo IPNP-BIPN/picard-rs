@@ -262,7 +262,8 @@ struct Vcf {
 }
 
 fn read_vcf(path: &str) -> Vcf {
-    let text = std::fs::read_to_string(path).unwrap_or_else(|e| fail(&format!("{e}")));
+    let text =
+        picard_analysis::vcf_io::read_to_string(path).unwrap_or_else(|e| fail(&format!("{e}")));
     let mut contigs = Vec::new();
     let mut samples = Vec::new();
     let mut sites = Vec::new();
@@ -386,6 +387,7 @@ fn byte_histogram(bin: &str, value: &str, counts: &BTreeMap<i64, f64>) -> Histog
 
 fn main() {
     picard_analysis::argument_check::check("CollectIndependentReplicateMetrics");
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

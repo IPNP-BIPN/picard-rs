@@ -24,6 +24,7 @@ const DATA_TYPES: [&str; 5] = ["Position", "BaseCalls", "QualityScores", "PF", "
 
 fn main() {
     picard_analysis::argument_check::check("CheckIlluminaDirectory");
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("B", "BASECALLS_DIR"),
         ("RS", "READ_STRUCTURE"),

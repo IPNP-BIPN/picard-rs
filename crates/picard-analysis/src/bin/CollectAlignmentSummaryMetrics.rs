@@ -65,6 +65,7 @@ fn read_group_of(record: &BamRecord) -> Option<String> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CollectAlignmentSummaryMetrics");
+    picard_analysis::output::install();
     let mut t = std::time::Instant::now();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")

@@ -14,7 +14,6 @@ use std::io::Read;
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
-use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
 use picard_analysis::split_sam_by_number_of_reads::{
     split_records, split_sam_by_number_of_reads, SplitOptions,
@@ -22,6 +21,7 @@ use picard_analysis::split_sam_by_number_of_reads::{
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SplitSamByNumberOfReads");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -99,8 +99,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let shards: Vec<Vec<u8>> = shards
             .iter()
             .map(|recs| -> Result<Vec<u8>, String> {
-                let mut writer =
-                    BamWriter::new(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
+                let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)
+                    .map_err(|e| format!("{e:?}"))?;
                 for rec in recs {
                     writer.write(rec).map_err(|e| format!("{e:?}"))?;
                 }

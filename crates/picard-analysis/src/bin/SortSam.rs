@@ -20,7 +20,6 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::text::write_alignment;
-use htsjdk_bam::writer::BamWriter;
 use htsjdk_bgzf::read::BgzfReader;
 use picard_analysis::args::arg;
 use picard_analysis::record_validation::Validator;
@@ -85,6 +84,7 @@ fn check_of(record: &BamRecord, header: &SamHeader) -> MateCigarCheck {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SortSam");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -199,7 +199,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if picard_analysis::cram_output::is_cram(&output) {
-        let mut writer = BamWriter::new(Vec::new(), &header)?;
+        let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)?;
         for record in sorted {
             writer.write(&record?).map_err(|e| format!("{e:?}"))?;
         }
@@ -209,7 +209,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let out = BufWriter::new(std::fs::File::create(&output)?);
-    let mut writer = BamWriter::new(out, &header)?;
+    let mut writer = picard_analysis::output::bam_writer(out, &header)?;
     if create_index {
         writer = writer.with_index();
     }

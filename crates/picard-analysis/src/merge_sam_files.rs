@@ -555,10 +555,9 @@ pub fn merge_sam_files_to_bam(
     order: SortOrder,
     merge_dictionaries: bool,
 ) -> Result<Vec<u8>, MergeError> {
-    use htsjdk_bam::writer::BamWriter;
-
     let (header, records) = merge_records(inputs, order, merge_dictionaries)?;
-    let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut w =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &records {
         w.write(rec).expect("record re-encodes as BAM");
     }

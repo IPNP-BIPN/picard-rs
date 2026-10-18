@@ -13,10 +13,12 @@
 //! `SEQUENCE_DICTIONARY` only replaces the dictionary the indexes are built against, which is
 //! also why a VCF with no contig lines is refused without it only when indexing.
 
+use htsjdk_tribble::tabix::{TabixFormat, TabixIndexCreator};
 use htsjdk_vcf::variant::VariantContext;
 use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
-    die, header_dictionary, parse_sam_dictionary, read_path, write_output,
+    add_to_tabix, die, header_dictionary, is_bcf, is_compressed_vcf, parse_sam_dictionary,
+    read_path, write_output, LinePositions,
 };
 
 /// `VariantContext.getType()`'s name.
@@ -51,6 +53,7 @@ fn type_name(vc: &VariantContext) -> &'static str {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SplitVcfs");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -71,8 +74,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if !snp_output.ends_with(".vcf") || !indel_output.ends_with(".vcf") {
-        return Err("only .vcf outputs are ported".into());
+    let ported = |path: &str| {
+        path.ends_with(".vcf") || is_compressed_vcf(path) || picard_analysis::vcf_io::is_bcf(path)
+    };
+    if !ported(&snp_output) || !ported(&indel_output) {
+        return Err("only .vcf, .vcf.gz and .bcf outputs are ported".into());
     }
 
     let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
@@ -88,27 +94,83 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
+    let index_dictionary = if create_index {
+        dictionary.as_deref()
+    } else {
+        None
+    };
+    // `doWork` hands each record to its writer as it reads it, and that writer's indexer and
+    // encoder see it before the next record is read, so their refusal on one record comes before a
+    // type refusal on a later one. The builder keeps the `TabixIndexCreator` it makes for a
+    // block-compressed SNP_OUTPUT in a field and hands that same creator to the INDEL writer it
+    // builds next, unless that one is block-compressed and gets its own: two files' positions then
+    // reach one index.
+    let tabix = |path: &str| {
+        (index_dictionary.is_some() && is_compressed_vcf(path))
+            .then(|| TabixIndexCreator::new(TabixFormat::VCF))
+    };
+    let mut snp_creator = tabix(&snp_output);
+    let shared = snp_creator.is_some() && !is_compressed_vcf(&indel_output);
+    let mut indel_creator = tabix(&indel_output);
+    if shared && is_bcf(&indel_output) {
+        return Err("a .bcf INDEL_OUTPUT indexed beside a .vcf.gz SNP_OUTPUT is not ported".into());
+    }
+    let lines = |path: &str| (!is_bcf(path)).then(|| LinePositions::new(path, &vcf.file.header));
+    let mut snp_lines = lines(&snp_output);
+    let mut indel_lines = lines(&indel_output);
+    let lengths: std::collections::HashMap<&str, i32> = index_dictionary
+        .unwrap_or_default()
+        .iter()
+        .map(|sequence| (sequence.name.as_str(), sequence.length as i32))
+        .collect();
+
     let mut snps = Vec::new();
     let mut indels = Vec::new();
     for record in vcf.records {
-        match type_name(&record.variant) {
-            "INDEL" => indels.push(record),
-            "SNP" => snps.push(record),
+        let (lines, creator, kept) = match type_name(&record.variant) {
+            "INDEL" => (
+                &mut indel_lines,
+                if shared {
+                    &mut snp_creator
+                } else {
+                    &mut indel_creator
+                },
+                &mut indels,
+            ),
+            "SNP" => (&mut snp_lines, &mut snp_creator, &mut snps),
             other => {
                 if strict {
                     die(&format!(
                         "java.lang.IllegalStateException: Found a record with type {other}"
                     ));
                 }
+                continue;
             }
+        };
+        if let Some(lines) = lines {
+            if let Some(creator) = creator {
+                add_to_tabix(
+                    creator,
+                    index_dictionary,
+                    &lengths,
+                    &record,
+                    lines.position(),
+                );
+            }
+            lines.write_record(&record);
         }
+        kept.push(record);
+    }
+    // shortcut: both writers close the shared index, finalizing it twice, and that is not ported;
+    // every array row with this shape is refused while adding, before either writer closes.
+    if shared {
+        return Err(
+            "closing a .vcf.gz SNP_OUTPUT's tabix index shared with a text INDEL_OUTPUT \
+                    is not ported"
+                .into(),
+        );
     }
 
-    let index_dictionary = if create_index {
-        dictionary.as_deref()
-    } else {
-        None
-    };
     write_output(&snp_output, &vcf.file.header, &snps, index_dictionary)?;
     write_output(&indel_output, &vcf.file.header, &indels, index_dictionary)?;
     Ok(())

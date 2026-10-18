@@ -28,13 +28,13 @@ use htsjdk_bam::interval::Interval;
 use htsjdk_bam::liftover::LiftOver;
 use htsjdk_vcf::allele::Allele;
 use htsjdk_vcf::attributes::{as_double, as_string};
-use htsjdk_vcf::encoder::{EncodeError, MissingFields, VcfEncoder};
+use htsjdk_vcf::encoder::MissingFields;
 use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
 use picard_analysis::metrics_cli::{absolute, Args};
 use picard_analysis::vcf_io::{
-    add_other_meta_data_line, die, log_error, parse_sam_dictionary, read_path,
-    set_sequence_dictionary, write_text_indexed, Record, Sequence,
+    add_other_meta_data_line, die, encode_exception, log_error, parse_sam_dictionary, read_path,
+    set_sequence_dictionary, write_output_with, Record, Sequence, WriteError,
 };
 
 const TOOL: &str = "LiftoverVcf";
@@ -51,22 +51,6 @@ const ATTEMPTED_ALLELES: &str = "AttemptedAlleles";
 const SWAPPED_ALLELES: &str = "SwappedAlleles";
 const REV_COMPED_ALLELES: &str = "ReverseComplementedAlleles";
 const END_KEY: &str = "END";
-
-fn encode_error(error: &EncodeError) -> String {
-    match error {
-        EncodeError::MissingFromHeader {
-            key,
-            field,
-            contig,
-            start,
-        } => format!(
-            "java.lang.IllegalStateException: Key {key} found in VariantContext field {field} at \
-             {contig}:{start} but this key isn't defined in the VCFHeader.  We require all VCFs \
-             to have complete VCF headers by default."
-        ),
-        other => format!("{other:?}"),
-    }
-}
 
 fn has_attribute(vc: &VariantContext, key: &str) -> bool {
     vc.attributes.iter().any(|(k, _)| k == key)
@@ -428,39 +412,20 @@ fn write_all(
     header: &VcfHeader,
     records: &[Record],
     missing: MissingFields,
-    index: Option<&[Sequence]>,
+    index_dictionary: Option<&[Sequence]>,
 ) {
-    let encoder = VcfEncoder::new(header).with_missing_fields(missing);
-    let sites_header = VcfHeader {
-        lines: header.lines.clone(),
-        samples: Vec::new(),
-    };
-    let sites_encoder = VcfEncoder::new(&sites_header).with_missing_fields(missing);
-    let mut out = header.write();
-    for record in records {
-        let result = match &record.lazy_genotypes {
-            Some(block) => {
-                let mut site = record.variant.clone();
-                site.genotypes.clear();
-                let r = sites_encoder.encode_into(&site, &mut out);
-                out.push('\t');
-                out.push_str(block);
-                r
-            }
-            None => encoder.encode_into(&record.variant, &mut out),
-        };
-        if let Err(e) = result {
-            die(&encode_error(&e));
-        }
-        out.push('\n');
-    }
-    if let Err(e) = write_text_indexed(path, &out, index) {
-        die(&format!("htsjdk.tribble.TribbleException: {e}"));
+    match write_output_with(path, header, records, index_dictionary, missing) {
+        Ok(()) => {}
+        Err(WriteError::Encode(e)) => die(&encode_exception(&e)),
+        Err(WriteError::Io(e)) => die(&format!("htsjdk.tribble.TribbleException: {e}")),
+        // The BCF2 writer's own failure, which it reports as an I/O one.
+        Err(WriteError::Other(e)) => die(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")),
     }
 }
 
 fn main() {
     picard_analysis::argument_check::check("LiftoverVcf");
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),
@@ -601,7 +566,12 @@ fn main() {
     add_other_meta_data_line(
         &mut out_header,
         "reference",
-        &format!("file:{}", absolute(&reference)),
+        // Mapped back to the path the reference was given: a .vcf.gz carries it inside its blocks,
+        // where the harness cannot rewrite it.
+        &format!(
+            "file:{}",
+            picard_analysis::fingerprint::reference_path(&absolute(&reference))
+        ),
     );
 
     // The reject header.
@@ -729,6 +699,7 @@ fn main() {
                     Record {
                         variant: swap_ref_alt(&vc, &tags_to_reverse, &tags_to_drop),
                         lazy_genotypes: None,
+                        fully_decoded: false,
                     },
                     &mut lifted,
                 );
@@ -771,13 +742,14 @@ fn main() {
                 Record {
                     variant: vc,
                     lazy_genotypes,
+                    fully_decoded: false,
                 },
                 &mut lifted,
             );
         }
     }
 
-    // The rejects' writer unsets `INDEX_ON_THE_FLY`; the output's keeps it unless DISABLE_SORT.
+    // `unsetOption(INDEX_ON_THE_FLY)`: the rejects are never indexed.
     write_all(&reject, &reject_header, &rejected, missing, None);
     if !disable_sort {
         let index_of = |name: &str| dictionary.iter().position(|s| s.name == name).unwrap_or(0);
@@ -787,6 +759,7 @@ fn main() {
                 .then(a.variant.start.cmp(&b.variant.start))
         });
     }
-    let index = (!disable_sort).then_some(dictionary.as_slice());
-    write_all(&output, &out_header, &lifted, missing, index);
+    // `modifyOption(INDEX_ON_THE_FLY, !DISABLE_SORT)` over the target reference's dictionary.
+    let index_dictionary = (!disable_sort).then_some(dictionary.as_slice());
+    write_all(&output, &out_header, &lifted, missing, index_dictionary);
 }

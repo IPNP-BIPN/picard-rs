@@ -5,5 +5,6 @@
 
 fn main() {
     picard_analysis::argument_check::check("CollectTargetedPcrMetrics");
+    picard_analysis::output::install();
     picard_analysis::targeted_cli::main_for(picard_analysis::targeted_cli::Tool::TargetedPcr);
 }

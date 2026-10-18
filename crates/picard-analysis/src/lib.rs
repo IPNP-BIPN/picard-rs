@@ -118,6 +118,7 @@ pub mod metrics_cli;
 pub mod murmur3;
 pub mod non_n_fasta_size;
 pub mod normalize_fasta;
+pub mod output;
 pub mod overlap;
 pub mod position_based_downsample_sam;
 pub mod quality_score_distribution;

@@ -21,7 +21,6 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
-use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
 use picard_analysis::reorder_sam::{reorder_records, Options};
 
@@ -74,6 +73,7 @@ fn read_dictionary(path: &str) -> Result<String, Box<dyn std::error::Error>> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("ReorderSam");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -104,7 +104,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         out.flush()?;
         return Ok(());
     }
-    let mut writer = BamWriter::new(Vec::new(), &out_header).map_err(|e| format!("{e:?}"))?;
+    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &out_header)
+        .map_err(|e| format!("{e:?}"))?;
     for record in &records {
         writer.write(record).map_err(|e| format!("{e:?}"))?;
     }

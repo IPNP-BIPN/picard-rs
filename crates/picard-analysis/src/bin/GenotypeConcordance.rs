@@ -38,7 +38,6 @@ use htsjdk_tribble::tabix::{FeatureRef, TabixFormat, TabixIndexCreator};
 use htsjdk_vcf::allele::Allele;
 use htsjdk_vcf::encoder::{MissingFields, VcfEncoder};
 use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
-use htsjdk_vcf::reader::read_vcf;
 use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
 use picard_analysis::args::arg;
 use picard_analysis::genotype_concordance::{
@@ -424,7 +423,7 @@ impl OutputVcf {
                 OUTPUT_VCF_TRUTH_SAMPLE_NAME.to_string(),
             ],
         };
-        let mut bgzf = htsjdk_bgzf::BgzfWriter::new(Vec::new());
+        let mut bgzf = picard_analysis::output::bgzf_writer(Vec::new());
         bgzf.write_all(header.write().as_bytes())?;
         let lengths = dictionary(call)
             .into_iter()
@@ -532,7 +531,7 @@ impl OutputVcf {
         };
         if let Err(error) = self
             .index
-            .add_feature(feature, self.bgzf.file_pointer() as i64)
+            .add_feature(feature, self.bgzf.file_pointer()? as i64)
         {
             eprintln!(
                 "Exception in thread \"main\" {}: {}",
@@ -548,14 +547,18 @@ impl OutputVcf {
 
     /// `close()`: the index is finalised at the position the last line ended, then the stream is
     /// closed with its empty terminating block, and the `.tbi` is written beside it.
-    fn close(self) -> Result<(), Box<dyn std::error::Error>> {
-        let end = self.bgzf.file_pointer() as i64;
+    fn close(mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let end = self.bgzf.file_pointer()? as i64;
         std::fs::write(&self.path, self.bgzf.into_inner()?)?;
         let index = self
             .index
             .finish(end)
             .map_err(|error| format!("{}: {}", error.java_class(), error.message()))?;
-        std::fs::write(format!("{}.tbi", self.path), index.write())?;
+        let (level, deflater) = picard_analysis::output::current();
+        std::fs::write(
+            format!("{}.tbi", self.path),
+            index.write_with_level(level, deflater),
+        )?;
         Ok(())
     }
 }
@@ -631,6 +634,7 @@ fn metrics_file<B: MetricBean>(beans: Vec<B>) -> String {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("GenotypeConcordance");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let truth_vcf = arg(&args, "TRUTH_VCF=").ok_or("TRUTH_VCF= is required")?;
     let call_vcf = arg(&args, "CALL_VCF=").ok_or("CALL_VCF= is required")?;
@@ -660,8 +664,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let truth = read_vcf(&std::fs::read_to_string(&truth_vcf)?).map_err(|e| format!("{e:?}"))?;
-    let call = read_vcf(&std::fs::read_to_string(&call_vcf)?).map_err(|e| format!("{e:?}"))?;
+    let truth = picard_analysis::vcf_io::read_vcf_file(&truth_vcf)?;
+    let call = picard_analysis::vcf_io::read_vcf_file(&call_vcf)?;
 
     // `TRUTH_SAMPLE is required when the TRUTH_VCF has more than one sample`, and the same for the
     // call side: a one-sample file names its own sample, and a two-sample file refuses.

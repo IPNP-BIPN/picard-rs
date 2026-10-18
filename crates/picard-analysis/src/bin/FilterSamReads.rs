@@ -15,7 +15,6 @@ use std::io::Read;
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
-use htsjdk_bam::writer::BamWriter;
 use htsjdk_bam::{coordinate, query_name};
 use picard_analysis::args::arg;
 use picard_analysis::filter_sam_reads::{alignment_pairwise_indices, read_name_set, AlignedFilter};
@@ -75,6 +74,7 @@ fn check_inputs(
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("FilterSamReads");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -369,7 +369,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let text = write_sam(&header, &kept).ok_or("records failed to re-encode as SAM")?;
         std::fs::write(&output, text)?;
     } else {
-        let mut writer = BamWriter::new(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
+        let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)
+            .map_err(|e| format!("{e:?}"))?;
         for record in &kept {
             writer.write(record).map_err(|e| format!("{e:?}"))?;
         }

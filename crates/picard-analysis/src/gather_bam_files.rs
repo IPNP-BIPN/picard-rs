@@ -13,7 +13,7 @@
 //! `CREATE_MD5_FILE` default false. `IOUtil.unrollFiles` (expanding `.list` inputs) is a CLI concern;
 //! this function takes the already-resolved BAM byte streams in order.
 
-use htsjdk_bam::gather_bam_files as gather_block_copy;
+use htsjdk_bam::gather_bam_files_with as gather_block_copy;
 use htsjdk_bam::reheader::ReheaderError;
 
 /// Why `GatherBamFiles` could not run.
@@ -33,7 +33,8 @@ impl From<ReheaderError> for GatherError {
 /// is a whole raw BAM file (BGZF-framed, terminator included); they must already share a header, as
 /// the fast path requires.
 pub fn gather_bam_files(inputs: &[&[u8]]) -> Result<Vec<u8>, GatherError> {
-    Ok(gather_block_copy(inputs)?)
+    let (level, deflater) = crate::output::current();
+    Ok(gather_block_copy(inputs, level, deflater)?)
 }
 
 #[cfg(test)]
@@ -42,14 +43,13 @@ mod tests {
     use htsjdk_bam::reader::BamReader;
     use htsjdk_bam::sam_file::read_sam_with;
     use htsjdk_bam::text_parse::ValidationStringency;
-    use htsjdk_bam::writer::BamWriter;
 
     const HEADER: &str = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:1000\n";
 
     fn build_bam(reads: &str) -> Vec<u8> {
         let sam = format!("{HEADER}{reads}");
         let (header, records) = read_sam_with(&sam, ValidationStringency::Lenient).unwrap();
-        let mut w = BamWriter::new(Vec::new(), &header).unwrap();
+        let mut w = crate::output::bam_writer(Vec::new(), &header).unwrap();
         for r in &records {
             w.write(r).unwrap();
         }

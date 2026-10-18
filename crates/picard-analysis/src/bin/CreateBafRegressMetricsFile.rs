@@ -35,6 +35,7 @@ impl MetricBean for Row {
 
 fn main() {
     picard_analysis::argument_check::check("CreateBafRegressMetricsFile");
+    picard_analysis::output::install();
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT")]);
     let input = args.required("INPUT");
     let output = output_name(&args.required("OUTPUT"));

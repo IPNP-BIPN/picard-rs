@@ -18,7 +18,6 @@ use std::io::Read;
 
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam, write_sam};
-use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
 use picard_analysis::revert_original_quals_add_mate_cigar::{
     can_skip, revert_original_records_with, Options, RevertError, SortOrder,
@@ -36,6 +35,7 @@ fn resolved_order(text: &str, options: &Options) -> Option<SortOrder> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("RevertOriginalBaseQualitiesAndAddMateCigar");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
@@ -123,8 +123,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .ok_or("the header failed to encode as SAM")?
                     .into_bytes()
             } else {
-                let writer =
-                    BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+                let writer = picard_analysis::output::bam_writer(Vec::new(), &header)
+                    .expect("in-memory BAM writer never fails");
                 picard_analysis::java_writer::bam_on_disk(
                     &writer.finish().expect("in-memory BAM writer never fails"),
                 )
@@ -140,7 +140,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::fs::write(&output, sam)?;
         return Ok(());
     }
-    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)
+        .expect("in-memory BAM writer never fails");
     for record in &records {
         writer
             .write(record)

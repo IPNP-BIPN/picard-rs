@@ -584,6 +584,7 @@ fn write_feature(out: &mut String, feature: &Gff3Feature) {
 
 fn main() {
     picard_analysis::argument_check::check("SortGff");
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),
@@ -715,7 +716,7 @@ fn main() {
 
     let written = if output.ends_with(".gz") {
         std::fs::File::create(&output).and_then(|file| {
-            let mut writer = htsjdk_bgzf::BgzfWriter::new(file);
+            let mut writer = picard_analysis::output::bgzf_writer(file);
             writer.write_all(out.as_bytes())?;
             writer.finish()
         })

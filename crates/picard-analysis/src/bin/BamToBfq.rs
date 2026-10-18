@@ -459,6 +459,7 @@ fn java_floor_to_int(value: f64) -> i32 {
 
 fn main() {
     picard_analysis::argument_check::check("BamToBfq");
+    picard_analysis::output::install();
     let args = CommandLine::from_env();
     let _ = LEVEL.set(
         args.get("COMPRESSION_LEVEL")

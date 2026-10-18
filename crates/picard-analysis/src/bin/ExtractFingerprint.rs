@@ -8,6 +8,7 @@ use picard_analysis::metrics_cli::Args;
 
 fn main() {
     picard_analysis::argument_check::check("ExtractFingerprint");
+    picard_analysis::output::install();
     let args = Args::from_env(&[
         ("I", "INPUT"),
         ("O", "OUTPUT"),

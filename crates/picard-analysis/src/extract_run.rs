@@ -306,6 +306,7 @@ pub fn run(args: &Args, extract_contamination: bool, locus_max_reads: i64) {
         .map(|variant| Record {
             variant,
             lazy_genotypes: None,
+            fully_decoded: false,
         })
         .collect();
     let text =

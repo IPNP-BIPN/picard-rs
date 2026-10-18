@@ -5,5 +5,6 @@
 
 fn main() {
     picard_analysis::argument_check::check("CollectWgsMetrics");
+    picard_analysis::output::install();
     picard_analysis::wgs_cli::main_for(picard_analysis::wgs_cli::Tool::Wgs);
 }

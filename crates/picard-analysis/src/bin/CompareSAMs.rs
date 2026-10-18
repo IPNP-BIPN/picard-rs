@@ -33,6 +33,7 @@ fn as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CompareSAMs");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let files: Vec<&String> = args.iter().filter(|a| !a.contains('=')).collect();
     if files.len() != 2 {

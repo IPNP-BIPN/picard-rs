@@ -26,6 +26,7 @@ fn read_text(path: &str) -> String {
 
 fn main() {
     picard_analysis::argument_check::check("AccumulateVariantCallingMetrics");
+    picard_analysis::output::install();
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT")]);
     let prefixes = args.all("INPUT");
     if prefixes.is_empty() {

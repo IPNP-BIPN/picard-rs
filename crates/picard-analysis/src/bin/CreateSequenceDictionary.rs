@@ -109,6 +109,7 @@ fn with_alt_names(dict: &str, alt_names: &str, path: &str) -> String {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CreateSequenceDictionary");
+    picard_analysis::output::install();
     let args: Vec<String> = std::env::args().collect();
     let reference = arg(&args, "REFERENCE=")
         .or_else(|| arg(&args, "R="))

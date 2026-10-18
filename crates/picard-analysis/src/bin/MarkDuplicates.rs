@@ -18,7 +18,6 @@
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
-use htsjdk_bam::writer::BamWriter;
 use picard_analysis::args::arg;
 use picard_analysis::bam_stream::{Input, Records};
 use picard_analysis::mark_duplicates::{
@@ -111,6 +110,7 @@ fn molecular_identifier(
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("MarkDuplicates");
+    picard_analysis::output::install();
     // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
         std::env::args()
@@ -337,8 +337,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .map(|input| std::fs::metadata(input).map_or(0, |m| m.len() as usize))
         .sum();
-    let mut writer = BamWriter::new(Vec::with_capacity(reserve + reserve / 8), &out_header)
-        .map_err(|e| format!("{e:?}"))?;
+    let mut writer =
+        picard_analysis::output::bam_writer(Vec::with_capacity(reserve + reserve / 8), &out_header)
+            .map_err(|e| format!("{e:?}"))?;
     let (_, records, _) = open(Some(streamed))?;
     for (index, record) in records.enumerate() {
         // `UmiUtil.setMolecularIdentifier`, reached for every record before the ones that are

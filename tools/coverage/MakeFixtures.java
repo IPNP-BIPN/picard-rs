@@ -2445,7 +2445,8 @@ public class MakeFixtures {
     /**
      * The corpus of VcfFormatConverter beside variants.vcf (which has its .idx): gather_1.vcf as
      * a block-compressed file with its tabix index, written by htsjdk's own writer, so the one
-     * compressed input the tool reads with REQUIRE_INDEX has the index it looks for; and
+     * compressed input the tool reads with REQUIRE_INDEX has the index it looks for (and
+     * gather_2.vcf the same, so GatherVcfs has two compressed inputs to copy blocks from); and
      * `unsorted_indexed.vcf`, the out-of-order records beside a borrowed `.idx`.
      */
     static void writeVcfConverterFixture(File dir) throws Exception {
@@ -2455,17 +2456,21 @@ public class MakeFixtures {
                 new File(dir, "unsorted_indexed.vcf").toPath());
         java.nio.file.Files.copy(new File(dir, "variants.vcf.idx").toPath(),
                 new File(dir, "unsorted_indexed.vcf.idx").toPath());
-        try (htsjdk.variant.vcf.VCFFileReader in =
-                     new htsjdk.variant.vcf.VCFFileReader(new File(dir, "gather_1.vcf"), false);
-             htsjdk.variant.variantcontext.writer.VariantContextWriter out =
-                     new htsjdk.variant.variantcontext.writer.VariantContextWriterBuilder()
-                             .setOutputFile(new File(dir, "gather_1.vcf.gz"))
-                             .setReferenceDictionary(in.getFileHeader().getSequenceDictionary())
-                             .setOption(htsjdk.variant.variantcontext.writer.Options.INDEX_ON_THE_FLY)
-                             .build()) {
-            out.writeHeader(in.getFileHeader());
-            for (htsjdk.variant.variantcontext.VariantContext vc : in) {
-                out.add(vc);
+        // gather_2.vcf.gz is GatherVcfs's: with every input compressed and a .vcf.gz output the
+        // gather copies blocks instead of records, which only this pair reaches.
+        for (String name : new String[] {"gather_1", "gather_2"}) {
+            try (htsjdk.variant.vcf.VCFFileReader in =
+                         new htsjdk.variant.vcf.VCFFileReader(new File(dir, name + ".vcf"), false);
+                 htsjdk.variant.variantcontext.writer.VariantContextWriter out =
+                         new htsjdk.variant.variantcontext.writer.VariantContextWriterBuilder()
+                                 .setOutputFile(new File(dir, name + ".vcf.gz"))
+                                 .setReferenceDictionary(in.getFileHeader().getSequenceDictionary())
+                                 .setOption(htsjdk.variant.variantcontext.writer.Options.INDEX_ON_THE_FLY)
+                                 .build()) {
+                out.writeHeader(in.getFileHeader());
+                for (htsjdk.variant.variantcontext.VariantContext vc : in) {
+                    out.add(vc);
+                }
             }
         }
     }

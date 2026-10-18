@@ -134,6 +134,7 @@ fn text(row: &HashMap<String, String>, column: &str) -> String {
 
 fn main() {
     picard_analysis::argument_check::check("ConvertSequencingArtifactToOxoG");
+    picard_analysis::output::install();
     let args = Args::from_env(&[("I", "INPUT_BASE"), ("O", "OUTPUT_BASE")]);
     let input_base = args.get("INPUT_BASE").map(str::to_string);
     let mut output_base = args.get("OUTPUT_BASE").map(str::to_string);

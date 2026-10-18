@@ -83,7 +83,6 @@ mod tests {
     use htsjdk_bam::cigar::{Cigar, CigarElement, Op};
     use htsjdk_bam::header::{SamHeader, SequenceRecord};
     use htsjdk_bam::record::{BamRecord, READ_UNMAPPED_FLAG};
-    use htsjdk_bam::writer::BamWriter;
 
     fn m10() -> Cigar {
         Cigar::new(vec![CigarElement {
@@ -98,7 +97,7 @@ mod tests {
         h.set_sort_order("coordinate");
         h.sequences.push(SequenceRecord::new("chr1", 100_000));
         h.sequences.push(SequenceRecord::new("chr2", 50_000));
-        let mut w = BamWriter::new(Vec::new(), &h).unwrap();
+        let mut w = crate::output::bam_writer(Vec::new(), &h).unwrap();
         for start in [10, 500] {
             w.write(&BamRecord {
                 read_name: "m".into(),

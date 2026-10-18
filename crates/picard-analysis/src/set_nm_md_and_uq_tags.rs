@@ -326,9 +326,9 @@ pub fn set_nm_md_and_uq_tags_to_bam(
     input_sam: &str,
     fasta: &[u8],
 ) -> Result<Vec<u8>, SetTagsError> {
-    use htsjdk_bam::writer::BamWriter;
     let (header, records) = set_tags(input_sam, fasta)?;
-    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut writer =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &records {
         writer
             .write(rec)
