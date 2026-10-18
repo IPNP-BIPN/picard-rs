@@ -462,14 +462,50 @@ pub fn merge_parsed(
     merge_dictionaries: bool,
     sort_with: Option<SortOrder>,
 ) -> Result<(SamHeader, Vec<BamRecord>), MergeError> {
-    let mut headers: Vec<SamHeader> = Vec::with_capacity(parsed.len());
-    let mut per_input_records: Vec<Vec<BamRecord>> = Vec::with_capacity(parsed.len());
-    let mut comments: Vec<String> = Vec::new();
-    for (header, records) in parsed {
-        comments.extend(header.comments.iter().cloned());
-        headers.push(header);
-        per_input_records.push(records);
+    let (headers, per_input_records): (Vec<SamHeader>, Vec<Vec<BamRecord>>) =
+        parsed.into_iter().unzip();
+    let (header, remaps) = merge_headers(&headers, sort_order_name, merge_dictionaries)?;
+    let mut records: Vec<BamRecord> = Vec::new();
+    for (remap, input) in remaps.iter().zip(per_input_records) {
+        records.extend(input.into_iter().map(|mut record| {
+            remap.apply(&mut record);
+            record
+        }));
     }
+    // A stable sort so wholly-identical records keep input order (decision 0021). Skipped
+    // entirely when the writer was presorted, because then nothing reordered the merge.
+    if let Some(order) = sort_with {
+        records.sort_by(order.comparator());
+    }
+    Ok((header, records))
+}
+
+/// What the merge does to one input's records: the reference indices re-resolved against a
+/// unioned dictionary, and the `RG` and `PG` tags renamed where the header merge renamed them.
+pub struct Remap {
+    sequences: Option<Vec<i32>>,
+    read_groups: HashMap<String, String>,
+    programs: HashMap<String, String>,
+}
+
+impl Remap {
+    pub fn apply(&self, record: &mut BamRecord) {
+        if let Some(mapping) = &self.sequences {
+            remap_reference_index(&mut record.reference_index, mapping);
+            remap_reference_index(&mut record.mate_reference_index, mapping);
+        }
+        remap_tag(record, b"RG", &self.read_groups);
+        remap_tag(record, b"PG", &self.programs);
+    }
+}
+
+/// [`merge_parsed`]'s header, before any record is read, and each input's [`Remap`].
+pub fn merge_headers(
+    headers: &[SamHeader],
+    sort_order_name: &str,
+    merge_dictionaries: bool,
+) -> Result<(SamHeader, Vec<Remap>), MergeError> {
+    let comments: Vec<String> = headers.iter().flat_map(|h| h.comments.clone()).collect();
 
     // Resolve the output dictionary. `getSequenceDictionary` requires every input to be equal (by
     // `SequenceUtil.assertSequenceListsEqual`); if they differ, `MERGE_SEQUENCE_DICTIONARIES` either
@@ -484,7 +520,7 @@ pub fn merge_parsed(
     let sequences: Vec<SequenceRecord> = if dictionaries_equal {
         first.to_vec()
     } else if merge_dictionaries {
-        merge_sequence_dictionaries(&headers)?
+        merge_sequence_dictionaries(headers)?
     } else {
         return Err(MergeError::SequenceDictionaryMismatch);
     };
@@ -493,15 +529,10 @@ pub fn merge_parsed(
     // ordered) dictionary, so `MergingSamRecordIterator`'s `record.setHeader(merged)` re-resolves the
     // reference indices by name. Reproduce that: remap `reference_index` and `mate_reference_index`
     // from each input's dictionary to the merged one. Equal dictionaries need no remap.
-    if !dictionaries_equal {
-        for (fi, records) in per_input_records.iter_mut().enumerate() {
-            let mapping = sequence_index_mapping(&headers[fi].sequences, &sequences);
-            for record in records.iter_mut() {
-                remap_reference_index(&mut record.reference_index, &mapping);
-                remap_reference_index(&mut record.mate_reference_index, &mapping);
-            }
-        }
-    }
+    let mappings: Vec<Option<Vec<i32>>> = headers
+        .iter()
+        .map(|h| (!dictionaries_equal).then(|| sequence_index_mapping(&h.sequences, &sequences)))
+        .collect();
 
     // Merge @RG and @PG, collecting the per-input ID translations.
     let rg_per_input: Vec<Vec<ReadGroup>> = headers.iter().map(|h| h.read_groups.clone()).collect();
@@ -511,14 +542,16 @@ pub fn merge_parsed(
         headers.iter().map(|h| h.programs.clone()).collect();
     let (programs, pg_translation) = merge_programs(&pg_per_input)?;
 
-    // Rewrite each input's records' RG/PG tags through that input's translation, then concatenate.
-    for (fi, records) in per_input_records.iter_mut().enumerate() {
-        for record in records.iter_mut() {
-            remap_tag(record, b"RG", &rg_translation[fi]);
-            remap_tag(record, b"PG", &pg_translation[fi]);
-        }
-    }
-    let mut records: Vec<BamRecord> = per_input_records.into_iter().flatten().collect();
+    let remaps = mappings
+        .into_iter()
+        .zip(rg_translation)
+        .zip(pg_translation)
+        .map(|((sequences, read_groups), programs)| Remap {
+            sequences,
+            read_groups,
+            programs,
+        })
+        .collect();
 
     let mut header = SamHeader::new(); // @HD VN:<current>
     header.set_group_order("none"); // VN, GO
@@ -527,13 +560,7 @@ pub fn merge_parsed(
     header.read_groups = read_groups;
     header.programs = programs;
     header.comments = comments;
-
-    // A stable sort so wholly-identical records keep input order (decision 0021). Skipped
-    // entirely when the writer was presorted, because then nothing reordered the merge.
-    if let Some(order) = sort_with {
-        records.sort_by(order.comparator());
-    }
-    Ok((header, records))
+    Ok((header, remaps))
 }
 
 /// `MergeSamFiles.doWork`: the merged, sorted SAM. `merge_dictionaries` is
