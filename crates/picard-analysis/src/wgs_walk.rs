@@ -23,7 +23,9 @@
 //! `SamRecordIntervalIteratorFactory`, and Picard 3.4.0 `CollectWgsMetrics.WgsMetricsCollector`,
 //! `FastWgsMetricsCollector`, `CounterManager`, `WgsMetricsProcessorImpl` and the `Counting*Filter`s.
 
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::ops::Index;
 
 use htsjdk_bam::alignment_block::alignment_blocks;
 use htsjdk_bam::record::BamRecord;
@@ -139,22 +141,74 @@ impl Filters {
     }
 }
 
+/// The records the walk still refers to, numbered in the order they passed the filters: what the
+/// walk used to index a whole-file slice with, without holding the file. A record is held for each
+/// pileup entry or overlap-set entry that names it, and dropped from the front once nothing does
+/// and the iterator has moved past it.
+#[derive(Default)]
+struct Window {
+    start: usize,
+    records: VecDeque<(BamRecord, Cell<u32>)>,
+}
+
+impl Index<usize> for Window {
+    type Output = BamRecord;
+
+    fn index(&self, index: usize) -> &BamRecord {
+        &self.records[index - self.start].0
+    }
+}
+
+impl Window {
+    fn push(&mut self, record: BamRecord) -> usize {
+        self.records.push_back((record, Cell::new(0)));
+        self.start + self.records.len() - 1
+    }
+
+    fn hold(&self, index: usize) {
+        let refs = &self.records[index - self.start].1;
+        refs.set(refs.get() + 1);
+    }
+
+    fn release(&self, index: usize) {
+        let refs = &self.records[index - self.start].1;
+        refs.set(refs.get() - 1);
+    }
+
+    fn release_locus(&self, locus: &Locus) {
+        for entry in &locus.entries {
+            self.release(entry.record);
+        }
+    }
+
+    /// Drops the records before `limit` that nothing holds any more.
+    fn trim(&mut self, limit: usize) {
+        while self.start < limit
+            && self
+                .records
+                .front()
+                .is_some_and(|(_, refs)| refs.get() == 0)
+        {
+            self.records.pop_front();
+            self.start += 1;
+        }
+    }
+}
+
 /// `PeekableIterator(FilteringSamIterator(base, filters))`.
 struct SamStream<'a> {
-    records: &'a [BamRecord],
-    base: Vec<usize>,
-    position: usize,
+    base: Box<dyn Iterator<Item = BamRecord> + 'a>,
+    window: Window,
     filtering_next: Option<usize>,
     outer: Option<usize>,
     filters: Filters,
 }
 
 impl<'a> SamStream<'a> {
-    fn new(records: &'a [BamRecord], base: Vec<usize>, filters: Filters) -> Self {
+    fn new(base: Box<dyn Iterator<Item = BamRecord> + 'a>, filters: Filters) -> Self {
         let mut stream = SamStream {
-            records,
             base,
-            position: 0,
+            window: Window::default(),
             filtering_next: None,
             outer: None,
             filters,
@@ -166,11 +220,9 @@ impl<'a> SamStream<'a> {
     }
 
     fn next_passing(&mut self) -> Option<usize> {
-        while self.position < self.base.len() {
-            let index = self.base[self.position];
-            self.position += 1;
-            if !self.filters.filter_out(&self.records[index]) {
-                return Some(index);
+        for record in self.base.by_ref() {
+            if !self.filters.filter_out(&record) {
+                return Some(self.window.push(record));
             }
         }
         None
@@ -189,35 +241,35 @@ impl<'a> SamStream<'a> {
     fn next(&mut self) {
         self.outer = self.filtering_advance();
     }
+
+    /// Drops what no entry holds, short of the record the iterator has yet to accumulate.
+    fn trim(&mut self) {
+        self.window.trim(self.outer.unwrap_or(usize::MAX));
+    }
 }
 
 /// The records an interval query hands the locus iterator, in file order.
-fn interval_base(
-    records: &[BamRecord],
-    intervals: &[(i32, i32, i32)],
+fn interval_base<'a>(
+    records: impl Iterator<Item = BamRecord> + 'a,
+    intervals: &'a [(i32, i32, i32)],
     indexed: bool,
-) -> Vec<usize> {
-    let mut out = Vec::new();
+) -> Box<dyn Iterator<Item = BamRecord> + 'a> {
     if indexed {
         // `BAMQueryMultipleIntervalsIteratorFilter.compareIntervalToRecord`, OVERLAPPING: an
         // unmapped read placed at its mate's position ends where it starts.
-        for (index, record) in records.iter().enumerate() {
+        return Box::new(records.filter(move |record| {
             if record.reference_index < 0 {
-                continue;
+                return false;
             }
             let end = if record.flags & UNMAPPED != 0 && record.alignment_start != 0 {
                 record.alignment_start
             } else {
                 record.alignment_end()
             };
-            let overlaps = intervals.iter().any(|&(seq, start, stop)| {
+            intervals.iter().any(|&(seq, start, stop)| {
                 seq == record.reference_index && stop >= record.alignment_start && end >= start
-            });
-            if overlaps {
-                out.push(index);
-            }
-        }
-        return out;
+            })
+        }));
     }
     // `StopAfterFilteringIterator` over an `IntervalFilter`.
     let (stop_seq, stop_pos) = match intervals.last() {
@@ -225,28 +277,26 @@ fn interval_base(
         None => (-1, -1),
     };
     let mut current = 0usize;
-    for (index, record) in records.iter().enumerate() {
-        if record.reference_index == -1 || record.reference_index > stop_seq {
-            break;
-        }
-        if record.reference_index == stop_seq && record.alignment_start > stop_pos {
-            break;
-        }
-        while current < intervals.len()
-            && (intervals[current].0 < record.reference_index
-                || (intervals[current].0 == record.reference_index
-                    && intervals[current].2 < record.alignment_start))
-        {
-            current += 1;
-        }
-        let keep = current < intervals.len()
-            && intervals[current].0 == record.reference_index
-            && intervals[current].1 <= record.alignment_end();
-        if keep {
-            out.push(index);
-        }
-    }
-    out
+    Box::new(
+        records
+            .take_while(move |record| {
+                !(record.reference_index == -1
+                    || record.reference_index > stop_seq
+                    || (record.reference_index == stop_seq && record.alignment_start > stop_pos))
+            })
+            .filter(move |record| {
+                while current < intervals.len()
+                    && (intervals[current].0 < record.reference_index
+                        || (intervals[current].0 == record.reference_index
+                            && intervals[current].2 < record.alignment_start))
+                {
+                    current += 1;
+                }
+                current < intervals.len()
+                    && intervals[current].0 == record.reference_index
+                    && intervals[current].1 <= record.alignment_end()
+            }),
+    )
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -424,7 +474,6 @@ struct EdgeIntervals<'a> {
 
 struct LocusIterator<'a> {
     fast: bool,
-    records: &'a [BamRecord],
     sam: SamStream<'a>,
     mask: Mask,
     complete: VecDeque<Locus>,
@@ -485,8 +534,10 @@ impl<'a> LocusIterator<'a> {
     fn next(&mut self) -> Result<Option<Locus>, Thrown> {
         while self.complete.is_empty() && self.sam_has_more() {
             let index = self.sam.peek().expect("sam_has_more");
-            let record = &self.records[index];
-            if record.reference_index == -1 {
+            let record = &self.sam.window[index];
+            let (reference_index, alignment_start) =
+                (record.reference_index, record.alignment_start);
+            if reference_index == -1 {
                 self.finished_aligned_reads = true;
                 continue;
             }
@@ -497,7 +548,7 @@ impl<'a> LocusIterator<'a> {
                 self.sam.next();
                 continue;
             }
-            let start = (record.reference_index, record.alignment_start);
+            let start = (reference_index, alignment_start);
             while !self.accumulator.is_empty()
                 && (compare(
                     (self.accumulator[0].sequence, self.accumulator[0].position),
@@ -515,9 +566,7 @@ impl<'a> LocusIterator<'a> {
                 }
             }
             if let Some(head) = self.accumulator.front() {
-                if head.sequence != record.reference_index
-                    || record.alignment_start - head.position > 1
-                {
+                if head.sequence != reference_index || alignment_start - head.position > 1 {
                     return Err("java.lang.IllegalStateException: Accumulator should be empty or aligned with current or previous SAMRecord".to_string());
                 }
             }
@@ -616,6 +665,8 @@ impl<'a> LocusIterator<'a> {
         let (sequence, position) = (locus.sequence, locus.position);
         if self.mask.get(sequence, position)? {
             self.complete.push_back(locus);
+        } else {
+            self.sam.window.release_locus(&locus);
         }
         self.last_sequence = sequence;
         self.last_position = position;
@@ -624,10 +675,11 @@ impl<'a> LocusIterator<'a> {
 
     /// `SamLocusIterator.accumulateSamRecord`, with the quality cutoff at zero (no check).
     fn accumulate_bases(&mut self, index: usize) {
-        let record = &self.records[index];
+        let record = &self.sam.window[index];
         let sequence = record.reference_index;
         let alignment_start = record.alignment_start;
         let alignment_end = record.alignment_end();
+        let blocks = alignment_blocks(&record.cigar, record.alignment_start);
         let alignment_length = alignment_end - alignment_start;
         let acc_index_where_read_starts = match self.accumulator.front() {
             None => 0,
@@ -642,10 +694,11 @@ impl<'a> LocusIterator<'a> {
             i += 1;
         }
         let head = self.accumulator[0].position;
-        for block in alignment_blocks(&record.cigar, record.alignment_start) {
+        for block in blocks {
             let block_start = block.reference_start - head;
             for i in 0..block.length {
                 let read_offset = block.read_start + i - 1;
+                self.sam.window.hold(index);
                 self.accumulator[(block_start + i) as usize]
                     .entries
                     .push(Entry {
@@ -661,18 +714,13 @@ impl<'a> LocusIterator<'a> {
     }
 
     /// `EdgeReadIterator.advanceCurrentIntervalAndCheckIfIntervalContainsRead`.
-    fn interval_contains_read(&mut self, record: &BamRecord) -> bool {
+    fn interval_contains_read(&mut self, read: (i32, i32, i32)) -> bool {
         let Some(edge) = self.edge_intervals.as_mut() else {
             return false;
         };
         let Some(mut current) = edge.current else {
             return false;
         };
-        let read = (
-            record.reference_index,
-            record.alignment_start,
-            record.alignment_end(),
-        );
         while edge.peek < edge.intervals.len() {
             let peek = edge.intervals[edge.peek];
             let mut order = read.0 - peek.0;
@@ -696,15 +744,18 @@ impl<'a> LocusIterator<'a> {
 
     /// `EdgeReadIterator.accumulateSamRecord`.
     fn accumulate_edges(&mut self, index: usize) -> Result<(), Thrown> {
-        let records = self.records;
-        let record = &records[index];
-        let need_intervals = self.edge_intervals.is_some() && !self.interval_contains_read(record);
+        let record = &self.sam.window[index];
         let sequence = record.reference_index;
-        for block in alignment_blocks(&record.cigar, record.alignment_start) {
+        let alignment_start = record.alignment_start;
+        let read = (sequence, alignment_start, record.alignment_end());
+        let read_length = record.read_length();
+        let blocks = alignment_blocks(&record.cigar, record.alignment_start);
+        let need_intervals = self.edge_intervals.is_some() && !self.interval_contains_read(read);
+        for block in blocks {
             let offset_in_read = block.read_start - 1;
             let block_ref_start = block.reference_start;
             if self.accumulator.is_empty() {
-                let locus = self.new_locus(sequence, record.alignment_start);
+                let locus = self.new_locus(sequence, alignment_start);
                 self.accumulator.push_back(locus);
             }
             let next_position = self.accumulator[0].position + self.accumulator.len() as i32;
@@ -717,7 +768,7 @@ impl<'a> LocusIterator<'a> {
                 self.accumulator.push_back(locus);
                 locus_position += 1;
             }
-            let off_start = block_ref_start - record.alignment_start;
+            let off_start = block_ref_start - alignment_start;
             let off_end = off_start + block.length;
             let mut pieces: Vec<(i32, i32, i32, i32, i32)> = Vec::new();
             if need_intervals {
@@ -762,7 +813,7 @@ impl<'a> LocusIterator<'a> {
                 ));
             }
             for (at_start, at_end, offset, length, ref_pos) in pieces {
-                if length as usize > record.read_length() {
+                if length as usize > read_length {
                     return Err("java.lang.IllegalArgumentException: Block length cannot be larger than whole read length".to_string());
                 }
                 self.next_id += 1;
@@ -781,6 +832,8 @@ impl<'a> LocusIterator<'a> {
                 };
                 self.accumulator[at_start as usize].entries.push(begin);
                 self.accumulator[at_end as usize].entries.push(end);
+                self.sam.window.hold(index);
+                self.sam.window.hold(index);
             }
         }
         Ok(())
@@ -855,7 +908,6 @@ impl CounterManager {
 }
 
 struct Collector<'a> {
-    records: &'a [BamRecord],
     references: &'a [Vec<u8>],
     options: WalkOptions,
     result: WalkResult,
@@ -863,7 +915,7 @@ struct Collector<'a> {
     // fast-only state
     previous_sequence: i32,
     counters: CounterManager,
-    read_names: Option<HashMap<&'a str, Vec<Entry>>>,
+    read_names: Option<HashMap<String, Vec<Entry>>>,
 }
 
 impl<'a> Collector<'a> {
@@ -884,7 +936,12 @@ impl<'a> Collector<'a> {
     }
 
     /// `CollectWgsMetrics.WgsMetricsCollector.addInfo`.
-    fn add_info_slow(&mut self, locus: &Locus, reference_n: bool) -> Result<(), Thrown> {
+    fn add_info_slow(
+        &mut self,
+        locus: &Locus,
+        reference_n: bool,
+        records: &Window,
+    ) -> Result<(), Thrown> {
         if reference_n {
             return Ok(());
         }
@@ -907,7 +964,7 @@ impl<'a> Collector<'a> {
         let mut pileup = 0i32;
         let mut unfiltered = 0i32;
         for entry in &locus.entries {
-            let record = &self.records[entry.record];
+            let record = &records[entry.record];
             let quality = record.base_qualities[entry.offset as usize] as i8 as i32;
             if quality <= 2 {
                 self.result.excluded_by_baseq += 1;
@@ -939,28 +996,43 @@ impl<'a> Collector<'a> {
     }
 
     /// `FastWgsMetricsCollector.addInfo`.
-    fn add_info_fast(&mut self, locus: &Locus, reference_n: bool) -> Result<(), Thrown> {
+    fn add_info_fast(
+        &mut self,
+        locus: &Locus,
+        reference_n: bool,
+        records: &Window,
+    ) -> Result<(), Thrown> {
         if self.read_names.is_none() {
             self.read_names = Some(HashMap::new());
         }
         if self.previous_sequence != locus.sequence {
-            self.read_names.as_mut().expect("set").clear();
+            let names = self.read_names.as_mut().expect("set");
+            for entry in names.values().flatten() {
+                records.release(entry.record);
+            }
+            names.clear();
             self.counters.clear();
             self.previous_sequence = locus.sequence;
         }
         self.counters.check_out_of_bounds(locus.position)?;
-        let records = self.records;
         for entry in &locus.entries {
             let name = records[entry.record].read_name.as_str();
             if entry.begin {
-                self.process_record(locus.sequence, entry, name)?;
+                self.process_record(locus.sequence, entry, name, records)?;
             } else {
                 let names = self.read_names.as_mut().expect("set");
                 if let Some(set) = names.get_mut(name) {
                     if set.len() == 1 {
+                        records.release(set[0].record);
                         names.remove(name);
                     } else {
-                        set.retain(|e| e.id != entry.id);
+                        set.retain(|e| {
+                            let keep = e.id != entry.id;
+                            if !keep {
+                                records.release(e.record);
+                            }
+                            keep
+                        });
                     }
                 }
             }
@@ -985,7 +1057,8 @@ impl<'a> Collector<'a> {
         &mut self,
         sequence: i32,
         entry: &Entry,
-        name: &'a str,
+        name: &str,
+        records: &Window,
     ) -> Result<(), Thrown> {
         let mut processed = self.counter;
         let set = self
@@ -995,7 +1068,7 @@ impl<'a> Collector<'a> {
             .remove(name)
             .unwrap_or_default();
         // The set is in the map while the record is processed; it is held here and put back.
-        let record = &self.records[entry.record];
+        let record = &records[entry.record];
         let cap = self.options.coverage_cap;
         let mut outcome = Ok(());
         for i in 0..entry.length {
@@ -1029,7 +1102,7 @@ impl<'a> Collector<'a> {
                             low += 1;
                             continue;
                         }
-                        let quals = &self.records[other.record].base_qualities;
+                        let quals = &records[other.record].base_qualities;
                         let relative = index - other.ref_pos + other.offset;
                         if relative < 0 || relative as usize >= quals.len() {
                             outcome = Err("java.lang.IllegalArgumentException: The requested position is not covered by this StartEdgingRecordAndOffset object. ".to_string());
@@ -1059,7 +1132,11 @@ impl<'a> Collector<'a> {
         outcome?;
         let mut set = set;
         set.push(*entry);
-        self.read_names.as_mut().expect("set").insert(name, set);
+        records.hold(entry.record);
+        self.read_names
+            .as_mut()
+            .expect("set")
+            .insert(name.to_string(), set);
         Ok(())
     }
 }
@@ -1069,14 +1146,14 @@ impl<'a> Collector<'a> {
 /// `references` holds each dictionary sequence's bases, in dictionary order; `lengths` the
 /// dictionary's lengths, which the whole-genome mask reads.
 pub fn walk(
-    records: &[BamRecord],
+    records: impl Iterator<Item = BamRecord>,
     references: &[Vec<u8>],
     lengths: &[i32],
     source: Source<'_>,
     options: &WalkOptions,
 ) -> Result<WalkResult, Thrown> {
-    let base: Vec<usize> = match &source {
-        Source::WholeFile => (0..records.len()).collect(),
+    let base: Box<dyn Iterator<Item = BamRecord>> = match &source {
+        Source::WholeFile => Box::new(records),
         Source::Intervals { intervals, indexed } => interval_base(records, intervals, *indexed),
     };
     let filters = Filters {
@@ -1101,8 +1178,7 @@ pub fn walk(
     };
     let mut iterator = LocusIterator {
         fast: options.use_fast_algorithm,
-        records,
-        sam: SamStream::new(records, base, filters),
+        sam: SamStream::new(base, filters),
         mask,
         complete: VecDeque::new(),
         accumulator: VecDeque::new(),
@@ -1126,7 +1202,6 @@ pub fn walk(
     };
     let cap = options.coverage_cap.max(0) as usize;
     let mut collector = Collector {
-        records,
         references,
         options: options.clone(),
         result: WalkResult {
@@ -1146,10 +1221,12 @@ pub fn walk(
         let locus = iterator.next()?.expect("has_next");
         let reference_n = collector.reference_base_n(locus.sequence, locus.position)?;
         if options.fast_collector {
-            collector.add_info_fast(&locus, reference_n)?;
+            collector.add_info_fast(&locus, reference_n, &iterator.sam.window)?;
         } else {
-            collector.add_info_slow(&locus, reference_n)?;
+            collector.add_info_slow(&locus, reference_n, &iterator.sam.window)?;
         }
+        iterator.sam.window.release_locus(&locus);
+        iterator.sam.trim();
         if reference_n {
             continue;
         }
@@ -1342,4 +1419,27 @@ pub fn wgs_metrics(
         genome_territory: territory,
         doubles,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_window_drops_only_unheld_records_before_the_limit() {
+        let mut window = Window::default();
+        for _ in 0..4 {
+            window.push(BamRecord::default());
+        }
+        window.hold(1);
+        window.trim(3);
+        // Record 0 goes; record 1 is held, so it and everything after it stay.
+        assert_eq!((window.start, window.records.len()), (1, 3));
+        window.release(1);
+        window.trim(3);
+        // Records 1 and 2 go; record 3 is the one the iterator has yet to accumulate.
+        assert_eq!((window.start, window.records.len()), (3, 1));
+        assert_eq!(window.push(BamRecord::default()), 4);
+        let _ = &window[4];
+    }
 }
