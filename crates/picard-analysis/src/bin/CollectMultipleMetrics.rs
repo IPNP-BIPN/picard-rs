@@ -454,8 +454,13 @@ fn main() {
             given.append(&mut program_args);
             program_args = given;
         }
+        // The reference the shared pass would have read the input with, whichever program this is.
         let result = Command::new(here.join(binary))
             .args(&program_args)
+            .env(
+                picard_analysis::cram_input::READER_REFERENCE_ENV,
+                reference.as_deref().unwrap_or(""),
+            )
             .output()
             .unwrap_or_else(|e| fail(&format!("cannot run {binary}: {e}")));
         if !result.status.success() {

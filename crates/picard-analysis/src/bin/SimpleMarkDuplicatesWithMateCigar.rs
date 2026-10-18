@@ -9,7 +9,9 @@
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
 use picard_analysis::args::arg;
-use picard_analysis::mark_duplicates::{Options, Record, ScoringStrategy, TaggingPolicy};
+use picard_analysis::mark_duplicates::{
+    base_quality_score, Options, Record, ScoringStrategy, Span, TaggingPolicy,
+};
 use picard_analysis::mate_cigar_duplicates::{
     simple_mark_with_mate_cigar, SortOrder as MateSortOrder,
 };
@@ -151,10 +153,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 flags: record.flags,
                 reference_index: record.reference_index,
                 alignment_start: record.alignment_start,
-                cigar: record.cigar.clone(),
-                qualities: record.base_qualities.clone(),
+                span: Span::of(&record.cigar),
+                read_length: record.read_bases.len() as u32,
+                base_quality_score: base_quality_score(&record.base_qualities),
                 mate_reference_index: record.mate_reference_index,
-                library,
+                library: library.into(),
                 read_group,
                 barcode: options.barcode_tag.as_ref().and_then(|tag| {
                     match record
@@ -166,8 +169,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }),
                 existing_dt: string_tag(record, b"DT"),
-                mate_cigar: match record.tags.get(Tag::new(b"MC")) {
-                    Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text).ok(),
+                mate_span: match record.tags.get(Tag::new(b"MC")) {
+                    Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text)
+                        .ok()
+                        .as_ref()
+                        .map(Span::of),
                     _ => None,
                 },
                 mate_alignment_start: record.mate_alignment_start,
@@ -233,7 +239,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         writer.write(&written).map_err(|e| format!("{e:?}"))?;
     }
-    std::fs::write(&output, writer.finish().map_err(|e| format!("{e:?}"))?)?;
+    picard_analysis::cram_output::write(&output, writer.finish().map_err(|e| format!("{e:?}"))?)?;
 
     // `finalizeAndWriteMetrics`, shared with `MarkDuplicates`.
     if let Some(path) = metrics_file {

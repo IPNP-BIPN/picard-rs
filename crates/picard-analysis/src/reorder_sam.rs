@@ -185,7 +185,18 @@ fn reorder(
 ) -> Result<(SamHeader, Vec<BamRecord>), ReorderError> {
     // The input is read leniently, as the tool reads it (VALIDATION_STRINGENCY does not reach the
     // bytes; it only decides which records are admitted).
-    let (input_header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
+    let (input_header, records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
+    reorder_records(input_header, records, dict_text, opts)
+}
+
+/// [`reorder`] over records already read, which a BAM input hands over as decoded: nothing is set
+/// on a record but its references, so each keeps the bytes it was read from, as htsjdk keeps them.
+pub fn reorder_records(
+    input_header: SamHeader,
+    mut records: Vec<BamRecord>,
+    dict_text: &str,
+    opts: &Options,
+) -> Result<(SamHeader, Vec<BamRecord>), ReorderError> {
     let (dict_header, _) = read_sam(dict_text)?;
     let reference = dict_header.sequences;
 

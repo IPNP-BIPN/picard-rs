@@ -265,7 +265,7 @@ pub fn mark_with_umis(
     if let Some((index, record)) = records
         .iter()
         .enumerate()
-        .find(|(_, record)| needs_mate_cigar(record) && record.mate_cigar.is_none())
+        .find(|(_, record)| needs_mate_cigar(record) && record.mate_span.is_none())
     {
         return Err(UmiRefusal::Inherited(Refusal::MateCigarNotFound {
             read: record.name.clone(),
@@ -294,7 +294,7 @@ pub fn mark_with_umis(
     let mut metrics = UmiMetrics {
         library: records
             .first()
-            .map(|record| record.library.clone())
+            .map(|record| record.library.to_string())
             .unwrap_or_default(),
         ..UmiMetrics::default()
     };

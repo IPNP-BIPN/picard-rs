@@ -52,14 +52,18 @@ fn read_any(path: &str) -> Result<(SamHeader, Vec<BamRecord>, bool), String> {
         .map_err(|e| e.to_string())?
         .read_to_end(&mut raw)
         .map_err(|e| e.to_string())?;
+    // `BamFileIoUtils.isBamFile` decides the block copy, and a CRAM is not one: it is decoded and
+    // takes the standard path.
+    let is_bam = raw.starts_with(&[0x1f, 0x8b]);
+    let raw = picard_analysis::cram_input::uncram(raw);
     if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
         let header = reader.header.text.clone();
         let records = reader
             .map(|r| r.map_err(|e| format!("{e:?}")))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok((header, records, true))
+        Ok((header, records, is_bam))
     } else {
         let text = String::from_utf8(raw).map_err(|e| e.to_string())?;
         // `standardReheader` opens INPUT at SILENT whatever VALIDATION_STRINGENCY says.
@@ -159,6 +163,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         writer.write(record).map_err(|e| format!("{e:?}"))?;
     }
     let bam = writer.finish()?;
+    if picard_analysis::cram_output::is_cram(&output) {
+        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
+        return Ok(());
+    }
     std::fs::write(&output, &bam)?;
     // `reheaderBamFile` is handed CREATE_INDEX, and the writer factory indexes a coordinate-sorted
     // BAM only.

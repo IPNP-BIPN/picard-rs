@@ -11,8 +11,8 @@
 //! raw. The membership test is a pure per-record predicate reading the shared, immutable name set, so
 //! the filter runs on all cores with rayon's ordered `collect` preserving input order (decision 0006).
 //!
-//! The interval, tag, mapping-quality, and JavaScript filters, `WRITE_READS_FILES`, and a non-default
-//! `SORT_ORDER` are separate surfaces.
+//! The aligned, tag-value and paired-interval filters and `WRITE_READS_FILES` live here too; the
+//! binary drives them and the JavaScript filter.
 
 use std::collections::HashSet;
 
@@ -65,34 +65,29 @@ pub fn keep_by_read_list(
         .collect()
 }
 
-/// `AlignedFilter` driven pairwise over records already in memory, as
-/// [`filter_sam_reads_aligned`] does over SAM text.
-pub fn keep_by_alignment(records: &[BamRecord], filter: AlignedFilter) -> Vec<BamRecord> {
-    let include = matches!(filter, AlignedFilter::IncludeAligned);
-    let mut kept: Vec<BamRecord> = Vec::with_capacity(records.len());
-    let mut start = 0;
-    while start < records.len() {
-        let mut end = start + 1;
-        while end < records.len() && records[end].read_name == records[start].read_name {
-            end += 1;
-        }
-        let group = &records[start..end];
-        if group.iter().all(is_aligned) == include {
-            kept.extend_from_slice(group);
-        }
-        start = end;
-    }
-    kept
-}
-
 /// `FilteringSamIterator` with `filterReadPairs` and an `AlignedFilter`, record by record as
 /// htsjdk runs it: a first-of-pair is judged with the record after it, which must be its mate
 /// (`SamPairUtil.assertMate`), and a second-of-pair is passed through on the assumption that its
 /// first was. The error is the assertion's, for a file whose mates do not follow each other.
 pub fn keep_by_alignment_pairwise(
+    header: &htsjdk_bam::header::SamHeader,
     records: &[BamRecord],
     filter: AlignedFilter,
 ) -> Result<Vec<BamRecord>, String> {
+    let (kept, error) = alignment_pairwise_indices(header, records, filter);
+    match error {
+        Some((_, message)) => Err(message),
+        None => Ok(kept.into_iter().map(|i| records[i].clone()).collect()),
+    }
+}
+
+/// [`keep_by_alignment_pairwise`] as indices into `records`, with the error, if any, beside the
+/// index of the record being judged when it was thrown and the records kept before it.
+pub fn alignment_pairwise_indices(
+    header: &htsjdk_bam::header::SamHeader,
+    records: &[BamRecord],
+    filter: AlignedFilter,
+) -> (Vec<usize>, Option<(usize, String)>) {
     const PAIRED: u16 = 0x1;
     const FIRST: u16 = 0x40;
     const SECOND: u16 = 0x80;
@@ -101,19 +96,49 @@ pub fn keep_by_alignment_pairwise(
     let mut kept = Vec::new();
     let mut index = 0;
     while index < records.len() {
+        let at = index;
         let record = &records[index];
         index += 1;
         let paired = record.flags & PAIRED != 0;
         if paired && record.flags & FIRST != 0 && index < records.len() {
             let mate = &records[index];
             if mate.flags & PAIRED == 0 {
-                return Err("Second record is not marked as paired".to_string());
+                return (
+                    kept,
+                    Some((
+                        at,
+                        format!(
+                    "htsjdk.samtools.SAMException: Second record is not marked as paired: {}",
+                    sam_line(header, mate)
+                ),
+                    )),
+                );
             }
             if mate.flags & SECOND == 0 {
-                return Err("Second record is not marked as second of pair".to_string());
+                return (
+                    kept,
+                    Some((
+                        at,
+                        format!(
+                    "htsjdk.samtools.SAMException: Second record is not marked as second of \
+                     pair: {}",
+                    sam_line(header, mate)
+                ),
+                    )),
+                );
             }
             if mate.read_name != record.read_name {
-                return Err("readnames do not match".to_string());
+                return (
+                    kept,
+                    Some((
+                        at,
+                        format!(
+                    "htsjdk.samtools.SAMException: First [{}] and Second [{}] readnames do not \
+                     match!",
+                    record.read_name, mate.read_name
+                ),
+                    )),
+                );
             }
             let filtered_out = if include {
                 unmapped(record) || unmapped(mate)
@@ -123,15 +148,243 @@ pub fn keep_by_alignment_pairwise(
             if filtered_out {
                 index += 1;
             } else {
-                kept.push(record.clone());
+                kept.push(at);
             }
         } else if (paired && record.flags & SECOND != 0) || unmapped(record) != include {
             // A second-of-pair passes on the assumption that its first did; anything else is
             // judged alone.
-            kept.push(record.clone());
+            kept.push(at);
         }
     }
-    Ok(kept)
+    (kept, None)
+}
+
+/// `IntervalList.fromFile(...).getIntervals()` as `IntervalKeepPairFilter` holds them: the
+/// intervals per contig, as an `OverlapDetector` with no buffer keeps them. An interval with no
+/// bases (`start == end + 1`) is never stored, as `addLhs` drops it.
+///
+/// Each contig's spans are sorted by start beside the furthest end reached so far, so a query is
+/// one binary search rather than a scan of the list, which an exome's worth of intervals over a
+/// whole genome's reads cannot afford.
+pub struct PairedIntervals {
+    by_contig: std::collections::HashMap<String, SortedSpans>,
+}
+
+/// One contig's spans: their starts in order, and at each position the largest end among the
+/// spans up to and including it.
+struct SortedSpans {
+    starts: Vec<i32>,
+    furthest_end: Vec<i32>,
+}
+
+impl SortedSpans {
+    fn new(mut spans: Vec<(i32, i32)>) -> Self {
+        spans.sort_unstable();
+        let mut furthest = i32::MIN;
+        let furthest_end = spans
+            .iter()
+            .map(|&(_, end)| {
+                furthest = furthest.max(end);
+                furthest
+            })
+            .collect();
+        SortedSpans {
+            starts: spans.iter().map(|&(start, _)| start).collect(),
+            furthest_end,
+        }
+    }
+
+    /// Whether a span starting at or before `end` reaches `start`.
+    fn overlaps(&self, start: i32, end: i32) -> bool {
+        match self.starts.partition_point(|&s| s <= end) {
+            0 => false,
+            n => self.furthest_end[n - 1] >= start,
+        }
+    }
+}
+
+impl PairedIntervals {
+    /// `IntervalList.fromReader` and `IntervalListCodec.decode`: the header is required, a line
+    /// has exactly five tab-separated fields (Java's `split` drops trailing empty ones), and an
+    /// interval on a contig the header does not name is ignored. The error is the exception's
+    /// message, which `doWork` catches.
+    pub fn parse(text: &str) -> Result<PairedIntervals, String> {
+        let mut lengths: std::collections::HashMap<&str, i32> = std::collections::HashMap::new();
+        let mut lines = text.lines().peekable();
+        let mut header = false;
+        while let Some(line) = lines.peek() {
+            if !line.starts_with('@') {
+                break;
+            }
+            header = true;
+            if line.starts_with("@SQ") {
+                let field = |key: &str| line.split('\t').find_map(|f| f.strip_prefix(key));
+                if let Some(name) = field("SN:") {
+                    let length = field("LN:").and_then(|l| l.parse().ok()).unwrap_or(0);
+                    lengths.insert(name, length);
+                }
+            }
+            lines.next();
+        }
+        if !header {
+            return Err(
+                "java.lang.IllegalStateException: Interval list file must contain header. "
+                    .to_string(),
+            );
+        }
+        let mut by_contig: std::collections::HashMap<String, Vec<(i32, i32)>> =
+            std::collections::HashMap::new();
+        for line in lines {
+            if line.starts_with('@') || line.trim().is_empty() {
+                continue;
+            }
+            let mut fields: Vec<&str> = line.split('\t').collect();
+            while fields.last() == Some(&"") {
+                fields.pop();
+            }
+            if fields.len() != 5 {
+                return Err(format!(
+                    "htsjdk.tribble.TribbleException: Invalid interval record contains {} fields: {line}",
+                    fields.len()
+                ));
+            }
+            let number = |s: &str| {
+                s.parse::<i32>().map_err(|_| {
+                    format!("java.lang.NumberFormatException: For input string: \"{s}\"")
+                })
+            };
+            let (start, end) = (number(fields[1])?, number(fields[2])?);
+            if start < 1 {
+                return Err(format!(
+                    "java.lang.IllegalArgumentException: Coordinate less than 1: start value of {start} is less than 1 and thus illegal"
+                ));
+            }
+            if start as i64 > end as i64 + 1 {
+                return Err(format!(
+                    "java.lang.IllegalArgumentException: Start value of {start} is greater than end + 1 for end of value: {end}. \
+                     I'm afraid I cannot let you do that."
+                ));
+            }
+            if !matches!(fields[3], "+" | "-") {
+                return Err(format!(
+                    "java.lang.IllegalArgumentException: Invalid strand field: {}",
+                    fields[3]
+                ));
+            }
+            let Some(&length) = lengths.get(fields[0]) else {
+                continue;
+            };
+            if length > 0 && length < end {
+                return Err(format!(
+                    "java.lang.IllegalArgumentException: interval with end: {end} extends beyond end of sequence with length: {length}"
+                ));
+            }
+            if start <= end {
+                by_contig
+                    .entry(fields[0].to_string())
+                    .or_default()
+                    .push((start, end));
+            }
+        }
+        Ok(PairedIntervals {
+            by_contig: by_contig
+                .into_iter()
+                .map(|(contig, spans)| (contig, SortedSpans::new(spans)))
+                .collect(),
+        })
+    }
+
+    /// `hasOverlaps`: whether any interval shares a base with `contig:start-end`.
+    fn overlaps(&self, contig: &str, start: i32, end: i32) -> bool {
+        start <= end
+            && self
+                .by_contig
+                .get(contig)
+                .is_some_and(|spans| spans.overlaps(start, end))
+    }
+}
+
+/// `IntervalKeepPairFilter` driven record by record (`FilterSamReads` builds its
+/// `FilteringSamIterator` without `filterReadPairs`): a paired, primary read is kept when it or its
+/// mate overlaps an interval, the mate's extent read from its `MC` tag. A read whose mate is
+/// mapped but carries no `MC` is `SAMUtils.getMateAlignmentEnd`'s exception.
+pub fn keep_by_paired_intervals(
+    header: &htsjdk_bam::header::SamHeader,
+    records: &[BamRecord],
+    intervals: &PairedIntervals,
+) -> Result<Vec<BamRecord>, String> {
+    let (kept, error) = paired_interval_indices(header, records, intervals);
+    match error {
+        Some((_, message)) => Err(message),
+        None => Ok(kept.into_iter().map(|i| records[i].clone()).collect()),
+    }
+}
+
+/// [`keep_by_paired_intervals`] as indices into `records`, with the error, if any, beside the
+/// index of the record that threw it.
+pub fn paired_interval_indices(
+    header: &htsjdk_bam::header::SamHeader,
+    records: &[BamRecord],
+    intervals: &PairedIntervals,
+) -> (Vec<usize>, Option<(usize, String)>) {
+    let sequence_names: Vec<&str> = header.sequences.iter().map(|s| s.name.as_str()).collect();
+    const PAIRED: u16 = 0x1;
+    const MATE_UNMAPPED: u16 = 0x8;
+    const SECONDARY_OR_SUPPLEMENTARY: u16 = 0x100 | 0x800;
+    let name = |index: i32| {
+        usize::try_from(index)
+            .ok()
+            .and_then(|i| sequence_names.get(i).copied())
+            .unwrap_or("*")
+    };
+    let mut kept = Vec::new();
+    for (at, record) in records.iter().enumerate() {
+        if record.flags & SECONDARY_OR_SUPPLEMENTARY != 0 || record.flags & PAIRED == 0 {
+            continue;
+        }
+        let read_overlaps = is_aligned(record)
+            && intervals.overlaps(
+                name(record.reference_index),
+                record.alignment_start,
+                record.alignment_end(),
+            );
+        let keep = read_overlaps
+            || (record.flags & MATE_UNMAPPED == 0 && {
+                let Some(length) = crate::insert_size::mate_cigar_reference_length(record) else {
+                    let message = format!(
+                        "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found:{}",
+                        sam_line(header, record)
+                    );
+                    return (kept, Some((at, message)));
+                };
+                intervals.overlaps(
+                    name(record.mate_reference_index),
+                    record.mate_alignment_start,
+                    record.mate_alignment_start + length - 1,
+                )
+            });
+        if keep {
+            kept.push(at);
+        }
+    }
+    (kept, None)
+}
+
+/// `SAMRecord.toString()` in htsjdk 5.0.0: the record's SAM line, without its newline.
+pub fn sam_line(header: &htsjdk_bam::header::SamHeader, record: &BamRecord) -> String {
+    let mut text = reads_file_text(header, std::slice::from_ref(record));
+    text.truncate(text.trim_end_matches('\n').len());
+    text
+}
+
+/// A `WRITE_READS_FILES` `.reads` file: `rec.toString()` and a newline per record. htsjdk 5.0.0,
+/// which Picard 3.5.0 ships, renders a record's `toString()` as its SAM line (4.2.0 printed a
+/// one-line summary instead).
+pub fn reads_file_text(header: &htsjdk_bam::header::SamHeader, records: &[BamRecord]) -> String {
+    let header_only = write_sam(header, &[]).unwrap_or_default();
+    let mut text = write_sam(header, records).unwrap_or_default();
+    text.drain(..header_only.len().min(text.len()));
+    text
 }
 
 /// `FilterSamReads` with a read-list filter, for SAM input and output. `read_list_text` is the
@@ -295,9 +548,10 @@ fn is_aligned(rec: &BamRecord) -> bool {
 /// through in input order; no `@PG` is added and the sort order is untouched, so the output is
 /// comparable raw.
 ///
-/// This is a **sequential** grouped pass (the pairing depends on encounter order), so unlike the
-/// read-list and tag-value filters it is not parallelized. Templates of one or two reads are handled;
-/// a template with secondary/supplementary records is a separate surface and is asserted against.
+/// This is a **sequential** pass (the pairing depends on encounter order), so unlike the read-list
+/// and tag-value filters it is not parallelized. A template of more than two reads goes through
+/// [`keep_by_alignment_pairwise`] as htsjdk drives it: a first-of-pair followed by anything but its
+/// mate is `SamPairUtil.assertMate`'s error, returned as [`ParseError::Inconsistent`].
 pub fn filter_sam_reads_aligned(
     input_sam: &str,
     filter: AlignedFilter,
@@ -312,28 +566,8 @@ fn filter_aligned(
     filter: AlignedFilter,
 ) -> Result<(htsjdk_bam::header::SamHeader, Vec<BamRecord>), ParseError> {
     let (header, records) = read_sam_with(input_sam, ValidationStringency::Lenient)?;
-    let include = matches!(filter, AlignedFilter::IncludeAligned);
-
-    let mut kept: Vec<BamRecord> = Vec::with_capacity(records.len());
-    let mut start = 0;
-    while start < records.len() {
-        let mut end = start + 1;
-        while end < records.len() && records[end].read_name == records[start].read_name {
-            end += 1;
-        }
-        let group = &records[start..end];
-        assert!(
-            group.len() <= 2,
-            "filter_sam_reads_aligned: templates with more than two reads are not ported"
-        );
-
-        // A template is "aligned" when all its reads are aligned; keep it iff that matches include.
-        let all_aligned = group.iter().all(is_aligned);
-        if all_aligned == include {
-            kept.extend_from_slice(group);
-        }
-        start = end;
-    }
+    let kept =
+        keep_by_alignment_pairwise(&header, &records, filter).map_err(ParseError::Inconsistent)?;
     Ok((header, kept))
 }
 
@@ -437,6 +671,39 @@ mod tests {
         pairUU\t141\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n\
         singleA\t0\tchr1\t500\t60\t4M\t*\t0\t0\tACGT\tIIII\n\
         singleU\t4\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n";
+
+    /// Overlapping and nested intervals, where the furthest end so far is not the last span's.
+    #[test]
+    fn an_overlap_is_found_whatever_the_intervals_nest() {
+        let list = PairedIntervals::parse(
+            "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:1000\n\
+             chr1\t500\t520\t+\tlate\n\
+             chr1\t100\t400\t+\touter\n\
+             chr1\t150\t160\t+\tnested\n\
+             chr1\t390\t450\t+\toverlapping\n\
+             chr1\t600\t599\t+\tempty\n\
+             chr9\t1\t10\t+\tunknown\n",
+        )
+        .unwrap();
+        let cases = [
+            (1, 99, false),
+            (90, 100, true),
+            (300, 310, true),
+            (451, 499, false),
+            (460, 500, true),
+            (521, 700, false),
+            (599, 600, false),
+            (310, 300, false),
+        ];
+        for (start, end, expected) in cases {
+            let brute = [(500, 520), (100, 400), (150, 160), (390, 450)]
+                .iter()
+                .any(|&(s, e)| s <= end && start <= e && start <= end);
+            assert_eq!(brute, expected, "{start}-{end}");
+            assert_eq!(list.overlaps("chr1", start, end), expected, "{start}-{end}");
+        }
+        assert!(!list.overlaps("chr9", 1, 10));
+    }
 
     #[test]
     fn include_aligned_keeps_fully_aligned_templates() {

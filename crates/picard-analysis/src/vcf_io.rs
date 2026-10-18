@@ -295,13 +295,13 @@ fn text_index(
         positions.push(at);
         at += line.len() as i64 + 1;
     }
-    tribble_index(records, &positions, text.len() as i64, indexed)
+    tribble_index(features_of(records), &positions, text.len() as i64, indexed)
 }
 
 /// The `.idx` `IndexingVariantContextWriter` writes at `close()`: each record's feature at the
 /// position its bytes start at, and the file's length as the end.
 fn tribble_index(
-    records: &[Record],
+    features: impl IntoIterator<Item = (String, i64, i64)>,
     positions: &[i64],
     file_length: i64,
     indexed: &Indexed,
@@ -310,12 +310,12 @@ fn tribble_index(
     use htsjdk_tribble::index_write::{BalanceApproach, BuiltIndex, DynamicIndexCreator, Feature};
 
     let mut creator = DynamicIndexCreator::new(BalanceApproach::ForSeekTime);
-    for (record, &at) in records.iter().zip(positions) {
+    for ((contig, start, end), &at) in features.into_iter().zip(positions) {
         creator.add_feature(
             &Feature {
-                contig: record.variant.contig.clone(),
-                start: record.variant.start as i32,
-                end: record.variant.stop as i32,
+                contig,
+                start: start as i32,
+                end: end as i32,
             },
             at,
         );
@@ -356,6 +356,82 @@ fn tribble_index(
         interval_contigs,
     };
     index.write().ok()
+}
+
+/// Write a VCF the tool rendered as text, and its `.idx` beside it the way
+/// `VariantContextWriterBuilder`'s default `INDEX_ON_THE_FLY` writes one for a `.vcf`: whatever
+/// `CREATE_INDEX` says, given the dictionary the writer was built with. A block-compressed or BCF
+/// output is written as it is, without an index here.
+///
+/// The features are read back off the record lines: the contig, `POS`, and the end, which is
+/// `INFO`'s `END` when there is one and the last base of `REF` otherwise, as `getEnd` has it.
+pub fn write_text_indexed(
+    path: &str,
+    text: &str,
+    dictionary: Option<&[Sequence]>,
+) -> std::io::Result<()> {
+    std::fs::write(path, text)?;
+    let lower = path.to_ascii_lowercase();
+    let Some(dictionary) = dictionary else {
+        return Ok(());
+    };
+    if [".gz", ".bgz", ".bcf"]
+        .iter()
+        .any(|ext| lower.ends_with(ext))
+    {
+        return Ok(());
+    }
+    let header_length = match text.find("\n#CHROM") {
+        Some(at) => text[at + 1..]
+            .find('\n')
+            .map_or(text.len(), |end| at + 1 + end + 1),
+        None => return Ok(()),
+    };
+    let mut positions = Vec::new();
+    let mut at = header_length as i64;
+    let features = text[header_length..].split_terminator('\n').map(|line| {
+        positions.push(at);
+        at += line.len() as i64 + 1;
+        let fields: Vec<&str> = line.splitn(9, '\t').collect();
+        let start: i64 = fields.get(1).and_then(|p| p.parse().ok()).unwrap_or(0);
+        let reference = fields.get(3).map_or(1, |r| r.len() as i64);
+        let end = fields
+            .get(7)
+            .and_then(|info| {
+                info.split(';')
+                    .find_map(|entry| entry.strip_prefix("END="))
+                    .and_then(|end| end.parse().ok())
+            })
+            .unwrap_or(start + reference - 1);
+        (fields[0].to_string(), start, end)
+    });
+    let output = std::path::Path::new(path);
+    let timestamp = std::fs::metadata(output)?
+        .modified()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0);
+    let indexed = Indexed {
+        dictionary,
+        path: output,
+        timestamp,
+    };
+    let features: Vec<_> = features.collect();
+    if let Some(index) = tribble_index(features, &positions, text.len() as i64, &indexed) {
+        std::fs::write(format!("{path}.idx"), index)?;
+    }
+    Ok(())
+}
+
+/// Each record's feature: its contig, start and end.
+fn features_of(records: &[Record]) -> impl Iterator<Item = (String, i64, i64)> + '_ {
+    records.iter().map(|record| {
+        (
+            record.variant.contig.clone(),
+            record.variant.start,
+            record.variant.stop,
+        )
+    })
 }
 
 /// `LinkedHashMap.put` over a list: a repeated key keeps its first position and its last value.
@@ -650,7 +726,7 @@ pub fn read_to_string(path: &str) -> std::io::Result<String> {
 pub fn read_text(path: &str) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("java.io.IOException: {e}"))?;
     let bytes = if bytes.starts_with(&[0x1f, 0x8b]) {
-        htsjdk_bgzf::read::decompress_all(&bytes)
+        crate::bgzf::decompress_owned(bytes)
             .map_err(|e| format!("htsjdk.samtools.SAMException: {e:?}"))?
     } else {
         bytes
@@ -726,7 +802,12 @@ pub fn write_bcf(
             path: output,
             timestamp: modified_millis(output)?,
         };
-        if let Some(index) = tribble_index(records, &positions, bytes.len() as i64, &indexed) {
+        if let Some(index) = tribble_index(
+            features_of(records),
+            &positions,
+            bytes.len() as i64,
+            &indexed,
+        ) {
             std::fs::write(format!("{path}.idx"), index)?;
         }
     }

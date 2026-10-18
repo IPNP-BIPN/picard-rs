@@ -77,6 +77,7 @@ fn reads(mismatches: usize, mismatch_at: usize, quality: u8, mapping_quality: u8
                 mapping_quality,
                 read_group: "rg1".to_string(),
                 insert_size: 0,
+                ..Read::default()
             }
         })
         .collect()
@@ -292,6 +293,7 @@ fn an_overlapping_pair_has_its_own_metric() {
             mapping_quality: 60,
             read_group: "rg1".to_string(),
             insert_size: 0,
+            ..Read::default()
         },
         Read {
             name: "p1".to_string(),
@@ -304,6 +306,7 @@ fn an_overlapping_pair_has_its_own_metric() {
             mapping_quality: 60,
             read_group: "rg1".to_string(),
             insert_size: 0,
+            ..Read::default()
         },
     ];
     let options = Options::default();
@@ -362,6 +365,7 @@ fn a_deletion_is_counted_once_for_the_read() {
                 mapping_quality: 60,
                 read_group: "rg1".to_string(),
                 insert_size: 0,
+                ..Read::default()
             }
         })
         .collect();
@@ -432,15 +436,15 @@ fn the_default_list_is_appended_to() {
         format!("java.lang.IllegalArgumentException:{}", refusal.message())
     );
 
-    // The default list on its own writes twenty-seven files, all differently named.
+    // The default list on its own writes twenty-six files, all differently named.
     let default: Vec<String> = DEFAULT_ERROR_METRICS
         .iter()
         .map(|s| s.to_string())
         .collect();
     let written = suffixes(&default).expect("no duplicate");
-    assert_eq!(written.len(), 27);
+    assert_eq!(written.len(), 26);
     assert_eq!(written[0], "error_by_all");
-    assert_eq!(written[26], "indel_error_by_all");
+    assert_eq!(written[25], "indel_error_by_all");
     // Several stratifiers fold into one suffix from the left.
     assert_eq!(
         aggregation_suffix("ERROR:READ_ORDINALITY:CYCLE").as_deref(),

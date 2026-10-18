@@ -21,7 +21,6 @@ use std::io::Read;
 
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::interval::IntervalList;
-use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
@@ -180,9 +179,11 @@ pub fn read_input(path: &str) -> (SamHeader, Vec<BamRecord>) {
     if let Err(e) = std::fs::File::open(path).and_then(|mut f| f.read_to_end(&mut raw)) {
         fail(&format!("{e}"));
     }
+    let raw = crate::cram_input::uncram(raw);
     if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = htsjdk_bgzf::decompress_all(&raw).unwrap_or_else(|e| fail(&format!("{e:?}")));
-        let reader = BamReader::new(&plain).unwrap_or_else(|e| fail(&format!("{e:?}")));
+        let plain = crate::bgzf::decompress_owned(raw).unwrap_or_else(|e| fail(&format!("{e:?}")));
+        let reader =
+            crate::record_validation::reader(&plain).unwrap_or_else(|e| fail(&format!("{e:?}")));
         let header = reader.header.text.clone();
         let records = reader
             .map(|r| r.unwrap_or_else(|e| fail(&format!("{e:?}"))))
@@ -192,6 +193,11 @@ pub fn read_input(path: &str) -> (SamHeader, Vec<BamRecord>) {
         let text = String::from_utf8(raw).unwrap_or_else(|e| fail(&format!("{e}")));
         read_sam(&text).unwrap_or_else(|e| fail(&format!("{e:?}")))
     }
+}
+
+/// The input, checked as [`read_input`] checks it, its records decoded as they are taken.
+pub fn open_input(path: &str) -> crate::bam_stream::Input {
+    crate::bam_stream::Input::open(path).unwrap_or_else(|e| fail(&e.message()))
 }
 
 /// `SAMFileHeader.getSortOrder().name()`: an absent or unrecognised `SO` reads as unsorted.

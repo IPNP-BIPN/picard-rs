@@ -500,17 +500,27 @@ fn main() {
     };
     let ignore_unexpected = args.bool("IGNORE_UNEXPECTED_BARCODES", false);
     let sort = args.bool("SORT", true);
+    // The writers by barcode, found by key rather than by a scan per cluster: a plate of 384
+    // barcodes made every cluster compare against all of them.
+    let mut writer_at: foldhash::HashMap<Option<String>, usize> = Default::default();
+    for (at, (k, _)) in writers.iter().enumerate() {
+        writer_at.entry(k.clone()).or_insert(at);
+    }
     for tile in converter.tiles.clone() {
-        // Clusters by barcode, each in the order it was read.
+        // Clusters by barcode, each in the order it was read, the barcodes in the order first seen.
         let mut by_barcode: Vec<(Option<String>, Vec<ClusterData>)> = Vec::new();
+        let mut barcode_at: foldhash::HashMap<Option<String>, usize> = Default::default();
         for data in converter.tile(tile) {
             let key = data.barcode.clone();
-            if !writers.iter().any(|(k, _)| *k == key) && !ignore_unexpected {
+            if !writer_at.contains_key(&key) && !ignore_unexpected {
                 unexpected(&key, sort);
             }
-            match by_barcode.iter_mut().find(|(k, _)| *k == key) {
-                Some((_, v)) => v.push(data),
-                None => by_barcode.push((key, vec![data])),
+            match barcode_at.get(&key) {
+                Some(&at) => by_barcode[at].1.push(data),
+                None => {
+                    barcode_at.insert(key.clone(), by_barcode.len());
+                    by_barcode.push((key, vec![data]));
+                }
             }
         }
         for (key, clusters) in by_barcode.iter_mut() {
@@ -520,7 +530,8 @@ fn main() {
                     settings.short_name(c)
                 });
             }
-            if let Some((_, w)) = writers.iter_mut().find(|(k, _)| k == key) {
+            if let Some(&at) = writer_at.get(key) {
+                let w = &mut writers[at].1;
                 for c in clusters.iter() {
                     settings.lane = c.lane;
                     settings.write(w, c);

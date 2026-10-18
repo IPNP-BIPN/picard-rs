@@ -139,7 +139,8 @@ fn main() {
     let args = Args::from_env(&[("I", "INPUT"), ("O", "OUTPUT")]);
     let inputs = unroll_paths(&args.collection("INPUT", &[])).unwrap_or_else(|e| thrown(&e));
     let output = args.required("OUTPUT");
-    let create_index = args.bool("CREATE_INDEX", false);
+    // The constructor sets `CREATE_INDEX = true`, so that is the default here.
+    let create_index = args.bool("CREATE_INDEX", true);
     let files: Vec<_> = inputs
         .iter()
         .map(|p| read_path(p).unwrap_or_else(|e| thrown(&e)))
@@ -155,6 +156,15 @@ fn main() {
     let samples = sample_list(&named).unwrap_or_else(|r| thrown(&refuse(&r)));
     if create_index && dictionary.is_none() {
         thrown(&refuse(&Refusal::NoSequenceDictionary));
+    }
+    // `CREATE_INDEX=false` adds nothing, but the builder's default options already hold
+    // `INDEX_ON_THE_FLY`, so `build()` still asks for the dictionary and the `.vcf` is indexed.
+    let lower = output.to_ascii_lowercase();
+    let plain = ![".gz", ".bgz", ".bcf"]
+        .iter()
+        .any(|ext| lower.ends_with(ext));
+    if dictionary.is_none() && plain {
+        thrown("java.lang.IllegalArgumentException: A reference dictionary is required for creating Tribble indices on the fly");
     }
     let sources: Vec<Source> = files
         .iter()

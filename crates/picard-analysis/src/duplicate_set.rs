@@ -59,31 +59,12 @@ fn mate_coordinate(record: &Record) -> i32 {
     if !paired_and_both_mapped(record) {
         return -1;
     }
-    let Some(cigar) = &record.mate_cigar else {
-        return -1;
-    };
-    let start = record.mate_alignment_start;
-    if record.mate_reverse_strand() {
-        let mut end = start + cigar.reference_length() as i32 - 1;
-        for element in cigar.elements.iter().rev() {
-            match element.op {
-                htsjdk_bam::cigar::Op::S | htsjdk_bam::cigar::Op::H => end += element.length as i32,
-                _ => break,
-            }
-        }
-        end
+    let coordinate = if record.mate_reverse_strand() {
+        record.mate_unclipped_end()
     } else {
-        let mut begin = start;
-        for element in &cigar.elements {
-            match element.op {
-                htsjdk_bam::cigar::Op::S | htsjdk_bam::cigar::Op::H => {
-                    begin -= element.length as i32
-                }
-                _ => break,
-            }
-        }
-        begin
-    }
+        record.mate_unclipped_start()
+    };
+    coordinate.unwrap_or(-1)
 }
 
 fn mate_reference_index(record: &Record) -> i32 {
@@ -256,12 +237,12 @@ fn sorted_set(
 /// major sort key and decides the order the sets come out in, which a tool that walks them
 /// (`CollectIndependentReplicateMetrics`) sees.
 pub(crate) fn library_ids(records: &[Record]) -> Vec<i32> {
-    let mut names: Vec<&str> = records.iter().map(|r| r.library.as_str()).collect();
+    let mut names: Vec<&str> = records.iter().map(|r| &*r.library).collect();
     names.sort_unstable();
     names.dedup();
     records
         .iter()
-        .map(|r| names.binary_search(&r.library.as_str()).unwrap_or(0) as i32)
+        .map(|r| names.binary_search(&&*r.library).unwrap_or(0) as i32)
         .collect()
 }
 

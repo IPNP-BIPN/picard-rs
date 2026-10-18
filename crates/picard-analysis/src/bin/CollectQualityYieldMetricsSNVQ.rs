@@ -7,7 +7,7 @@
 //! per-position means.
 
 use htsjdk_metrics::file::MetricsFile;
-use picard_analysis::metrics_cli::{read_input, Args};
+use picard_analysis::metrics_cli::{open_input, Args};
 use picard_analysis::single_pass_driver;
 use picard_analysis::snvq::SnvqCollector;
 
@@ -22,7 +22,7 @@ fn main() {
     ]);
     let input = args.required("INPUT");
     let output = args.required("OUTPUT");
-    let (header, records) = read_input(&input);
+    let (header, records) = open_input(&input).into_parts();
 
     let mut collector = SnvqCollector::with_options(
         args.get("ALTERNATE_QUALITY_ATTRIBUTE").map(str::to_string),
@@ -30,7 +30,7 @@ fn main() {
         args.bool("INCLUDE_SUPPLEMENTAL_ALIGNMENTS", false),
         args.bool("INCLUDE_BQ_HISTOGRAM", false),
     );
-    single_pass_driver::run(&args, &input, &header, &records, |_, record| {
+    single_pass_driver::run(&args, &input, &header, records, |_, record| {
         collector.try_accept(record)
     });
     let (metrics, histograms) = collector.finish_with_histograms();
