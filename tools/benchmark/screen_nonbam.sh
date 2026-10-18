@@ -15,6 +15,8 @@ if [ "$BIN" = oracle ]; then O=$B/screen-nonbam-oracle; else O=$B/screen-nonbam-
 mkdir -p $N/ill_out $O/bfq $O/baits $O/bc
 R=$B/bench.fasta; D=$B/bench.dict; I=$B/bench.bam; RUN=$N/ill_big/Data/Intensities/BaseCalls
 # A row is `run <tool>[@<label>] <arguments>`: the label tells two rows of one tool apart.
+# The binaries are named as Picard names the tool; the list below keeps the kebab names.
+exe() { local want; want=$(echo "$1" | tr -d - | tr 'A-Z' 'a-z'); for f in "$BIN"/*; do [ "$(basename "$f" | tr 'A-Z' 'a-z')" = "$want" ] && { echo "$f"; return; }; done; echo "$BIN/$1"; }
 run() {
   local name=$1; local bin=${1%@*}; shift
   [ "$ONLY" != "  " ] && [[ "$ONLY" != *" $name "* ]] && return
@@ -25,7 +27,7 @@ run() {
     /usr/bin/time -l timeout "$LIMIT" docker run -i --rm --platform linux/amd64 -v "$B:$B" -w "$O" picard-rs-oracle:3.5.0 \
       "java -Xmx8g -Dsamjdk.use_libdeflate=false -jar \$PICARD_JAR $tool $*" >"$O/$name.out" 2>"$O/$name.err"
   else
-    /usr/bin/time -l timeout "$LIMIT" "$BIN/$bin" "$@" >"$O/$name.out" 2>"$O/$name.err"
+    /usr/bin/time -l timeout "$LIMIT" "$(exe "$bin")" "$@" >"$O/$name.out" 2>"$O/$name.err"
   fi
   local code=$?
   # CPU seconds (user + sys) as well as wall clock: other work on the machine inflates the latter.

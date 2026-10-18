@@ -8,9 +8,11 @@ B=$(cd "$(dirname "$0")/../.." && pwd)/target/benchmark
 [ -f "$B/bench.bam" ] || B=$HOME/GATK/picard-rs/target/benchmark
 O=$B/screen-$(basename "$(dirname "$BIN")"); rm -rf "$O"; mkdir -p "$O"
 I=$B/bench.bam; R=$B/bench.fasta; Q=$B/qname.bam; T=$B/targets.interval_list
+# The binaries are named as Picard names the tool; the list below keeps the kebab names.
+exe() { local want; want=$(echo "$1" | tr -d - | tr 'A-Z' 'a-z'); for f in "$BIN"/*; do [ "$(basename "$f" | tr 'A-Z' 'a-z')" = "$want" ] && { echo "$f"; return; }; done; echo "$BIN/$1"; }
 run() {
   local name=$1; shift
-  /usr/bin/time -l timeout "$LIMIT" "$BIN/$name" "$@" >"$O/$name.out" 2>"$O/$name.err"; local code=$?
+  /usr/bin/time -l timeout "$LIMIT" "$(exe "$name")" "$@" >"$O/$name.out" 2>"$O/$name.err"; local code=$?
   # CPU seconds (user + sys) as well as wall clock: other work on the machine inflates the latter.
   local s=$(awk '/ real /{print $1}' "$O/$name.err"); local c=$(awk '/ real /{print $3+$5}' "$O/$name.err"); local r=$(awk '/maximum resident/{printf "%d", $1/1048576}' "$O/$name.err")
   local why=$(grep -v -E '^ +[0-9]|real|^$' "$O/$name.err" | tail -1 | cut -c1-70)
@@ -64,10 +66,13 @@ run reorder-sam I=$I O=$O/fm.bam SEQUENCE_DICTIONARY=$B/bench.dict
 run replace-sam-header I=$I HEADER=$B/coord.bam O=$O/fn.bam
 run revert-original-base-qualities-and-add-mate-cigar I=$Q O=$O/fo.bam
 run revert-sam I=$I O=$O/fp.bam
+# The reverted reads are the unmapped input, the benchmark BAM their alignment.
+run merge-bam-alignment UNMAPPED_BAM=$O/fp.bam ALIGNED_BAM=$Q R=$R O=$O/fp2.bam
 run sam-format-converter I=$I O=$O/fq.sam
 run sam-to-fastq I=$Q F=$O/fr1.fq F2=$O/fr2.fq VALIDATION_STRINGENCY=SILENT
 run sam-to-fastq-with-tags I=$Q F=$O/fs1.fq F2=$O/fs2.fq QUALITY_TAG_GROUP=OQ SEQUENCE_TAG_GROUP=OA
 run set-nm-md-and-uq-tags I=$I O=$O/ft.bam R=$R
+run set-nm-and-uq-tags I=$I O=$O/ft2.bam R=$R
 run sort-sam I=$I O=$O/fu.bam SORT_ORDER=queryname
 run split-sam-by-library I=$I O=$O/fv
 run split-sam-by-number-of-reads I=$I OUTPUT=$O/fw SPLIT_TO_N_FILES=4
