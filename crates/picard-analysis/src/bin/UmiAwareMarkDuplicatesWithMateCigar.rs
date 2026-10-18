@@ -11,6 +11,7 @@
 
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
+use htsjdk_bam::sam_file::write_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::mark_duplicates::{Options, Record, ScoringStrategy};
@@ -187,15 +188,25 @@ fn main() {
         .iter()
         .map(|record| string_tag(record, &umi_tag_name))
         .collect();
-    let result = run(&marked_records, &umis, &contigs, &options).unwrap_or_else(|m| thrown(&m));
-
-    let program_group =
-        picard_analysis::command_line::ProgramGroup::of("UmiAwareMarkDuplicatesWithMateCigar");
-    let molecular_identifier_tag = args.get("MOLECULAR_IDENTIFIER_TAG").map(tag_of);
     // `COMMENT.forEach(outputHeader::addComment)`, inherited from SimpleMarkDuplicatesWithMateCigar.
     for comment in std::env::args().filter_map(|a| a.strip_prefix("COMMENT=").map(str::to_string)) {
         header.comments.push(format!("@CO\t{comment}"));
     }
+    let result = run(&marked_records, &umis, &contigs, &options).unwrap_or_else(|m| {
+        // The output was opened before the sets were iterated and is never closed after the throw:
+        // a SAM writer has flushed its header by then, a BAM writer's first block is still buffered.
+        let partial = if output.ends_with(".sam") {
+            write_sam(&header, &[]).unwrap_or_default()
+        } else {
+            String::new()
+        };
+        let _ = std::fs::write(&output, partial);
+        thrown(&m)
+    });
+
+    let program_group =
+        picard_analysis::command_line::ProgramGroup::of("UmiAwareMarkDuplicatesWithMateCigar");
+    let molecular_identifier_tag = args.get("MOLECULAR_IDENTIFIER_TAG").map(tag_of);
     let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)
         .unwrap_or_else(|e| fail(&format!("{e:?}")));
     for (index, record) in records.iter().enumerate() {

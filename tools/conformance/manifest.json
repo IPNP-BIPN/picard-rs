@@ -2938,6 +2938,35 @@
       ]
     },
     {
+      "id": "umiduplicates-noreadgroup",
+      "status": "oracle-backed",
+      "title": "what the UMI-aware duplicate marker does with a read that has no read group",
+      "harness": "tools/matecigardup-conformance",
+      "tools": [
+        "UmiAwareMarkDuplicatesWithMateCigar"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "why": "UmiAwareDuplicateSetIterator.process reads set.getRepresentative().getReadGroup().getLibrary(), so any duplicate set whose representative has no RG tag throws a NullPointerException: single-end reads, a pair with an unmapped mate and an unplaced unmapped read included, whether or not the header declares an @RG line. Unlike MarkDuplicates the output is already open by then and is never closed: a SAM output holds the header and no record, a BAM output is an empty file. A queryname-sorted file is refused by name before any of this.",
+      "expect_rows": 23,
+      "expect_contains": [
+        "error\tsingles-without-rg\tjava.lang.NullPointerException:Cannot invoke \"htsjdk.samtools.SAMReadGroupRecord.getLibrary()\" because the return value of \"htsjdk.samtools.SAMRecord.getReadGroup()\" is null",
+        "partial\trg-reads-then-one-without\t@HD\\tVN:1.6\\tSO:coordinate\\n@SQ\\tSN:chr1\\tLN:2000\\n@RG\\tID:rg1\\tSM:sample1\\tLB:lib1\\n",
+        "partial\tpairs-without-rg-to-bam\t0 bytes",
+        "error\tqueryname-pairs-without-rg\tpicard.PicardException:This program requires inputs in coordinate SortOrder",
+        "marked\tpairs-with-rg\t"
+      ],
+      "$expect_why": "A row count is not evidence: the throw on single-end reads, a header-only SAM output even when reads with a group came first, an empty BAM output, the queryname refusal coming first, and the same file with its groups marked as usual.",
+      "cases": [
+        {
+          "dump": "UmiNoReadGroupDump",
+          "golden": "crates/picard-analysis/tests/data/umi_no_read_group.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as the golden-pending artefact of run 39044976001, and identical to the local smoke run. Eleven inputs, ten of them refused, each with what the output held at the throw."
+        }
+      ]
+    },
+    {
       "id": "crosscheckfingerprints",
       "status": "oracle-backed",
       "title": "every pair of fingerprints against every other, and the verdict on each",
