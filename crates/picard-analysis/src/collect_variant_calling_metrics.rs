@@ -224,35 +224,74 @@ pub struct HiddenCounts {
 /// One sample's call at a site, as the accumulator reads it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Call {
-    /// `None` for a no-call; otherwise the allele indices, `0` being the reference.
-    pub alleles: Option<Vec<usize>>,
+    /// The allele indices, `0` being the reference and `None` a no-call allele.
+    pub alleles: Vec<Option<usize>>,
     pub gq: i32,
     /// One depth per allele, reference first.
     pub allele_depths: Option<Vec<i32>>,
 }
 
 impl Call {
-    pub fn is_called(&self) -> bool {
-        self.alleles.is_some()
+    fn called(&self) -> Vec<usize> {
+        self.alleles.iter().flatten().copied().collect()
     }
-    fn indices(&self) -> &[usize] {
-        self.alleles.as_deref().unwrap_or(&[])
+    /// `Genotype.isNoCall`: only a call whose every allele is `.`; `.|1` is MIXED, not a no-call.
+    pub fn is_called(&self) -> bool {
+        self.alleles.iter().any(Option::is_some)
+    }
+    /// The three zygosities `Genotype.getType` gives a call with no `.` allele; a MIXED call has
+    /// none of them.
+    fn fully_called(&self) -> Option<Vec<usize>> {
+        let called = self.called();
+        (!called.is_empty() && called.len() == self.alleles.len()).then_some(called)
     }
     pub fn is_hom_ref(&self) -> bool {
-        !self.indices().is_empty() && self.indices().iter().all(|allele| *allele == 0)
+        self.fully_called()
+            .is_some_and(|called| called.iter().all(|allele| *allele == 0))
     }
     pub fn is_hom_var(&self) -> bool {
-        !self.indices().is_empty()
-            && self
-                .indices()
-                .iter()
-                .all(|allele| *allele == self.indices()[0])
-            && self.indices()[0] != 0
+        self.fully_called().is_some_and(|called| {
+            called[0] != 0 && called.iter().all(|allele| *allele == called[0])
+        })
     }
     pub fn is_het(&self) -> bool {
-        let indices = self.indices();
-        !indices.is_empty() && indices.iter().any(|allele| *allele != indices[0])
+        self.fully_called()
+            .is_some_and(|called| called.iter().any(|allele| *allele != called[0]))
     }
+}
+
+/// `VariantContext.Type`, which decides which counter a site reaches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VariantType {
+    NoVariation,
+    Snp,
+    Mnp,
+    Indel,
+    Symbolic,
+    Mixed,
+}
+
+/// `VariantContext.determineType`: each alternate typed against the reference, MIXED as soon as
+/// two disagree. A symbolic alternate is passed as written (`<DEL>`), and `*` is one base long.
+pub fn variant_type(reference: &str, alternates: &[String]) -> VariantType {
+    let mut kind = VariantType::NoVariation;
+    for (index, alternate) in alternates.iter().enumerate() {
+        let this = if htsjdk_vcf::allele::would_be_symbolic(alternate.as_bytes()) {
+            VariantType::Symbolic
+        } else if alternate.len() != reference.len() {
+            VariantType::Indel
+        } else if alternate.len() == 1 {
+            VariantType::Snp
+        } else {
+            VariantType::Mnp
+        };
+        if index == 0 {
+            kind = this;
+        } else if this != kind {
+            return VariantType::Mixed;
+        }
+    }
+    kind
 }
 
 /// One site, as the accumulator reads it: the alleles, the filter, both dbSNP answers, and one
@@ -270,68 +309,30 @@ pub struct Site {
     pub calls: Vec<Call>,
 }
 
-/// `VariantContext.Type`, as `determineType` reads it off the alleles.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-    NoVariation,
-    Snp,
-    Mnp,
-    Indel,
-    Symbolic,
-    Mixed,
-}
-
-/// `determinePolymorphicType`: each alternate's `typeOfBiallelicVariant` against the reference,
-/// and MIXED as soon as two disagree. No-call alternates are not passed in.
-pub fn kind_of(reference: &str, alternates: &[String]) -> Kind {
-    let mut kind: Option<Kind> = None;
-    for alternate in alternates {
-        let this = if htsjdk_vcf::allele::would_be_symbolic(alternate.as_bytes()) {
-            Kind::Symbolic
-        } else if alternate.len() == reference.len() {
-            if reference.len() == 1 {
-                Kind::Snp
-            } else {
-                Kind::Mnp
-            }
-        } else {
-            Kind::Indel
-        };
-        match kind {
-            None => kind = Some(this),
-            Some(seen) if seen != this => return Kind::Mixed,
-            Some(_) => {}
-        }
-    }
-    kind.unwrap_or(Kind::NoVariation)
-}
-
 impl Site {
-    pub fn kind(&self) -> Kind {
-        kind_of(&self.reference, &self.alternates)
+    pub fn variant_type(&self) -> VariantType {
+        variant_type(&self.reference, &self.alternates)
     }
-    /// `VariantContext.isSNP()`: every alternate one base against a one-base reference.
     pub fn is_snp(&self) -> bool {
-        self.kind() == Kind::Snp
+        self.variant_type() == VariantType::Snp
     }
-    /// `isIndel()`: every alternate a change of length, none symbolic.
     pub fn is_indel(&self) -> bool {
-        self.kind() == Kind::Indel
+        self.variant_type() == VariantType::Indel
     }
     pub fn is_biallelic(&self) -> bool {
         self.alternates.len() == 1
     }
-    /// `isSimpleIndel`: a biallelic indel whose alleles share their first base and one of which is
-    /// that base alone.
+    /// `isSimpleIndel`: a biallelic indel sharing its first base, one side a single base.
     fn is_simple_indel(&self) -> bool {
+        let reference = self.reference.as_bytes();
         self.is_indel()
             && self.is_biallelic()
-            && !self.reference.is_empty()
-            && !self.alternates[0].is_empty()
-            && self.reference.as_bytes()[0] == self.alternates[0].as_bytes()[0]
-            && (self.reference.len() == 1 || self.alternates[0].len() == 1)
+            && !reference.is_empty()
+            && self.alternates[0].as_bytes().first() == Some(&reference[0])
+            && (reference.len() == 1 || self.alternates[0].len() == 1)
     }
-    /// `isComplexIndel`: an indel that is neither a simple insertion nor a simple deletion.
+    /// `isComplexIndel`: every indel that is not a simple insertion or deletion, multiallelic
+    /// ones included.
     pub fn is_complex_indel(&self) -> bool {
         self.is_indel() && !self.is_simple_indel()
     }
@@ -513,21 +514,21 @@ mod tests {
     #[test]
     fn sites_are_typed_as_variant_context_types_them() {
         for (reference, alternates, kind, complex, insertion) in [
-            ("A", "G", Kind::Snp, false, false),
-            ("A", "G,T", Kind::Snp, false, false),
-            ("AC", "GT", Kind::Mnp, false, false),
-            ("A", "AT", Kind::Indel, false, true),
-            ("AT", "A", Kind::Indel, false, false),
-            ("A", "G,AT", Kind::Mixed, false, false),
-            ("A", "<DEL>", Kind::Symbolic, false, false),
-            ("A", "*", Kind::Snp, false, false),
-            ("A", "G,*", Kind::Snp, false, false),
-            ("ACG", "T", Kind::Indel, true, false),
-            ("A", "ATT,ATTT", Kind::Indel, true, false),
-            ("AC", "A", Kind::Indel, false, false),
+            ("A", "G", VariantType::Snp, false, false),
+            ("A", "G,T", VariantType::Snp, false, false),
+            ("AC", "GT", VariantType::Mnp, false, false),
+            ("A", "AT", VariantType::Indel, false, true),
+            ("AT", "A", VariantType::Indel, false, false),
+            ("A", "G,AT", VariantType::Mixed, false, false),
+            ("A", "<DEL>", VariantType::Symbolic, false, false),
+            ("A", "*", VariantType::Snp, false, false),
+            ("A", "G,*", VariantType::Snp, false, false),
+            ("ACG", "T", VariantType::Indel, true, false),
+            ("A", "ATT,ATTT", VariantType::Indel, true, false),
+            ("AC", "A", VariantType::Indel, false, false),
         ] {
             let s = site(reference, alternates);
-            assert_eq!(s.kind(), kind, "{reference}>{alternates}");
+            assert_eq!(s.variant_type(), kind, "{reference}>{alternates}");
             assert_eq!(s.is_complex_indel(), complex, "{reference}>{alternates}");
             assert_eq!(
                 s.is_simple_insertion(),
@@ -535,6 +536,6 @@ mod tests {
                 "{reference}>{alternates}"
             );
         }
-        assert_eq!(kind_of("A", &[]), Kind::NoVariation);
+        assert_eq!(variant_type("A", &[]), VariantType::NoVariation);
     }
 }

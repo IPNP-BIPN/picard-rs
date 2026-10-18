@@ -1061,31 +1061,31 @@ jobs:
             suites: "umiprevalence artifacttooxog clustercrosscheck extractfingerprint identifycontaminant"
           - group: oracle-backed
             index: "15/23"
-            suites: "mergepedintovcf accumulatevcm variantcallingmetrics nonzerowgs oxog"
+            suites: "mergepedintovcf accumulatevcm variantcallingmetrics variantcallingmetrics-edge nonzerowgs"
           - group: oracle-backed
             index: "16/23"
-            suites: "artifactmetrics hsmetrics pcrmetrics libcomplexity genotypeconcordance"
+            suites: "oxog artifactmetrics hsmetrics pcrmetrics libcomplexity"
           - group: oracle-backed
             index: "17/23"
-            suites: "multiplemetrics rrbsmetrics replicatemetrics arraysmetrics combinearrays"
+            suites: "genotypeconcordance multiplemetrics rrbsmetrics replicatemetrics arraysmetrics"
           - group: oracle-backed
             index: "18/23"
-            suites: "bamtobfq vcftoadpc markadapters checkfingerprint markduplicates"
+            suites: "combinearrays bamtobfq vcftoadpc markadapters checkfingerprint"
           - group: oracle-backed
             index: "19/23"
-            suites: "matecigarduplicates umiduplicates umiduplicates-noreadgroup crosscheckfingerprints fingerprintmetrics"
+            suites: "markduplicates matecigarduplicates umiduplicates umiduplicates-noreadgroup crosscheckfingerprints"
           - group: oracle-backed
             index: "20/23"
-            suites: "samerrormetrics checkilluminadirectory illuminalanemetrics extractilluminabarcodes basecallstofastq"
+            suites: "fingerprintmetrics samerrormetrics checkilluminadirectory illuminalanemetrics extractilluminabarcodes"
           - group: oracle-backed
             index: "21/23"
-            suites: "basecallingmetrics basecallstosam pffailmetrics fifobuffer liftovervcf"
+            suites: "basecallstofastq basecallingmetrics basecallstosam pffailmetrics fifobuffer"
           - group: oracle-backed
             index: "22/23"
-            suites: "mendelianviolations baitdesigner bpmtocsv comparegtc gtctovcf"
+            suites: "liftovervcf mendelianviolations baitdesigner bpmtocsv comparegtc"
           - group: oracle-backed
             index: "23/23"
-            suites: "createextendedmanifest headerlines inputshapes nonbamshapes"
+            suites: "gtctovcf createextendedmanifest headerlines inputshapes nonbamshapes"
           - group: golden-pending
             index: "1/1"
             suites: "cram-io strict-validation filterandmerge rawrecords"
