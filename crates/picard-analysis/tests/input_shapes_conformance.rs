@@ -65,10 +65,10 @@ fn cases() -> Vec<(String, BTreeMap<String, String>)> {
 
 fn binary(tool: &str) -> &'static str {
     match tool {
-        "CleanSam" => env!("CARGO_BIN_EXE_clean-sam"),
-        "CollectSamErrorMetrics" => env!("CARGO_BIN_EXE_collect-sam-error-metrics"),
+        "CleanSam" => env!("CARGO_BIN_EXE_CleanSam"),
+        "CollectSamErrorMetrics" => env!("CARGO_BIN_EXE_CollectSamErrorMetrics"),
         "RevertOriginalBaseQualitiesAndAddMateCigar" => {
-            env!("CARGO_BIN_EXE_revert-original-base-qualities-and-add-mate-cigar")
+            env!("CARGO_BIN_EXE_RevertOriginalBaseQualitiesAndAddMateCigar")
         }
         other => panic!("no binary for {other}"),
     }

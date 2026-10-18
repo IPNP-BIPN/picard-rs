@@ -1,0 +1,177 @@
+//! `SplitVcfs` as a runnable binary: the covering array's port side.
+//!
+//! Ports `picard.vcf.SplitVcfs.doWork` at tag 3.4.0 for plain-text outputs. The read and write
+//! round trip is `picard_analysis::vcf_io`.
+//!
+//! Both outputs get the input's header unchanged, and each record goes to one of them by
+//! `VariantContext.getType()`: `INDEL` to `INDEL_OUTPUT`, `SNP` to `SNP_OUTPUT`. Every other type
+//! -- `NO_VARIATION`, `MNP`, `SYMBOLIC`, `MIXED` -- is dropped when `STRICT` is false and is an
+//! uncaught `IllegalStateException` naming the type when it is true. The type is decided by the
+//! alleles alone, so a multiallelic SNP is a SNP and a site whose alternates disagree (a SNP and
+//! an insertion) is `MIXED`.
+//!
+//! `SEQUENCE_DICTIONARY` only replaces the dictionary the indexes are built against, which is
+//! also why a VCF with no contig lines is refused without it only when indexing.
+
+use htsjdk_tribble::tabix::{TabixFormat, TabixIndexCreator};
+use htsjdk_vcf::variant::VariantContext;
+use picard_analysis::args::arg;
+use picard_analysis::vcf_io::{
+    add_to_tabix, die, header_dictionary, is_bcf, is_compressed_vcf, parse_sam_dictionary,
+    read_path, write_output, LinePositions,
+};
+
+/// `VariantContext.getType()`'s name.
+fn type_name(vc: &VariantContext) -> &'static str {
+    // `determineType`: one allele is no variation, whatever it is.
+    if vc.alleles.len() <= 1 {
+        return "NO_VARIATION";
+    }
+    let reference = &vc.alleles[0];
+    let mut found: Option<&'static str> = None;
+    for allele in &vc.alleles[1..] {
+        // `typeOfBiallelicVariant`.
+        let biallelic = if allele.is_symbolic() {
+            "SYMBOLIC"
+        } else if reference.len() == allele.len() {
+            if allele.len() == 1 {
+                "SNP"
+            } else {
+                "MNP"
+            }
+        } else {
+            "INDEL"
+        };
+        match found {
+            None => found = Some(biallelic),
+            Some(previous) if previous != biallelic => return "MIXED",
+            Some(_) => {}
+        }
+    }
+    found.unwrap_or("NO_VARIATION")
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("SplitVcfs");
+    picard_analysis::output::install();
+    let args: Vec<String> = std::env::args().collect();
+    let input = arg(&args, "INPUT=")
+        .or_else(|| arg(&args, "I="))
+        .ok_or("INPUT= is required")?;
+    let snp_output = arg(&args, "SNP_OUTPUT=").ok_or("SNP_OUTPUT= is required")?;
+    let indel_output = arg(&args, "INDEL_OUTPUT=").ok_or("INDEL_OUTPUT= is required")?;
+    let sequence_dictionary = arg(&args, "SEQUENCE_DICTIONARY=")
+        .or_else(|| arg(&args, "D="))
+        .filter(|value| value != "null");
+    let strict = arg(&args, "STRICT=")
+        .map(|value| picard_analysis::args::is_true(&value))
+        .unwrap_or(true);
+    let create_index = arg(&args, "CREATE_INDEX=")
+        .map(|value| picard_analysis::args::is_true(&value))
+        .unwrap_or(true);
+    if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
+        if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {
+            return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
+        }
+    }
+    let ported = |path: &str| {
+        path.ends_with(".vcf") || is_compressed_vcf(path) || picard_analysis::vcf_io::is_bcf(path)
+    };
+    if !ported(&snp_output) || !ported(&indel_output) {
+        return Err("only .vcf, .vcf.gz and .bcf outputs are ported".into());
+    }
+
+    let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
+    // Read through `SamReaderFactory`, as a SAM header: a `.dict`'s `@SQ` lines.
+    let dictionary = match &sequence_dictionary {
+        Some(path) => Some(parse_sam_dictionary(&std::fs::read_to_string(path)?)),
+        None => header_dictionary(&vcf.file.header),
+    };
+    if create_index && dictionary.is_none() {
+        die(
+            "picard.PicardException: A sequence dictionary must be available (either through the \
+             input file or by setting it explicitly) when creating indexed output.",
+        );
+    }
+
+    let index_dictionary = if create_index {
+        dictionary.as_deref()
+    } else {
+        None
+    };
+    // `doWork` hands each record to its writer as it reads it, and that writer's indexer and
+    // encoder see it before the next record is read, so their refusal on one record comes before a
+    // type refusal on a later one. The builder keeps the `TabixIndexCreator` it makes for a
+    // block-compressed SNP_OUTPUT in a field and hands that same creator to the INDEL writer it
+    // builds next, unless that one is block-compressed and gets its own: two files' positions then
+    // reach one index.
+    let tabix = |path: &str| {
+        (index_dictionary.is_some() && is_compressed_vcf(path))
+            .then(|| TabixIndexCreator::new(TabixFormat::VCF))
+    };
+    let mut snp_creator = tabix(&snp_output);
+    let shared = snp_creator.is_some() && !is_compressed_vcf(&indel_output);
+    let mut indel_creator = tabix(&indel_output);
+    if shared && is_bcf(&indel_output) {
+        return Err("a .bcf INDEL_OUTPUT indexed beside a .vcf.gz SNP_OUTPUT is not ported".into());
+    }
+    let lines = |path: &str| (!is_bcf(path)).then(|| LinePositions::new(path, &vcf.file.header));
+    let mut snp_lines = lines(&snp_output);
+    let mut indel_lines = lines(&indel_output);
+    let lengths: std::collections::HashMap<&str, i32> = index_dictionary
+        .unwrap_or_default()
+        .iter()
+        .map(|sequence| (sequence.name.as_str(), sequence.length as i32))
+        .collect();
+
+    let mut snps = Vec::new();
+    let mut indels = Vec::new();
+    for record in vcf.records {
+        let (lines, creator, kept) = match type_name(&record.variant) {
+            "INDEL" => (
+                &mut indel_lines,
+                if shared {
+                    &mut snp_creator
+                } else {
+                    &mut indel_creator
+                },
+                &mut indels,
+            ),
+            "SNP" => (&mut snp_lines, &mut snp_creator, &mut snps),
+            other => {
+                if strict {
+                    die(&format!(
+                        "java.lang.IllegalStateException: Found a record with type {other}"
+                    ));
+                }
+                continue;
+            }
+        };
+        if let Some(lines) = lines {
+            if let Some(creator) = creator {
+                add_to_tabix(
+                    creator,
+                    index_dictionary,
+                    &lengths,
+                    &record,
+                    lines.position(),
+                );
+            }
+            lines.write_record(&record);
+        }
+        kept.push(record);
+    }
+    // shortcut: both writers close the shared index, finalizing it twice, and that is not ported;
+    // every array row with this shape is refused while adding, before either writer closes.
+    if shared {
+        return Err(
+            "closing a .vcf.gz SNP_OUTPUT's tabix index shared with a text INDEL_OUTPUT \
+                    is not ported"
+                .into(),
+        );
+    }
+
+    write_output(&snp_output, &vcf.file.header, &snps, index_dictionary)?;
+    write_output(&indel_output, &vcf.file.header, &indels, index_dictionary)?;
+    Ok(())
+}

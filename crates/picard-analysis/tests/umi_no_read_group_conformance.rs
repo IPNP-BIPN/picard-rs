@@ -191,18 +191,16 @@ fn every_case_ends_as_the_reference_ended() {
         let dir = scratch(case);
         let input: String = header + &reads.into_iter().map(line).collect::<String>();
         std::fs::write(dir.join("in.sam"), input).unwrap();
-        let run = Command::new(env!(
-            "CARGO_BIN_EXE_umi-aware-mark-duplicates-with-mate-cigar"
-        ))
-        .current_dir(&dir)
-        .args([
-            "I=in.sam",
-            &format!("O={output}"),
-            "M=metrics.txt",
-            "UMI_METRICS=umi.txt",
-        ])
-        .output()
-        .unwrap();
+        let run = Command::new(env!("CARGO_BIN_EXE_UmiAwareMarkDuplicatesWithMateCigar"))
+            .current_dir(&dir)
+            .args([
+                "I=in.sam",
+                &format!("O={output}"),
+                "M=metrics.txt",
+                "UMI_METRICS=umi.txt",
+            ])
+            .output()
+            .unwrap();
         let out = dir.join(output);
         match field(&text, "error", case) {
             Some(error) => {

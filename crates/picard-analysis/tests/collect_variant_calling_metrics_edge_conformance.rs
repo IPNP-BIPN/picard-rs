@@ -50,7 +50,7 @@ fn the_edge_cases_match_the_reference() {
     // The binary only asks that an index exist, as the reference's processor does.
     std::fs::write(dir.join("in.vcf.idx"), b"").unwrap();
     let out = dir.join("out");
-    let status = std::process::Command::new(env!("CARGO_BIN_EXE_collect-variant-calling-metrics"))
+    let status = std::process::Command::new(env!("CARGO_BIN_EXE_CollectVariantCallingMetrics"))
         .arg(format!("I={}", input.display()))
         .arg(format!("DBSNP={}", dbsnp.display()))
         .arg(format!("O={}", out.display()))

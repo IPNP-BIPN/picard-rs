@@ -5,7 +5,7 @@
 //! `picard.analysis.CollectRnaSeqMetrics`, all at tag 3.4.0. One collector is one unit: the
 //! ALL_READS unit by default, or a sample, library or read group named with
 //! [`RnaSeqMetricsCollector::for_unit`]. The fan-out over units (`MultiLevelCollector`) is the
-//! binary's, `collect-rna-seq-metrics`.
+//! binary's, `CollectRnaSeqMetrics`.
 //!
 //! ## The one ordering subtlety, and what measurement said about it
 //!

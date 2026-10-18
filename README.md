@@ -41,16 +41,16 @@ export PATH="$PWD/target/release:$PATH"
 
 ## Running a tool
 
-Every Picard tool is its own binary, named in kebab-case: `SortSam` is `sort-sam`,
-`CollectAlignmentSummaryMetrics` is `collect-alignment-summary-metrics`. Arguments are Picard's,
-written the way Picard takes them, `NAME=value`, with the long or the short name:
+Every Picard tool is its own binary, named exactly as in Picard: `MarkDuplicates`, `SortSam`,
+`CollectAlignmentSummaryMetrics`. Arguments are Picard's, written the way Picard takes them,
+`NAME=value`, with the long or the short name:
 
 ```bash
 # Picard
 java -jar picard.jar MarkDuplicates I=sorted.bam O=marked.bam M=dup_metrics.txt
 
 # picard-rs
-mark-duplicates I=sorted.bam O=marked.bam M=dup_metrics.txt
+MarkDuplicates I=sorted.bam O=marked.bam M=dup_metrics.txt
 ```
 
 The records, the metrics and the rest of the header in `marked.bam` and `dup_metrics.txt` come
@@ -65,16 +65,7 @@ If your scripts call `picard <Tool> ...` (the Bioconda wrapper's form), this she
 them the same command with picard-rs underneath. Put it in your `~/.bashrc` or `~/.zshrc`:
 
 ```bash
-picard() {
-  local tool="$1"; shift
-  case "$tool" in
-    CompareSAMs) tool=compare-sams ;;
-    ConvertSequencingArtifactToOxoG) tool=convert-sequencing-artifact-to-oxog ;;
-    SetNmAndUqTags) tool=set-nm-md-and-uq-tags ;;
-    *) tool=$(printf '%s' "$tool" | sed -E 's/([a-z0-9])([A-Z])/\1-\2/g; s/([A-Z])([A-Z][a-z])/\1-\2/g' | tr '[:upper:]' '[:lower:]') ;;
-  esac
-  "$tool" "$@"
-}
+picard() { "$@"; }
 ```
 
 ```bash
@@ -82,19 +73,14 @@ picard SortSam I=input.bam O=sorted.bam SORT_ORDER=coordinate
 picard CollectInsertSizeMetrics I=sorted.bam O=insert_size.txt H=insert_size.pdf
 ```
 
-Three names are not the mechanical kebab-case, and the function handles them: `CompareSAMs` is
-`compare-sams`, `ConvertSequencingArtifactToOxoG` is `convert-sequencing-artifact-to-oxog`, and
-the deprecated `SetNmAndUqTags` runs as `set-nm-md-and-uq-tags`, which is what Picard's subclass
-does.
-
 ### A typical run
 
 ```bash
-add-or-replace-read-groups I=aligned.bam O=rg.bam RGID=1 RGLB=lib1 RGPL=ILLUMINA RGPU=unit1 RGSM=sample1
-sort-sam I=rg.bam O=sorted.bam SORT_ORDER=coordinate CREATE_INDEX=true
-mark-duplicates I=sorted.bam O=marked.bam M=dup_metrics.txt CREATE_INDEX=true
-collect-alignment-summary-metrics I=marked.bam O=alignment_summary.txt R=reference.fasta
-collect-insert-size-metrics I=marked.bam O=insert_size.txt H=insert_size.pdf
+AddOrReplaceReadGroups I=aligned.bam O=rg.bam RGID=1 RGLB=lib1 RGPL=ILLUMINA RGPU=unit1 RGSM=sample1
+SortSam I=rg.bam O=sorted.bam SORT_ORDER=coordinate CREATE_INDEX=true
+MarkDuplicates I=sorted.bam O=marked.bam M=dup_metrics.txt CREATE_INDEX=true
+CollectAlignmentSummaryMetrics I=marked.bam O=alignment_summary.txt R=reference.fasta
+CollectInsertSizeMetrics I=marked.bam O=insert_size.txt H=insert_size.pdf
 ```
 
 ### What differs from running Picard
@@ -105,10 +91,13 @@ none of them surprises you:
 - **Only `NAME=value` is read.** Picard's newer `--INPUT x` syntax is not: `-h`, `--help` and
   `--version` work, and an argument the tool does not declare is refused, but a declared one written
   that way is ignored.
-- **`COMPRESSION_LEVEL`, `MAX_RECORDS_IN_RAM`, `TMP_DIR`, `USE_JDK_DEFLATER`, `USE_JDK_INFLATER`,
-  `VERBOSITY` and `QUIET` are accepted and have no effect.** Output is always written the way Picard
-  writes it at its default compression level with the JDK deflater, and memory is not bounded by a
-  record count.
+- **`MAX_RECORDS_IN_RAM`, `TMP_DIR`, `USE_JDK_INFLATER`, `VERBOSITY` and `QUIET` are accepted and
+  have no effect.** None of them changes an output file in Picard either: the first two bound memory
+  and name where records spill (picard-rs keeps them in memory), the inflater only reads, and the
+  last two set how much Picard logs. `COMPRESSION_LEVEL` and `USE_JDK_DEFLATER` do take effect, as
+  below.
+- **Headers**: metrics files carry placeholder command-line and date lines, and no tool adds its
+  own `@PG` record (see [Getting the same bytes as Picard](#getting-the-same-bytes-as-picard)).
 - An unknown or misspelled argument is refused with Picard's own message, usage and exit status.
   Any other error prints `Error: ...` on stderr and exits with status 1.
 
@@ -131,14 +120,14 @@ All 121 command-line programs of Picard 3.5.0, by Picard's own program groups:
 
 ## Getting the same bytes as Picard
 
-picard-rs reproduces Picard run with `USE_JDK_DEFLATER=true USE_JDK_INFLATER=true`. By default
-Picard compresses with the Intel deflater, which writes different bytes for the same data, so a
-BAM or a compressed VCF from a default Picard run decompresses to the same content but is not the
-same file. To compare file for file, run Picard with those two arguments:
+The same command writes the same file. Like Picard, picard-rs compresses every BAM, compressed VCF,
+FASTQ and tabix index with Intel's GKL deflater at `COMPRESSION_LEVEL` (5 unless given), and with
+libdeflate when `USE_JDK_DEFLATER=true` (despite its name, that is what Picard 3.5.0 uses then:
+htsjdk 5 picks libdeflate whenever it can). A run of each gives the same bytes:
 
 ```bash
-java -jar picard.jar SortSam I=in.bam O=picard.bam SORT_ORDER=coordinate USE_JDK_DEFLATER=true USE_JDK_INFLATER=true
-sort-sam I=in.bam O=picard-rs.bam SORT_ORDER=coordinate
+java -jar picard.jar SortSam I=in.bam O=picard.bam SORT_ORDER=coordinate
+SortSam I=in.bam O=picard-rs.bam SORT_ORDER=coordinate
 cmp picard.bam picard-rs.bam && echo identical
 ```
 

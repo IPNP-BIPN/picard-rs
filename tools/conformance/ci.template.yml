@@ -73,6 +73,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: nasm, which gkl-igzip needs to build
+        # The htsjdk-bgzf `gkl-igzip` feature assembles ISA-L, so every job that compiles the
+        # workspace needs an assembler; see the deflater job for why the feature stays on.
+        run: |
+          sudo apt-get update -qq || echo "apt refresh incomplete; the install below is the gate"
+          sudo apt-get install -y -qq nasm
+          nasm -v
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.1"
@@ -82,7 +90,7 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
 
-      - run: cargo build --release --bin collect-alignment-summary-metrics --bin add-oa-tag
+      - run: cargo build --release --bin CollectAlignmentSummaryMetrics --bin AddOATag
 
       - name: Build the fixture corpus
         run: |
@@ -100,7 +108,7 @@ jobs:
         # where a locale-sensitive formatter would write "0,333333".
         run: |
           set -eux
-          B=target/release/collect-alignment-summary-metrics
+          B=target/release/CollectAlignmentSummaryMetrics
           F=target/fixtures
           $B I=$F/small.bam O=/tmp/run1.txt R=$F/ref.fasta
           $B I=$F/small.bam O=/tmp/run2.txt R=$F/ref.fasta
@@ -113,11 +121,21 @@ jobs:
           done
           echo "four runs, three environments, identical"
 
-  fuzz:
-    name: "Coverage-guided fuzzing of the reference"
+  deflater:
+    name: "COMPRESSION_LEVEL and USE_JDK_DEFLATER: the BAM Picard writes, byte for byte"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: nasm, which is what makes GKL's igzip exact rather than merely valid
+        # GKL routes levels 0 to 2 through ISA-L igzip. Without an assembler ISA-L falls back to
+        # its readable C, which is valid deflate but not GKL's, and `gkl-deflate` refuses those
+        # levels rather than guess. The refresh may fail on a third-party apt source; the install
+        # is the gate.
+        run: |
+          sudo apt-get update -qq || echo "apt refresh incomplete; the install below is the gate"
+          sudo apt-get install -y -qq nasm
+          nasm -v
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -128,7 +146,91 @@ jobs:
       - name: Build the pinned oracle image
         run: docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
 
-      - run: cargo build --release --bin collect-alignment-summary-metrics
+      - run: cargo build --release --bin SortSam --bin AddCommentsToBam --bin GatherBamFiles
+
+      - name: Build the fixture corpus
+        run: |
+          mkdir -p target/fixtures
+          docker run --rm --platform linux/amd64 -v "$PWD/tools/coverage":/harness:ro \
+            -v "$PWD/target/fixtures":/out -w /work picard-rs-oracle:3.5.0 \
+            'cp /harness/*.java . && javac -cp "$ORACLE_CP" -d . *.java \
+             && java -Dsamjdk.try_use_intel_deflater=false -Dsamjdk.use_libdeflate=false -cp ".:$ORACLE_CP" MakeFixtures /out'
+
+      - name: The same command line writes the same bytes, at every level and with either deflater
+        # Picard's CommandLineProgram installs Intel's GKL unless USE_JDK_DEFLATER=true, and sets
+        # every BGZF writer's level from COMPRESSION_LEVEL. With USE_JDK_DEFLATER htsjdk 5 picks
+        # libdeflate. The whole file is compared, framing included, so this is the deflater and the
+        # level and nothing else. SortSam writes through the BAM writer, AddCommentsToBam through
+        # the block-copy reheader and GatherBamFiles through the gather, which re-compress only the
+        # blocks they rewrite. Both sides run from the same directory layout, so a row's arguments
+        # are the same words on each; AddCommentsToBam refuses an input it cannot write, so it is
+        # given a copy.
+        run: |
+          set -eu
+          mkdir -p target/deflater
+          cp target/fixtures/small.bam target/deflater/comments_in.bam
+          F=fixtures
+          rows=(
+            "sort|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate"
+            "sort_l0|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate COMPRESSION_LEVEL=0"
+            "sort_l1|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate COMPRESSION_LEVEL=1"
+            "sort_l2|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate COMPRESSION_LEVEL=2"
+            "sort_l3|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate COMPRESSION_LEVEL=3"
+            "sort_l9|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate COMPRESSION_LEVEL=9"
+            "sort_jdk|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate USE_JDK_DEFLATER=true"
+            "sort_jdk1|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate USE_JDK_DEFLATER=true COMPRESSION_LEVEL=1"
+            "sort_jdk9|SortSam|I=$F/queryname.bam SORT_ORDER=coordinate USE_JDK_DEFLATER=true COMPRESSION_LEVEL=9"
+            "comments|AddCommentsToBam|I=deflater/comments_in.bam C=one C=two"
+            "comments_jdk|AddCommentsToBam|I=deflater/comments_in.bam C=one USE_JDK_DEFLATER=true COMPRESSION_LEVEL=2"
+            "gather|GatherBamFiles|I=$F/small.bam I=$F/small.bam"
+            "gather_jdk|GatherBamFiles|I=$F/small.bam I=$F/small.bam USE_JDK_DEFLATER=true COMPRESSION_LEVEL=7"
+          )
+          script="cd /work"
+          for row in "${rows[@]}"; do
+            IFS="|" read -r name tool args <<< "$row"
+            script+=" && java -jar \$PICARD_JAR $tool $args O=deflater/picard_$name.bam >/dev/null 2>&1"
+            (cd target && "release/$tool" $args O=deflater/port_$name.bam) \
+              || echo "the port refused $name"
+          done
+          docker run --rm --platform linux/amd64 -v "$PWD/target/fixtures":/work/fixtures:ro \
+            -v "$PWD/target/deflater":/work/deflater picard-rs-oracle:3.5.0 "$script"
+          failed=0
+          for row in "${rows[@]}"; do
+            name="${row%%|*}"
+            test -s "target/deflater/picard_$name.bam" || { echo "Picard wrote nothing for $name"; failed=1; continue; }
+            test -s "target/deflater/port_$name.bam" || { echo "the port wrote nothing for $name"; failed=1; continue; }
+            if cmp -s "target/deflater/picard_$name.bam" "target/deflater/port_$name.bam"; then
+              echo "$name: identical"
+            else
+              echo "$name: DIFFERS"; failed=1
+            fi
+          done
+          exit $failed
+
+  fuzz:
+    name: "Coverage-guided fuzzing of the reference"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: nasm, which gkl-igzip needs to build
+        # The htsjdk-bgzf `gkl-igzip` feature assembles ISA-L, so every job that compiles the
+        # workspace needs an assembler; see the deflater job for why the feature stays on.
+        run: |
+          sudo apt-get update -qq || echo "apt refresh incomplete; the install below is the gate"
+          sudo apt-get install -y -qq nasm
+          nasm -v
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the pinned oracle image
+        run: docker build --platform linux/amd64 -t picard-rs-oracle:3.5.0 tools/oracle
+
+      - run: cargo build --release --bin CollectAlignmentSummaryMetrics
 
       - name: Fuzz, seeded from the covering array, and replay against the port
         # The covering arrays cover interactions between arguments; they say nothing about which
@@ -139,7 +241,7 @@ jobs:
         run: |
           python3 tools/fuzz/run_fuzz.py --tool CollectQualityYieldMetrics --iterations 60
           python3 tools/fuzz/run_fuzz.py --tool CollectAlignmentSummaryMetrics --iterations 60 \
-            --port target/release/collect-alignment-summary-metrics
+            --port target/release/CollectAlignmentSummaryMetrics
 
       - name: Publish the findings
         # Findings are evidence, not goldens: they say what the reference did and where the port
@@ -159,6 +261,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: nasm, which gkl-igzip needs to build
+        # The htsjdk-bgzf `gkl-igzip` feature assembles ISA-L, so every job that compiles the
+        # workspace needs an assembler; see the deflater job for why the feature stays on.
+        run: |
+          sudo apt-get update -qq || echo "apt refresh incomplete; the install below is the gate"
+          sudo apt-get install -y -qq nasm
+          nasm -v
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -197,6 +307,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: nasm, which gkl-igzip needs to build
+        # The htsjdk-bgzf `gkl-igzip` feature assembles ISA-L, so every job that compiles the
+        # workspace needs an assembler; see the deflater job for why the feature stays on.
+        run: |
+          sudo apt-get update -qq || echo "apt refresh incomplete; the install below is the gate"
+          sudo apt-get install -y -qq nasm
+          nasm -v
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.1"
@@ -216,13 +334,13 @@ jobs:
           ls -la target/benchmark/bench.bam
 
       - name: Build the port
-        run: cargo build --release --bin collect-alignment-summary-metrics --bin add-oa-tag
+        run: cargo build --release --bin CollectAlignmentSummaryMetrics --bin AddOATag
 
       - name: Time both, on the same hardware, neither emulated
         # The runner is real x86-64, so this is the authoritative figure; the numbers in
         # decision 0004 come from an emulated container and say so.
         run: |
-          cp target/release/collect-alignment-summary-metrics target/benchmark/
+          cp target/release/CollectAlignmentSummaryMetrics target/benchmark/
           cat > target/benchmark/bench.sh <<'INNER'
           cd /out
           TIMEFORMAT='%3R'
@@ -231,9 +349,9 @@ jobs:
           echo "picard_gkl_default_s"
           for i in 1 2 3; do { time java -jar $PICARD_JAR CollectAlignmentSummaryMetrics I=bench.bam O=/out/picard.txt R=bench.fasta >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_s"
-          for i in 1 2 3; do { time /out/collect-alignment-summary-metrics I=bench.bam O=/out/rust.txt R=bench.fasta >/dev/null 2>&1 ; } 2>&1; done
+          for i in 1 2 3; do { time /out/CollectAlignmentSummaryMetrics I=bench.bam O=/out/rust.txt R=bench.fasta >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_phases"
-          PICARD_RS_TIMING=1 /out/collect-alignment-summary-metrics I=bench.bam O=/out/rust.txt R=bench.fasta
+          PICARD_RS_TIMING=1 /out/CollectAlignmentSummaryMetrics I=bench.bam O=/out/rust.txt R=bench.fasta
           INNER
           docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.5.0 'bash /out/bench.sh'
 
@@ -264,24 +382,24 @@ jobs:
         # RAYON_NUM_THREADS=1 to expose the single-thread floor, rust_nt leaves rayon on all cores,
         # and the gap between them is the multicore win, isolated from the Rust-vs-JVM baseline.
         run: |
-          cp target/release/add-oa-tag target/benchmark/
+          cp target/release/AddOATag target/benchmark/
           cat > target/benchmark/oabench.sh <<'INNER'
           cd /out
           TIMEFORMAT='%3R'
           echo "picard_addoatag_s"
           for i in 1 2 3; do { time java -jar $PICARD_JAR AddOATag I=bench.bam O=/out/picard_oa.sam VALIDATION_STRINGENCY=SILENT >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_1t_s"
-          for i in 1 2 3; do { time env RAYON_NUM_THREADS=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
+          for i in 1 2 3; do { time env RAYON_NUM_THREADS=1 /out/AddOATag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
           echo "rust_nt_s"
-          for i in 1 2 3; do { time /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
+          for i in 1 2 3; do { time /out/AddOATag I=bench.bam O=/out/rust_oa.sam >/dev/null 2>&1 ; } 2>&1; done
           # The whole-program numbers above are I/O-bound; these phase lines isolate the transform
           # itself, where the add_oa step is the only thing rayon parallelizes. Compare add_oa across
           # the two: that ratio is the multicore speedup on the work, before decode/encode/write dilute
           # it end to end.
           echo "rust_1t_phases"
-          PICARD_RS_TIMING=1 RAYON_NUM_THREADS=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam
+          PICARD_RS_TIMING=1 RAYON_NUM_THREADS=1 /out/AddOATag I=bench.bam O=/out/rust_oa.sam
           echo "rust_nt_phases"
-          PICARD_RS_TIMING=1 /out/add-oa-tag I=bench.bam O=/out/rust_oa.sam
+          PICARD_RS_TIMING=1 /out/AddOATag I=bench.bam O=/out/rust_oa.sam
           INNER
           docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.5.0 'bash /out/oabench.sh'
 

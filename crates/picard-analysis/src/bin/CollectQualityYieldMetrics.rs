@@ -1,0 +1,83 @@
+//! `CollectQualityYieldMetrics` as a runnable binary: the covering array's port side.
+//!
+//! The array has existed since the harness landed and has only ever run the reference: the fuzzer
+//! seeds from it, and the port half was empty because there was no binary to run. This is that
+//! half.
+//!
+//! The tool counts bases and quality, so the arguments that matter are the ones deciding WHICH
+//! bases are counted: whether the original qualities are used where a record carries them, and
+//! whether secondary and supplementary records are counted at all.
+//!
+//! It reads a BAM or a SAM, telling the two apart by the file's own first bytes, because the
+//! array's fixtures are one of each.
+
+use htsjdk_metrics::file::MetricsFile;
+use picard_analysis::args::arg;
+use picard_analysis::quality_yield::{Options, QualityYieldMetricsCollector};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    picard_analysis::argument_check::check("CollectQualityYieldMetrics");
+    picard_analysis::output::install();
+    let args: Vec<String> = std::env::args().collect();
+    let input = arg(&args, "INPUT=")
+        .or_else(|| arg(&args, "I="))
+        .ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=")
+        .or_else(|| arg(&args, "O="))
+        .ok_or("OUTPUT= is required")?;
+
+    let mut options = Options::default();
+    if let Some(value) = arg(&args, "USE_ORIGINAL_QUALITIES=") {
+        options.use_original_qualities = picard_analysis::args::is_true(&value);
+    }
+    if let Some(value) = arg(&args, "INCLUDE_SECONDARY_ALIGNMENTS=") {
+        options.include_secondary_alignments = picard_analysis::args::is_true(&value);
+    }
+    if let Some(value) = arg(&args, "INCLUDE_SUPPLEMENTAL_ALIGNMENTS=") {
+        options.include_supplemental_alignments = picard_analysis::args::is_true(&value);
+    }
+    // The flow-mode collector is a different tool in the reference, and asking this one for it is
+    // refused rather than answered. The array holds the argument at `false` for that reason, and
+    // a row that ever asks for `true` should be refused here too.
+    if let Some(value) = arg(&args, "FLOW_MODE=") {
+        if picard_analysis::args::is_true(&value) {
+            return Err("FLOW_MODE is obsolete. Flow support now provided by \
+                 CollectQualityYieldMetricsFlow"
+                .into());
+        }
+    }
+    // Read so that a row naming them is not refused for naming them; neither changes what this
+    // tool counts on the array's fixtures.
+    if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
+        if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {
+            return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
+        }
+    }
+
+    // `QualityYieldMetricsCollector` reads bases, qualities and flags, never the CIGAR.
+    picard_analysis::record_validation::cigar_never_decoded();
+    let (_header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
+
+    // `SinglePassSamProgram.makeItSo` counts a record after handing it over, and stops once
+    // `STOP_AFTER` of them have been handed over; zero or less reads them all.
+    let stop_after: i64 = arg(&args, "STOP_AFTER=")
+        .map(|v| v.parse())
+        .transpose()?
+        .unwrap_or(0);
+    let mut collector = QualityYieldMetricsCollector::new(options);
+    for (count, record) in (1i64..).zip(records) {
+        collector.accept(&record);
+        if stop_after > 0 && count >= stop_after {
+            break;
+        }
+    }
+    collector.finish();
+
+    let mut file = MetricsFile::new();
+    for header in picard_analysis::command_line::default_headers("CollectQualityYieldMetrics") {
+        file.add_header(&header);
+    }
+    file.add_metric(collector.metrics());
+    std::fs::write(&output, file.write())?;
+    Ok(())
+}

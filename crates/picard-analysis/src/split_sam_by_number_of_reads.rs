@@ -127,12 +127,11 @@ pub fn split_sam_by_number_of_reads_to_bam(
     input_sam: &str,
     opts: &SplitOptions,
 ) -> Result<Vec<Vec<u8>>, SplitError> {
-    use htsjdk_bam::writer::BamWriter;
-
     let (header, shards) = split_shards(input_sam, opts)?;
     let mut out = Vec::with_capacity(shards.len());
     for recs in &shards {
-        let mut w = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+        let mut w = crate::output::bam_writer(Vec::new(), &header)
+            .expect("in-memory BAM writer never fails");
         for rec in recs {
             w.write(rec).expect("record re-encodes as BAM");
         }

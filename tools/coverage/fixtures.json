@@ -1509,7 +1509,9 @@
         "lines is what CREATE_INDEX refuses. SAMPLE is the set of samples kept: `null` clears it to",
         "the default empty set (a sites-only file), sampleA keeps one column, and sampleZ names a",
         "sample the file does not have, which the writer still gives a column of no-calls. OUTPUT",
-        "ends in .vcf because the writer infers its format from the extension and refuses output.txt."
+        "ends in .vcf because the writer infers its format from the extension and refuses output.txt.",
+        "OUTPUT is also a .vcf.gz, which htsjdk block-compresses with a tabix index beside it",
+        "(picard-rs#374); the .vcf.gz and its .tbi are compared byte for byte."
       ],
       "--INPUT": [
         "/work/fixtures/vcf_sorted_samples.vcf",
@@ -1517,7 +1519,8 @@
         "/work/fixtures/vcf_no_contigs.vcf"
       ],
       "--OUTPUT": [
-        "/work/out/output.vcf"
+        "/work/out/output.vcf",
+        "/work/out/output.vcf.gz"
       ],
       "--SAMPLE": [
         "null",
@@ -1532,7 +1535,9 @@
         "sites-only file (no sample, which is accepted until OLD_SAMPLE_NAME asks for the first one),",
         "and the two-sample file it refuses. OLD_SAMPLE_NAME is `null` (not checked) or sampleA, which",
         "one input has and the other is refused for, naming the sample found. OUTPUT ends in .vcf for",
-        "the reason MakeSitesOnlyVcf's does."
+        "the reason MakeSitesOnlyVcf's does.",
+        "OUTPUT is also a .vcf.gz, which htsjdk block-compresses with a tabix index beside it",
+        "(picard-rs#374); the .vcf.gz and its .tbi are compared byte for byte."
       ],
       "--INPUT": [
         "/work/fixtures/vcf_one_sample.vcf",
@@ -1541,7 +1546,8 @@
         "/work/fixtures/vcf_sorted_samples.vcf"
       ],
       "--OUTPUT": [
-        "/work/out/output.vcf"
+        "/work/out/output.vcf",
+        "/work/out/output.vcf.gz"
       ],
       "--NEW_SAMPLE_NAME": [
         "renamed",
@@ -1573,7 +1579,9 @@
         "is `null`, the corpus's own dictionary (which agrees with the VCFs), and other.dict, which",
         "does not and is refused. It is read through SamReaderFactory, so it is a .dict, not the",
         "FASTA the shared value names. INPUT is one file per row: a second input would need two",
-        "values in one row, which the harness cannot pass."
+        "values in one row, which the harness cannot pass.",
+        "OUTPUT is also a .vcf.gz, which htsjdk block-compresses with a tabix index beside it",
+        "(picard-rs#374); the .vcf.gz and its .tbi are compared byte for byte."
       ],
       "--INPUT": [
         "/work/fixtures/vcf_sorted_samples.vcf",
@@ -1581,7 +1589,8 @@
         "/work/fixtures/vcf_no_contigs.vcf"
       ],
       "--OUTPUT": [
-        "/work/out/output.vcf"
+        "/work/out/output.vcf",
+        "/work/out/output.vcf.gz"
       ],
       "--SEQUENCE_DICTIONARY": [
         "null",
@@ -1596,7 +1605,9 @@
         "extension: the FASTA (whose .dict beside it is read), a .dict that disagrees with the",
         "corpus and carries an assembly, a VCF's contig lines, an interval list's header, and a VCF",
         "with no contig lines, whose dictionary is null: refused by the writer when it is to index",
-        "and by setSequenceDictionary when it is not."
+        "and by setSequenceDictionary when it is not.",
+        "OUTPUT is also a .vcf.gz, which htsjdk block-compresses with a tabix index beside it",
+        "(picard-rs#374); the .vcf.gz and its .tbi are compared byte for byte."
       ],
       "--INPUT": [
         "/work/fixtures/vcf_sorted_samples.vcf",
@@ -1604,7 +1615,8 @@
         "/work/fixtures/vcf_no_contigs.vcf"
       ],
       "--OUTPUT": [
-        "/work/out/output.vcf"
+        "/work/out/output.vcf",
+        "/work/out/output.vcf.gz"
       ],
       "--SEQUENCE_DICTIONARY": [
         "/work/fixtures/ref.fasta",
@@ -1628,7 +1640,8 @@
         "is out of order, which the merge refuses only when it goes backwards. COMMENT keeps only the",
         "first comment (addMetaDataLine refuses a second line under one key). A `.list` INPUT is not",
         "a value: the paths inside it are the container's, and the port runs on the host. OUTPUT is a",
-        ".vcf: BCF writing is not in htsjdk-rs, and a .vcf.gz would be another file to compare."
+        ".vcf or a .vcf.gz, which htsjdk block-compresses with a tabix index beside it (picard-rs#374);",
+        "the .vcf.gz and its .tbi are compared byte for byte. BCF writing is not in htsjdk-rs."
       ],
       "$lists": [
         "--INPUT",
@@ -1645,7 +1658,8 @@
         "/work/fixtures/vcf_sorted_samples.vcf /work/fixtures/merge_b.vcf"
       ],
       "--OUTPUT": [
-        "/work/out/output.vcf"
+        "/work/out/output.vcf",
+        "/work/out/output.vcf.gz"
       ],
       "--SEQUENCE_DICTIONARY": [
         "null",
@@ -1669,7 +1683,9 @@
         "copied); merge_swapped_contigs.vcf has another dictionary (an AssertionError, which escapes the",
         "tool's catch); merge_b_no_contigs.vcf has none, refused before the catch when indexing and by",
         "a NullPointerException inside it when not. COMMENT keeps only the first comment. OUTPUT is a",
-        ".vcf: the block-copying gather needs a .vcf.gz output and every input compressed, and a",
+        ".vcf or a .vcf.gz, compared byte for byte with its .tbi (picard-rs#374). gather_1.vcf.gz and",
+        "gather_2.vcf.gz, every input compressed, beside a .vcf.gz output are the block-copying gather,",
+        "which writes no index; beside a .vcf output they are read record by record. A",
         ".list INPUT names container paths the host port cannot open."
       ],
       "$lists": [
@@ -1678,6 +1694,7 @@
       ],
       "--INPUT": [
         "/work/fixtures/gather_1.vcf /work/fixtures/gather_2.vcf",
+        "/work/fixtures/gather_1.vcf.gz /work/fixtures/gather_2.vcf.gz",
         "/work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
         "/work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf /work/fixtures/gather_1.vcf",
         "/work/fixtures/gather_1.vcf /work/fixtures/gather_empty.vcf /work/fixtures/gather_2.vcf",
@@ -1689,7 +1706,8 @@
         "/work/fixtures/gather_1.vcf /work/fixtures/merge_b_no_contigs.vcf"
       ],
       "--OUTPUT": [
-        "/work/out/output.vcf"
+        "/work/out/output.vcf",
+        "/work/out/output.vcf.gz"
       ],
       "--COMMENT": [
         "null",
@@ -1705,6 +1723,9 @@
         "vcf_no_contigs.vcf is indexable only through SEQUENCE_DICTIONARY, which is read through",
         "SamReaderFactory, so it is a .dict; other.dict disagrees with the VCFs and is accepted,",
         "since it only feeds the index. vcf_sites_only.vcf has no samples. The outputs are .vcf:",
+        ".vcf.gz, which htsjdk block-compresses with a tabix index beside it (picard-rs#374); the",
+        ".vcf.gz and its .tbi are compared byte for byte, and a row may mix a .vcf.gz with a .vcf, where",
+        "htsjdk shares one tabix creator. BCF writing is not in htsjdk-rs.",
         "BCF writing is not in htsjdk-rs."
       ],
       "--INPUT": [
@@ -1718,11 +1739,13 @@
       ],
       "--SNP_OUTPUT": [
         "/work/out/snp.vcf",
-        "/work/out/snp_b.vcf"
+        "/work/out/snp_b.vcf",
+        "/work/out/snp.vcf.gz"
       ],
       "--INDEL_OUTPUT": [
         "/work/out/indel.vcf",
-        "/work/out/indel_b.vcf"
+        "/work/out/indel_b.vcf",
+        "/work/out/indel.vcf.gz"
       ],
       "--SEQUENCE_DICTIONARY": [
         "null",
@@ -1737,7 +1760,7 @@
         "reader only finds and loads it), so REQUIRE_INDEX lets them through to the tabix index of a",
         "compressed output, which refuses them; and two files with no index, which REQUIRE_INDEX",
         "refuses: vcf_no_contigs.vcf (which CREATE_INDEX refuses) and gather_1.vcf, gather_1.vcf.gz's",
-        "own text. OUTPUT is a .vcf, a .vcf.gz (compared decompressed) and a name the writer builder",
+        "own text. OUTPUT is a .vcf, a .vcf.gz (compared byte for byte) and a name the writer builder",
         "cannot place; both output names are compared. BCF is not a value on either side: htsjdk-rs",
         "has no BCF codec, so neither a .bcf input nor a .bcf output is ported."
       ],
@@ -1767,7 +1790,9 @@
         "ENFORCE_SAME_SAMPLES is false, and then missing the definitions). CHECK_FIRST_N_RECORDS is",
         "the default and 1, which scans one record, so a later undefined key reaches the writer, and",
         "which beside a HEADER is the tool's own command-line refusal. OUTPUT is a .vcf: BCF writing",
-        "is not in htsjdk-rs."
+        "is not in htsjdk-rs.",
+        "OUTPUT is also a .vcf.gz, which htsjdk block-compresses with a tabix index beside it",
+        "(picard-rs#374); the .vcf.gz and its .tbi are compared byte for byte."
       ],
       "--INPUT": [
         "/work/fixtures/fix_missing.vcf",
@@ -1776,7 +1801,8 @@
         "/work/fixtures/vcf_no_contigs.vcf"
       ],
       "--OUTPUT": [
-        "/work/out/output.vcf"
+        "/work/out/output.vcf",
+        "/work/out/output.vcf.gz"
       ],
       "--HEADER": [
         "null",
@@ -2647,7 +2673,9 @@
         "the chr2 records mismatch or have no target. LIFTOVER_MIN_MATCH 0.5 lets the deletion across",
         "the chain's end lift partially, which then straddles. TAGS_TO_REVERSE and TAGS_TO_DROP append",
         "to their defaults ($lists) or are emptied by null; DP is a tag that is not a frequency.",
-        "OUTPUT and REJECT are both compared."
+        "OUTPUT and REJECT are both compared.",
+        "OUTPUT is also a .vcf.gz, which htsjdk block-compresses with a tabix index beside it",
+        "(picard-rs#374); the .vcf.gz and its .tbi are compared byte for byte."
       ],
       "$lists": [
         "--TAGS_TO_REVERSE",
@@ -2658,7 +2686,8 @@
         "/work/fixtures/liftover_missing.vcf"
       ],
       "--OUTPUT": [
-        "/work/out/output.vcf"
+        "/work/out/output.vcf",
+        "/work/out/output.vcf.gz"
       ],
       "--REJECT": [
         "/work/out/reject.vcf",
@@ -3993,7 +4022,9 @@
         "dictionary; trio.vcf, vcf_unsorted_samples.vcf and vcf_sites_only.vcf are the corpus's other shapes. The",
         "compared file is output.vcf; the .idx beside it records a timestamp and is not compared. JAVASCRIPT_FILE keeps",
         "single-base sites past position 1000 (a site the script rejects is filtered under the script's base name), or",
-        "is not JavaScript at all."
+        "is not JavaScript at all.",
+        "OUTPUT is also a .vcf.gz, which htsjdk block-compresses with a tabix index beside it",
+        "(picard-rs#374); the .vcf.gz and its .tbi are compared byte for byte."
       ],
       "--INPUT": [
         "/work/fixtures/filter.vcf",
@@ -4003,7 +4034,8 @@
         "/work/fixtures/filter_no_contigs.vcf"
       ],
       "--OUTPUT": [
-        "/work/out/output.vcf"
+        "/work/out/output.vcf",
+        "/work/out/output.vcf.gz"
       ],
       "--MIN_AB": [
         "0.0",

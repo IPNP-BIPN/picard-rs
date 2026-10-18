@@ -157,13 +157,11 @@ pub fn split_sam_by_library(input_sam: &str) -> Result<Vec<(String, String)>, Sp
 pub fn split_sam_by_library_to_bam(
     input_sam: &str,
 ) -> Result<Vec<(String, Vec<u8>)>, SplitLibError> {
-    use htsjdk_bam::writer::BamWriter;
-
     split_outputs(input_sam)?
         .into_iter()
         .map(|(name, header, recs)| {
-            let mut w =
-                BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+            let mut w = crate::output::bam_writer(Vec::new(), &header)
+                .expect("in-memory BAM writer never fails");
             for rec in &recs {
                 w.write(rec).expect("record re-encodes as BAM");
             }

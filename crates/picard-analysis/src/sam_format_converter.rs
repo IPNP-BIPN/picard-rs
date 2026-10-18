@@ -16,7 +16,6 @@ use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
-use htsjdk_bam::writer::BamWriter;
 
 /// `SamFormatConverter` for a BAM (already BGZF-decompressed) to SAM text.
 pub fn bam_to_sam(decompressed_bam: &[u8]) -> Result<String, String> {
@@ -34,7 +33,8 @@ pub fn sam_to_bam(sam_text: &str) -> Result<Vec<u8>, String> {
     // The tool opens the input at VALIDATION_STRINGENCY.SILENT; stringency does not reach the bytes.
     let (header, records) =
         read_sam_with(sam_text, ValidationStringency::Lenient).map_err(|e| format!("{e:?}"))?;
-    let mut writer = BamWriter::new(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
+    let mut writer =
+        crate::output::bam_writer(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
     for rec in &records {
         writer.write(rec).map_err(|e| format!("{e:?}"))?;
     }

@@ -360,9 +360,9 @@ pub fn fix_mate_information_to_bam_with(
     input_sam: &str,
     options: &Options,
 ) -> Result<Vec<u8>, FixMateError> {
-    use htsjdk_bam::writer::BamWriter;
     let (header, records) = fix_mates_with(input_sam, options)?;
-    let mut writer = BamWriter::new(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    let mut writer =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
     for rec in &records {
         writer
             .write(rec)

@@ -130,18 +130,18 @@ fn every_command_line_is_the_one_picard_records() {
 /// The binary that ports a tool, built alongside this test.
 fn binary(tool: &str) -> &'static str {
     match tool {
-        "MarkDuplicates" => env!("CARGO_BIN_EXE_mark-duplicates"),
-        "MarkDuplicatesWithMateCigar" => env!("CARGO_BIN_EXE_mark-duplicates-with-mate-cigar"),
+        "MarkDuplicates" => env!("CARGO_BIN_EXE_MarkDuplicates"),
+        "MarkDuplicatesWithMateCigar" => env!("CARGO_BIN_EXE_MarkDuplicatesWithMateCigar"),
         "SimpleMarkDuplicatesWithMateCigar" => {
-            env!("CARGO_BIN_EXE_simple-mark-duplicates-with-mate-cigar")
+            env!("CARGO_BIN_EXE_SimpleMarkDuplicatesWithMateCigar")
         }
         "UmiAwareMarkDuplicatesWithMateCigar" => {
-            env!("CARGO_BIN_EXE_umi-aware-mark-duplicates-with-mate-cigar")
+            env!("CARGO_BIN_EXE_UmiAwareMarkDuplicatesWithMateCigar")
         }
-        "DownsampleSam" => env!("CARGO_BIN_EXE_downsample-sam"),
-        "PositionBasedDownsampleSam" => env!("CARGO_BIN_EXE_position-based-downsample-sam"),
-        "IntervalListTools" => env!("CARGO_BIN_EXE_interval-list-tools"),
-        "CollectQualityYieldMetrics" => env!("CARGO_BIN_EXE_collect-quality-yield-metrics"),
+        "DownsampleSam" => env!("CARGO_BIN_EXE_DownsampleSam"),
+        "PositionBasedDownsampleSam" => env!("CARGO_BIN_EXE_PositionBasedDownsampleSam"),
+        "IntervalListTools" => env!("CARGO_BIN_EXE_IntervalListTools"),
+        "CollectQualityYieldMetrics" => env!("CARGO_BIN_EXE_CollectQualityYieldMetrics"),
         other => panic!("no binary for {other}"),
     }
 }
