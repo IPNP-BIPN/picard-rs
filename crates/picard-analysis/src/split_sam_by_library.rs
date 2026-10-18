@@ -73,22 +73,35 @@ pub fn split_outputs(
     split_records(header, records)
 }
 
-/// [`split_outputs`] over records already read: a BAM's come decoded, and nothing is set on them,
-/// so each keeps the bytes it was read from, as htsjdk keeps them.
-pub fn split_records(
-    header: SamHeader,
-    records: Vec<BamRecord>,
-) -> Result<Vec<(String, SamHeader, Vec<BamRecord>)>, SplitLibError> {
-    // Group read groups by library, preserving header order; those with no LB seed the unknown header.
-    let mut lib_order: Vec<String> = Vec::new();
-    let mut lib_to_rgs: HashMap<String, Vec<ReadGroup>> = HashMap::new();
+/// The outputs a header asks for, before any record is read.
+pub struct Libraries {
+    /// Each library's `(file base name, header)`, in header order. A library output is always
+    /// written, even with no records.
+    pub outputs: Vec<(String, SamHeader)>,
+    /// The header of the `unknown` output, written only when a record is routed there.
+    pub unknown: SamHeader,
+    /// Read group id to library output.
+    by_read_group: HashMap<String, usize>,
+}
+
+impl Libraries {
+    /// The library output `rec` goes to, or `None` for `unknown`.
+    pub fn route(&self, rec: &BamRecord) -> Option<usize> {
+        read_group_id(rec).and_then(|id| self.by_read_group.get(id).copied())
+    }
+}
+
+/// Groups the header's read groups by library, preserving header order; those with no LB seed the
+/// unknown header.
+pub fn libraries(header: &SamHeader) -> Result<Libraries, SplitLibError> {
+    let mut lib_order: Vec<&str> = Vec::new();
+    let mut lib_to_rgs: HashMap<&str, Vec<ReadGroup>> = HashMap::new();
     let mut unknown_rgs: Vec<ReadGroup> = Vec::new();
     for rg in &header.read_groups {
         match library_of(rg) {
             Some(lib) => {
-                let lib = lib.to_string();
-                if !lib_to_rgs.contains_key(&lib) {
-                    lib_order.push(lib.clone());
+                if !lib_to_rgs.contains_key(lib) {
+                    lib_order.push(lib);
                 }
                 lib_to_rgs.entry(lib).or_default().push(rg.clone());
             }
@@ -98,43 +111,54 @@ pub fn split_records(
     if lib_to_rgs.is_empty() {
         return Err(SplitLibError::NoLibrariesInHeader);
     }
-
-    // id -> library, to route records.
-    let mut id_to_lib: HashMap<&str, &str> = HashMap::new();
+    let mut by_read_group = HashMap::new();
     for rg in &header.read_groups {
         if let Some(lib) = library_of(rg) {
-            id_to_lib.insert(rg.id.as_str(), lib);
+            let index = lib_order.iter().position(|l| *l == lib).expect("listed");
+            by_read_group.insert(rg.id.clone(), index);
         }
     }
+    let outputs = lib_order
+        .iter()
+        .map(|lib| {
+            let mut h = header.clone();
+            h.read_groups = lib_to_rgs[lib].clone();
+            (make_file_name_safe(lib), h)
+        })
+        .collect();
+    let mut unknown = header.clone();
+    unknown.read_groups = unknown_rgs;
+    Ok(Libraries {
+        outputs,
+        unknown,
+        by_read_group,
+    })
+}
 
-    // Route each record into its library's bucket, or unknown.
-    let mut lib_records: HashMap<String, Vec<&BamRecord>> = HashMap::new();
-    let mut unknown_records: Vec<&BamRecord> = Vec::new();
-    for rec in &records {
-        match read_group_id(rec).and_then(|id| id_to_lib.get(id)) {
-            Some(lib) => lib_records.entry((*lib).to_string()).or_default().push(rec),
+/// [`split_outputs`] over records already read: a BAM's come decoded, and nothing is set on them,
+/// so each keeps the bytes it was read from, as htsjdk keeps them.
+pub fn split_records(
+    header: SamHeader,
+    records: Vec<BamRecord>,
+) -> Result<Vec<(String, SamHeader, Vec<BamRecord>)>, SplitLibError> {
+    let libraries = libraries(&header)?;
+    let mut buckets: Vec<Vec<BamRecord>> = vec![Vec::new(); libraries.outputs.len()];
+    let mut unknown_records = Vec::new();
+    for rec in records {
+        match libraries.route(&rec) {
+            Some(index) => buckets[index].push(rec),
             None => unknown_records.push(rec),
         }
     }
-
-    let owned =
-        |recs: &[&BamRecord]| -> Vec<BamRecord> { recs.iter().map(|r| (*r).clone()).collect() };
-
-    // Build the outputs. A library output is always written (even with no records); the unknown
-    // output only when at least one record routed there.
-    let mut out: Vec<(String, SamHeader, Vec<BamRecord>)> = Vec::new();
-    for lib in &lib_order {
-        let mut h = header.clone();
-        h.read_groups = lib_to_rgs[lib].clone();
-        let recs = lib_records.get(lib).cloned().unwrap_or_default();
-        out.push((make_file_name_safe(lib), h, owned(&recs)));
-    }
+    let mut out: Vec<(String, SamHeader, Vec<BamRecord>)> = libraries
+        .outputs
+        .into_iter()
+        .zip(buckets)
+        .map(|((name, h), recs)| (name, h, recs))
+        .collect();
     if !unknown_records.is_empty() {
-        let mut h = header.clone();
-        h.read_groups = unknown_rgs.clone();
-        out.push(("unknown".to_string(), h, owned(&unknown_records)));
+        out.push(("unknown".to_string(), libraries.unknown, unknown_records));
     }
-
     out.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(out)
 }

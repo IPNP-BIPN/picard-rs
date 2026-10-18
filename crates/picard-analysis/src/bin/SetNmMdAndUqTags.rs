@@ -13,13 +13,9 @@
 //!
 //! The output is a BAM, written presorted, with the input's header unchanged and no `@PG`.
 
-use std::io::Read;
-
-use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use picard_analysis::args::arg;
 use picard_analysis::set_nm_md_and_uq_tags::{fix_record, Options};
+use picard_analysis::stream_output::Output;
 
 // `pub` because `SetNmAndUqTags`, Picard's older name for the same tool, includes this file.
 pub fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -51,22 +47,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let (header, mut records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
+    let (header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
 
     // The check is the tool's first act after opening the reader, before the writer exists, so a
     // refused row leaves no output file behind.
@@ -85,22 +66,19 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|c| (c.name.as_str(), c.bases.as_slice()))
         .collect();
 
-    for record in &mut records {
-        if record.reference_index < 0 {
-            continue;
+    // A BAM whatever the name, as the whole-file writer wrote it, and no file when a record fails.
+    let mut out = Output::bam(&output, &header, false)?;
+    for mut record in records {
+        if record.reference_index >= 0 {
+            let name = &header.sequences[record.reference_index as usize].name;
+            let reference_bases = *bases
+                .get(name.as_str())
+                .ok_or_else(|| format!("no reference bases for contig {name}"))?;
+            fix_record(&mut record, reference_bases, options);
         }
-        let name = &header.sequences[record.reference_index as usize].name;
-        let reference_bases = *bases
-            .get(name.as_str())
-            .ok_or_else(|| format!("no reference bases for contig {name}"))?;
-        fix_record(record, reference_bases, options);
+        out.write(&record)?;
     }
-
-    let mut writer =
-        picard_analysis::output::bam_writer(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
-    for record in &records {
-        writer.write(record).map_err(|e| format!("{e:?}"))?;
-    }
-    picard_analysis::cram_output::write(&output, writer.finish().map_err(|e| format!("{e:?}"))?)?;
+    // `cram_output::write`: a CRAM takes `CREATE_INDEX` from the command line, a BAM no index.
+    out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
     Ok(())
 }

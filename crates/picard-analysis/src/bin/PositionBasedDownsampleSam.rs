@@ -13,15 +13,12 @@
 //!
 //! Ten rows, ten accepted, ten distinct outputs.
 
-use std::io::Read;
-
-use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use picard_analysis::args::arg;
 use picard_analysis::position_based_downsample_sam::{
     fraction_out_of_range_message, keep, PhysicalLocation, PG_PROGRAM_NAME,
 };
+
+use picard_analysis::stream_output::Output;
 
 const DUPLICATE_READ: u16 = 0x400;
 
@@ -73,22 +70,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let (header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
+    let opened = picard_analysis::bam_stream::Input::open(&input)?;
+    let streamed = opened.streams();
+    let (header, records) = opened.into_parts();
+    // The first of the tool's two passes, which keeps only where each read was.
+    let records: Vec<_> = records.map(|rec| rec.read_name).collect();
 
     // `checkProgramRecords`, before either pass: a file this tool has already downsampled is
     // refused outright unless the caller has said to go ahead anyway.
@@ -112,9 +98,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // defaults, which are -1 and not zero.
     let locations: Vec<PhysicalLocation> = records
         .iter()
-        .map(|rec| {
+        .map(|read_name| {
             let parsed =
-                picard_analysis::mark_duplicates::location_with(&rec.read_name, &read_name_regex);
+                picard_analysis::mark_duplicates::location_with(read_name, &read_name_regex);
             if parsed.known {
                 PhysicalLocation {
                     tile: parsed.tile,
@@ -137,18 +123,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut header = header;
     let pg = picard_analysis::command_line::pg_record(&header, PG_PROGRAM_NAME);
     header.programs.push(pg);
-    let mut writer =
-        picard_analysis::output::bam_writer(Vec::new(), &header).map_err(|e| format!("{e:?}"))?;
-    for (record, keep_it) in records.iter().zip(&mask) {
+    // The second pass, written as it is read: a BAM whatever the name, and no file when a record
+    // fails.
+    let records = picard_analysis::bam_stream::Input::reopen(&input, streamed)?
+        .into_parts()
+        .1;
+    let mut out = Output::bam(&output, &header, false)?;
+    for (mut record, keep_it) in records.zip(mask) {
         if !keep_it {
             continue;
         }
-        let mut record = record.clone();
         if remove_duplicate_information {
             record.flags &= !DUPLICATE_READ;
         }
-        writer.write(&record).map_err(|e| format!("{e:?}"))?;
+        out.write(&record)?;
     }
-    picard_analysis::cram_output::write(&output, writer.finish().map_err(|e| format!("{e:?}"))?)?;
+    // `cram_output::write`: a CRAM takes `CREATE_INDEX` from the command line, a BAM no index.
+    out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
     Ok(())
 }

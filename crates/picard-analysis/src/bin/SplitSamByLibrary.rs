@@ -6,11 +6,11 @@
 
 use std::io::Read;
 
-use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::{read_sam, write_sam};
+use htsjdk_bam::sam_file::write_sam;
 use picard_analysis::args::arg;
-use picard_analysis::split_sam_by_library::split_sam_by_library;
+use picard_analysis::split_sam_by_library::{libraries, split_sam_by_library};
+use picard_analysis::stream_output::{Output, OutputDir};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SplitSamByLibrary");
@@ -29,27 +29,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let cram_input = picard_analysis::cram_input::is_cram(&raw);
-    let raw = picard_analysis::cram_input::uncram(raw);
+    let mut magic = Vec::new();
+    std::fs::File::open(&input)?
+        .take(4)
+        .read_to_end(&mut magic)?;
+    let cram_input = picard_analysis::cram_input::is_cram(&magic);
     // The outputs take the INPUT's format, as `reader.type().fileExtension()` gives it.
-    let bam_input = raw.starts_with(&[0x1f, 0x8b]);
-    // A BAM input is split as decoded records, each written back from the bytes it was read from;
-    // a SAM one is parsed and re-encoded, so that it takes the path its text always took.
-    let (header, records): (SamHeader, Vec<BamRecord>) = if bam_input {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header: SamHeader = reader.header.text.clone();
-        let records: Vec<BamRecord> = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
+    let bam_input = cram_input || magic.starts_with(&[0x1f, 0x8b]);
+    let (header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
+    let extension = if bam_input { "bam" } else { "sam" };
+    let path_of = |name: &str| -> String {
+        let path = std::path::Path::new(&output).join(format!("{name}.{extension}"));
+        path.display().to_string()
     };
+
+    // Two libraries whose file names collide, or one named like the `unknown` output, are left to
+    // the whole-file split, which writes one file after the other.
+    let streams = !cram_input
+        && libraries(&header).is_ok_and(|libraries| {
+            let mut names: Vec<&str> = libraries.outputs.iter().map(|(n, _)| n.as_str()).collect();
+            names.push("unknown");
+            names.sort_unstable();
+            names.windows(2).all(|pair| pair[0] != pair[1])
+        });
+    if streams {
+        let libraries = libraries(&header).expect("checked above");
+        let dir = OutputDir::create(&output)?;
+        let mut outputs = libraries
+            .outputs
+            .iter()
+            .map(|(name, header)| Output::create(&path_of(name), header, false))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut unknown = None;
+        // A BAM input's records are written back from the bytes they were read from; a SAM one's
+        // are re-encoded, as the text always was.
+        for record in records {
+            match libraries.route(&record) {
+                Some(index) => outputs[index].write(&record)?,
+                None => {
+                    if unknown.is_none() {
+                        let path = path_of("unknown");
+                        unknown = Some(Output::create(&path, &libraries.unknown, false)?);
+                    }
+                    unknown.as_mut().expect("opened").write(&record)?
+                }
+            }
+        }
+        for out in outputs.into_iter().chain(unknown) {
+            out.finish(false, false)?;
+        }
+        dir.keep();
+        return Ok(());
+    }
+
+    let records: Vec<BamRecord> = records.collect();
     let text = write_sam(&header, &records).ok_or("records that parsed re-encode as SAM text")?;
 
     std::fs::create_dir_all(&output)?;

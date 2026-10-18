@@ -139,6 +139,7 @@ pub fn fail(message: &str) -> ! {
 
 /// An uncaught Java throwable: `Exception in thread "main" <class>: <message>`.
 pub fn thrown(message: &str) -> ! {
+    crate::stream_output::on_thrown();
     eprintln!("Exception in thread \"main\" {message}");
     std::process::exit(1);
 }

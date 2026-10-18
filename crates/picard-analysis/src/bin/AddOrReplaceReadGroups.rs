@@ -33,27 +33,28 @@
 //! silence otherwise. `VALIDATION_STRINGENCY` reaches the reader, and the corpus is valid under all
 //! three.
 
-use std::io::{Read, Write};
+use std::io::Read;
 
-use htsjdk_bam::build_index::build_bam_index;
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::{read_sam_with, write_sam};
+use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::text_parse::ValidationStringency;
 use picard_analysis::add_or_replace_read_groups::{replace_and_stamp, Options};
 use picard_analysis::args::arg;
 use picard_analysis::sort_sam::{mate_cigar_refusal, MateCigarCheck, RequestedOrder};
+use picard_analysis::stream_output::Output;
 
 const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
 const MATE_UNMAPPED: u16 = 0x8;
 const FIRST_OF_PAIR: u16 = 0x40;
 
-fn index_path(output: &str) -> String {
-    match output.strip_suffix(".bam") {
-        Some(stem) => format!("{stem}.bai"),
-        None => format!("{output}.bai"),
-    }
+/// The RG tag `replace_and_stamp` sets on every record.
+fn stamp(mut record: BamRecord, opts: &Options) -> BamRecord {
+    record
+        .tags
+        .insert(Tag::new(b"RG"), TagValue::Str(opts.rgid.clone()));
+    record
 }
 
 fn reference_span(cigar: &htsjdk_bam::cigar::Cigar) -> i32 {
@@ -156,26 +157,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(other) => return Err(format!("unknown VALIDATION_STRINGENCY: {other}").into()),
     };
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+    let mut magic = Vec::new();
+    std::fs::File::open(&input)?
+        .take(4)
+        .read_to_end(&mut magic)?;
     // A CRAM's reader hands out plain `SAMRecord`s, as SAM text's does.
-    let cram_input = picard_analysis::cram_input::is_cram(&raw);
-    let raw = picard_analysis::cram_input::uncram(raw);
+    let cram_input = picard_analysis::cram_input::is_cram(&magic);
     // Which reader htsjdk would have used, because a message below names its record class.
-    let bam_input = raw.starts_with(&[0x1f, 0x8b]);
-    let (mut header, mut records): (SamHeader, Vec<BamRecord>) = if bam_input {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let text = reader.header.text.clone();
-        let decoded = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<Vec<_>, _>>()?;
-        (text, decoded)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam_with(&text, stringency).map_err(|e| format!("{e:?}"))?
-    };
+    let bam_input = cram_input || magic.starts_with(&[0x1f, 0x8b]);
+    let (mut header, records) =
+        picard_analysis::bam_stream::Input::open_with(&input, stringency)?.into_parts();
 
     // The input's own `SO`, read before the header is rewritten: it is half of the presorted test.
     let input_order = header
@@ -183,7 +174,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get("SO")
         .unwrap_or("unsorted")
         .to_string();
-    replace_and_stamp(&mut header, &mut records, &opts);
+    replace_and_stamp(&mut header, &mut [], &opts);
 
     let requested = arg(&args, "SORT_ORDER=").or_else(|| arg(&args, "SO="));
     if let Some(order) = requested.as_deref() {
@@ -194,7 +185,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // `unsorted` is written straight through whatever `presorted` says; every other order sorts
     // when the requested order is not the one the input already claims.
-    if !presorted && output_order != "unsorted" {
+    let out = if !presorted && output_order != "unsorted" {
+        let mut records: Vec<BamRecord> = records.map(|record| stamp(record, &opts)).collect();
         match RequestedOrder::parse(&output_order) {
             Some(RequestedOrder::Duplicate) => {
                 let checks: Vec<MateCigarCheck> = records
@@ -216,6 +208,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .expect("coordinate and queryname both sort");
                 // Stable, so records equal under the comparator keep input order (decision 0021).
                 records.sort_by(sort.comparator());
+                let mut out = Output::create(&output, &header, false)?;
+                for record in &records {
+                    out.write(record)?;
+                }
+                out
             }
             None => {
                 // `unknown`. `SortOrder.unknown.getComparatorInstance()` is null, and
@@ -239,29 +236,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(1);
             }
         }
-    }
-
-    if output.ends_with(".sam") {
-        let sam = write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?;
-        let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
-        out.write_all(sam.as_bytes())?;
-        out.flush()?;
-        return Ok(());
-    }
-
-    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)?;
-    for record in &records {
-        writer.write(record).map_err(|e| format!("{e:?}"))?;
-    }
-    let bam = writer.finish()?;
-    if picard_analysis::cram_output::is_cram(&output) {
-        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
-        return Ok(());
-    }
-    std::fs::write(&output, &bam)?;
-    if create_index && header.attributes.get("SO") == Some("coordinate") {
-        let index = build_bam_index(&bam).map_err(|e| format!("{e:?}"))?;
-        std::fs::write(index_path(&output), index)?;
-    }
+    } else {
+        // Written as it is read.
+        let mut out = Output::create(&output, &header, false)?;
+        for record in records {
+            out.write(&stamp(record, &opts))?;
+        }
+        out
+    };
+    let coordinate = header.attributes.get("SO") == Some("coordinate");
+    out.finish(create_index, create_index && coordinate)?;
     Ok(())
 }
