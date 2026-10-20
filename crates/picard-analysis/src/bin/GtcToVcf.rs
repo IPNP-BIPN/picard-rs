@@ -13,9 +13,10 @@ use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use picard_analysis::extract_run::java_double_to_string;
 use picard_analysis::fingerprint::reference_path;
 use picard_analysis::gtc_to_vcf::{variant_line, Call, Cluster, Transformation};
-use picard_analysis::infinium::{Bpm, Egt, ExtendedManifest, Gtc, ReadError};
+use picard_analysis::infinium::{Bpm, Egt, ExtendedManifest, Gtc, ReadError, Reader};
 use picard_analysis::metrics_cli::{refuse_validation, thrown, Args};
 use picard_analysis::vcf_io::parse_sam_dictionary;
+use std::io::{Read, Seek, Write};
 
 const TOOL: &str = "GtcToVcf";
 
@@ -74,9 +75,9 @@ fn unstructured(key: &str, value: &str) -> HeaderLine {
 }
 
 fn read_gtc(path: &str, bpm: &Bpm) -> Gtc {
-    let bytes = std::fs::read(path)
+    let mut reader = Reader::open(path)
         .unwrap_or_else(|e| raise(&format!("java.io.FileNotFoundException: {e}")));
-    match Gtc::parse(&bytes, bpm) {
+    match Gtc::parse(&mut reader, bpm) {
         Ok(g) => g,
         Err(ReadError::Io(_)) => raise(&format!(
             "Error processing GTC File: {}",
@@ -140,9 +141,9 @@ fn main() {
         }
         None => "Unknown".to_string(),
     };
-    let bpm_bytes = std::fs::read(&bpm_path)
+    let mut bpm_reader = Reader::open(&bpm_path)
         .unwrap_or_else(|e| raise(&format!("java.io.FileNotFoundException: {e}")));
-    let bpm = match Bpm::parse(&bpm_bytes) {
+    let bpm = match Bpm::parse(&mut bpm_reader) {
         Ok(b) => b,
         Err(ReadError::Io(_)) => raise(&format!(
             "Error reading bpm file '{}'",
@@ -152,30 +153,74 @@ fn main() {
     };
     let gtc_gender = gender_gtc.as_ref().map(|p| read_gtc(p, &bpm).gender);
     let gtc = read_gtc(&input, &bpm);
-    let egt = match Egt::parse(&std::fs::read(&cluster_path).unwrap_or_default()) {
+    drop(bpm_reader);
+    let egt = match Reader::open(&cluster_path)
+        .map_err(drop)
+        .and_then(|mut r| Egt::parse(&mut r).map_err(drop))
+    {
         Ok(e) => e,
-        Err(_) => raise(&format!(
+        Err(()) => raise(&format!(
             "Error processing GTC File: {}",
             reference_path(&input)
         )),
     };
-    let manifest_text = std::fs::read_to_string(&manifest_path).unwrap_or_default();
-    let manifest =
-        ExtendedManifest::parse(&manifest_text, &manifest_path).unwrap_or_else(|e| raise(&e));
+    let mut manifest = ExtendedManifest::open(&manifest_path).unwrap_or_else(|e| raise(&e));
+    let descriptor_name = manifest.descriptor_file_name.clone();
+    let manifest_version = manifest.extended_manifest_version.clone();
+    // The rows are read as they are used, where the reference read them all first: a refusal
+    // gives way to a row the reader would have refused.
     let gtc_manifest = without_extension(gtc.snp_manifest.as_deref().unwrap_or(""));
-    let descriptor = without_extension(&manifest.descriptor_file_name);
+    let descriptor = without_extension(&descriptor_name);
     if !gtc_manifest.eq_ignore_ascii_case(descriptor) {
-        raise(&format!(
+        let message = format!(
             "The GTC's manifest name {gtc_manifest} does not match the Illumina manifest name {descriptor}"
-        ));
+        );
+        raise(&manifest.first_refusal().unwrap_or(message));
     }
 
-    // `fillContexts`.
+    // `fillContexts`, each line spilled as it is made: the `SortingCollection` the reference sorts
+    // them through, as compact keys over a file that is gone once the run ends.
+    // `CommandLineProgram` makes each TMP_DIR and goes on whatever happens; a sort that stays in
+    // memory never writes there, so a TMP_DIR that cannot take the spill falls back to the
+    // system's.
+    let spill_in = |dir: std::path::PathBuf| {
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join(format!("GtcToVcf-{}.lines", std::process::id()));
+        std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .map(|file| (file, path))
+    };
+    let (spill, spill_path) = args
+        .all("TMP_DIR")
+        .first()
+        .map(std::path::PathBuf::from)
+        .and_then(|dir| spill_in(dir).ok())
+        .map_or_else(|| spill_in(std::env::temp_dir()), Ok)
+        .unwrap_or_else(|e| raise(&format!("htsjdk.samtools.SAMException: {e}")));
+    let _ = std::fs::remove_file(&spill_path);
+    let mut spilled = std::io::BufWriter::with_capacity(1 << 16, &spill);
+    let mut spilled_at = 0u64;
     let mut zeroed = 0;
-    let mut rows: Vec<(usize, i32, String)> = Vec::new();
-    for (gtc_index, record) in manifest.records.iter().enumerate() {
+    // (contig, position, where the line starts in the spill, its length)
+    let mut rows: Vec<(usize, i32, u64, u32)> = Vec::new();
+    let mut next_index = 0usize;
+    while let Some(record) = manifest.next() {
+        let record = record.unwrap_or_else(|e| raise(&e));
+        let gtc_index = next_index;
+        next_index += 1;
+        let mut refuse = |message: &str| -> ! {
+            raise(
+                &manifest
+                    .first_refusal()
+                    .unwrap_or_else(|| message.to_string()),
+            )
+        };
         let Some(egt_index) = egt.index_of(&record.name) else {
-            raise(&format!(
+            refuse(&format!(
                 "Found no record in cluster file for manifest entry '{}'",
                 record.name
             ));
@@ -189,25 +234,25 @@ fn main() {
         }
         let at = |v: &Option<Vec<i32>>| v.as_ref().and_then(|v| v.get(gtc_index).copied());
         let atf = |v: &Option<Vec<f32>>| v.as_ref().and_then(|v| v.get(gtc_index).copied());
-        let oob = || -> ! {
-            raise(&format!(
-                "java.lang.ArrayIndexOutOfBoundsException: Index {gtc_index} out of bounds for length {}",
-                gtc.number_of_snps
-            ))
-        };
-        let genotype = gtc
+        let oob_message = format!(
+            "java.lang.ArrayIndexOutOfBoundsException: Index {gtc_index} out of bounds for length {}",
+            gtc.number_of_snps
+        );
+        let Some(genotype) = gtc
             .genotypes
             .as_ref()
             .and_then(|g| g.get(gtc_index).copied())
-            .unwrap_or_else(|| oob());
+        else {
+            refuse(&oob_message)
+        };
         if !(0..=3).contains(&genotype) {
-            raise(&format!(
+            refuse(&format!(
                 "Unexpected genotype call [{genotype}] for SNP: {}",
                 record.name
             ));
         }
         if record.allele_a == record.allele_b {
-            raise(&format!(
+            refuse(&format!(
                 "Found same allele ({}) for A and B ",
                 if record.allele_a.is_empty() {
                     "."
@@ -216,16 +261,25 @@ fn main() {
                 }
             ));
         }
+        let (Some(score), Some(raw_x), Some(raw_y), Some(b_allele_freq), Some(log_r_ratio)) = (
+            atf(&gtc.genotype_scores),
+            at(&gtc.raw_x),
+            at(&gtc.raw_y),
+            atf(&gtc.b_allele_freqs),
+            atf(&gtc.log_r_ratios),
+        ) else {
+            refuse(&oob_message)
+        };
         let call = Call {
             genotype: genotype as u8,
-            score: atf(&gtc.genotype_scores).unwrap_or_else(|| oob()),
-            raw_x: at(&gtc.raw_x).unwrap_or_else(|| oob()),
-            raw_y: at(&gtc.raw_y).unwrap_or_else(|| oob()),
-            b_allele_freq: atf(&gtc.b_allele_freqs).unwrap_or_else(|| oob()),
-            log_r_ratio: atf(&gtc.log_r_ratios).unwrap_or_else(|| oob()),
+            score,
+            raw_x,
+            raw_y,
+            b_allele_freq,
+            log_r_ratio,
         };
         if total == 0.0 && genotype != 0 && strict_zeroed {
-            raise("Found a call on a zeroed out Assay!!");
+            refuse("Found a call on a zeroed out Assay!!");
         }
         let cluster = Cluster {
             total_score: total,
@@ -250,13 +304,21 @@ fn main() {
                 shear: 0.0,
                 theta: 0.0,
             });
-        let line = variant_line(record, &call, &cluster, &transformation);
+        let line = variant_line(&record, &call, &cluster, &transformation);
         let contig = dictionary
             .iter()
             .position(|s| s.name == record.b37_chr)
             .unwrap_or(usize::MAX);
-        rows.push((contig, record.b37_pos, line));
+        if let Err(e) = spilled.write_all(line.as_bytes()) {
+            raise(&format!("htsjdk.samtools.SAMException: {e}"));
+        }
+        rows.push((contig, record.b37_pos, spilled_at, line.len() as u32));
+        spilled_at += line.len() as u64;
     }
+    if let Err(e) = spilled.flush() {
+        raise(&format!("htsjdk.samtools.SAMException: {e}"));
+    }
+    drop(spilled);
     rows.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
 
     let call_rate = f64::from(gtc.num_calls) / f64::from(gtc.number_of_snps - zeroed);
@@ -267,16 +329,13 @@ fn main() {
         input_name[..input_name.rfind('.').unwrap_or(input_name.len())].to_string();
     add("fileDate", &picard_analysis::command_line::java_date_now());
     add("source", "GtcToVcf");
-    let descriptor_name = &manifest.descriptor_file_name;
+    let descriptor_name = &descriptor_name;
     add(
         "arrayType",
         &descriptor_name[..descriptor_name.rfind('.').unwrap_or(descriptor_name.len())],
     );
     add("extendedManifestFile", file_name(&manifest_path));
-    add(
-        "extendedIlluminaManifestVersion",
-        &manifest.extended_manifest_version,
-    );
+    add("extendedIlluminaManifestVersion", &manifest_version);
     add("chipWellBarcode", &chip_well_barcode);
     if let Some(v) = &analysis_version {
         add("analysisVersionNumber", v);
@@ -458,12 +517,138 @@ fn main() {
     header.samples = vec![chip_well_barcode.clone()];
     picard_analysis::vcf_io::set_sequence_dictionary(&mut header, &dictionary);
 
-    let mut text = header.write();
-    for (_, _, line) in &rows {
-        text.push_str(line);
-        text.push('\n');
-    }
-    if let Err(e) = picard_analysis::vcf_io::write_text_indexed(&output, &text, Some(&dictionary)) {
+    if let Err(e) = write_vcf(&output, &header.write(), &spill, &rows, &dictionary) {
         raise(&format!("htsjdk.samtools.SAMException: {e}"));
     }
+}
+
+/// `vcf_io::write_text_indexed` over lines read back from the spill in `rows`' order: the file,
+/// then its `.idx` unless the name is block-compressed or BCF.
+fn write_vcf(
+    path: &str,
+    header: &str,
+    spill: &std::fs::File,
+    rows: &[(usize, i32, u64, u32)],
+    dictionary: &[picard_analysis::vcf_io::Sequence],
+) -> std::io::Result<()> {
+    use htsjdk_tribble::index_write::{BalanceApproach, DynamicIndexCreator, Feature};
+    let lower = path.to_ascii_lowercase();
+    let indexed = ![".gz", ".bgz", ".bcf"]
+        .iter()
+        .any(|ext| lower.ends_with(ext));
+    let mut creator = DynamicIndexCreator::new(BalanceApproach::ForSeekTime);
+    let mut out = std::io::BufWriter::with_capacity(1 << 16, std::fs::File::create(path)?);
+    out.write_all(header.as_bytes())?;
+    let mut at = header.len() as u64;
+    let mut source = std::io::BufReader::with_capacity(1 << 16, spill);
+    source.rewind()?;
+    let mut source_at = 0u64;
+    let mut line = Vec::new();
+    for &(_, _, start, len) in rows {
+        // In the order the manifest gave, every seek is to where the reader already is.
+        source.seek_relative(start as i64 - source_at as i64)?;
+        line.resize(len as usize, 0);
+        source.read_exact(&mut line)?;
+        source_at = start + u64::from(len);
+        if indexed {
+            let text = std::str::from_utf8(&line).unwrap_or("");
+            let fields: Vec<&str> = text.splitn(9, '\t').collect();
+            let start: i64 = fields.get(1).and_then(|p| p.parse().ok()).unwrap_or(0);
+            let reference = fields.get(3).map_or(1, |r| r.len() as i64);
+            let end = fields
+                .get(7)
+                .and_then(|info| {
+                    info.split(';')
+                        .find_map(|entry| entry.strip_prefix("END="))
+                        .and_then(|end| end.parse().ok())
+                })
+                .unwrap_or(start + reference - 1);
+            creator.add_feature(
+                &Feature {
+                    contig: fields[0].to_string(),
+                    start: start as i32,
+                    end: end as i32,
+                },
+                at as i64,
+            );
+        }
+        out.write_all(&line)?;
+        out.write_all(b"\n")?;
+        at += u64::from(len) + 1;
+    }
+    out.into_inner().map_err(|e| e.into_error())?;
+    if !indexed {
+        return Ok(());
+    }
+    let output = std::path::Path::new(path);
+    let timestamp = std::fs::metadata(output)?
+        .modified()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as i64)
+        .unwrap_or(0);
+    let indexed = picard_analysis::vcf_io::Indexed {
+        dictionary,
+        path: output,
+        timestamp,
+    };
+    if let Some(index) = finish_tribble(creator, at as i64, &indexed) {
+        std::fs::write(format!("{path}.idx"), index)?;
+    }
+    Ok(())
+}
+
+/// `vcf_io::finish_tribble`, which that module keeps to itself: the `.idx` of the features
+/// `creator` was given, the file being `file_length` bytes long.
+fn finish_tribble(
+    creator: htsjdk_tribble::index_write::DynamicIndexCreator,
+    file_length: i64,
+    indexed: &picard_analysis::vcf_io::Indexed,
+) -> Option<Vec<u8>> {
+    use htsjdk_tribble::index::{TribbleIndex, INTERVAL_TREE, LINEAR, VERSION};
+    use htsjdk_tribble::index_write::BuiltIndex;
+
+    let mut properties: Vec<(String, String)> = indexed
+        .dictionary
+        .iter()
+        .map(|sequence| {
+            (
+                format!("DICT:{}", sequence.name),
+                sequence.length.to_string(),
+            )
+        })
+        .collect();
+    properties.extend(creator.properties());
+    let (index_type, contigs, interval_contigs) = match creator.finalize(file_length) {
+        Ok(BuiltIndex::Linear(contigs)) => (LINEAR, by_name(contigs, |c| &c.name), Vec::new()),
+        Ok(BuiltIndex::IntervalTree(intervals)) => {
+            (INTERVAL_TREE, Vec::new(), by_name(intervals, |c| &c.name))
+        }
+        Err(_) => return None,
+    };
+    let absolute = std::path::absolute(indexed.path).unwrap_or_else(|_| indexed.path.into());
+    let index = TribbleIndex {
+        index_type,
+        version: VERSION,
+        indexed_path: format!("file://{}", absolute.display()),
+        indexed_file_size: file_length,
+        indexed_file_timestamp: indexed.timestamp,
+        indexed_file_md5: String::new(),
+        flags: 0,
+        properties,
+        contigs,
+        interval_contigs,
+    };
+    index.write().ok()
+}
+
+/// `LinkedHashMap.put` over a list: a repeated key keeps its first position and its last value.
+fn by_name<T>(items: Vec<T>, name: impl Fn(&T) -> &String) -> Vec<T> {
+    let mut kept: Vec<T> = Vec::with_capacity(items.len());
+    for item in items {
+        match kept.iter().position(|k| name(k) == name(&item)) {
+            Some(at) => kept[at] = item,
+            None => kept.push(item),
+        }
+    }
+    kept
 }
