@@ -14,7 +14,11 @@
 //! 5th column), and a `.` column reads back through [`htsjdk_bam::interval`] as an absent name that
 //! this port prints back as `.`.
 
-use htsjdk_bam::interval::{IntervalList, ParseError};
+use std::io::{self, BufRead, Write};
+
+use htsjdk_bam::interval::ParseError;
+
+use crate::compact_interval::{self as ci, Contigs, Header, Iv};
 
 /// `IntervalListToBed`'s options.
 #[derive(Debug, Clone, Copy)]
@@ -35,15 +39,12 @@ impl Default for Options {
 }
 
 /// The `@SQ` `SN:` contig names, in header order: the dictionary `IntervalCoordinateComparator` uses.
-fn dictionary_from_header(interval_list: &str) -> Vec<String> {
+fn dictionary_from_header(header: &Header) -> Vec<String> {
     let mut dict = Vec::new();
-    for line in interval_list.lines() {
+    for line in header.leading_lines() {
+        // Only the header that precedes every interval line counts.
         if !line.starts_with("@SQ") {
-            if line.starts_with('@') {
-                continue;
-            }
-            // The header is contiguous and precedes every interval line.
-            break;
+            continue;
         }
         if let Some(sn) = line.split('\t').find_map(|field| field.strip_prefix("SN:")) {
             dict.push(sn.to_string());
@@ -52,28 +53,55 @@ fn dictionary_from_header(interval_list: &str) -> Vec<String> {
     dict
 }
 
-/// `IntervalListToBed.doWork` over an interval list, returning the BED text.
-pub fn interval_list_to_bed(interval_list: &str, opts: &Options) -> Result<String, ParseError> {
-    let dictionary = dictionary_from_header(interval_list);
-    let list = IntervalList::parse_body(dictionary, interval_list)?;
-    let list = if opts.sort { list.sorted() } else { list };
+/// The intervals of an interval list, in the order `IntervalListToBed` writes them.
+pub fn read(
+    reader: impl BufRead,
+    opts: &Options,
+) -> io::Result<Result<(Contigs, Vec<Iv>), ParseError>> {
+    let mut contigs = Contigs::default();
+    let mut intervals = Vec::new();
+    let header = match ci::read_list(reader, &mut contigs, &mut intervals)? {
+        Ok(header) => header,
+        Err(error) => return Ok(Err(error)),
+    };
+    contigs.set_dictionary(&dictionary_from_header(&header));
+    if opts.sort {
+        ci::sort(&contigs, &mut intervals);
+    }
+    Ok(Ok((contigs, intervals)))
+}
 
-    let mut out = String::new();
-    for interval in &list.intervals {
+/// Writes each interval as a BED line.
+pub fn write(
+    contigs: &Contigs,
+    intervals: &[Iv],
+    opts: &Options,
+    out: &mut impl Write,
+) -> io::Result<()> {
+    for interval in intervals {
         let strand = if interval.negative_strand { "-" } else { "+" };
         let name = interval.name.as_deref().unwrap_or(".");
         // BED start is 0-based: start - 1.
-        out.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\n",
-            interval.contig,
+        writeln!(
+            out,
+            "{}\t{}\t{}\t{}\t{}\t{}",
+            contigs.name(interval.contig),
             interval.start - 1,
             interval.end,
             name,
             opts.score,
             strand
-        ));
+        )?;
     }
-    Ok(out)
+    Ok(())
+}
+
+/// `IntervalListToBed.doWork` over an interval list, returning the BED text.
+pub fn interval_list_to_bed(interval_list: &str, opts: &Options) -> Result<String, ParseError> {
+    let (contigs, intervals) = read(interval_list.as_bytes(), opts).expect("a text reads")?;
+    let mut out = Vec::new();
+    write(&contigs, &intervals, opts, &mut out).expect("a Vec writes");
+    Ok(String::from_utf8(out).expect("the input was text"))
 }
 
 #[cfg(test)]

@@ -9,7 +9,7 @@
 //! message of Picard's.
 
 use picard_analysis::args::arg;
-use picard_analysis::vcf_io::{die, header_dictionary, read_path};
+use picard_analysis::vcf_io::{die, header_dictionary, VcfReader};
 use picard_analysis::vcf_to_interval_list::{merge_intervals, render, to_intervals, Site};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -37,16 +37,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
     let Some(dictionary) = header_dictionary(&vcf.file.header) else {
-        die("java.lang.NullPointerException: Cannot invoke \
+        vcf.fail(
+            "java.lang.NullPointerException: Cannot invoke \
              \"htsjdk.samtools.SAMSequenceDictionary.getSequences()\" because the return value of \
-             \"htsjdk.samtools.SAMFileHeader.getSequenceDictionary()\" is null");
+             \"htsjdk.samtools.SAMFileHeader.getSequenceDictionary()\" is null",
+        );
     };
 
     let sites: Vec<Site> = vcf
-        .records
-        .iter()
         .map(|record| {
             let variant = &record.variant;
             // `getCommonInfo().getAttributeAsInt(END, getEnd())`.

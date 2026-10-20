@@ -124,10 +124,10 @@ pub fn smart_merge_header_lines(lines: &[HeaderLine]) -> Result<Vec<HeaderLine>,
 ///
 /// A record on a contig the header does not have is the comparator's `NullPointerException`, and
 /// is returned as its message.
-pub fn sort_records<T>(
+pub fn sort_records<'a, T>(
     records: &mut [T],
-    contigs: &[String],
-    key: impl Fn(&T) -> (&str, i64),
+    contigs: &'a [String],
+    key: impl Fn(&T) -> (&'a str, i64),
 ) -> Result<(), String> {
     let index_of = |contig: &str| contigs.iter().position(|c| c == contig);
     if records.len() > 1 {

@@ -360,6 +360,21 @@ fn read_up_to(inner: &mut impl Read, out: &mut Vec<u8>, n: usize) -> io::Result<
     inner.by_ref().take(n as u64).read_to_end(out)
 }
 
+/// The header of a BAM, for a tool that reads no record, when every block inflates cleanly and
+/// the header parses: then the whole-file read would have answered with it. `None` otherwise, for
+/// the caller's whole-file read to give the answer it gave.
+pub fn clean_header(path: &str) -> Option<SamHeader> {
+    let file = File::open(path).ok()?;
+    let mut stream = RecordStream::new(inflater(Blocks::new(BufReader::new(file))));
+    let header = stream.header().ok()?;
+    let mut inflater = stream.into_inner();
+    io::copy(&mut inflater, &mut io::sink()).ok()?;
+    let inflated = inflater.count;
+    let mut blocks = inflater.inner.finish().ok()?;
+    io::copy(&mut blocks, &mut io::sink()).ok()?;
+    (!blocks.damaged && blocks.declared == inflated).then_some(header)
+}
+
 /// noodles' multithreaded reader, counting what it inflates.
 pub struct MultithreadedInflater<R> {
     inner: noodles_bgzf::io::MultithreadedReader<R>,

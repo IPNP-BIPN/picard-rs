@@ -15,11 +15,12 @@
 //! ([`crate::fingerprint::reference_path`]).
 
 use crate::fingerprint::{
-    calculate_match_results, file_uri, fingerprint_sam_file, java_hash_order,
-    load_vcf_fingerprints, Fingerprint, HaplotypeMap, IdDetails, MatchResults, Probs, SamOptions,
-    SharedRandom,
+    block_terms, calculate_match_lods, calculate_match_results, file_uri, fingerprint_sam_file,
+    java_hash_order, load_vcf_fingerprints, BlockTerms, Fingerprint, HaplotypeMap, IdDetails,
+    MatchResults, Probs, SamOptions, SharedRandom,
 };
 use crate::java_hash_map::string_hash_code;
+use rayon::prelude::*;
 
 /// `CrosscheckMetric.DataType`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -161,10 +162,10 @@ pub fn group_of(details: &IdDetails, by: DataType) -> String {
 /// `Fingerprint.mergeFingerprintsBy`: one entry per group, its details merged when several share
 /// it, with `group` set; in the `HashMap` order of the merged details.
 pub fn merge_by(
-    entries: &[(IdDetails, Fingerprint)],
+    entries: Vec<(IdDetails, Fingerprint)>,
     by: DataType,
 ) -> Vec<(IdDetails, Fingerprint)> {
-    let mut groups: Vec<(String, Vec<&(IdDetails, Fingerprint)>)> = Vec::new();
+    let mut groups: Vec<(String, Vec<(IdDetails, Fingerprint)>)> = Vec::new();
     for entry in entries {
         let key = group_of(&entry.0, by);
         match groups.iter_mut().find(|(k, _)| *k == key) {
@@ -179,7 +180,7 @@ pub fn merge_by(
             .collect(),
     );
     let mut merged: Vec<(IdDetails, Fingerprint)> = Vec::new();
-    for (key, list) in groups {
+    for (key, mut list) in groups {
         let mut id = if list.len() == 1 {
             list[0].0.clone()
         } else {
@@ -191,7 +192,7 @@ pub fn merge_by(
         };
         id.group = Some(key);
         let fp = if list.len() == 1 {
-            list[0].1.clone()
+            list.pop().expect("one").1
         } else {
             let first = &list[0].0;
             let mut fp = Fingerprint::new(first.sample.clone(), None, Some(group_of(first, by)));
@@ -619,24 +620,44 @@ pub fn run(options: &Options) -> Result<Outcome, String> {
     // Picard 3.5.0 accumulates this over every comparison; 3.4.0 re-derived it from the metrics
     // that survived OUTPUT_ERRORS_ONLY, so a run with only expected results refused itself.
     let mut found_non_zero_lod = false;
-    let mut cross = |lhs: Vec<(IdDetails, Fingerprint)>,
-                     rhs: Vec<(IdDetails, Fingerprint)>,
+    let mut cross = |lhs: &[(IdDetails, Fingerprint)],
+                     rhs: &[(IdDetails, Fingerprint)],
                      metrics: &mut Vec<Metric>|
      -> usize {
         let mut unexpected = 0;
         let mut lods = vec![vec![0.0; rhs.len()]; lhs.len()];
-        for (row, (lid, lfp)) in lhs.iter().enumerate() {
-            for (col, (rid, rfp)) in rhs.iter().enumerate() {
+        // Every comparison is independent: computed on all cores, then taken in order, with each
+        // side's per-block terms worked out once rather than once per pair.
+        fn terms(list: &[(IdDetails, Fingerprint)], p_loh: f64) -> Vec<Vec<BlockTerms<'_>>> {
+            list.par_iter()
+                .map(|(_, fp)| block_terms(fp, p_loh))
+                .collect()
+        }
+        let lterms = terms(lhs, options.loss_of_het_rate);
+        // A list crossed with itself shares its terms.
+        let own;
+        let rterms = if std::ptr::eq(lhs, rhs) {
+            &lterms
+        } else {
+            own = terms(rhs, options.loss_of_het_rate);
+            &own
+        };
+        let all: Vec<Vec<MatchResults>> = lterms
+            .par_iter()
+            .map(|left| {
+                rhs.iter()
+                    .zip(rterms)
+                    .map(|((_, rfp), right)| {
+                        calculate_match_lods(left, rfp, right, options.tumor_aware)
+                    })
+                    .collect()
+            })
+            .collect();
+        for (row, (lid, _)) in lhs.iter().enumerate() {
+            for (col, (rid, _)) in rhs.iter().enumerate() {
                 let expected = options.expect_all_groups_to_match
                     || resolve(&lid.sample) == resolve(&rid.sample);
-                let results = calculate_match_results(
-                    &map,
-                    lfp,
-                    rfp,
-                    options.loss_of_het_rate,
-                    false,
-                    options.tumor_aware,
-                );
+                let results = &all[row][col];
                 let v = verdict(expected, results.lod, options.lod_threshold);
                 if !options.output_errors_only
                     || v == Verdict::Inconclusive
@@ -673,9 +694,9 @@ pub fn run(options: &Options) -> Result<Outcome, String> {
         unexpected
     };
     if options.second_inputs.is_empty() {
-        let lhs = merge_by(&first, by);
-        let rhs = merge_by(&first, by);
-        unexpected += cross(lhs, rhs, &mut metrics);
+        // One list against itself: merged once.
+        let lhs = merge_by(first, by);
+        unexpected += cross(&lhs, &lhs, &mut metrics);
     } else {
         let mut second = fingerprint_files_inserted(
             &options.second_inputs,
@@ -689,13 +710,13 @@ pub fn run(options: &Options) -> Result<Outcome, String> {
         }
         let second = hashed(second);
         if options.check_all_others {
-            let lhs = merge_by(&first, by);
-            let rhs = merge_by(&second, by);
-            unexpected += cross(lhs, rhs, &mut metrics);
+            let lhs = merge_by(first, by);
+            let rhs = merge_by(second, by);
+            unexpected += cross(&lhs, &rhs, &mut metrics);
         } else {
             // `checkFingerprintsBySample`.
-            let lhs = merge_by(&first, DataType::Sample);
-            let rhs = merge_by(&second, DataType::Sample);
+            let lhs = merge_by(first, DataType::Sample);
+            let rhs = merge_by(second, DataType::Sample);
             let keyed = |list: &Vec<(IdDetails, Fingerprint)>| -> Vec<String> {
                 java_hash_order(
                     list.iter()

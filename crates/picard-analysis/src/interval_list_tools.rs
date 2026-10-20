@@ -16,11 +16,11 @@
 //!
 //! The `INVERT` option (orthogonal to `ACTION`) complements the result against the dictionary and
 //! forces `SORT=false`, `UNIQUE=true`. `SUBTRACT`, `SYMDIFF` and `INVERT` all use
-//! [`IntervalList::invert`](htsjdk_bam::interval::IntervalList::invert), which needs the `(name,
+//! [`invert`](crate::compact_interval::invert), which needs the `(name,
 //! length)` dictionary read from the `@SQ LN` fields. `PADDING` pads each input (via
-//! [`IntervalList::padded`](htsjdk_bam::interval::IntervalList::padded), clamped to the contig)
+//! [`padded`](crate::compact_interval::padded), clamped to the contig)
 //! before the action, and `BREAK_BANDS_AT_MULTIPLES_OF` splits the final intervals via
-//! [`break_intervals_at_band_multiples`](htsjdk_bam::interval::break_intervals_at_band_multiples).
+//! [`break_at_band_multiples`](crate::compact_interval::break_at_band_multiples).
 //! Still deferred: `SCATTER` (a multi-directory output shape) and multi-dictionary union; this slice
 //! assumes one shared dictionary.
 //!
@@ -34,8 +34,12 @@
 //! header untouched, and `INTERSECT`/`SUBTRACT` clone the left operand's header, so those are emitted
 //! verbatim (no forced `SO`). `sorted()` and `invert()` never rewrite the header's sort order.
 
-use htsjdk_bam::interval::{break_intervals_at_band_multiples, Interval, IntervalList, ParseError};
+use std::io::{self, BufRead};
+
+use htsjdk_bam::interval::ParseError;
 use htsjdk_bam::overlap::OverlapDetector;
+
+use crate::compact_interval::{self as ci, Contigs, Header, Iv};
 
 /// `IntervalListTools.Action`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,216 +136,120 @@ fn output_hd(first_input: &str, unsorted: bool) -> String {
     fields.push("SO:unsorted");
     fields.join("\t")
 }
-
-/// The intervals of an interval list's text.
-pub fn parse_intervals(interval_list: &str) -> Result<Vec<Interval>, ParseError> {
-    parse(interval_list)
-}
-
-fn parse(interval_list: &str) -> Result<Vec<Interval>, ParseError> {
-    Ok(IntervalList::parse_body(Vec::new(), interval_list)?.intervals)
-}
-
-/// `IntervalListTools.uniqued(list, mergeAbutting)` = `getUniqueIntervals(mergeAbutting,
-/// concatenateNames = true, enforceSameStrands = false)`: sort, then fold each overlapping (or, when
-/// `merge_abutting`, abutting) run into one interval whose names are joined with `|`.
-fn uniqued(list: &IntervalList, merge_abutting: bool) -> Vec<Interval> {
-    let sorted = list.sorted();
-    let mut out: Vec<Interval> = Vec::new();
-    let mut current: Option<Interval> = None;
-    let mut names: Vec<String> = Vec::new();
-
-    let finish = |cur: &Interval, names: &[String]| Interval {
-        contig: cur.contig.clone(),
-        start: cur.start,
-        end: cur.end,
-        negative_strand: cur.negative_strand,
-        name: if names.is_empty() {
-            None
-        } else {
-            Some(names.join("|"))
-        },
-    };
-
-    for next in &sorted.intervals {
-        match &mut current {
-            None => {
-                current = Some(next.clone());
-                names.clear();
-                if let Some(n) = &next.name {
-                    names.push(n.clone());
-                }
-            }
-            Some(cur)
-                if (merge_abutting && cur.within_distance_of(next, 1)) || cur.intersects(next) =>
-            {
-                cur.end = cur.end.max(next.end);
-                if let Some(n) = &next.name {
-                    names.push(n.clone());
-                }
-            }
-            Some(cur) => {
-                out.push(finish(cur, &names));
-                current = Some(next.clone());
-                names.clear();
-                if let Some(n) = &next.name {
-                    names.push(n.clone());
-                }
-            }
-        }
-    }
-    if let Some(cur) = &current {
-        out.push(finish(cur, &names));
-    }
-    out
-}
-
 /// `IntervalList.intersection(list1, list2)`: for each interval of `list2`, intersect it with every
 /// overlapping interval of `list1`, then `uniqued()`. The result names read
 /// `"{list2-name} intersection {list1-name}"`.
-fn intersection(list1: &[Interval], list2: &[Interval], names: &[String]) -> Vec<Interval> {
-    let mut detector: OverlapDetector<Interval> = OverlapDetector::create();
-    for i in list1 {
-        detector.add(&i.contig, i.start, i.end, i.clone());
+fn intersection(contigs: &Contigs, list1: &[Iv], list2: &[Iv]) -> Vec<Iv> {
+    let mut detector: OverlapDetector<usize> = OverlapDetector::create();
+    for (index, i) in list1.iter().enumerate() {
+        detector.add(contigs.name(i.contig), i.start, i.end, index);
     }
-    let mut hits: Vec<Interval> = Vec::new();
+    let mut hits = Vec::new();
     for i in list2 {
-        for j in detector.get_overlaps(&i.contig, i.start, i.end) {
-            hits.push(i.intersect(j));
+        for &j in detector.get_overlaps(contigs.name(i.contig), i.start, i.end) {
+            hits.push(i.intersect(&list1[j]));
         }
     }
-    uniqued(
-        &IntervalList {
-            dictionary: names.to_vec(),
-            intervals: hits,
-        },
-        true,
-    )
+    ci::uniqued(contigs, hits, true)
 }
 
 /// `IntervalList.overlaps(lhs, rhs)`: every whole `lhs` interval that overlaps any `rhs` interval,
 /// in `lhs` order. `rhs` is `sorted().uniqued()` before the overlap detector is built.
-fn overlaps(lhs: &[Interval], rhs: &[Interval], names: &[String]) -> Vec<Interval> {
-    let rhs_unique = uniqued(
-        &IntervalList {
-            dictionary: names.to_vec(),
-            intervals: rhs.to_vec(),
-        },
-        true,
-    );
+fn overlaps(contigs: &Contigs, mut lhs: Vec<Iv>, rhs: Vec<Iv>) -> Vec<Iv> {
     let mut detector: OverlapDetector<()> = OverlapDetector::create();
-    for i in &rhs_unique {
-        detector.add(&i.contig, i.start, i.end, ());
+    for i in &ci::uniqued(contigs, rhs, true) {
+        detector.add(contigs.name(i.contig), i.start, i.end, ());
     }
-    lhs.iter()
-        .filter(|i| detector.overlaps_any(&i.contig, i.start, i.end))
-        .cloned()
-        .collect()
+    lhs.retain(|i| detector.overlaps_any(contigs.name(i.contig), i.start, i.end));
+    lhs
 }
 
 /// `IntervalList.subtract(lhs, rhs)` = `intersection(lhs, invert(rhs))`: the loci in `lhs` not in
 /// `rhs`. `invert` needs the `(name, length)` dictionary.
-fn subtract(
-    lhs: &[Interval],
-    rhs: &[Interval],
-    names: &[String],
-    sequences: &[(String, i32)],
-) -> Vec<Interval> {
-    let inverted = IntervalList {
-        dictionary: names.to_vec(),
-        intervals: rhs.to_vec(),
-    }
-    .invert(sequences);
-    intersection(lhs, &inverted.intervals, names)
+fn subtract(contigs: &mut Contigs, lhs: &[Iv], rhs: &[Iv], sequences: &[(String, i32)]) -> Vec<Iv> {
+    let inverted = ci::invert(contigs, sequences, rhs.to_vec());
+    intersection(contigs, lhs, &inverted)
 }
 
-/// `IntervalList.padded(PADDING)`: pad each interval by `padding` on both sides, clamped to
-/// `[1, contig length]`. A `padding` of 0 is the identity (and needs no lengths).
-fn pad(
-    intervals: &[Interval],
-    padding: i32,
-    sequences: &[(String, i32)],
-    names: &[String],
-) -> Vec<Interval> {
-    if padding == 0 {
-        return intervals.to_vec();
-    }
-    IntervalList {
-        dictionary: names.to_vec(),
-        intervals: intervals.to_vec(),
-    }
-    .padded(padding, padding, |contig| {
-        sequences
-            .iter()
-            .find(|(n, _)| n == contig)
-            .map(|(_, l)| *l)
-            .unwrap_or(0)
-    })
-    .intervals
+/// What `IntervalListTools.doWork` writes, before the binary adds its `@PG` and comments.
+pub struct Output {
+    /// The header lines, each ending in a newline.
+    pub header: String,
+    pub contigs: Contigs,
+    pub intervals: Vec<Iv>,
 }
 
-/// `IntervalList.union(a, b)` = `concatenate(a, b).uniqued()`: merge the two, then unique.
-fn union2(a: &[Interval], b: &[Interval], names: &[String]) -> Vec<Interval> {
-    let mut both = a.to_vec();
-    both.extend_from_slice(b);
-    uniqued(
-        &IntervalList {
-            dictionary: names.to_vec(),
-            intervals: both,
-        },
-        true,
-    )
-}
-
-/// `IntervalListTools.doWork` over the `INPUT` and `SECOND_INPUT` interval lists, returning the
-/// output interval list.
+/// `IntervalListTools.doWork` over the `INPUT` and `SECOND_INPUT` interval lists, opened in that
+/// order as they are reached.
 ///
 /// All inputs are assumed to share one sequence dictionary; its `@SQ` lines (taken from the first
-/// `INPUT`) are emitted verbatim. `second_inputs` is only consulted for `OVERLAPS`.
-pub fn interval_list_tools(
-    inputs: &[&str],
-    second_inputs: &[&str],
+/// `INPUT`) are emitted verbatim. A line refused in one list is reported only once every later list
+/// has read cleanly, the order a whole-file read of each gave.
+pub fn run<R: BufRead>(
+    inputs: impl IntoIterator<Item = io::Result<R>>,
+    second_inputs: impl IntoIterator<Item = io::Result<R>>,
     opts: &Options,
-) -> Result<String, ParseError> {
-    let (sequences, sq_lines) = inputs.first().map(|s| dictionary(s)).unwrap_or_default();
-    let names: Vec<String> = sequences.iter().map(|(n, _)| n.clone()).collect();
-
-    // openIntervalLists pads each file (PADDING) then reduces with the action's reduceEach:
-    // concatenate for every action except INTERSECT, which reduces by intersection.
-    let lists: Vec<Vec<Interval>> = inputs
-        .iter()
-        .map(|s| parse(s).map(|iv| pad(&iv, opts.padding, &sequences, &names)))
-        .collect::<Result<_, _>>()?;
-    let combined: Vec<Interval> = match opts.action {
-        Action::Intersect => {
-            let mut acc = lists.first().cloned().unwrap_or_default();
-            for next in lists.iter().skip(1) {
-                acc = intersection(&acc, next, &names);
-            }
-            acc
+) -> io::Result<Result<Output, ParseError>> {
+    let mut contigs = Contigs::default();
+    let mut first: Option<Header> = None;
+    let mut sequences: Vec<(String, i32)> = Vec::new();
+    let mut input_count = 0;
+    let mut combined: Option<Vec<Iv>> = None;
+    // The reduced SECOND_INPUT (padded then concatenated), used by the actions that take one.
+    let mut second: Vec<Iv> = Vec::new();
+    let mut refusal = None;
+    let all = inputs.into_iter().map(|r| (false, r));
+    for (is_second, reader) in all.chain(second_inputs.into_iter().map(|r| (true, r))) {
+        let reader = reader?;
+        if refusal.is_some() {
+            ci::drain(reader)?;
+            continue;
         }
-        _ => lists.into_iter().flatten().collect(),
-    };
-
-    // The reduced SECOND_INPUT (padded then concatenated), used by the actions that take a second
-    // input.
-    let second: Vec<Interval> = second_inputs
-        .iter()
-        .map(|s| parse(s).map(|iv| pad(&iv, opts.padding, &sequences, &names)))
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .flatten()
-        .collect();
+        let mut list = Vec::new();
+        let header = match ci::read_list(reader, &mut contigs, &mut list)? {
+            Ok(header) => header,
+            Err(error) => {
+                refusal = Some(error);
+                continue;
+            }
+        };
+        if !is_second && first.is_none() {
+            sequences = dictionary(&header.text()).0;
+            let names: Vec<String> = sequences.iter().map(|(n, _)| n.clone()).collect();
+            contigs.set_dictionary(&names);
+            first = Some(header);
+        }
+        // openIntervalLists pads each file (PADDING) then reduces with the action's reduceEach:
+        // concatenate for every action except INTERSECT, which reduces by intersection.
+        let list = ci::padded(&contigs, &sequences, list, opts.padding);
+        if is_second {
+            second.extend(list);
+            continue;
+        }
+        input_count += 1;
+        combined = Some(match combined {
+            None => list,
+            Some(acc) if opts.action == Action::Intersect => intersection(&contigs, &acc, &list),
+            Some(mut acc) => {
+                acc.extend(list);
+                acc
+            }
+        });
+    }
+    if let Some(error) = refusal {
+        return Ok(Err(error));
+    }
+    let combined = combined.unwrap_or_default();
 
     // act: combine the reduced INPUT with the reduced SECOND_INPUT per the action.
-    let result: Vec<Interval> = match opts.action {
-        Action::Overlaps => overlaps(&combined, &second, &names),
-        Action::Subtract => subtract(&combined, &second, &names, &sequences),
-        Action::Symdiff => union2(
-            &subtract(&combined, &second, &names, &sequences),
-            &subtract(&second, &combined, &names, &sequences),
-            &names,
-        ),
+    let mut result: Vec<Iv> = match opts.action {
+        Action::Overlaps => overlaps(&contigs, combined, second),
+        Action::Subtract => subtract(&mut contigs, &combined, &second, &sequences),
+        Action::Symdiff => {
+            let mut both = subtract(&mut contigs, &combined, &second, &sequences);
+            both.extend(subtract(&mut contigs, &second, &combined, &sequences));
+            ci::uniqued(&contigs, both, true)
+        }
         _ => combined,
     };
 
@@ -356,27 +264,18 @@ pub fn interval_list_tools(
         sort = true;
         unique = true;
     }
-
-    let list = IntervalList {
-        dictionary: names.clone(),
-        intervals: result,
-    };
-    let sorted = if sort { list.sorted() } else { list };
-    let inverted = if opts.invert {
-        sorted.invert(&sequences)
-    } else {
-        sorted
-    };
-    let mut final_intervals = if unique {
-        uniqued(&inverted, !opts.dont_merge_abutting)
-    } else {
-        inverted.intervals
-    };
-
+    if sort {
+        ci::sort(&contigs, &mut result);
+    }
+    if opts.invert {
+        result = ci::invert(&mut contigs, &sequences, result);
+    }
+    if unique {
+        result = ci::uniqued(&contigs, result, !opts.dont_merge_abutting);
+    }
     // BREAK_BANDS splits the final intervals at integer multiples of the band.
     if opts.break_bands_at_multiples_of > 0 {
-        final_intervals =
-            break_intervals_at_band_multiples(&final_intervals, opts.break_bands_at_multiples_of);
+        result = ci::break_at_band_multiples(result, opts.break_bands_at_multiples_of);
     }
 
     // The output header is result.getHeader(): SO:unsorted when act ran setSortOrder(unsorted) - a
@@ -385,30 +284,46 @@ pub fn interval_list_tools(
     let unsorted = match opts.action {
         Action::Overlaps | Action::Symdiff => true,
         Action::Intersect => false,
-        Action::Concat | Action::Union | Action::Subtract => inputs.len() >= 2,
+        Action::Concat | Action::Union | Action::Subtract => input_count >= 2,
     };
-    let mut output = output_hd(inputs.first().copied().unwrap_or(""), unsorted);
-    output.push('\n');
-    for sq in &sq_lines {
-        output.push_str(sq);
-        output.push('\n');
+    let first = first.unwrap_or_default();
+    let first_text = first.text();
+    let mut header = output_hd(&first_text, unsorted);
+    header.push('\n');
+    for sq in &dictionary(&first_text).1 {
+        header.push_str(sq);
+        header.push('\n');
     }
     // The rest of that header comes along: its read groups, its program records and its comments,
     // in the order the text codec writes them.
-    let first = inputs.first().copied().unwrap_or("");
     for prefix in ["@RG\t", "@PG\t", "@CO\t"] {
-        for line in first.lines().take_while(|line| line.starts_with('@')) {
+        for line in first.leading_lines() {
             if line.starts_with(prefix) {
-                output.push_str(line);
-                output.push('\n');
+                header.push_str(line);
+                header.push('\n');
             }
         }
     }
-    for interval in &final_intervals {
-        output.push_str(&interval.to_file_line());
-        output.push('\n');
+    Ok(Ok(Output {
+        header,
+        contigs,
+        intervals: result,
+    }))
+}
+
+/// [`run`] over the interval lists' texts, returning the output interval list.
+pub fn interval_list_tools(
+    inputs: &[&str],
+    second_inputs: &[&str],
+    opts: &Options,
+) -> Result<String, ParseError> {
+    fn open<'a>(texts: &[&'a str]) -> Vec<io::Result<&'a [u8]>> {
+        texts.iter().map(|text| Ok(text.as_bytes())).collect()
     }
-    Ok(output)
+    let output = run(open(inputs), open(second_inputs), opts).expect("a text reads")?;
+    let mut text = output.header.into_bytes();
+    ci::write_lines(&output.contigs, &output.intervals, &mut text).expect("a Vec writes");
+    Ok(String::from_utf8(text).expect("the inputs were text"))
 }
 
 /// `IntervalListScatterMode`: how `SCATTER_COUNT` divides the final list.
@@ -454,62 +369,52 @@ impl ScatterMode {
     }
 
     /// `listWeight`: the bases of a list, or its interval count.
-    pub fn list_weight(self, intervals: &[Interval]) -> i64 {
+    pub fn list_weight(self, intervals: &[Iv]) -> i64 {
         if self.by_count() {
             intervals.len() as i64
         } else {
-            intervals
-                .iter()
-                .map(|i| i64::from(i.end - i.start + 1))
-                .sum()
+            intervals.iter().map(|i| i64::from(i.length())).sum()
         }
     }
 }
 
-/// One list `IntervalListScatter` produced: the file's text, and what it holds.
-pub struct ScatteredList {
-    pub text: String,
-    pub bases: i64,
-    pub intervals: i64,
-}
-
-/// `IntervalListScatter` over an interval list's text: each produced list in order.
+/// `IntervalListScatter` over the written list (its header lines and its intervals): the header
+/// every produced list carries, and the lists in order.
 ///
 /// The lists carry the header of the preprocessed input: `sorted()` marks it coordinate-sorted, and
 /// `uniqued()` (the subdivision mode's) clones the input's header as it was.
 pub fn scatter(
-    text: &str,
+    header: &str,
+    intervals: Vec<Iv>,
+    contigs: &Contigs,
     count: i32,
     mode: ScatterMode,
-) -> Result<Vec<ScatteredList>, ParseError> {
+) -> (String, Vec<Vec<Iv>>) {
     use std::collections::VecDeque;
-    let (sequences, _) = dictionary(text);
-    let names: Vec<String> = sequences.iter().map(|(n, _)| n.clone()).collect();
-    let list = IntervalList {
-        dictionary: names,
-        intervals: parse(text)?,
-    };
-    let length = |i: &Interval| i64::from(i.end - i.start + 1);
+    // `IntervalListTools` reads the list it wrote back in: a name's final `\r` (from a last input
+    // line with no newline) does not survive the line split, and a `.` left behind is no name.
+    let mut intervals = intervals;
+    for interval in &mut intervals {
+        if let Some(name) = interval.name.as_deref().and_then(|n| n.strip_suffix('\r')) {
+            interval.name = (name != ".").then(|| name.into());
+        }
+    }
+    let length = |i: &Iv| i64::from(i.length());
     // `preprocessIntervalList`.
-    let processed: Vec<Interval> = if mode == ScatterMode::IntervalSubdivision {
-        uniqued(&list, true)
+    let processed: Vec<Iv> = if mode == ScatterMode::IntervalSubdivision {
+        ci::uniqued(contigs, intervals, true)
     } else {
-        list.sorted().intervals
+        ci::sort(contigs, &mut intervals);
+        intervals
     };
     // `deduceIdealSplitWeight`.
     let ideal: i64 = if mode.by_count() {
         (processed.len() as i64 / i64::from(count)).max(1)
     } else {
-        let unique: i64 = uniqued(
-            &IntervalList {
-                dictionary: list.dictionary.clone(),
-                intervals: processed.clone(),
-            },
-            true,
-        )
-        .iter()
-        .map(length)
-        .sum();
+        let unique: i64 = ci::uniqued(contigs, processed.clone(), true)
+            .iter()
+            .map(length)
+            .sum();
         let split = (unique / i64::from(count)).max(1);
         if mode == ScatterMode::IntervalSubdivision {
             split
@@ -519,10 +424,7 @@ pub fn scatter(
         }
     };
     // `takeSome`: the part that goes into the current list, and the part put back.
-    let take_some = |interval: Interval,
-                     current: i64,
-                     remaining: f64|
-     -> (Option<Interval>, Option<Interval>) {
+    let take_some = |interval: Iv, current: i64, remaining: f64| -> (Option<Iv>, Option<Iv>) {
         match mode {
             ScatterMode::IntervalSubdivision => {
                 let amount = ideal - current;
@@ -532,11 +434,11 @@ pub fn scatter(
                     (None, Some(interval))
                 } else {
                     let cut = interval.start + amount as i32;
-                    let left = Interval {
+                    let left = Iv {
                         end: cut - 1,
                         ..interval.clone()
                     };
-                    let right = Interval {
+                    let right = Iv {
                         start: cut,
                         ..interval
                     };
@@ -573,28 +475,28 @@ pub fn scatter(
     };
 
     // The header the lists are written with.
-    let mut header = String::new();
-    for line in text.lines().take_while(|line| line.starts_with('@')) {
+    let mut list_header = String::new();
+    for line in header.lines() {
         if line.starts_with("@HD") && mode != ScatterMode::IntervalSubdivision {
             let mut fields: Vec<String> = line.split('\t').map(str::to_string).collect();
             match fields.iter_mut().find(|f| f.starts_with("SO:")) {
                 Some(field) => *field = "SO:coordinate".to_string(),
                 None => fields.push("SO:coordinate".to_string()),
             }
-            header.push_str(&fields.join("\t"));
+            list_header.push_str(&fields.join("\t"));
         } else {
-            header.push_str(line);
+            list_header.push_str(line);
         }
-        header.push('\n');
+        list_header.push('\n');
     }
 
     let mut weight_remaining = mode.list_weight(&processed);
-    let mut queue: VecDeque<Interval> = processed.into_iter().collect();
+    let mut queue: VecDeque<Iv> = processed.into_iter().collect();
     let mut returned: i64 = 0;
-    let mut lists: Vec<Vec<Interval>> = Vec::new();
+    let mut lists: Vec<Vec<Iv>> = Vec::new();
     while !queue.is_empty() {
         returned += 1;
-        let mut running: Vec<Interval> = Vec::new();
+        let mut running: Vec<Iv> = Vec::new();
         let mut closed = false;
         while !queue.is_empty() && returned < i64::from(count) {
             let interval = queue.pop_front().expect("the queue is not empty");
@@ -619,21 +521,7 @@ pub fn scatter(
         }
         lists.push(running);
     }
-    Ok(lists
-        .into_iter()
-        .map(|intervals| {
-            let mut text = header.clone();
-            for interval in &intervals {
-                text.push_str(&interval.to_file_line());
-                text.push('\n');
-            }
-            ScatteredList {
-                bases: intervals.iter().map(length).sum(),
-                intervals: intervals.len() as i64,
-                text,
-            }
-        })
-        .collect())
+    (list_header, lists)
 }
 
 #[cfg(test)]

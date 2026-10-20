@@ -12,10 +12,11 @@
 //! it lifts when that part is at least this fraction of it, and is rejected otherwise, so the same
 //! interval list against the same chain is two different files at 0.95 and at 0.3.
 
+use std::fs::File;
+use std::io::{BufWriter, Write};
+
 use picard_analysis::args::arg;
-use picard_analysis::lift_over_interval_list::{
-    lift_over_interval_list, LiftOverIntervalListError,
-};
+use picard_analysis::lift_over_interval_list::{lift, LiftOverIntervalListError};
 
 /// `SAMSequenceDictionaryExtractor.extractDictionary`, for the two shapes the corpus has.
 ///
@@ -57,12 +58,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let result = lift_over_interval_list(
-        &std::fs::read_to_string(&input)?,
-        &read_dictionary(&dictionary)?,
-        &std::fs::read_to_string(&chain)?,
-        min_liftover_pct,
-    );
+    // The input is read line by line; the dictionary and the chain, read whole after it, are
+    // reported only once the input has read cleanly, the order whole-file reads gave.
+    let input = std::io::BufReader::new(std::fs::File::open(&input)?);
+    let texts = read_dictionary(&dictionary)
+        .and_then(|dictionary| Ok((dictionary, std::fs::read_to_string(&chain)?)));
+    let (dictionary, chain) = match texts {
+        Ok(texts) => texts,
+        Err(error) => {
+            picard_analysis::compact_interval::drain(input)?;
+            return Err(error.into());
+        }
+    };
+    let result = lift(input, &dictionary, &chain, min_liftover_pct)?;
     let result = match result {
         Ok(result) => result,
         Err(error) => {
@@ -75,10 +83,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     };
-    std::fs::write(&output, &result.output)?;
+    let write = |path: &str, render: &dyn Fn(&mut BufWriter<File>) -> std::io::Result<()>| {
+        let mut out = BufWriter::new(File::create(path)?);
+        render(&mut out)?;
+        out.flush()
+    };
+    write(&output, &|out| result.write_output(out))?;
     if let Some(reject) = arg(&args, "REJECT=") {
-        std::fs::write(reject, &result.rejects)?;
+        write(&reject, &|out| result.write_rejects(out))?;
     }
     // `return anyRejected ? 1 : 0`, after the file has been written.
-    std::process::exit(result.return_code);
+    std::process::exit(result.return_code());
 }

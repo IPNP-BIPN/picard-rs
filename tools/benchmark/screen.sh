@@ -66,8 +66,14 @@ run reorder-sam I=$I O=$O/fm.bam SEQUENCE_DICTIONARY=$B/bench.dict
 run replace-sam-header I=$I HEADER=$B/coord.bam O=$O/fn.bam
 run revert-original-base-qualities-and-add-mate-cigar I=$Q O=$O/fo.bam
 run revert-sam I=$I O=$O/fp.bam
-# The reverted reads are the unmapped input, the benchmark BAM their alignment.
-run merge-bam-alignment UNMAPPED_BAM=$O/fp.bam ALIGNED_BAM=$Q R=$R O=$O/fp2.bam
+# The benchmark BAM names every record apart, so a mate, a secondary or a supplementary record has
+# no unmapped read to merge with, and MergeBamAlignment refuses it as Picard does. Its unpaired
+# primary reads that keep every base, in queryname order, are the alignment; RevertSam's copy of
+# them is the unmapped input. Prepared here, not measured.
+"$(exe view-sam)" I=$I | awk '/^@/ || ($2 % 2 == 0 && $2 % 512 < 256 && $2 < 2048 && $6 !~ /H/)' >$O/fp1.sam
+"$(exe sort-sam)" I=$O/fp1.sam O=$O/fp1.bam SORT_ORDER=queryname 2>/dev/null; rm -f $O/fp1.sam
+"$(exe revert-sam)" I=$O/fp1.bam O=$O/fp1u.bam 2>/dev/null
+run merge-bam-alignment UNMAPPED_BAM=$O/fp1u.bam ALIGNED_BAM=$O/fp1.bam R=$R O=$O/fp2.bam
 run sam-format-converter I=$I O=$O/fq.sam
 run sam-to-fastq I=$Q F=$O/fr1.fq F2=$O/fr2.fq VALIDATION_STRINGENCY=SILENT
 run sam-to-fastq-with-tags I=$Q F=$O/fs1.fq F2=$O/fs2.fq QUALITY_TAG_GROUP=OQ SEQUENCE_TAG_GROUP=OA

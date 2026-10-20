@@ -12,7 +12,6 @@
 
 use htsjdk_bam::header::{ReadGroup, SamHeader};
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::write_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::barcode_extractor::{finalize, parse_input_file, Distance, Extractor, Metric};
@@ -29,11 +28,10 @@ use picard_analysis::metrics_cli::{refuse_validation, thrown, Args};
 
 const TOOL: &str = "IlluminaBasecallsToSam";
 
-/// One output: its file, its header, and the records it has been given.
+/// One output, written as its clusters come.
 struct Output {
-    path: std::path::PathBuf,
-    header: SamHeader,
-    records: Vec<BamRecord>,
+    sam: bool,
+    out: picard_analysis::stream_output::Output,
 }
 
 /// `new AdapterMarker(30, adapters)`: truncate each pair, collapsing those that became the same.
@@ -227,17 +225,21 @@ fn main() {
             header.read_groups.push(rg);
         }
         let host = std::path::PathBuf::from(host_path(path));
-        if let Err(e) = std::fs::File::create(&host) {
+        let sam = host.extension().is_some_and(|e| e == "sam");
+        let name = host.display().to_string();
+        // The file is created here, so a run that fails later leaves it empty.
+        let out = if sam {
+            picard_analysis::stream_output::Output::create(&name, &header, true)
+        } else {
+            picard_analysis::stream_output::Output::bam(&name, &header, true)
+        };
+        let out = out.unwrap_or_else(|e| {
             thrown(&format!(
                 "htsjdk.samtools.SAMException: Cannot write file {}: {e}",
-                reference_path(&host.display().to_string())
-            ));
-        }
-        Output {
-            path: host,
-            header,
-            records: Vec::new(),
-        }
+                reference_path(&name)
+            ))
+        });
+        Output { sam, out }
     };
     let mut writers: Vec<(Option<String>, Output)> = Vec::new();
     if let Some(out) = &output {
@@ -567,61 +569,50 @@ fn main() {
     for (at, (k, _)) in writers.iter().enumerate() {
         writer_at.entry(k.clone()).or_insert(at);
     }
+    let mut first = true;
     for tile in converter.tiles.clone() {
-        let mut by_barcode: Vec<(Option<String>, Vec<Vec<BamRecord>>)> = Vec::new();
-        let mut barcode_at: foldhash::HashMap<Option<String>, usize> = Default::default();
-        for data in converter.tile(tile) {
-            let key = data.barcode.clone();
-            if !writer_at.contains_key(&key) && !ignore_unexpected {
-                unexpected(&key, sort);
+        let loaded = converter.load(tile);
+        let groups = converter.group(&loaded, |data, decode| {
+            if !writer_at.contains_key(&data.barcode) && !ignore_unexpected {
+                unexpected(&data.barcode, sort);
             }
-            let records = convert(&data);
-            match barcode_at.get(&key) {
-                Some(&at) => by_barcode[at].1.push(records),
-                None => {
-                    barcode_at.insert(key.clone(), by_barcode.len());
-                    by_barcode.push((key, vec![records]));
-                }
+            // Every cluster used to be converted here; the first one is where a tag name given on
+            // the command line is refused, before the next cluster's barcode is checked.
+            if std::mem::take(&mut first) {
+                convert(&decode());
             }
-        }
-        for (key, clusters) in by_barcode.iter_mut() {
+        });
+        for (key, mut clusters) in groups {
+            let Some(&at) = writer_at.get(&key) else {
+                continue;
+            };
+            let decode = |at| {
+                let mut c = converter.cluster(&loaded, at);
+                c.barcode = key.clone();
+                c
+            };
             if sort {
-                clusters.sort_by(|a, b| a[0].read_name.cmp(&b[0].read_name));
+                clusters.sort_by_cached_key(|at| {
+                    let c = converter.place(&loaded, *at);
+                    format!("{run_barcode}:{}:{}:{}:{}", c.lane, c.tile, c.x, c.y)
+                });
             }
-            if let Some(&at) = writer_at.get(key) {
-                let w = &mut writers[at].1;
-                for c in clusters.drain(..) {
-                    w.records.extend(c);
+            let w = &mut writers[at].1;
+            for at in clusters {
+                for r in convert(&decode(at)) {
+                    if let Err(e) = w.out.write(&r) {
+                        if w.sam {
+                            thrown("htsjdk.samtools.SAMException: record cannot be written as SAM");
+                        }
+                        thrown(&format!("htsjdk.samtools.SAMException: {e}"));
+                    }
                 }
             }
         }
     }
-    for (_, w) in &writers {
-        let is_sam = w.path.extension().is_some_and(|e| e == "sam");
-        let bytes = if is_sam {
-            write_sam(&w.header, &w.records)
-                .unwrap_or_else(|| {
-                    thrown("htsjdk.samtools.SAMException: record cannot be written as SAM")
-                })
-                .into_bytes()
-        } else {
-            let mut writer = picard_analysis::output::bam_writer(Vec::new(), &w.header)
-                .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.SAMException: {e}")));
-            for r in &w.records {
-                if let Err(e) = writer.write(r) {
-                    thrown(&format!("htsjdk.samtools.SAMException: {e:?}"));
-                }
-            }
-            writer
-                .finish()
-                .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.SAMException: {e}")))
-        };
-        let written = if is_sam {
-            std::fs::write(&w.path, bytes)
-        } else {
-            picard_analysis::cram_output::write(&w.path.display().to_string(), bytes)
-        };
-        if let Err(e) = written {
+    let create_index = picard_analysis::cram_output::create_index_argument();
+    for (_, w) in writers {
+        if let Err(e) = w.out.finish(create_index, false) {
             thrown(&format!("htsjdk.samtools.SAMException: {e}"));
         }
     }

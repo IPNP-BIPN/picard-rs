@@ -10,6 +10,7 @@
 //! recomputed over the merged genotypes; its other attributes are the first file's.
 
 use htsjdk_vcf::chromosome_counts::calculate_chromosome_counts;
+use htsjdk_vcf::encoder::MissingFields;
 use htsjdk_vcf::header::{HeaderLine, VcfHeader};
 use htsjdk_vcf::merge::{smart_merge_headers, Source};
 use htsjdk_vcf::variant::{Value, VariantContext};
@@ -19,7 +20,7 @@ use picard_analysis::combine_genotyping_array_vcfs::{
 use picard_analysis::fingerprint::reference_path;
 use picard_analysis::metrics_cli::{thrown, Args};
 use picard_analysis::vcf_io::{
-    header_dictionary, is_compressed_vcf, read_path, unroll_paths, write_output, Record,
+    fail_all, header_dictionary, is_compressed_vcf, unroll_paths, Record, VcfReader, VcfWriter,
 };
 
 /// `sampleSpecificHeaders` at 3.4.0.
@@ -141,10 +142,11 @@ fn main() {
     let output = args.required("OUTPUT");
     // The constructor sets `CREATE_INDEX = true`, so that is the default here.
     let create_index = args.bool("CREATE_INDEX", true);
-    let files: Vec<_> = inputs
-        .iter()
-        .map(|p| read_path(p).unwrap_or_else(|e| thrown(&e)))
-        .collect();
+    let mut files: Vec<VcfReader> = Vec::with_capacity(inputs.len());
+    for path in &inputs {
+        let file = VcfReader::open(path).unwrap_or_else(|e| fail_all(&mut files, &e));
+        files.push(file);
+    }
     let dictionary = files
         .first()
         .and_then(|f| header_dictionary(&f.file.header));
@@ -153,9 +155,9 @@ fn main() {
         .zip(&files)
         .map(|(p, f)| (reference_path(p), f.file.header.samples.clone()))
         .collect();
-    let samples = sample_list(&named).unwrap_or_else(|r| thrown(&refuse(&r)));
+    let samples = sample_list(&named).unwrap_or_else(|r| fail_all(&mut files, &refuse(&r)));
     if create_index && dictionary.is_none() {
-        thrown(&refuse(&Refusal::NoSequenceDictionary));
+        fail_all(&mut files, &refuse(&Refusal::NoSequenceDictionary));
     }
     // `CREATE_INDEX=false` adds nothing, but the builder's default options already hold
     // `INDEX_ON_THE_FLY`, so `build()` still asks for the dictionary and the `.vcf` is indexed.
@@ -164,7 +166,7 @@ fn main() {
         .iter()
         .any(|ext| lower.ends_with(ext));
     if dictionary.is_none() && plain {
-        thrown("java.lang.IllegalArgumentException: A reference dictionary is required for creating Tribble indices on the fly");
+        fail_all(&mut files, "java.lang.IllegalArgumentException: A reference dictionary is required for creating Tribble indices on the fly");
     }
     let sources: Vec<Source> = files
         .iter()
@@ -173,8 +175,9 @@ fn main() {
             version: Some("VCFv4.2"),
         })
         .collect();
-    let (mut lines, _) = smart_merge_headers(&sources, false)
-        .unwrap_or_else(|e| thrown(&format!("{}: {}", e.class(), e.message())));
+    let merged = smart_merge_headers(&sources, false);
+    let (mut lines, _) =
+        merged.unwrap_or_else(|e| fail_all(&mut files, &format!("{}: {}", e.class(), e.message())));
     lines.retain(|l| match l {
         HeaderLine::Unstructured { key, .. } | HeaderLine::Structured { key, .. } => {
             !SAMPLE_SPECIFIC.contains(&key.as_str())
@@ -198,35 +201,6 @@ fn main() {
     });
     let header = VcfHeader { lines, samples };
 
-    let mut records: Vec<Record> = Vec::new();
-    let mut failure: Option<String> = None;
-    let mut step = 0;
-    loop {
-        let current: Vec<Option<&VariantContext>> = files
-            .iter()
-            .map(|f| f.records.get(step).map(|r| &r.variant))
-            .collect();
-        let closed = current.iter().filter(|c| c.is_none()).count();
-        if closed > 0 {
-            if closed != files.len() {
-                failure = Some(refuse(&Refusal::VariantCount));
-            }
-            break;
-        }
-        let present: Vec<&VariantContext> = current.into_iter().flatten().collect();
-        match merge(&present) {
-            Ok(vc) => records.push(Record {
-                variant: vc,
-                lazy_genotypes: None,
-                fully_decoded: false,
-            }),
-            Err(e) => {
-                failure = Some(e);
-                break;
-            }
-        }
-        step += 1;
-    }
     // `DEFAULT_OPTIONS` already holds `INDEX_ON_THE_FLY`, so a `.vcf` and a `.vcf.gz` are indexed
     // whatever `CREATE_INDEX` says, the `.vcf.gz` with or without a dictionary.
     let index = if is_compressed_vcf(&output) {
@@ -236,10 +210,48 @@ fn main() {
     } else {
         None
     };
-    if let Err(e) = write_output(&output, &header, &records, index) {
-        thrown(&format!("htsjdk.samtools.SAMException: {e}"));
+    // The whole walk is written before its own failure is thrown, and a write failure wins.
+    let written = |error| format!("htsjdk.samtools.SAMException: {error}");
+    let mut writer = VcfWriter::create(&output, &header, index, MissingFields::default())
+        .unwrap_or_else(|e| fail_all(&mut files, &written(e)));
+    let mut failure: Option<String> = None;
+    loop {
+        let mut current: Vec<Option<Record>> = Vec::with_capacity(files.len());
+        for i in 0..files.len() {
+            match files[i].try_next() {
+                Some(Err(e)) => fail_all(&mut files[..i], &e),
+                record => current.push(record.map(|r| r.expect("not an error"))),
+            }
+        }
+        let closed = current.iter().filter(|c| c.is_none()).count();
+        if closed > 0 {
+            if closed != files.len() {
+                failure = Some(refuse(&Refusal::VariantCount));
+            }
+            break;
+        }
+        let present: Vec<&VariantContext> = current.iter().flatten().map(|r| &r.variant).collect();
+        match merge(&present) {
+            Ok(vc) => {
+                let record = Record {
+                    variant: vc,
+                    lazy_genotypes: None,
+                    fully_decoded: false,
+                };
+                if let Err(e) = writer.add(&record) {
+                    fail_all(&mut files, &written(e));
+                }
+            }
+            Err(e) => {
+                failure = Some(e);
+                break;
+            }
+        }
+    }
+    if let Err(e) = writer.finish() {
+        fail_all(&mut files, &written(e));
     }
     if let Some(e) = failure {
-        thrown(&e);
+        fail_all(&mut files, &e);
     }
 }

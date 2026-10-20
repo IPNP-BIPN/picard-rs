@@ -427,14 +427,7 @@ pub fn collect(
     trio: &Trio,
     options: &Options,
 ) -> (Metrics, Vec<(usize, Violation)>) {
-    let mut metrics = Metrics {
-        family_id: trio.family_id.clone(),
-        mother: trio.mother.clone(),
-        father: trio.father.clone(),
-        offspring: trio.offspring.clone(),
-        offspring_sex: trio.offspring_sex.name().to_string(),
-        ..Metrics::default()
-    };
+    let mut metrics = metrics_for(trio);
     let mut violations = Vec::new();
     for (index, site) in sites.iter().enumerate() {
         if let Outcome::Violated(violation) = accumulate(site, trio, options, &mut metrics) {
@@ -443,6 +436,18 @@ pub fn collect(
     }
     metrics.calculate_derived_fields();
     (metrics, violations)
+}
+
+/// A trio's row before any site is accumulated into it.
+pub fn metrics_for(trio: &Trio) -> Metrics {
+    Metrics {
+        family_id: trio.family_id.clone(),
+        mother: trio.mother.clone(),
+        father: trio.father.clone(),
+        offspring: trio.offspring.clone(),
+        offspring_sex: trio.offspring_sex.name().to_string(),
+        ..Metrics::default()
+    }
 }
 
 /// The metrics file's header.

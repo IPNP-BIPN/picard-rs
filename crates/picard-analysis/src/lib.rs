@@ -49,6 +49,7 @@ pub mod collect_wgs_metrics;
 pub mod collect_wgs_metrics_with_non_zero_coverage;
 pub mod combine_genotyping_array_vcfs;
 pub mod command_line;
+pub mod compact_interval;
 pub mod compare_metrics;
 pub mod compare_sams;
 pub mod convert_artifact_to_oxog;
