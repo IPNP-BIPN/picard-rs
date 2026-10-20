@@ -21,8 +21,10 @@ use htsjdk_bam::tag::{Tag, TagValue};
 use picard_analysis::args::arg;
 use picard_analysis::bam_stream::{Input, Records};
 use picard_analysis::mark_duplicates::{
-    base_quality_score, mark_sorted, Options, Record, ScoringStrategy, Span, TaggingPolicy,
+    base_quality_score, Flags, Options, ReadEndsBuilder, Record, ScoringStrategy, Span,
+    TaggingPolicy, Tally,
 };
+use picard_analysis::stream_output::Output;
 use std::sync::Arc;
 
 const DUPLICATE_READ: u16 = 0x400;
@@ -189,6 +191,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // record, and once for the writing. One input is streamed, and its first read checks the whole
     // file, so a damaged one is refused here as reading it whole refused it. Several are merged in
     // memory by `openInputs`, once per pass.
+    // shortcut: several inputs are still read whole and merged in memory; stream the merge once a
+    // multi-input run on large files matters.
     let open =
         |streamed: Option<bool>| -> Result<(SamHeader, Records, bool), Box<dyn std::error::Error>> {
             if let [input] = inputs.as_slice() {
@@ -261,57 +265,58 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `rec.getReadGroup().getReadGroupId()`, which is null with no RG tag or one the header does
     // not declare. The pass stops at the first unplaced unmapped read when coordinate-sorted.
     let mut past_unplaced = false;
-    let marked_records: Vec<Record> = records
-        .map(|record| {
-            let id = string_tag(&record, b"PG");
-            if !seen.contains(&id) {
-                seen.push(id);
-            }
-            let (library, read_group) = library_of(&record);
-            past_unplaced |= record.flags & 0x4 != 0
-                && record.reference_index == -1
-                && header_order == "coordinate";
-            if !past_unplaced
-                && record.flags & (0x1 | 0x4 | 0x8 | 0x100 | 0x800) == 0x1
-                && read_group == -1
+    // What either pass reads of a record, built again on the second rather than kept.
+    let summary = |record: &BamRecord| -> Record {
+        let (library, read_group) = library_of(record);
+        let barcode = options.barcode_tag.as_ref().and_then(|tag| {
+            match record
+                .tags
+                .get(Tag::new(tag.as_bytes().try_into().unwrap_or(b"RX")))
             {
-                eprintln!(
+                Some(TagValue::Str(value)) => Some(value.clone()),
+                _ => None,
+            }
+        });
+        Record {
+            name: record.read_name.clone(),
+            flags: record.flags,
+            reference_index: record.reference_index,
+            alignment_start: record.alignment_start,
+            span: Span::of(&record.cigar),
+            read_length: record.read_bases.len() as u32,
+            base_quality_score: base_quality_score(&record.base_qualities),
+            mate_reference_index: record.mate_reference_index,
+            library,
+            read_group,
+            barcode,
+            existing_dt: string_tag(record, b"DT"),
+            mate_span: None,
+            mate_alignment_start: record.mate_alignment_start,
+        }
+    };
+    let mut ends = ReadEndsBuilder::new(&options, header_order == "queryname");
+    for record in records {
+        let id = string_tag(&record, b"PG");
+        if !seen.contains(&id) {
+            seen.push(id);
+        }
+        let read_group = library_of(&record).1;
+        past_unplaced |=
+            record.flags & 0x4 != 0 && record.reference_index == -1 && header_order == "coordinate";
+        if !past_unplaced
+            && record.flags & (0x1 | 0x4 | 0x8 | 0x100 | 0x800) == 0x1
+            && read_group == -1
+        {
+            eprintln!(
                     "Exception in thread \"main\" java.lang.NullPointerException: Cannot invoke \
                      \"htsjdk.samtools.SAMReadGroupRecord.getReadGroupId()\" because the return value of \
                      \"htsjdk.samtools.SAMRecord.getReadGroup()\" is null"
                 );
-                std::process::exit(1);
-            }
-            let barcode = options.barcode_tag.as_ref().and_then(|tag| {
-                match record
-                    .tags
-                    .get(Tag::new(tag.as_bytes().try_into().unwrap_or(b"RX")))
-                {
-                    Some(TagValue::Str(value)) => Some(value.clone()),
-                    _ => None,
-                }
-            });
-            let existing_dt = string_tag(&record, b"DT");
-            Record {
-                name: record.read_name,
-                flags: record.flags,
-                reference_index: record.reference_index,
-                alignment_start: record.alignment_start,
-                span: Span::of(&record.cigar),
-                read_length: record.read_bases.len() as u32,
-                base_quality_score: base_quality_score(&record.base_qualities),
-                mate_reference_index: record.mate_reference_index,
-                library,
-                read_group,
-                barcode,
-                existing_dt,
-                mate_span: None,
-                mate_alignment_start: record.mate_alignment_start,
-            }
-        })
-        .collect();
-
-    let marking = mark_sorted(&marked_records, &options, header_order == "queryname");
+            std::process::exit(1);
+        }
+        ends.push(&summary(&record));
+    }
+    let mut decisions = ends.decide();
 
     // `createOutHeader`: assuming queryname says the file is queryname GROUPED, which is not a
     // sort order, so the output says so.
@@ -348,33 +353,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let coordinate_out = out_header.attributes.get("SO") == Some("coordinate");
     let mut previous: Option<(i32, i32)> = None;
 
-    // The output is built whole before it is written, so it is given room for about the input's
-    // size at once: growing it by doubling holds the old and the new buffer together, and that was
-    // the run's peak.
-    let reserve: usize = inputs
-        .iter()
-        .map(|input| std::fs::metadata(input).map_or(0, |m| m.len() as usize))
-        .sum();
-    let mut writer =
-        picard_analysis::output::bam_writer(Vec::with_capacity(reserve + reserve / 8), &out_header)
-            .map_err(|e| format!("{e:?}"))?;
+    // Picard's writer is opened before the second pass, and a failure in it leaves no file.
+    let mut writer = Output::bam(&output, &out_header, false)?;
+    let optical_pairs = std::mem::take(&mut decisions.optical_pairs);
+    let all_sets = std::mem::take(&mut decisions.all_sets);
+    let optical_sets = std::mem::take(&mut decisions.optical_sets);
+    let non_optical_sets = std::mem::take(&mut decisions.non_optical_sets);
+    let mut flags = Flags::new(decisions, header_order == "queryname");
+    let mut tally = Tally::default();
     let (_, records, _) = open(Some(streamed))?;
-    for (index, record) in records.enumerate() {
+    for record in records {
+        let marked = summary(&record);
+        let (duplicate, optical, duplicate_set) = flags.next(
+            &marked.name,
+            marked.secondary_or_supplementary() || marked.unmapped(),
+        );
+        let (duplicate_type, kept) = tally.add(&marked, &options, duplicate, optical);
         // `UmiUtil.setMolecularIdentifier`, reached for every record before the ones that are
         // removed are skipped, so a record that cannot be given one stops the run wherever it is.
         let molecular_identifier = match &molecular_identifier_tag {
-            Some(_) => {
-                match molecular_identifier(&header, &record, &marked_records[index], duplex) {
-                    Ok(value) => Some(value),
-                    Err(thrown) => {
-                        eprintln!("Exception in thread \"main\" {thrown}");
-                        std::process::exit(1);
-                    }
-                }
-            }
+            Some(_) => match molecular_identifier(&header, &record, &marked, duplex) {
+                Ok(value) => Some(value),
+                Err(thrown) => picard_analysis::metrics_cli::thrown(&thrown),
+            },
             None => None,
         };
-        if !marking.written[index] {
+        if !kept {
             continue;
         }
         if coordinate_out {
@@ -410,15 +414,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // Both keys are the OFFENDING record, and that is htsjdk's, not a slip here:
                     // `isSorted` sets `prev = rec` before returning false, so the message's
                     // `getPreviousRecord()` returns the record that has just been rejected.
-                    eprintln!(
-                        "Exception in thread \"main\" java.lang.IllegalArgumentException: \
-                         Alignments added out of order in SAMFileWriterImpl.addAlignment for \
-                         file://{output}. Sort order is coordinate. Offending records are at [{}] \
-                         and [{}]",
+                    picard_analysis::metrics_cli::thrown(&format!(
+                        "java.lang.IllegalArgumentException: Alignments added out of order in \
+                         SAMFileWriterImpl.addAlignment for file://{output}. Sort order is \
+                         coordinate. Offending records are at [{}] and [{}]",
                         key(here.0, here.1),
                         key(here.0, here.1)
-                    );
-                    std::process::exit(1);
+                    ));
                 }
             }
             previous = Some(here);
@@ -427,17 +429,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let flags = record.flags;
         let mut written = record;
         written.flags &= !DUPLICATE_READ;
-        if marking.duplicate[index] {
+        if duplicate {
             written.flags |= DUPLICATE_READ;
         }
         written.tags.remove(Tag::new(b"DT"));
-        if let Some(code) = &marking.duplicate_type[index] {
-            written
-                .tags
-                .insert(Tag::new(b"DT"), TagValue::Str(code.clone()));
+        if let Some(code) = duplicate_type {
+            written.tags.insert(Tag::new(b"DT"), TagValue::Str(code));
         }
         if tag_duplicate_set_members && flags & (0x4 | 0x100 | 0x800) == 0 {
-            if let Some((representative, size)) = marking.duplicate_set[index] {
+            if let Some((representative, size)) = duplicate_set {
                 written
                     .tags
                     .insert(Tag::new(b"DI"), TagValue::Int(representative as i64));
@@ -465,16 +465,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        writer.write(&written).map_err(|e| format!("{e:?}"))?;
+        writer.write(&written)?;
     }
-    picard_analysis::cram_output::write(&output, writer.finish().map_err(|e| format!("{e:?}"))?)?;
+    writer.finish(picard_analysis::cram_output::create_index_argument(), false)?;
 
     // The metrics file is written because the tool requires the argument, and its content is not
     // what this array compares: the OUTPUT is.
     if let Some(path) = metrics_file {
         let text = picard_analysis::mark_duplicates::duplication_metrics_text(
             "MarkDuplicates",
-            &marking.metrics,
+            &tally.finish(Some(&optical_pairs)),
             &header
                 .read_groups
                 .iter()
@@ -486,9 +486,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .to_string()
                 })
                 .collect::<Vec<_>>(),
-            &marking.all_sets,
-            &marking.optical_sets,
-            &marking.non_optical_sets,
+            &all_sets,
+            &optical_sets,
+            &non_optical_sets,
         );
         std::fs::write(path, text)?;
     }
