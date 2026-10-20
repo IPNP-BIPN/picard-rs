@@ -989,7 +989,28 @@ struct TextSource {
     line: Vec<u8>,
     /// Set once a failure was reported: nothing further is read.
     done: bool,
+    /// Lines read ahead and decoded on every core, handed out in file order.
+    pending: std::collections::VecDeque<Ahead>,
+    /// The read failure met while reading ahead, after every line in `pending`.
+    pending_failure: Option<String>,
+    /// `line_number` as it will be once every line read so far is handed out.
+    ahead_number: usize,
+    /// Whether the input has been read to its end.
+    exhausted: bool,
 }
+
+/// A line read ahead: its bytes (what [`VcfReader::keep`] keeps), where it began, and how it
+/// decoded.
+struct Ahead {
+    line: Vec<u8>,
+    offset: u64,
+    decoded: Result<Option<Record>, Failure>,
+}
+
+/// How many lines are read ahead and decoded together, and how many bytes of them at most: a
+/// decoded record with genotypes holds several times its line.
+const AHEAD: usize = 16384;
+const AHEAD_BYTES: usize = 4 << 20;
 
 /// The input's lines, `\n` included, inflated when the file is gzip.
 enum Lines {
@@ -1068,6 +1089,63 @@ fn without_terminator(line: &str) -> &str {
     }
 }
 
+/// [`TextSource::decode`] for a line whose counter is `line_number`: free of the source, so the
+/// lines read ahead decode on every core.
+fn decode_at(
+    file: &VcfFile,
+    samples: &std::sync::Arc<[String]>,
+    sorted: bool,
+    lazy: bool,
+    line_number: usize,
+    buffer: &[u8],
+    offset: u64,
+) -> Result<Option<Record>, Failure> {
+    use htsjdk_vcf::genotype_parse::{parse_genotypes, GenotypeContext};
+    use htsjdk_vcf::genotypes_context::GenotypesContext;
+    use htsjdk_vcf::record_parse::{decode_line, split_condensed_borrowed};
+
+    let text = utf8_at(buffer, offset).map_err(Failure::Utf8)?;
+    let line = without_terminator(text);
+    let decoded = decode_line(line, &file.header, line_number, file.codec_version)
+        .map_err(|e| Failure::Parse(format!("{}: {}", e.class(), e.message())))?;
+    let Some(decoded) = decoded else {
+        // A `#` line: no record, no refusal, and no increment of the counter.
+        return Ok(None);
+    };
+    // `parseVCFLine` increments on entry.
+    let line_number = line_number + 1;
+    let mut variant = decoded.variant;
+    if let Some(block) = decoded.genotype_block {
+        let context = GenotypeContext {
+            line,
+            header: &file.header,
+            version: file.codec_version,
+            contig: &variant.contig,
+            pos: variant.start,
+            line_number,
+        };
+        let genotypes = parse_genotypes(&block, &variant.alleles, &context)
+            .map_err(|e| Failure::Parse(format!("{}: {}", e.class(), e.message())))?;
+        variant.genotypes = GenotypesContext::lazy(genotypes, block, samples.clone());
+        if !sorted {
+            variant.genotypes.decode();
+        }
+    }
+    let lazy_genotypes = lazy
+        .then(|| {
+            split_condensed_borrowed(line, '\t', NUM_STANDARD_FIELDS + 1, true)
+                .into_iter()
+                .nth(NUM_STANDARD_FIELDS)
+                .map(str::to_string)
+        })
+        .flatten();
+    Ok(Some(Record {
+        variant,
+        lazy_genotypes,
+        fully_decoded: false,
+    }))
+}
+
 impl TextSource {
     /// The exception the whole-file read would have thrown, given the first failure met here:
     /// the rest of the input is read for one that outranks it.
@@ -1078,6 +1156,15 @@ impl TextSource {
             Failure::Utf8(exception) => (Some(exception), None),
             Failure::Parse(exception) => (None, Some(exception)),
         };
+        // The lines read ahead come first, then the read failure that ended them.
+        for ahead in std::mem::take(&mut self.pending) {
+            if utf8.is_none() {
+                utf8 = utf8_at(&ahead.line, ahead.offset).err();
+            }
+        }
+        if let Some(exception) = self.pending_failure.take() {
+            return exception;
+        }
         loop {
             self.line.clear();
             match self.lines.read(&mut self.line) {
@@ -1100,51 +1187,70 @@ impl TextSource {
         buffer: &[u8],
         offset: u64,
     ) -> Result<Option<Record>, Failure> {
-        use htsjdk_vcf::genotype_parse::{parse_genotypes, GenotypeContext};
-        use htsjdk_vcf::genotypes_context::GenotypesContext;
-        use htsjdk_vcf::record_parse::{decode_line, split_condensed_borrowed};
-
-        let text = utf8_at(buffer, offset).map_err(Failure::Utf8)?;
-        let line = without_terminator(text);
-        let decoded = decode_line(line, &file.header, self.line_number, file.codec_version)
-            .map_err(|e| Failure::Parse(format!("{}: {}", e.class(), e.message())))?;
-        let Some(decoded) = decoded else {
-            // A `#` line: no record, no refusal, and no increment of the counter.
-            return Ok(None);
-        };
-        // `parseVCFLine` increments on entry.
-        self.line_number += 1;
-        let mut variant = decoded.variant;
-        if let Some(block) = decoded.genotype_block {
-            let context = GenotypeContext {
-                line,
-                header: &file.header,
-                version: file.codec_version,
-                contig: &variant.contig,
-                pos: variant.start,
-                line_number: self.line_number,
-            };
-            let genotypes = parse_genotypes(&block, &variant.alleles, &context)
-                .map_err(|e| Failure::Parse(format!("{}: {}", e.class(), e.message())))?;
-            variant.genotypes = GenotypesContext::lazy(genotypes, block, self.samples.clone());
-            if !self.sorted {
-                variant.genotypes.decode();
-            }
+        let decoded = decode_at(
+            file,
+            &self.samples,
+            self.sorted,
+            self.lazy,
+            self.line_number,
+            buffer,
+            offset,
+        );
+        if let Ok(Some(_)) = decoded {
+            self.line_number += 1;
         }
-        let lazy_genotypes = self
-            .lazy
-            .then(|| {
-                split_condensed_borrowed(line, '\t', NUM_STANDARD_FIELDS + 1, true)
-                    .into_iter()
-                    .nth(NUM_STANDARD_FIELDS)
-                    .map(str::to_string)
+        decoded
+    }
+
+    /// The next lines read ahead and decoded on every core, into `pending`; false when the input
+    /// had none left.
+    fn read_ahead(&mut self, file: &VcfFile) -> bool {
+        use rayon::prelude::*;
+        if self.exhausted {
+            return false;
+        }
+        let mut lines = Vec::with_capacity(AHEAD);
+        let mut bytes = 0;
+        while lines.len() < AHEAD && bytes < AHEAD_BYTES {
+            let mut buffer = Vec::new();
+            match self.lines.read(&mut buffer) {
+                Err(exception) => {
+                    self.pending_failure = Some(exception);
+                    self.exhausted = true;
+                    break;
+                }
+                Ok(false) => {
+                    self.exhausted = true;
+                    break;
+                }
+                Ok(true) => {}
+            }
+            let offset = self.offset;
+            self.offset += buffer.len() as u64;
+            bytes += buffer.len();
+            // The counter this line meets: one more for every record line before it.
+            let at = self.ahead_number;
+            if !buffer.starts_with(b"#") {
+                self.ahead_number += 1;
+            }
+            lines.push((buffer, offset, at));
+        }
+        let (samples, sorted, lazy) = (&self.samples, self.sorted, self.lazy);
+        let decoded: Vec<Ahead> = lines
+            .into_par_iter()
+            .with_min_len(256)
+            .map(|(line, offset, at)| {
+                let decoded = decode_at(file, samples, sorted, lazy, at, &line, offset);
+                Ahead {
+                    line,
+                    offset,
+                    decoded,
+                }
             })
-            .flatten();
-        Ok(Some(Record {
-            variant,
-            lazy_genotypes,
-            fully_decoded: false,
-        }))
+            .collect();
+        let any = !decoded.is_empty();
+        self.pending.extend(decoded);
+        any
     }
 
     fn next(&mut self, file: &VcfFile) -> Option<Result<Record, String>> {
@@ -1152,22 +1258,26 @@ impl TextSource {
             return None;
         }
         loop {
-            let mut buffer = std::mem::take(&mut self.line);
-            buffer.clear();
-            match self.lines.read(&mut buffer) {
-                Err(exception) => return Some(Err(self.resolve(Failure::Bytes(exception)))),
-                Ok(false) => {
+            if self.pending.is_empty() {
+                if let Some(exception) = self.pending_failure.take() {
+                    return Some(Err(self.resolve(Failure::Bytes(exception))));
+                }
+                if !self.read_ahead(file) {
+                    if let Some(exception) = self.pending_failure.take() {
+                        return Some(Err(self.resolve(Failure::Bytes(exception))));
+                    }
                     self.done = true;
                     return None;
                 }
-                Ok(true) => {}
             }
-            let offset = self.offset;
-            self.offset += buffer.len() as u64;
-            let decoded = self.decode(file, &buffer, offset);
-            self.line = buffer;
-            match decoded {
-                Ok(Some(record)) => return Some(Ok(record)),
+            let ahead = self.pending.pop_front().expect("read ahead");
+            // [`VcfReader::keep`] keeps the line of the record last handed out.
+            self.line = ahead.line;
+            match ahead.decoded {
+                Ok(Some(record)) => {
+                    self.line_number += 1;
+                    return Some(Ok(record));
+                }
                 Ok(None) => continue,
                 Err(failure) => return Some(Err(self.resolve(failure))),
             }
@@ -1217,6 +1327,10 @@ impl VcfReader {
             lazy: false,
             line: Vec::new(),
             done: false,
+            pending: std::collections::VecDeque::new(),
+            pending_failure: None,
+            ahead_number: 0,
+            exhausted: false,
         };
 
         // The header is every `##` line and the one after them, which `read_header_frame` takes
@@ -1235,6 +1349,8 @@ impl VcfReader {
             }
         }
         source.offset = header.len() as u64;
+        // The header lines are counted; the records read ahead count on from them.
+        source.ahead_number = source.line_number;
         let text = match utf8_at(&header, 0) {
             Ok(text) => text,
             Err(exception) => return Err(source.resolve(Failure::Utf8(exception))),
