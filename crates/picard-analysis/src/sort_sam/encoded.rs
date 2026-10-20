@@ -278,7 +278,12 @@ impl RunWriter {
     fn create(dir: &Path) -> io::Result<RunWriter> {
         static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let path = dir.join(format!("sortingcollection.{}.{n}.tmp", std::process::id()));
+        // Not the decoded collection's name: each counts its own runs, and both run in one test
+        // process.
+        let path = dir.join(format!(
+            "sortingcollection.encoded.{}.{n}.tmp",
+            std::process::id()
+        ));
         let file = File::options()
             .read(true)
             .write(true)
