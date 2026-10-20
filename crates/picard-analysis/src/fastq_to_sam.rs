@@ -141,7 +141,7 @@ pub struct FullOptions {
 }
 
 /// `createSamFileHeader`: the read group's fields in setter order, then the comments.
-fn full_header(opts: &FullOptions) -> SamHeader {
+pub fn full_header(opts: &FullOptions) -> SamHeader {
     let mut header = build_header(&opts.read_group_name, &opts.sample_name);
     let group = &mut header.read_groups[0];
     let optional = [
@@ -208,19 +208,51 @@ pub fn fastq_to_bam_full(
     fastq2: Option<&str>,
     opts: &FullOptions,
 ) -> Result<Vec<u8>, String> {
-    use htsjdk_bam::fastq::get_sam_read_name_from_fastq_header;
-
     let header = full_header(opts);
-    let parse = |text: &str| {
-        parse_fastq(text, opts.allow_and_ignore_empty_lines)
-            .map_err(|e| format!("htsjdk.samtools.SAMException: {e}"))
+    let mut records = fastq_records(fastq1, fastq2, opts)?.collect::<Result<Vec<_>, _>>()?;
+    if opts.sort_order == "queryname" {
+        records.sort_by(query_name::compare);
+    }
+    let mut w =
+        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
+    for rec in &records {
+        w.write(rec).expect("unmapped record re-encodes as BAM");
+    }
+    Ok(w.finish().expect("finish never fails on a Vec"))
+}
+
+/// [`fastq_to_bam_full`]'s records in the order the FASTQs give them, built one at a time. Each
+/// file is parsed through first, so a parse failure anywhere outranks a record's, as reading them
+/// whole did.
+pub fn fastq_records<'a>(
+    fastq1: &'a str,
+    fastq2: Option<&'a str>,
+    opts: &'a FullOptions,
+) -> Result<impl Iterator<Item = Result<BamRecord, String>> + 'a, String> {
+    use htsjdk_bam::fastq::{get_sam_read_name_from_fastq_header, FastqReader};
+
+    let reader = move |text: &'a str| FastqReader::new(text, opts.allow_and_ignore_empty_lines);
+    let count = |text: &'a str| -> Result<usize, String> {
+        let mut reader = reader(text);
+        let mut count = 0;
+        while reader
+            .next_record()
+            .map_err(|e| format!("htsjdk.samtools.SAMException: {e}"))?
+            .is_some()
+        {
+            count += 1;
+        }
+        Ok(count)
     };
-    let reads1 = parse(fastq1)?;
-    let reads2 = match fastq2 {
-        Some(text) => Some(parse(text)?),
-        None => None,
+    let count1 = count(fastq1)?;
+    let count2 = fastq2.map(count).transpose()?;
+    let records = move |text: &'a str| {
+        let mut reader = reader(text);
+        std::iter::from_fn(move || reader.next_record().expect("parsed once already"))
     };
-    let make = |frec: &htsjdk_bam::fastq::FastqRecord, name: String| -> Result<BamRecord, String> {
+    let make = move |frec: &htsjdk_bam::fastq::FastqRecord,
+                     name: String|
+          -> Result<BamRecord, String> {
         let quals = convert_quality(
             frec.quality_string.as_deref().unwrap_or(""),
             &opts.quality_format,
@@ -243,65 +275,62 @@ pub fn fastq_to_bam_full(
             .insert(Tag::new(b"RG"), TagValue::Str(opts.read_group_name.clone()));
         Ok(rec)
     };
-    let mut records = Vec::new();
-    match reads2 {
-        None => {
-            for frec in &reads1 {
-                let name =
-                    get_sam_read_name_from_fastq_header(frec.read_name.as_deref().unwrap_or(""));
-                records.push(make(frec, name)?);
-            }
-        }
-        Some(reads2) => {
-            for (frec1, frec2) in reads1.iter().zip(reads2.iter()) {
-                let name1 =
-                    get_sam_read_name_from_fastq_header(frec1.read_name.as_deref().unwrap_or(""));
-                let name2 =
-                    get_sam_read_name_from_fastq_header(frec2.read_name.as_deref().unwrap_or(""));
-                if name1.is_empty() || name2.is_empty() {
-                    return Err(
-                        "picard.PicardException: Pair read name cannot be empty".to_string()
+    let all: Box<dyn Iterator<Item = Result<BamRecord, String>> + 'a> = match fastq2 {
+        None => Box::new(records(fastq1).map(move |frec| {
+            let name = get_sam_read_name_from_fastq_header(frec.read_name.as_deref().unwrap_or(""));
+            make(&frec, name)
+        })),
+        Some(text2) => {
+            let pairs = records(fastq1).zip(records(text2)).flat_map(move |(frec1, frec2)| {
+                let pair = (|| {
+                    let name1 = get_sam_read_name_from_fastq_header(
+                        frec1.read_name.as_deref().unwrap_or(""),
                     );
+                    let name2 = get_sam_read_name_from_fastq_header(
+                        frec2.read_name.as_deref().unwrap_or(""),
+                    );
+                    if name1.is_empty() || name2.is_empty() {
+                        return Err(
+                            "picard.PicardException: Pair read name cannot be empty".to_string()
+                        );
+                    }
+                    let (base1, num1) = read_name_tokens(&name1);
+                    let (base2, num2) = read_name_tokens(&name2);
+                    if base1 != base2 {
+                        return Err(format!(
+                            "picard.PicardException: In paired mode, read name 1 ({base1}) does not match read name 2 ({base2})"
+                        ));
+                    }
+                    if num1.is_some() != num2.is_some()
+                        || num1.as_deref().is_some_and(|n| n != "1")
+                        || num2.as_deref().is_some_and(|n| n != "2")
+                    {
+                        return Err(format!(
+                            "picard.PicardException: the pair numbers of {name1} and {name2} do not read 1 and 2"
+                        ));
+                    }
+                    let mut first = make(&frec1, base1.clone())?;
+                    first.flags |= 0x1 | 0x8 | 0x40;
+                    let mut second = make(&frec2, base1)?;
+                    second.flags |= 0x1 | 0x8 | 0x80;
+                    Ok([first, second])
+                })();
+                match pair {
+                    Ok(both) => both.map(Ok).to_vec(),
+                    Err(e) => vec![Err(e)],
                 }
-                let (base1, num1) = read_name_tokens(&name1);
-                let (base2, num2) = read_name_tokens(&name2);
-                if base1 != base2 {
-                    return Err(format!(
-                        "picard.PicardException: In paired mode, read name 1 ({base1}) does not match read name 2 ({base2})"
-                    ));
-                }
-                if num1.is_some() != num2.is_some()
-                    || num1.as_deref().is_some_and(|n| n != "1")
-                    || num2.as_deref().is_some_and(|n| n != "2")
-                {
-                    return Err(format!(
-                        "picard.PicardException: the pair numbers of {name1} and {name2} do not read 1 and 2"
-                    ));
-                }
-                let mut first = make(frec1, base1.clone())?;
-                first.flags |= 0x1 | 0x8 | 0x40;
-                records.push(first);
-                let mut second = make(frec2, base1)?;
-                second.flags |= 0x1 | 0x8 | 0x80;
-                records.push(second);
-            }
-            if reads1.len() != reads2.len() {
-                return Err(
+            });
+            // The lengths are compared once every pair the shorter file makes has been built.
+            let unequal = (Some(count1) != count2).then(|| {
+                Err(
                     "picard.PicardException: Input paired fastq files must be the same length"
                         .to_string(),
-                );
-            }
+                )
+            });
+            Box::new(pairs.chain(unequal))
         }
-    }
-    if opts.sort_order == "queryname" {
-        records.sort_by(query_name::compare);
-    }
-    let mut w =
-        crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
-    for rec in &records {
-        w.write(rec).expect("unmapped record re-encodes as BAM");
-    }
-    Ok(w.finish().expect("finish never fails on a Vec"))
+    };
+    Ok(all)
 }
 
 #[cfg(test)]
