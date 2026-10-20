@@ -28,8 +28,10 @@
 //! that path either refuses or names every contig exactly as this does. `ALT_NAMES` and the alias
 //! handling are a separate surface.
 
-use htsjdk_bam::fasta::{read_fasta, FastaError};
+use crate::fasta_records::records;
+use htsjdk_bam::fasta::FastaError;
 use md5::{Digest, Md5};
+use std::io::Read;
 
 /// `SequenceUtil.calculateMD5`: the MD5 of the bases uppercased, rendered as lower-case hex.
 fn calculate_md5(bases: &[u8]) -> String {
@@ -47,7 +49,10 @@ fn calculate_md5(bases: &[u8]) -> String {
 
 /// `CreateSequenceDictionary.makeSequenceDictionary` for a FASTA input. `fasta` is the reference
 /// bytes; `reference_uri` is the `UR` value (its `file:` URI).
-pub fn create_sequence_dictionary(fasta: &[u8], reference_uri: &str) -> Result<String, FastaError> {
+pub fn create_sequence_dictionary(
+    fasta: impl Read,
+    reference_uri: &str,
+) -> Result<String, FastaError> {
     create_sequence_dictionary_with(fasta, reference_uri, &Options::default())
 }
 
@@ -64,14 +69,18 @@ pub struct Options {
 
 /// `makeSequenceDictionary` with the optional attributes the tool accepts.
 pub fn create_sequence_dictionary_with(
-    fasta: &[u8],
+    fasta: impl Read,
     reference_uri: &str,
     options: &Options,
 ) -> Result<String, FastaError> {
-    let contigs = read_fasta(fasta)?;
     let mut out = String::from("@HD\tVN:1.6\n");
     let keep = options.num_sequences.unwrap_or(usize::MAX);
-    for contig in contigs.iter().take(keep) {
+    // Every contig is read, as the whole-file parse did, so a bad one past the limit still refuses.
+    for (i, contig) in records(fasta, true).enumerate() {
+        let contig = contig?;
+        if i >= keep {
+            continue;
+        }
         // `SamSequenceRecordsIterator.makeSequenceRecord`'s order: M5, then AS when given, then
         // UR, then SP when given. The attributes keep insertion order, so this is the file's.
         out.push_str(&format!(
