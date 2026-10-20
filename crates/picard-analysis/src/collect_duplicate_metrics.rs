@@ -146,13 +146,16 @@ impl htsjdk_metrics::file::MetricBean for DuplicationMetrics {
 /// The rows come from `LibraryIdGenerator`, which is built from the HEADER, so every library a
 /// read group names gets a row whether a read ever used it or not. A file with no reads at all
 /// still writes a row of zeros.
-pub fn collect(header_libraries: &[String], records: &[Record]) -> Vec<DuplicationMetrics> {
-    let mut by_library: BTreeMap<&str, DuplicationMetrics> = BTreeMap::new();
-    let mut order: Vec<&str> = Vec::new();
+pub fn collect(
+    header_libraries: &[String],
+    records: impl IntoIterator<Item = impl std::borrow::Borrow<Record>>,
+) -> Vec<DuplicationMetrics> {
+    let mut by_library: BTreeMap<String, DuplicationMetrics> = BTreeMap::new();
+    let mut order: Vec<String> = Vec::new();
     for library in header_libraries {
         if by_library
             .insert(
-                library.as_str(),
+                library.clone(),
                 DuplicationMetrics {
                     library: library.clone(),
                     ..Default::default()
@@ -160,19 +163,18 @@ pub fn collect(header_libraries: &[String], records: &[Record]) -> Vec<Duplicati
             )
             .is_none()
         {
-            order.push(library.as_str());
+            order.push(library.clone());
         }
     }
     for record in records {
-        let metrics = by_library
-            .entry(record.library.as_str())
-            .or_insert_with(|| {
-                order.push(record.library.as_str());
-                DuplicationMetrics {
-                    library: record.library.clone(),
-                    ..Default::default()
-                }
-            });
+        let record = record.borrow();
+        let metrics = by_library.entry(record.library.clone()).or_insert_with(|| {
+            order.push(record.library.clone());
+            DuplicationMetrics {
+                library: record.library.clone(),
+                ..Default::default()
+            }
+        });
         metrics.add_read(record);
         if record.duplicate {
             metrics.add_duplicate(record);
@@ -180,7 +182,7 @@ pub fn collect(header_libraries: &[String], records: &[Record]) -> Vec<Duplicati
     }
     let mut rows: Vec<DuplicationMetrics> = order
         .into_iter()
-        .map(|library| by_library[library].clone())
+        .map(|library| by_library[&library].clone())
         .collect();
     for row in &mut rows {
         row.halve_the_pairs();

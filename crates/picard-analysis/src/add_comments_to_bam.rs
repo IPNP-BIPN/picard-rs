@@ -14,7 +14,8 @@
 
 use crate::bgzf::decompress_all;
 use htsjdk_bam::reader::BamReader;
-use htsjdk_bam::reheader::{reheader_bam_with, ReheaderError};
+use htsjdk_bam::reheader::{block_copy_to, reheader_bam_with, ReheaderError};
+use std::io::Write;
 
 /// Why `AddCommentsToBam` could not run.
 #[derive(Debug)]
@@ -53,6 +54,37 @@ pub fn add_comments_to_bam(
 
     let (level, deflater) = crate::output::current();
     Ok(reheader_bam_with(&header, input_bam, level, deflater)?)
+}
+
+/// [`add_comments_to_bam`] from the BAM at `input` to a new file at `output`, a block at a time,
+/// or `None` when the input does not inflate cleanly and is read whole for the answer that gave.
+/// A failure leaves no output, as the whole-file copy wrote nothing before it had succeeded.
+pub fn add_comments_to_bam_file(
+    input: &str,
+    output: &str,
+    comments: &[&str],
+) -> Option<Result<(), AddCommentsError>> {
+    let mut header = crate::bam_stream::header_if_clean(input)?;
+    for comment in comments {
+        if comment.contains('\n') {
+            return Some(Err(AddCommentsError::NewlineInComment));
+        }
+        header.add_comment(comment);
+    }
+    let (level, deflater) = crate::output::current();
+    let copied = (|| {
+        let mut source = std::fs::File::open(input)?;
+        let mut out =
+            std::io::BufWriter::new(std::fs::File::create(output).map_err(ReheaderError::Write)?);
+        let block = htsjdk_bam::writer::write_bam_header_block_with(&header, level, deflater)?;
+        out.write_all(&block).map_err(ReheaderError::Write)?;
+        block_copy_to(&mut source, &mut out, true, false, level, deflater)?;
+        out.flush().map_err(ReheaderError::Write)
+    })();
+    if copied.is_err() {
+        let _ = std::fs::remove_file(output);
+    }
+    Some(copied.map_err(AddCommentsError::from))
 }
 
 #[cfg(test)]
