@@ -18,6 +18,7 @@
 //! `(0, 0)`. CRAM/CSI are out of scope.
 
 use htsjdk_bam::build_index::build_bam_index;
+use htsjdk_bam::header::SequenceRecord;
 use htsjdk_bam::reader::BamReader;
 use htsjdk_bam::{parse_bai_metadata, BuildIndexError};
 
@@ -53,8 +54,11 @@ pub fn bam_index_stats_with_index(bam: &[u8], bai: &[u8]) -> Result<String, BamI
         crate::bgzf::decompress_all(bam).map_err(|e| BamIndexStatsError::Bgzf(format!("{e:?}")))?;
     let reader =
         BamReader::new(&decoded).map_err(|e| BamIndexStatsError::Bgzf(format!("{e:?}")))?;
-    let sequences = reader.header.text.sequences.clone();
+    index_stats(&reader.header.text.sequences, bai)
+}
 
+/// [`bam_index_stats_with_index`] from the header's sequences alone, which is all the BAM gives it.
+pub fn index_stats(sequences: &[SequenceRecord], bai: &[u8]) -> Result<String, BamIndexStatsError> {
     let stats = parse_bai_metadata(bai).map_err(|e| BamIndexStatsError::Bai(format!("{e:?}")))?;
 
     let mut out = String::new();
