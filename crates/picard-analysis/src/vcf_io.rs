@@ -260,14 +260,20 @@ fn text_index(
     records: &[Record],
     indexed: &Indexed,
 ) -> Option<Vec<u8>> {
-    let header_length = header.write().len();
-    let mut at = header_length as i64;
+    // Positions in the bytes written, which [`latin1`] makes one per character.
+    let header_text = header.write();
+    let mut at = latin1_len(&header_text) as i64;
     let mut positions = Vec::with_capacity(records.len());
-    for line in text[header_length..].split_terminator('\n') {
+    for line in text[header_text.len()..].split_terminator('\n') {
         positions.push(at);
-        at += line.len() as i64 + 1;
+        at += latin1_len(line) as i64 + 1;
     }
-    tribble_index(features_of(records), &positions, text.len() as i64, indexed)
+    tribble_index(
+        features_of(records),
+        &positions,
+        latin1_len(text) as i64,
+        indexed,
+    )
 }
 
 /// The `.idx` `IndexingVariantContextWriter` writes at `close()`: each record's feature at the
@@ -353,7 +359,7 @@ pub fn write_text_indexed(
     text: &str,
     dictionary: Option<&[Sequence]>,
 ) -> std::io::Result<()> {
-    std::fs::write(path, text)?;
+    std::fs::write(path, latin1(text))?;
     let lower = path.to_ascii_lowercase();
     let Some(dictionary) = dictionary else {
         return Ok(());
@@ -370,11 +376,12 @@ pub fn write_text_indexed(
             .map_or(text.len(), |end| at + 1 + end + 1),
         None => return Ok(()),
     };
+    // Positions in the bytes written, which [`latin1`] makes one per character.
     let mut positions = Vec::new();
-    let mut at = header_length as i64;
+    let mut at = latin1_len(&text[..header_length]) as i64;
     let features = text[header_length..].split_terminator('\n').map(|line| {
         positions.push(at);
-        at += line.len() as i64 + 1;
+        at += latin1_len(line) as i64 + 1;
         let fields: Vec<&str> = line.splitn(9, '\t').collect();
         let start: i64 = fields.get(1).and_then(|p| p.parse().ok()).unwrap_or(0);
         let reference = fields.get(3).map_or(1, |r| r.len() as i64);
@@ -400,7 +407,7 @@ pub fn write_text_indexed(
         timestamp,
     };
     let features: Vec<_> = features.collect();
-    if let Some(index) = tribble_index(features, &positions, text.len() as i64, &indexed) {
+    if let Some(index) = tribble_index(features, &positions, latin1_len(text) as i64, &indexed) {
         std::fs::write(format!("{path}.idx"), index)?;
     }
     Ok(())
@@ -581,15 +588,16 @@ impl VcfWriter {
         } else if is_compressed_vcf(path) {
             let mut bgzf =
                 crate::output::bgzf_writer(std::io::BufWriter::with_capacity(BUFFER_SIZE, file));
-            std::io::Write::write_all(&mut bgzf, header.write().as_bytes())?;
+            std::io::Write::write_all(&mut bgzf, &latin1(&header.write()))?;
             Sink::Bgzf(bgzf)
         } else {
             let text = header.write();
+            let bytes = latin1(&text);
             let mut out = JavaBuffered::new(file);
-            out.write(text.as_bytes())?;
+            out.write(&bytes)?;
             Sink::Text {
                 out,
-                at: text.len() as u64,
+                at: bytes.len() as u64,
             }
         };
         Ok(VcfWriter {
@@ -673,13 +681,14 @@ impl VcfWriter {
             Sink::Text { out, at } => {
                 self.line.clear();
                 self.encoders.encode(record, &mut self.line)?;
-                out.write(self.line.as_bytes())?;
-                *at += self.line.len() as u64;
+                let bytes = latin1(&self.line);
+                out.write(&bytes)?;
+                *at += bytes.len() as u64;
             }
             Sink::Bgzf(bgzf) => {
                 self.line.clear();
                 self.encoders.encode(record, &mut self.line)?;
-                std::io::Write::write_all(bgzf, self.line.as_bytes())?;
+                std::io::Write::write_all(bgzf, &latin1(&self.line))?;
             }
             Sink::Bcf { out, writer, at } => {
                 use htsjdk_vcf::bcf2::writer::Origin;
@@ -857,12 +866,8 @@ pub fn read_to_string(path: &str) -> std::io::Result<String> {
     } else {
         bytes
     };
-    String::from_utf8(bytes).map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "stream did not contain valid UTF-8",
-        )
-    })
+    // htsjdk's readers replace what does not decode; see `utf8_at`.
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 /// A VCF's text, inflated when the file is gzip, which `VCFFileReader` reads whatever its name.
@@ -874,7 +879,8 @@ pub fn read_text(path: &str) -> Result<String, String> {
     } else {
         bytes
     };
-    String::from_utf8(bytes).map_err(|e| format!("java.io.IOException: {e}"))
+    // htsjdk's readers replace what does not decode; see `utf8_at`.
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 /// `VCFFileReader.isBCF` and `VariantContextWriterBuilder.isBCF`: the name decides, not the bytes.
@@ -1066,19 +1072,37 @@ impl Lines {
     }
 }
 
-/// `String.from_utf8` over the whole file, for one line `offset` bytes in.
-fn utf8_at(line: &[u8], offset: u64) -> Result<&str, String> {
-    std::str::from_utf8(line).map_err(|e| {
-        let at = offset + e.valid_up_to() as u64;
-        match e.error_len() {
-            Some(len) => {
-                format!(
-                    "java.io.IOException: invalid utf-8 sequence of {len} bytes from index {at}"
-                )
-            }
-            None => format!("java.io.IOException: incomplete utf-8 byte sequence from index {at}"),
-        }
-    })
+/// `VCFEncoder.VCF_CHARSET`, ISO-8859-1, as the writer's `OutputStreamWriter` encodes the text it
+/// is given: a character up to U+00FF is its one byte, and any other is `?`. So an `é` read from a
+/// UTF-8 file is written as the single byte E9, and a U+FFFD the reader put in place of a bad byte
+/// as `?`.
+pub fn latin1(text: &str) -> std::borrow::Cow<'_, [u8]> {
+    if text.is_ascii() {
+        std::borrow::Cow::Borrowed(text.as_bytes())
+    } else {
+        std::borrow::Cow::Owned(
+            text.chars()
+                .map(|c| u8::try_from(u32::from(c)).unwrap_or(b'?'))
+                .collect(),
+        )
+    }
+}
+
+/// How many bytes [`latin1`] writes `text` as: one per character.
+fn latin1_len(text: &str) -> usize {
+    if text.is_ascii() {
+        text.len()
+    } else {
+        text.chars().count()
+    }
+}
+
+/// One line's text as htsjdk's line readers decode it: with the platform charset, UTF-8, through
+/// an `InputStreamReader` for a plain VCF and `ByteArrayOutputStream.toString()` for a block
+/// compressed one, both of which replace a sequence that does not decode with U+FFFD rather than
+/// throw. So a VCF with a bad byte reads on, and fails, if at all, as its text then fails.
+fn utf8_at(line: &[u8], _offset: u64) -> Result<std::borrow::Cow<'_, str>, String> {
+    Ok(String::from_utf8_lossy(line))
 }
 
 /// `str::lines`' line: without its `\n`, and without a `\r` before that.
@@ -1105,7 +1129,7 @@ fn decode_at(
     use htsjdk_vcf::record_parse::{decode_line, split_condensed_borrowed};
 
     let text = utf8_at(buffer, offset).map_err(Failure::Utf8)?;
-    let line = without_terminator(text);
+    let line = without_terminator(&text);
     let decoded = decode_line(line, &file.header, line_number, file.codec_version)
         .map_err(|e| Failure::Parse(format!("{}: {}", e.class(), e.message())))?;
     let Some(decoded) = decoded else {
@@ -1355,7 +1379,7 @@ impl VcfReader {
             Ok(text) => text,
             Err(exception) => return Err(source.resolve(Failure::Utf8(exception))),
         };
-        let file = match read_vcf(text) {
+        let file = match read_vcf(&text) {
             Ok(file) => file,
             Err(failure) => {
                 return Err(source.resolve(Failure::Parse(format!(
