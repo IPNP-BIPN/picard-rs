@@ -16,8 +16,12 @@
 //! The return code mirrors the tool: `0` if every interval lifted, `1` if any was rejected
 //! (`rejects.getIntervals().isEmpty() ? 0 : 1`).
 
-use htsjdk_bam::interval::{Interval, IntervalList, ParseError};
+use std::io::{self, BufRead, Write};
+
+use htsjdk_bam::interval::ParseError;
 use htsjdk_bam::liftover::{ChainParseError, LiftOver, MissingToSequence};
+
+use crate::compact_interval::{self as ci, Contigs, Iv};
 
 /// The lifted interval list plus the tool's process return code.
 #[derive(Debug, PartialEq, Eq)]
@@ -61,67 +65,134 @@ fn target_dictionary(sequence_dictionary: &str) -> (Vec<String>, Vec<String>) {
     (names, sq_lines)
 }
 
-/// `LiftOverIntervalList.doWork` over the input interval list, target sequence dictionary, and
-/// chain file.
+/// The lifted list and the rejects, ready to write.
+pub struct Lifted {
+    /// The output's header: a fresh `@HD` and the target dictionary's `@SQ` lines.
+    header: String,
+    contigs: Contigs,
+    /// The lifted intervals, sorted by the target dictionary.
+    intervals: Vec<Iv>,
+    /// The input's own header, re-encoded the way every `IntervalList.write` encodes one.
+    rejects_header: String,
+    input_contigs: Contigs,
+    /// The intervals that did not lift, in input order.
+    rejected: Vec<Iv>,
+}
+
+impl Lifted {
+    /// `0` if all intervals lifted, `1` if any were rejected.
+    pub fn return_code(&self) -> i32 {
+        i32::from(!self.rejected.is_empty())
+    }
+
+    pub fn write_output(&self, out: &mut impl Write) -> io::Result<()> {
+        out.write_all(self.header.as_bytes())?;
+        ci::write_lines(&self.contigs, &self.intervals, out)
+    }
+
+    pub fn write_rejects(&self, out: &mut impl Write) -> io::Result<()> {
+        out.write_all(self.rejects_header.as_bytes())?;
+        ci::write_lines(&self.input_contigs, &self.rejected, out)
+    }
+}
+
+/// `LiftOverIntervalList.doWork` over the input interval list (read line by line), the target
+/// sequence dictionary, and the chain file. A refusal is reported once the input has read
+/// cleanly to its end, as a whole-file read of it came first.
+pub fn lift(
+    input: impl BufRead,
+    sequence_dictionary: &str,
+    chain: &str,
+    min_liftover_pct: f64,
+) -> io::Result<Result<Lifted, LiftOverIntervalListError>> {
+    let mut lift = match LiftOver::load(chain) {
+        Ok(lift) => lift,
+        Err(error) => {
+            ci::drain(input)?;
+            return Ok(Err(LiftOverIntervalListError::Chain(error)));
+        }
+    };
+    lift.set_lift_over_min_match(min_liftover_pct);
+
+    // The input intervals are read by contig name; the input's own dictionary plays no part in the
+    // lift.
+    let mut input_contigs = Contigs::default();
+    let mut intervals = Vec::new();
+    let input_header = match ci::read_list(input, &mut input_contigs, &mut intervals)? {
+        Ok(header) => header,
+        Err(error) => return Ok(Err(LiftOverIntervalListError::Input(error))),
+    };
+
+    let (names, sq_lines) = target_dictionary(sequence_dictionary);
+    if let Err(missing) = lift.validate_to_sequences(&names) {
+        return Ok(Err(LiftOverIntervalListError::MissingToSequence(missing)));
+    }
+
+    // Each interval that lifts is replaced in place by its lifted self.
+    let mut contigs = Contigs::with_dictionary(&names);
+    let mut rejected = Vec::new();
+    let mut lifted = intervals;
+    lifted.retain_mut(
+        |interval| match lift.lift_over(&interval.to_interval(&input_contigs)) {
+            Some(to) => {
+                *interval = Iv::from_interval(to, &mut contigs);
+                true
+            }
+            None => {
+                rejected.push(interval.clone());
+                false
+            }
+        },
+    );
+    let input_header: String = input_header
+        .leading_lines()
+        .iter()
+        .map(|line| format!("{line}\n"))
+        .collect();
+    let rejects_header =
+        htsjdk_bam::reader::parse_header_text(&input_header).encode_replacing_version();
+
+    // Sort the lifted intervals by the target dictionary.
+    ci::sort(&contigs, &mut lifted);
+
+    let mut header = String::from("@HD\tVN:1.6\tSO:coordinate\n");
+    for sq in &sq_lines {
+        header.push_str(sq);
+        header.push('\n');
+    }
+    Ok(Ok(Lifted {
+        header,
+        contigs,
+        intervals: lifted,
+        rejects_header,
+        input_contigs,
+        rejected,
+    }))
+}
+
+/// [`lift`] over the input interval list's text, rendering both files.
 pub fn lift_over_interval_list(
     input_interval_list: &str,
     sequence_dictionary: &str,
     chain: &str,
     min_liftover_pct: f64,
 ) -> Result<LiftOverResult, LiftOverIntervalListError> {
-    let mut lift = LiftOver::load(chain).map_err(LiftOverIntervalListError::Chain)?;
-    lift.set_lift_over_min_match(min_liftover_pct);
-
-    // The input intervals are read by contig name; the input's own dictionary plays no part in the
-    // lift, so an empty dictionary suffices to parse them.
-    let input = IntervalList::parse_body(Vec::new(), input_interval_list)
-        .map_err(LiftOverIntervalListError::Input)?;
-
-    let (names, sq_lines) = target_dictionary(sequence_dictionary);
-    lift.validate_to_sequences(&names)
-        .map_err(LiftOverIntervalListError::MissingToSequence)?;
-
-    let mut lifted: Vec<Interval> = Vec::new();
-    let mut rejected: Vec<Interval> = Vec::new();
-    for interval in &input.intervals {
-        match lift.lift_over(interval) {
-            Some(to) => lifted.push(to),
-            None => rejected.push(interval.clone()),
-        }
-    }
-    let input_header: String = input_interval_list
-        .lines()
-        .take_while(|line| line.starts_with('@'))
-        .map(|line| format!("{line}\n"))
-        .collect();
-    let mut rejects =
-        htsjdk_bam::reader::parse_header_text(&input_header).encode_replacing_version();
-    rejects.push_str(
-        &IntervalList {
-            dictionary: Vec::new(),
-            intervals: rejected.clone(),
-        }
-        .write_body(),
-    );
-
-    // Sort the lifted intervals by the target dictionary and render the file.
-    let to_list = IntervalList {
-        dictionary: names,
-        intervals: lifted,
-    }
-    .sorted();
-
-    let mut output = String::from("@HD\tVN:1.6\tSO:coordinate\n");
-    for sq in &sq_lines {
-        output.push_str(sq);
-        output.push('\n');
-    }
-    output.push_str(&to_list.write_body());
-
+    let lifted = lift(
+        input_interval_list.as_bytes(),
+        sequence_dictionary,
+        chain,
+        min_liftover_pct,
+    )
+    .expect("a text reads")?;
+    let render = |write: &dyn Fn(&mut Vec<u8>) -> io::Result<()>| {
+        let mut out = Vec::new();
+        write(&mut out).expect("a Vec writes");
+        String::from_utf8(out).expect("the inputs were text")
+    };
     Ok(LiftOverResult {
-        output,
-        return_code: if rejected.is_empty() { 0 } else { 1 },
-        rejects,
+        output: render(&|out| lifted.write_output(out)),
+        return_code: lifted.return_code(),
+        rejects: render(&|out| lifted.write_rejects(out)),
     })
 }
 

@@ -29,7 +29,7 @@
 use std::io::Write;
 
 use picard_analysis::args::arg;
-use picard_analysis::bed_to_interval_list::{bed_to_interval_list, Options};
+use picard_analysis::bed_to_interval_list::{read, Options};
 
 /// A boolean argument, which the legacy parser builds as `new Boolean(value)`.
 fn flag(args: &[String], key: &str, default: bool) -> bool {
@@ -63,11 +63,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("fasta" | "fa" | "fna") => std::fs::read_to_string(beside.with_extension("dict"))?,
         _ => std::fs::read_to_string(&dictionary)?,
     };
-    let bed = std::fs::read_to_string(&input)?;
-    let list = bed_to_interval_list(&dictionary_text, &bed, &opts).map_err(|e| format!("{e:?}"))?;
+    let bed = std::io::BufReader::new(std::fs::File::open(&input)?);
+    let list = read(&dictionary_text, bed, &opts)?.map_err(|e| format!("{e:?}"))?;
 
     let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
-    out.write_all(list.as_bytes())?;
+    list.write(&mut out)?;
     out.flush()?;
     Ok(())
 }

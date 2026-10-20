@@ -20,7 +20,9 @@
 //! quotes stripped. A length-zero feature (`bedStart == bedEnd`, i.e. `start == end + 1`) is skipped
 //! unless `KEEP_LENGTH_ZERO_INTERVALS` is set.
 
-use htsjdk_bam::interval::{Interval, IntervalList};
+use std::io::{self, BufRead, Write};
+
+use crate::compact_interval::{self as ci, Contigs, Iv};
 
 /// `BedToIntervalList`'s options.
 #[derive(Debug, Clone, Copy)]
@@ -124,28 +126,43 @@ fn split_bed_line(line: &str) -> Vec<&str> {
     tokens
 }
 
-/// `BedToIntervalList.doWork` over a sequence dictionary and BED text, returning the interval list.
-pub fn bed_to_interval_list(
+/// The interval list `BedToIntervalList` writes: its header, its contigs and its intervals.
+pub struct Output {
+    pub header: String,
+    pub contigs: Contigs,
+    pub intervals: Vec<Iv>,
+}
+
+impl Output {
+    pub fn write(&self, out: &mut impl Write) -> io::Result<()> {
+        out.write_all(self.header.as_bytes())?;
+        ci::write_lines(&self.contigs, &self.intervals, out)
+    }
+}
+
+/// `BedToIntervalList.doWork` over a sequence dictionary and a BED read line by line.
+pub fn read(
     sequence_dictionary: &str,
-    bed: &str,
+    bed: impl BufRead,
     opts: &Options,
-) -> Result<String, BedError> {
+) -> io::Result<Result<Output, BedError>> {
     let (dict_entries, sq_lines) = parse_dictionary(sequence_dictionary);
 
     let dictionary: Vec<String> = dict_entries.iter().map(|e| e.name.clone()).collect();
-    let mut list = IntervalList::new(dictionary);
+    let mut contigs = Contigs::with_dictionary(&dictionary);
+    let mut intervals = Vec::new();
 
-    for line in bed.lines() {
+    let read = ci::read_lines(bed, |line| {
         if line.is_empty()
             || line.starts_with('#')
             || line.starts_with("track")
             || line.starts_with("browser")
         {
-            continue;
+            return Ok(());
         }
         let tokens = split_bed_line(line);
         if tokens.len() < 2 {
-            continue;
+            return Ok(());
         }
 
         let contig = tokens[0];
@@ -183,7 +200,7 @@ pub fn bed_to_interval_list(
             Some(r) => r,
             None => {
                 if opts.drop_missing_contigs {
-                    continue;
+                    return Ok(());
                 }
                 return Err(BedError::UnknownContig(contig.to_string()));
             }
@@ -204,32 +221,51 @@ pub fn bed_to_interval_list(
 
         // A length-zero feature has start == end + 1; skip it unless asked to keep it.
         if start == end + 1 && !opts.keep_length_zero_intervals {
-            continue;
+            return Ok(());
         }
 
-        list.intervals.push(Interval::with_strand_and_name(
-            contig,
+        intervals.push(Iv {
+            contig: contigs.intern(contig),
             start,
             end,
             negative_strand,
-            name.as_deref(),
-        ));
+            name: name.map(String::into_boxed_str),
+        });
+        Ok(())
+    })?;
+    if let Err(error) = read {
+        return Ok(Err(error));
     }
 
-    let list = if opts.sort { list.sorted() } else { list };
-    let list = if opts.unique {
-        list.uniqued(true)
-    } else {
-        list
-    };
+    if opts.sort {
+        ci::sort(&contigs, &mut intervals);
+    }
+    if opts.unique {
+        intervals = ci::uniqued(&contigs, intervals, true);
+    }
 
-    let mut out = String::from("@HD\tVN:1.6\tSO:coordinate\n");
+    let mut header = String::from("@HD\tVN:1.6\tSO:coordinate\n");
     for sq in &sq_lines {
-        out.push_str(sq);
-        out.push('\n');
+        header.push_str(sq);
+        header.push('\n');
     }
-    out.push_str(&list.write_body());
-    Ok(out)
+    Ok(Ok(Output {
+        header,
+        contigs,
+        intervals,
+    }))
+}
+
+/// `BedToIntervalList.doWork` over a sequence dictionary and BED text, returning the interval list.
+pub fn bed_to_interval_list(
+    sequence_dictionary: &str,
+    bed: &str,
+    opts: &Options,
+) -> Result<String, BedError> {
+    let output = read(sequence_dictionary, bed.as_bytes(), opts).expect("a text reads")?;
+    let mut out = Vec::new();
+    output.write(&mut out).expect("a Vec writes");
+    Ok(String::from_utf8(out).expect("the inputs were text"))
 }
 
 #[cfg(test)]
