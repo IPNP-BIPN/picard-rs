@@ -24,11 +24,11 @@ use htsjdk_bam::fasta::read_fasta_file;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use picard_analysis::collect_sam_error_metrics::{
-    aggregation_suffix, pileup, processed_loci, suffixes, try_collect_joint, Attribute, Calculator,
-    Options, Read, Stratifier, Table, DEFAULT_ERROR_METRICS,
+    aggregation_suffix, suffixes, Attribute, Calculator, Joint, Locus, Options, PileupBuilder,
+    Read, Stratifier, Table, DEFAULT_ERROR_METRICS,
 };
 use picard_analysis::metrics_cli::{
-    fail, read_input, read_interval_list, refuse_validation, sort_order, thrown, Args, IntervalMask,
+    fail, open_input, read_interval_list, refuse_validation, sort_order, thrown, Args, IntervalMask,
 };
 
 const TOOL: &str = "CollectSamErrorMetrics";
@@ -295,7 +295,9 @@ fn main() {
         directives.iter().map(|d| parse_directive(d)).collect();
 
     // processData: the reader, the reference walker, then the variant source.
-    let (header, records) = read_input(&input);
+    // Read and checked whole as before, then decoded a record at a time into the reads the walk
+    // keeps, so the BAM's own records are never all held beside them.
+    let (header, records) = open_input(&input).into_parts();
     let contigs = read_fasta_file(&reference).unwrap_or_else(|e| fail(&format!("{e:?}")));
     if let Some(path) = &vcf {
         if !has_index(path) {
@@ -339,9 +341,9 @@ fn main() {
     };
 
     let reads: Vec<Read> = records
-        .iter()
         .filter(|record| record.reference_index >= 0)
         .map(|record| {
+            let record = &record;
             let group = match record.tags.get(Tag::new(b"RG")) {
                 Some(TagValue::Str(id)) => id.to_string(),
                 _ => String::new(),
@@ -416,54 +418,81 @@ fn main() {
         long_homopolymer: long_homopolymer as i32,
         location_bin_size: location_bin_size as i32,
     };
-    let mut loci = pileup(&reads, &options);
-    if !masks.is_empty() {
-        loci.retain(|locus| {
-            let (index, position) = contig_of(locus.position);
-            masks.iter().all(|mask| mask.get(index, position))
-        });
-    }
-    if interval_iterator && vcf.is_none() && !loci.is_empty() {
-        // `checkLocus` reads the reader the run never opened, at the first locus that survives
-        // the draw; with `PROBABILITY` at one that is the first locus.
-        let mut random = picard_analysis::theoretical_sensitivity::JavaRandom::new(42);
-        if loci.iter().any(|_| random.next_double() <= probability) {
-            thrown(
-                "java.lang.NullPointerException: Cannot invoke \
-                 \"htsjdk.variant.vcf.VCFFileReader.query(htsjdk.samtools.util.Locatable)\" \
-                 because \"vcfFileReader\" is null",
-            );
-        }
-    }
-    let loci = processed_loci(loci, &options);
-
-    // Every observation goes to every aggregator before the next, and the files are written only
-    // once the walk is over: a run that throws anywhere writes none of them, and the exception is
-    // the one met first in that order.
-    let mut tables = Vec::new();
+    // The loci are walked as htsjdk's locus iterator hands them out, a batch at a time: a locus is
+    // complete once a read starts past it, so only the loci a read can still reach are held. Every
+    // aggregator takes each batch, on every core, and keeps its table across them; the masks, the
+    // draw from Random(42), the known sites and MAX_LOCI take the loci in order, as before. A file
+    // whose reads are not in order is piled up whole, as it always was.
+    const BATCH: usize = 1 << 16;
+    let in_order = reads
+        .windows(2)
+        .all(|pair| pair[0].start <= pair[1].start || pair[1].is_unmapped());
+    let mut builder = PileupBuilder::new(&options);
+    let mut joints: Vec<Joint> = aggregators
+        .iter()
+        .map(|(calculator, stratifiers)| Joint::new(*calculator, stratifiers, &options))
+        .collect();
+    let mut draw = picard_analysis::theoretical_sensitivity::JavaRandom::new(42);
+    let mut interval_draw = picard_analysis::theoretical_sensitivity::JavaRandom::new(42);
+    let (mut walked, mut done) = (0usize, false);
     let mut first: Option<(usize, usize, usize, String)> = None;
-    for (aggregator, (calculator, stratifiers)) in aggregators.iter().enumerate() {
-        match try_collect_joint(
-            &reads,
-            &joined,
-            1,
-            &loci,
-            *calculator,
-            stratifiers,
-            &options,
-        ) {
-            Ok(table) => tables.push(table),
-            Err(at) => {
+    let mut walk = |loci: Vec<Locus>, first: &mut Option<(usize, usize, usize, String)>| {
+        if done || first.is_some() {
+            return;
+        }
+        let mut batch = Vec::with_capacity(loci.len());
+        for locus in loci {
+            let (index, position) = contig_of(locus.position);
+            if !masks.iter().all(|mask| mask.get(index, position)) {
+                continue;
+            }
+            // `checkLocus` reads the reader the run never opened, at the first locus that
+            // survives the draw.
+            if interval_iterator && vcf.is_none() && interval_draw.next_double() <= probability {
+                thrown(
+                    "java.lang.NullPointerException: Cannot invoke \
+                     \"htsjdk.variant.vcf.VCFFileReader.query(htsjdk.samtools.util.Locatable)\" \
+                     because \"vcfFileReader\" is null",
+                );
+            }
+            // `processed_loci`: the draw, then the known sites, then the cap.
+            if draw.next_double() > options.probability
+                || options.known_sites.contains(&locus.position)
+            {
+                continue;
+            }
+            batch.push(locus);
+            if options.max_loci != 0 && (walked + batch.len()) as u64 >= options.max_loci {
+                done = true;
+                break;
+            }
+        }
+        use rayon::prelude::*;
+        let results: Vec<_> = joints
+            .par_iter_mut()
+            .map(|joint| joint.add(&reads, &joined, 1, &batch, walked, &options))
+            .collect();
+        for (aggregator, result) in results.into_iter().enumerate() {
+            if let Err(at) = result {
                 let place = (at.locus, at.observation, aggregator, at.message);
                 if first
                     .as_ref()
                     .is_none_or(|known| (place.0, place.1, place.2) < (known.0, known.1, known.2))
                 {
-                    first = Some(place);
+                    *first = Some(place);
                 }
             }
         }
+        walked += batch.len();
+    };
+    for (index, read) in reads.iter().enumerate() {
+        if in_order && builder.held() >= BATCH && !read.is_unmapped() {
+            walk(builder.take_before(read.start - 1), &mut first);
+        }
+        builder.add(index, read);
     }
+    walk(builder.finish(), &mut first);
+    let tables: Vec<_> = joints.into_iter().map(Joint::finish).collect();
     if let Some((_, _, _, message)) = first {
         thrown(&message);
     }
