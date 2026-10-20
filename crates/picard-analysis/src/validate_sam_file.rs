@@ -644,7 +644,7 @@ impl Validation {
 /// `ValidateSamFile` over already-parsed records, with the tool's arguments.
 pub fn validate_records(
     header: &SamHeader,
-    records: &[BamRecord],
+    records: impl IntoIterator<Item = impl std::borrow::Borrow<BamRecord>>,
     fasta: Option<&[u8]>,
     options: &Options,
 ) -> Result<Validation, ValidateError> {
@@ -697,7 +697,7 @@ fn validate(input_sam: &str, fasta: Option<&[u8]>, verbose: bool) -> Result<Stri
 /// The validation itself, over parsed records.
 fn validate_inner(
     header: &SamHeader,
-    records: &[BamRecord],
+    records: impl IntoIterator<Item = impl std::borrow::Borrow<BamRecord>>,
     fasta: Option<&[u8]>,
     options: &Options,
 ) -> Result<Validation, ValidateError> {
@@ -725,7 +725,7 @@ fn validate_inner(
 
     // Sort-order checking: the comparator from the header's SO, and the previous record seen.
     let sort_order = SortOrder::of(header);
-    let mut prev_record: Option<&BamRecord> = None;
+    let mut prev_record = None;
 
     // Reads awaiting their mate. htsjdk keeps them in an `InMemoryPairEndInfoMap`, which is a
     // `java.util.HashMap<String, PairEndInfo>` keyed on the read name alone -- its `remove` takes a
@@ -734,7 +734,8 @@ fn validate_inner(
     // [`JavaHashMap`] and not a vector: the names are the same either way and the file is not.
     let mut pending: JavaHashMap<PairEndInfo> = JavaHashMap::new();
 
-    for (i, rec) in records.iter().enumerate() {
+    for (i, record) in records.into_iter().enumerate() {
+        let rec: &BamRecord = std::borrow::Borrow::borrow(&record);
         let record_number = (i + 1) as i64;
         let unmapped = rec.flags & READ_UNMAPPED != 0;
 
@@ -758,7 +759,10 @@ fn validate_inner(
         }
 
         // validateSortOrder: compare against the previous record under the header's comparator.
-        if let Some(prev) = prev_record {
+        if let Some(prev) = prev_record
+            .as_ref()
+            .map(std::borrow::Borrow::<BamRecord>::borrow)
+        {
             if sort_order.file_order_compare(prev, rec) > 0 {
                 rep.add(
                     ERROR,
@@ -775,7 +779,6 @@ fn validate_inner(
                 );
             }
         }
-        prev_record = Some(rec);
 
         // validateReadGroup
         if !read_group_present(header, rec) {
@@ -848,6 +851,7 @@ fn validate_inner(
                  specification but many tools expect reads to include qualities ",
             );
         }
+        prev_record = Some(record);
     }
 
     // validateUnmatchedPairs: reads marked paired whose mate never arrived. Skipped with the mate

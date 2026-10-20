@@ -238,6 +238,22 @@ impl SortingCollection {
         }
     }
 
+    /// [`Self::new`] at the `MAX_RECORDS_IN_RAM` and `TMP_DIR` a tool's arguments name, for a
+    /// writer that sorts what it is handed (`presorted=false`).
+    pub fn from_args(compare: Compare, args: &[String]) -> Result<Self, String> {
+        let max_records_in_ram = match crate::args::arg(args, "MAX_RECORDS_IN_RAM=") {
+            Some(value) => value
+                .parse()
+                .map_err(|_| format!("MAX_RECORDS_IN_RAM is not an integer: {value}"))?,
+            None => DEFAULT_MAX_RECORDS_IN_RAM,
+        };
+        // shortcut: the first TMP_DIR only, where htsjdk picks the one with the most free space.
+        let tmp_dir = crate::args::arg(args, "TMP_DIR=")
+            .map(PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir);
+        Ok(SortingCollection::new(compare, max_records_in_ram, tmp_dir))
+    }
+
     /// `add`: spill first when the buffer is already full, as htsjdk does.
     pub fn add(&mut self, record: BamRecord) -> io::Result<()> {
         if self.ram.len() == self.max_records_in_ram {

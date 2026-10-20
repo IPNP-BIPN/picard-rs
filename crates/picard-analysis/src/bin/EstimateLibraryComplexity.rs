@@ -22,10 +22,8 @@
 //! keeper, and a set of four takes the finder's graph path rather than its pairwise one.
 
 use std::collections::HashMap;
-use std::io::Read;
 
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{Histogram as OutHistogram, MetricsFile};
 use picard_analysis::args::arg;
@@ -139,23 +137,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut records_read: i64 = 0;
 
     for input in &inputs {
-        let mut raw = Vec::new();
-        std::fs::File::open(input)?.read_to_end(&mut raw)?;
-        let raw = picard_analysis::cram_input::uncram(raw);
-        let (header, records) = if raw.starts_with(&[0x1f, 0x8b]) {
-            let plain =
-                picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-            let reader =
-                picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-            let header = reader.header.text.clone();
-            let records: Vec<BamRecord> = reader
-                .map(|r| r.map_err(|e| format!("{e:?}")))
-                .collect::<Result<_, _>>()?;
-            (header, records)
-        } else {
-            let text = String::from_utf8(raw)?;
-            read_sam(&text).map_err(|e| format!("{e:?}"))?
-        };
+        let (header, records) = picard_analysis::bam_stream::Input::open(input)?.into_parts();
         all_read_groups.extend(read_groups(&header));
 
         // `pendingByName`, which pairs the two ends however far apart they lie.
@@ -170,7 +152,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         let mut pending: HashMap<String, Pending> = HashMap::new();
 
-        for record in &records {
+        for record in records {
+            let record = &record;
             if record.flags & READ_PAIRED_FLAG == 0 {
                 continue;
             }
@@ -253,9 +236,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .clone()
                         .unwrap_or_else(|| "Unknown".to_string())
                 };
+                // An added template is never added again, so its bases are moved, not copied.
                 pairs.push(PairedRead {
-                    read1: entry.read1.clone().expect("read one"),
-                    read2: entry.read2.clone().expect("read two"),
+                    read1: entry.read1.take().expect("read one"),
+                    read2: entry.read2.take().expect("read two"),
                     library,
                     read_group: entry.read_group,
                     location: entry.location,

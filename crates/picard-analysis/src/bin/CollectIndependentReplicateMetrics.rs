@@ -30,7 +30,7 @@ use picard_analysis::collect_independent_replicate_metrics::{
 };
 use picard_analysis::duplicate_set::duplicate_sets;
 use picard_analysis::mark_duplicates::{base_quality_score, Options, Record as SetRecord, Span};
-use picard_analysis::metrics_cli::{absolute, fail, read_input, thrown, Args};
+use picard_analysis::metrics_cli::{absolute, fail, open_input, thrown, Args};
 
 const TOOL: &str = "CollectIndependentReplicateMetrics";
 
@@ -258,7 +258,8 @@ struct Site {
 struct Vcf {
     contigs: Vec<(String, i64)>,
     samples: Vec<String>,
-    sites: Vec<Site>,
+    /// The whole text, its data lines parsed one at a time by [`Vcf::sites`].
+    text: String,
 }
 
 fn read_vcf(path: &str) -> Vcf {
@@ -266,7 +267,6 @@ fn read_vcf(path: &str) -> Vcf {
         picard_analysis::vcf_io::read_to_string(path).unwrap_or_else(|e| fail(&format!("{e}")));
     let mut contigs = Vec::new();
     let mut samples = Vec::new();
-    let mut sites = Vec::new();
     for line in text.lines() {
         if let Some(rest) = line.strip_prefix("##contig=<") {
             let rest = rest.trim_end_matches('>');
@@ -287,60 +287,67 @@ fn read_vcf(path: &str) -> Vcf {
         }
         if let Some(rest) = line.strip_prefix('#') {
             samples = rest.split('\t').skip(9).map(str::to_string).collect();
-            continue;
         }
-        if line.is_empty() {
-            continue;
-        }
-        let f: Vec<&str> = line.split('\t').collect();
-        let start: i32 = f[1].parse().unwrap_or(0);
-        let reference = f[3].to_string();
-        let mut alleles = vec![reference.clone()];
-        if f[4] != "." {
-            alleles.extend(f[4].split(',').map(str::to_string));
-        }
-        let snp = alleles.len() > 1
-            && alleles
-                .iter()
-                .all(|a| a.len() == 1 && a.bytes().all(|b| b.is_ascii_alphabetic()) && a != "*");
-        let filtered = !(f[6] == "PASS" || f[6] == ".");
-        let keys: Vec<&str> = f.get(8).map(|k| k.split(':').collect()).unwrap_or_default();
-        let gt_at = keys.iter().position(|k| *k == "GT");
-        let gq_at = keys.iter().position(|k| *k == "GQ");
-        let genotypes = f
-            .iter()
-            .skip(9)
-            .map(|column| {
-                let values: Vec<&str> = column.split(':').collect();
-                let gt = gt_at
-                    .and_then(|i| values.get(i))
-                    .map(|gt| {
-                        gt.split(['/', '|'])
-                            .map(|a| a.parse::<usize>().ok())
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
-                let gq = gq_at
-                    .and_then(|i| values.get(i))
-                    .and_then(|v| v.parse::<i32>().ok())
-                    .unwrap_or(-1);
-                (gt, gq)
-            })
-            .collect();
-        sites.push(Site {
-            contig: f[0].to_string(),
-            start,
-            end: start + reference.len() as i32 - 1,
-            filtered,
-            snp,
-            alleles,
-            genotypes,
-        });
     }
     Vcf {
         contigs,
         samples,
-        sites,
+        text,
+    }
+}
+
+impl Vcf {
+    /// The data lines, each parsed as it is reached.
+    fn sites(&self) -> impl Iterator<Item = Site> + '_ {
+        self.text
+            .lines()
+            .filter(|line| !line.starts_with('#') && !line.is_empty())
+            .map(|line| {
+                let f: Vec<&str> = line.split('\t').collect();
+                let start: i32 = f[1].parse().unwrap_or(0);
+                let reference = f[3].to_string();
+                let mut alleles = vec![reference.clone()];
+                if f[4] != "." {
+                    alleles.extend(f[4].split(',').map(str::to_string));
+                }
+                let snp = alleles.len() > 1
+                    && alleles.iter().all(|a| {
+                        a.len() == 1 && a.bytes().all(|b| b.is_ascii_alphabetic()) && a != "*"
+                    });
+                let filtered = !(f[6] == "PASS" || f[6] == ".");
+                let keys: Vec<&str> = f.get(8).map(|k| k.split(':').collect()).unwrap_or_default();
+                let gt_at = keys.iter().position(|k| *k == "GT");
+                let gq_at = keys.iter().position(|k| *k == "GQ");
+                let genotypes = f
+                    .iter()
+                    .skip(9)
+                    .map(|column| {
+                        let values: Vec<&str> = column.split(':').collect();
+                        let gt = gt_at
+                            .and_then(|i| values.get(i))
+                            .map(|gt| {
+                                gt.split(['/', '|'])
+                                    .map(|a| a.parse::<usize>().ok())
+                                    .collect::<Vec<_>>()
+                            })
+                            .unwrap_or_default();
+                        let gq = gq_at
+                            .and_then(|i| values.get(i))
+                            .and_then(|v| v.parse::<i32>().ok())
+                            .unwrap_or(-1);
+                        (gt, gq)
+                    })
+                    .collect();
+                Site {
+                    contig: f[0].to_string(),
+                    start,
+                    end: start + reference.len() as i32 - 1,
+                    filtered,
+                    snp,
+                    alleles,
+                    genotypes,
+                }
+            })
     }
 }
 
@@ -424,7 +431,7 @@ fn main() {
             Some(magic == [0x1f, 0x8b])
         })
         .unwrap_or(false);
-    let (header, records) = read_input(&input);
+    let (header, records) = open_input(&input).into_parts();
     if !has_index(&input, raw_is_bam) {
         thrown("picard.PicardException: INPUT file must have an index.");
     }
@@ -473,7 +480,7 @@ fn main() {
 
     // getQueryIntervalsMap: SNP, passing, GQ, het, in that order; a TreeMap on the interval.
     let mut sites: BTreeMap<QueryInterval, Vec<String>> = BTreeMap::new();
-    for site in &vcf.sites {
+    for site in vcf.sites() {
         if !site.snp || site.filtered {
             continue;
         }
@@ -504,6 +511,8 @@ fn main() {
             alleles,
         );
     }
+    // The sites are all the walk reads of the VCF.
+    drop(vcf);
 
     // The query, then the filters, then the sets, the query through an overlap index of the
     // sites: a scan of every site for every record was reads times sites.
@@ -512,8 +521,7 @@ fn main() {
             .keys()
             .map(|q| (q.reference, i64::from(q.start), i64::from(q.end))),
     );
-    let kept: Vec<&BamRecord> = records
-        .iter()
+    let kept: Vec<BamRecord> = records
         .filter(|r| {
             if r.reference_index < 0 {
                 return false;
@@ -589,14 +597,14 @@ fn main() {
             .chain(std::iter::once(0))
             .chain(2..kept.len());
         if let Some(at) = order.into_iter().find(|&at| {
-            let r = kept[at];
+            let r = &kept[at];
             r.flags & PAIRED != 0
                 && r.flags & (UNMAPPED | MATE_UNMAPPED) == 0
                 && r.tags.get(Tag::new(b"MC")).is_none()
         }) {
             thrown(&format!(
                 "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found: {}",
-                picard_analysis::view_sam::sam_string(&header, kept[at])
+                picard_analysis::view_sam::sam_string(&header, &kept[at])
             ));
         }
     }
@@ -616,7 +624,7 @@ fn main() {
     let mut examined = 0i64;
 
     'set: for set in &sets {
-        let reads: Vec<&BamRecord> = set.iter().map(|i| kept[*i]).collect();
+        let reads: Vec<&BamRecord> = set.iter().map(|i| &kept[*i]).collect();
         let rep = reads[0];
         let rep_interval = QueryInterval {
             reference: rep.reference_index,

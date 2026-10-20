@@ -72,6 +72,19 @@ impl Drop for OutputDir {
     }
 }
 
+/// Puts a file the tool writes itself on the open list: a throw before [`untrack`] removes it, as
+/// a writer that held the file in memory had not created it yet.
+pub fn track(path: &str) {
+    OPEN.lock()
+        .expect("not poisoned")
+        .push((path.to_string(), false));
+}
+
+/// Takes a file [`track`] listed off the open list, once the tool is done with it.
+pub fn untrack(path: &str) {
+    close(path);
+}
+
 /// Takes `path` off the open list: whether it was on it, and how a failure leaves it.
 fn close(path: &str) -> Option<bool> {
     let mut open = OPEN.lock().ok()?;

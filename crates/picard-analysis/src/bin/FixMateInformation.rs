@@ -12,13 +12,16 @@
 //! supplementary records, or cleared on both. `IGNORE_MISSING_MATES` decides whether a template
 //! with one end is passed through or refused.
 
-use std::io::{Read, Write};
-
-use htsjdk_bam::sam_file::write_sam;
+use htsjdk_bam::record::BamRecord;
+use htsjdk_bam::text_parse::ValidationStringency;
+use htsjdk_bam::{coordinate, query_name};
 use picard_analysis::args::arg;
+use picard_analysis::bam_stream::Input;
 use picard_analysis::fix_mate_information::{
-    fix_mate_information_to_bam_with, fix_mate_information_with, Options, SortOrder,
+    fix_templates, needs_grouping, output_order, FixMateError, Options, SortOrder,
 };
+use picard_analysis::sort_sam::SortingCollection;
+use picard_analysis::stream_output::Output;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("FixMateInformation");
@@ -50,25 +53,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         create_index: flag("CREATE_INDEX=", false),
     };
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let text = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<Vec<_>, _>>()?;
-        write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?
-    } else {
-        String::from_utf8(raw)?
-    };
-
     // The reference throws rather than exiting, so its handler prints the class before the
     // message: a row that refuses is a row this has to refuse the same way, text included.
-    let refuse = |error: picard_analysis::fix_mate_information::FixMateError| -> String {
+    let refuse = |error: FixMateError| -> ! {
         eprintln!(
             "Exception in thread \"main\" {}: {}",
             error.java_class(),
@@ -77,26 +64,62 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     };
 
-    if output.ends_with(".sam") {
-        let sam = match fix_mate_information_with(&text, &options) {
-            Ok(sam) => sam,
-            Err(error) => {
-                refuse(error);
-                unreachable!()
-            }
-        };
-        let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
-        out.write_all(sam.as_bytes())?;
-        out.flush()?;
-        return Ok(());
-    }
-    let bam = match fix_mate_information_to_bam_with(&text, &options) {
-        Ok(bam) => bam,
-        Err(error) => {
-            refuse(error);
-            unreachable!()
+    let (mut header, records) =
+        Input::open_with(&input, ValidationStringency::Lenient)?.into_parts();
+    let output_order = output_order(&header, &options).unwrap_or_else(|e| refuse(e));
+    let sort = |compare, records: &mut dyn Iterator<Item = std::io::Result<BamRecord>>| {
+        let mut sorting = SortingCollection::from_args(compare, &args)?;
+        for record in records {
+            sorting.add(record?)?;
         }
+        Ok::<_, Box<dyn std::error::Error>>(sorting.into_sorted()?)
     };
-    picard_analysis::cram_output::write(&output, bam)?;
+    let mut grouped: Box<dyn Iterator<Item = std::io::Result<BamRecord>>> =
+        if needs_grouping(&header, &options) {
+            Box::new(sort(query_name::compare, &mut records.map(Ok))?)
+        } else {
+            Box::new(records.map(Ok))
+        };
+    // Each run of records sharing a name is a template, fixed as a whole.
+    let mut next = grouped.next().transpose()?;
+    let mut fixed = std::iter::from_fn(|| {
+        let first = next.take()?;
+        let mut template = vec![first];
+        loop {
+            match grouped.next() {
+                Some(Ok(record)) if record.read_name == template[0].read_name => {
+                    template.push(record)
+                }
+                Some(Ok(record)) => {
+                    next = Some(record);
+                    break;
+                }
+                Some(Err(e)) => return Some(vec![Err(e)]),
+                None => break,
+            }
+        }
+        if let Err(error) = fix_templates(
+            &mut template,
+            options.add_mate_cigar,
+            options.ignore_missing_mates,
+        ) {
+            refuse(error);
+        }
+        Some(template.into_iter().map(Ok).collect())
+    })
+    .flatten();
+    // Every record is fixed and sorted before the output is created, so a refusal leaves none.
+    let sorted = match output_order {
+        SortOrder::Coordinate => sort(coordinate::compare, &mut fixed)?,
+        SortOrder::Queryname => sort(query_name::compare, &mut fixed)?,
+    };
+    header.set_sort_order(output_order.name());
+
+    let mut out = Output::create(&output, &header, false)?;
+    for record in sorted {
+        out.write(&record?)?;
+    }
+    // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
+    out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
     Ok(())
 }
