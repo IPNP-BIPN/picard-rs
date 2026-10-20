@@ -10,8 +10,9 @@ use picard_analysis::fingerprint::reference_path;
 use picard_analysis::illumina_arrays::{
     normalization_line, NormalizationRow, NORMALIZATION_HEADER,
 };
-use picard_analysis::infinium::{Bpm, Egt, ReadError};
+use picard_analysis::infinium::{Bpm, Egt, ReadError, Reader};
 use picard_analysis::metrics_cli::{thrown, Args};
+use std::io::Write;
 
 /// An exception as the JVM prints it: a `PicardException` unless the message names its class.
 fn raise(message: &str) -> ! {
@@ -29,11 +30,10 @@ fn main() {
     let input = args.required("INPUT");
     let cluster = args.required("CLUSTER_FILE");
     let output = args.required("OUTPUT");
-    let read = |path: &str| {
-        std::fs::read(path)
-            .unwrap_or_else(|e| raise(&format!("java.io.FileNotFoundException: {e}")))
+    let open = |path: &str| {
+        Reader::open(path).unwrap_or_else(|e| raise(&format!("java.io.FileNotFoundException: {e}")))
     };
-    let egt = match Egt::parse(&read(&cluster)) {
+    let egt = match Egt::parse(&mut open(&cluster)) {
         Ok(egt) => egt,
         Err(ReadError::Io(_)) => raise(&format!(
             "Error reading cluster file '{}'",
@@ -41,38 +41,56 @@ fn main() {
         )),
         Err(ReadError::Picard(m)) => raise(&m),
     };
-    let bpm = match Bpm::parse(&read(&input)) {
-        Ok(bpm) => bpm,
-        Err(ReadError::Io(_)) => raise(&format!(
-            "Error reading bpm file '{}'",
-            reference_path(&input)
-        )),
-        Err(ReadError::Picard(m)) => raise(&m),
+    let mut reader = open(&input);
+    let bpm_error = |e: ReadError| -> ! {
+        match e {
+            ReadError::Io(_) => raise(&format!(
+                "Error reading bpm file '{}'",
+                reference_path(&input)
+            )),
+            ReadError::Picard(m) => raise(&m),
+        }
     };
-    let mut text = format!("{NORMALIZATION_HEADER}\n");
-    for locus in &bpm.loci {
+    let bpm = Bpm::parse(&mut reader).unwrap_or_else(|e| bpm_error(e));
+    // A file that cannot be made is refused once every row is checked, as the whole text was
+    // written at the end.
+    let mut out =
+        std::fs::File::create(&output).map(|file| std::io::BufWriter::with_capacity(1 << 16, file));
+    let mut put = |text: &str| {
+        if let Ok(w) = &mut out {
+            if let Err(e) = w.write_all(text.as_bytes()) {
+                out = Err(e);
+            }
+        }
+    };
+    put(&format!("{NORMALIZATION_HEADER}\n"));
+    for i in 0..bpm.len() {
+        let locus = bpm.locus(&mut reader, i).unwrap_or_else(|e| bpm_error(e));
         let Some(score) = egt.total_score.get(locus.index) else {
-            let _ = std::fs::write(&output, &text);
+            if let Ok(w) = &mut out {
+                let _ = w.flush();
+            }
             raise(&format!(
                 "java.lang.ArrayIndexOutOfBoundsException: Index {} out of bounds for length {}",
                 locus.index,
                 egt.total_score.len()
             ));
         };
-        text.push_str(&normalization_line(&NormalizationRow {
+        let mut line = normalization_line(&NormalizationRow {
             index: locus.index + 1,
-            name: locus.name.clone(),
-            chromosome: locus.chrom.clone(),
+            name: locus.name,
+            chromosome: locus.chrom,
             position: locus.map_info,
             gentrain_score: *score,
-            snp: locus.snp.clone(),
-            illumina_strand: locus.ilmn_strand.clone(),
-            customer_strand: locus.customer_strand.clone(),
+            snp: locus.snp,
+            illumina_strand: locus.ilmn_strand,
+            customer_strand: locus.customer_strand,
             normalization_id: locus.normalization_id,
-        }));
-        text.push('\n');
+        });
+        line.push('\n');
+        put(&line);
     }
-    if let Err(e) = std::fs::write(&output, text) {
+    if let Err(e) = out.and_then(|w| w.into_inner().map_err(|e| e.into_error())) {
         raise(&format!(
             "Error writing bpm.csv file '{}': {e}",
             reference_path(&output)

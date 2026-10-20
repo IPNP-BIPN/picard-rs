@@ -15,54 +15,97 @@ pub enum ReadError {
     Picard(String),
 }
 
-/// A `DataInputStream` over a byte array.
-pub struct Reader<'a> {
-    bytes: &'a [u8],
-    at: usize,
+/// A `DataInputStream` over a file, buffered, which can seek: the reader holds a buffer, never the
+/// file.
+pub struct Reader<R> {
+    src: std::io::BufReader<R>,
+    at: u64,
+    len: u64,
 }
 
-impl<'a> Reader<'a> {
-    pub fn new(bytes: &'a [u8]) -> Self {
-        Reader { bytes, at: 0 }
+impl<'a> Reader<std::io::Cursor<&'a [u8]>> {
+    /// A reader over bytes already in memory.
+    pub fn from_bytes(bytes: &'a [u8]) -> Self {
+        Reader::new(std::io::Cursor::new(bytes)).expect("a cursor seeks")
+    }
+}
+
+impl Reader<std::fs::File> {
+    pub fn open(path: &str) -> std::io::Result<Self> {
+        Reader::new(std::fs::File::open(path)?)
+    }
+}
+
+impl<R: std::io::Read + std::io::Seek> Reader<R> {
+    pub fn new(mut src: R) -> std::io::Result<Self> {
+        let len = src.seek(std::io::SeekFrom::End(0))?;
+        src.seek(std::io::SeekFrom::Start(0))?;
+        Ok(Reader {
+            src: std::io::BufReader::with_capacity(1 << 16, src),
+            at: 0,
+            len,
+        })
     }
 
-    pub fn seek(&mut self, at: usize) {
-        self.at = at;
+    pub fn len(&self) -> u64 {
+        self.len
     }
 
-    fn take(&mut self, n: usize) -> Result<&'a [u8], ReadError> {
-        let end = self.at.checked_add(n).filter(|e| *e <= self.bytes.len());
-        match end {
-            Some(end) => {
-                let s = &self.bytes[self.at..end];
-                self.at = end;
-                Ok(s)
-            }
-            None => Err(ReadError::Io("java.io.EOFException".to_string())),
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// Where the next byte is read from.
+    pub fn position(&self) -> u64 {
+        self.at
+    }
+
+    /// A seek within the buffer keeps it, so a pass that seeks forward reads the file once.
+    pub fn seek(&mut self, at: u64) {
+        if self.src.seek_relative(at as i64 - self.at as i64).is_ok() {
+            self.at = at;
         }
     }
 
+    fn eof() -> ReadError {
+        ReadError::Io("java.io.EOFException".to_string())
+    }
+
+    fn take<const N: usize>(&mut self) -> Result<[u8; N], ReadError> {
+        if self.at + N as u64 > self.len {
+            return Err(Self::eof());
+        }
+        let mut b = [0u8; N];
+        let buffered = self.src.buffer();
+        if buffered.len() >= N {
+            b.copy_from_slice(&buffered[..N]);
+            std::io::BufRead::consume(&mut self.src, N);
+        } else {
+            std::io::Read::read_exact(&mut self.src, &mut b).map_err(|_| Self::eof())?;
+        }
+        self.at += N as u64;
+        Ok(b)
+    }
+
     pub fn byte(&mut self) -> Result<i8, ReadError> {
-        Ok(self.take(1)?[0] as i8)
+        Ok(self.take::<1>()?[0] as i8)
     }
 
     pub fn int(&mut self) -> Result<i32, ReadError> {
-        let b = self.take(4)?;
-        Ok(i32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        Ok(i32::from_le_bytes(self.take()?))
     }
 
     pub fn short(&mut self) -> Result<i32, ReadError> {
-        let b = self.take(2)?;
+        let b = self.take::<2>()?;
         Ok(i32::from(b[0]) | (i32::from(b[1]) << 8))
     }
 
     pub fn float(&mut self) -> Result<f32, ReadError> {
-        let b = self.take(4)?;
-        Ok(f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        Ok(f32::from_le_bytes(self.take()?))
     }
 
     pub fn skip(&mut self, n: usize) {
-        self.at = (self.at + n).min(self.bytes.len());
+        self.seek((self.at + n as u64).min(self.len));
     }
 
     /// `parseString`: the length in seven-bit groups, the bytes as Latin-1 characters.
@@ -79,15 +122,21 @@ impl<'a> Reader<'a> {
         if total == 0 {
             return Ok(String::new());
         }
-        let available = self.bytes.len() - self.at;
-        let want = total as usize;
+        let available = self.len - self.at;
+        let want = total as u64;
         if available < want {
             return Err(ReadError::Io(format!(
                 "java.io.IOException: Did not fully read string. Read {available} out of {want}."
             )));
         }
-        let b = self.take(want)?;
-        Ok(b.iter().map(|&c| char::from(c)).collect())
+        let mut b = vec![0u8; want as usize];
+        std::io::Read::read_exact(&mut self.src, &mut b).map_err(|_| Self::eof())?;
+        self.at += want;
+        Ok(if b.is_ascii() {
+            String::from_utf8(b).expect("ASCII is UTF-8")
+        } else {
+            b.iter().map(|&c| char::from(c)).collect()
+        })
     }
 }
 
@@ -134,18 +183,19 @@ pub struct BpmLocus {
     pub normalization_id: i32,
 }
 
-/// `IlluminaBPMFile`.
+/// `IlluminaBPMFile`, without its loci: each is read again from the file by [`Bpm::locus`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bpm {
     pub manifest_name: String,
     pub control_config: String,
-    pub loci: Vec<BpmLocus>,
     pub all_normalization_ids: Vec<i32>,
     /// A `TreeSet`, so sorted.
     pub unique_normalization_ids: Vec<i32>,
+    /// Where each locus's entry starts in the file, by index.
+    offsets: Vec<u64>,
 }
 
-fn locus_entry(r: &mut Reader) -> Result<BpmLocus, ReadError> {
+fn locus_entry<R: std::io::Read + std::io::Seek>(r: &mut Reader<R>) -> Result<BpmLocus, ReadError> {
     let version = r.int()?;
     if !(6..=8).contains(&version) {
         return Err(ReadError::Picard(format!(
@@ -243,8 +293,7 @@ fn locus_entry(r: &mut Reader) -> Result<BpmLocus, ReadError> {
 
 impl Bpm {
     /// `new IlluminaBPMFile(file)`.
-    pub fn parse(bytes: &[u8]) -> Result<Bpm, ReadError> {
-        let mut r = Reader::new(bytes);
+    pub fn parse<R: std::io::Read + std::io::Seek>(r: &mut Reader<R>) -> Result<Bpm, ReadError> {
         let mut id = String::new();
         for _ in 0..3 {
             id.push(char::from(r.byte()? as u8));
@@ -273,17 +322,21 @@ impl Bpm {
         let control_config = r.string()?;
         let n = r.int()?.max(0) as usize;
         r.skip(4 * n);
-        let mut names = Vec::with_capacity(n);
+        // The names, end to end, and where each ends.
+        let mut names = String::new();
+        let mut ends = Vec::with_capacity(n);
         for _ in 0..n {
-            names.push(r.string()?);
+            names.push_str(&r.string()?);
+            ends.push(names.len());
         }
         let mut all: Vec<i32> = (0..n)
             .map(|_| r.byte().map(i32::from))
             .collect::<Result<_, _>>()?;
         let mut unique: Vec<i32> = Vec::new();
-        let mut loci: Vec<Option<BpmLocus>> = vec![None; n];
+        let mut offsets: Vec<Option<u64>> = vec![None; n];
         for _ in 0..n {
-            let mut locus = locus_entry(&mut r)?;
+            let at = r.position();
+            let mut locus = locus_entry(r)?;
             let norm = *all.get(locus.index).ok_or_else(|| {
                 ReadError::Picard(format!(
                     "java.lang.ArrayIndexOutOfBoundsException: Index {} out of bounds for length {n}",
@@ -301,29 +354,54 @@ impl Bpm {
             if !unique.contains(&locus.normalization_id) {
                 unique.push(locus.normalization_id);
             }
-            if loci[locus.index].is_some() {
+            if offsets[locus.index].is_some() {
                 return Err(ReadError::Picard(format!(
                     "Duplicate locus entry for index: {} '{}",
                     locus.index, locus.name
                 )));
             }
-            if names[locus.index] != locus.name {
+            let start = if locus.index == 0 {
+                0
+            } else {
+                ends[locus.index - 1]
+            };
+            if names[start..ends[locus.index]] != locus.name {
                 return Err(ReadError::Picard(format!(
                     "Mismatch in names at index: {}",
                     locus.index
                 )));
             }
-            let at = locus.index;
-            loci[at] = Some(locus);
+            offsets[locus.index] = Some(at);
         }
         unique.sort_unstable();
         Ok(Bpm {
             manifest_name,
             control_config,
-            loci: loci.into_iter().flatten().collect(),
             all_normalization_ids: all,
             unique_normalization_ids: unique,
+            offsets: offsets.into_iter().flatten().collect(),
         })
+    }
+
+    /// `getLocusEntries().length`.
+    pub fn len(&self) -> usize {
+        self.offsets.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.offsets.is_empty()
+    }
+
+    /// The `i`th of `getLocusEntries()`, read again from the file [`Bpm::parse`] read.
+    pub fn locus<R: std::io::Read + std::io::Seek>(
+        &self,
+        r: &mut Reader<R>,
+        i: usize,
+    ) -> Result<BpmLocus, ReadError> {
+        r.seek(self.offsets[i]);
+        let mut locus = locus_entry(r)?;
+        locus.normalization_id = self.all_normalization_ids[locus.index];
+        Ok(locus)
     }
 }
 
@@ -337,8 +415,7 @@ pub struct Egt {
     pub dev_theta: Vec<[f32; 3]>,
     pub mean_theta: Vec<[f32; 3]>,
     pub total_score: Vec<f32>,
-    pub rs_names: Vec<String>,
-    /// `rsNameToIndex`: where each name is in `rs_names`, so a lookup is not a scan of a chip.
+    /// `rsNameToIndex`: where each name is in the file, so a lookup is not a scan of a chip.
     pub rs_index: foldhash::HashMap<String, usize>,
 }
 
@@ -349,8 +426,7 @@ impl Egt {
     }
 
     /// `new InfiniumEGTFile(file)`.
-    pub fn parse(bytes: &[u8]) -> Result<Egt, ReadError> {
-        let mut r = Reader::new(bytes);
+    pub fn parse<R: std::io::Read + std::io::Seek>(r: &mut Reader<R>) -> Result<Egt, ReadError> {
         let file_version = r.int()?;
         for _ in 0..5 {
             r.string()?;
@@ -378,18 +454,17 @@ impl Egt {
             dev_theta: Vec::with_capacity(codes),
             mean_theta: Vec::with_capacity(codes),
             total_score: Vec::with_capacity(codes),
-            rs_names: Vec::with_capacity(codes),
             rs_index: foldhash::HashMap::with_capacity_and_hasher(codes, Default::default()),
         };
-        let triple_f = |r: &mut Reader| -> Result<[f32; 3], ReadError> {
+        let triple_f = |r: &mut Reader<R>| -> Result<[f32; 3], ReadError> {
             Ok([r.float()?, r.float()?, r.float()?])
         };
         for _ in 0..codes {
             egt.n.push([r.int()?, r.int()?, r.int()?]);
-            egt.dev_r.push(triple_f(&mut r)?);
-            egt.mean_r.push(triple_f(&mut r)?);
-            egt.dev_theta.push(triple_f(&mut r)?);
-            egt.mean_theta.push(triple_f(&mut r)?);
+            egt.dev_r.push(triple_f(r)?);
+            egt.mean_r.push(triple_f(r)?);
+            egt.dev_theta.push(triple_f(r)?);
+            egt.mean_theta.push(triple_f(r)?);
             r.skip(15 * 4);
         }
         for _ in 0..codes {
@@ -410,8 +485,8 @@ impl Egt {
                     "Non-unique rsName '{name}' found in cluster file"
                 )));
             }
-            egt.rs_index.insert(name.clone(), egt.rs_names.len());
-            egt.rs_names.push(name);
+            let at = egt.rs_index.len();
+            egt.rs_index.insert(name, at);
         }
         Ok(egt)
     }
@@ -473,9 +548,11 @@ pub struct Gtc {
 impl Gtc {
     /// `new InfiniumGTCFile(gtc, bpm)`: the manifest's normalization ids are read first, then the
     /// table of contents, each entry from the start of the file.
-    pub fn parse(bytes: &[u8], bpm: &Bpm) -> Result<Gtc, ReadError> {
+    pub fn parse<R: std::io::Read + std::io::Seek>(
+        r: &mut Reader<R>,
+        bpm: &Bpm,
+    ) -> Result<Gtc, ReadError> {
         let mut g = Gtc::default();
-        let mut r = Reader::new(bytes);
         for _ in 0..3 {
             g.identifier.push(char::from(r.byte()? as u8));
         }
@@ -494,13 +571,13 @@ impl Gtc {
             toc.push((id, offset));
         }
         for (id, offset) in toc {
-            let mut s = Reader::new(bytes);
-            s.seek(offset.max(0) as usize);
-            let ushorts = |s: &mut Reader| -> Result<Vec<i32>, ReadError> {
+            let s = &mut *r;
+            s.seek(offset.max(0) as u64);
+            let ushorts = |s: &mut Reader<R>| -> Result<Vec<i32>, ReadError> {
                 let n = s.int()?.max(0) as usize;
                 (0..n).map(|_| s.short()).collect()
             };
-            let floats = |s: &mut Reader| -> Result<Vec<f32>, ReadError> {
+            let floats = |s: &mut Reader<R>| -> Result<Vec<f32>, ReadError> {
                 let n = s.int()?.max(0) as usize;
                 (0..n).map(|_| s.float()).collect()
             };
@@ -535,10 +612,10 @@ impl Gtc {
                         g.transformations.push(t);
                     }
                 }
-                500 => g.raw_control_x = Some(ushorts(&mut s)?),
-                501 => g.raw_control_y = Some(ushorts(&mut s)?),
-                1000 => g.raw_x = Some(ushorts(&mut s)?),
-                1001 => g.raw_y = Some(ushorts(&mut s)?),
+                500 => g.raw_control_x = Some(ushorts(s)?),
+                501 => g.raw_control_y = Some(ushorts(s)?),
+                1000 => g.raw_x = Some(ushorts(s)?),
+                1001 => g.raw_y = Some(ushorts(s)?),
                 1002 => {
                     let n = s.int()?.max(0) as usize;
                     let calls: Vec<i8> = (0..n).map(|_| s.byte()).collect::<Result<_, _>>()?;
@@ -566,7 +643,7 @@ impl Gtc {
                     }
                     g.base_calls = Some(calls);
                 }
-                1004 => g.genotype_scores = Some(floats(&mut s)?),
+                1004 => g.genotype_scores = Some(floats(s)?),
                 1005 => {
                     g.scanner_name = Some(s.string()?);
                     g.pmt_green = s.int()?;
@@ -576,9 +653,9 @@ impl Gtc {
                 }
                 1006 => g.call_rate = f64::from(s.float()?),
                 1007 => {
-                    g.gender = Some(match bytes.get(offset.max(0) as usize) {
-                        Some(b) => char::from(*b).to_string(),
-                        None => char::from_u32(0xFFFF).map(String::from).unwrap_or_default(),
+                    g.gender = Some(match s.byte() {
+                        Ok(b) => char::from(b as u8).to_string(),
+                        Err(_) => char::from_u32(0xFFFF).map(String::from).unwrap_or_default(),
                     })
                 }
                 1008 => g.log_r_dev = s.float()?,
@@ -590,8 +667,8 @@ impl Gtc {
                     g.num_no_calls = s.int()?;
                     g.num_intensity_only = s.int()?;
                 }
-                1012 => g.b_allele_freqs = Some(floats(&mut s)?),
-                1013 => g.log_r_ratios = Some(floats(&mut s)?),
+                1012 => g.b_allele_freqs = Some(floats(s)?),
+                1013 => g.log_r_ratios = Some(floats(s)?),
                 1014 => g.red_percentiles = Some([s.short()?, s.short()?, s.short()?]),
                 1015 => g.green_percentiles = Some([s.short()?, s.short()?, s.short()?]),
                 1016 => g.sentrix_barcode = Some(s.string()?),
@@ -651,13 +728,59 @@ impl Gtc {
     }
 }
 
-/// `Build37ExtendedIlluminaManifest`: the heading, and the assay rows as `GtcToVcf` reads them.
-#[derive(Debug, Clone)]
+/// `Files.readString`'s check, made as a pass over the file in pieces: the error a whole-file read
+/// of text would have stopped at, before a line of it is used.
+pub fn check_utf8(path: &str) -> std::io::Result<()> {
+    use std::io::BufRead;
+    let invalid = || {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "stream did not contain valid UTF-8",
+        )
+    };
+    let mut file = std::io::BufReader::with_capacity(1 << 16, std::fs::File::open(path)?);
+    let mut pending: Vec<u8> = Vec::new();
+    loop {
+        let piece = file.fill_buf()?;
+        if piece.is_empty() {
+            break;
+        }
+        pending.extend_from_slice(piece);
+        let n = piece.len();
+        file.consume(n);
+        match std::str::from_utf8(&pending) {
+            Ok(_) => pending.clear(),
+            // A character cut by the piece's end: keep its first bytes for the next piece.
+            Err(e) if e.error_len().is_none() => {
+                pending.drain(..e.valid_up_to());
+            }
+            Err(_) => return Err(invalid()),
+        }
+    }
+    if pending.is_empty() {
+        Ok(())
+    } else {
+        Err(invalid())
+    }
+}
+
+/// The lines of a text file that [`check_utf8`] passed, as `str::lines` splits them.
+pub fn text_lines(path: &str) -> std::io::Result<impl Iterator<Item = String>> {
+    use std::io::BufRead;
+    let file = std::io::BufReader::with_capacity(1 << 16, std::fs::File::open(path)?);
+    // shortcut: a read failure after the check passed ends the lines, upgrade if a manifest can
+    // fail mid-file on a working disk.
+    Ok(file.lines().map_while(Result::ok))
+}
+
+/// `Build37ExtendedIlluminaManifest`: the heading, and the assay rows as `GtcToVcf` reads them,
+/// one at a time.
 pub struct ExtendedManifest {
     pub descriptor_file_name: String,
     pub extended_manifest_version: String,
     pub num_assays: usize,
-    pub records: Vec<crate::gtc_to_vcf::ManifestRecord>,
+    header: Vec<String>,
+    rows: Box<dyn Iterator<Item = String>>,
 }
 
 /// `CsvInputParser`'s split: commas, nothing quoted.
@@ -669,14 +792,20 @@ fn csv(line: &str) -> Vec<String> {
 }
 
 impl ExtendedManifest {
-    /// `new Build37ExtendedIlluminaManifest(file)` and its `extendedIterator`.
-    pub fn parse(text: &str, path: &str) -> Result<ExtendedManifest, String> {
-        let lines: Vec<&str> = text.lines().collect();
+    /// `new Build37ExtendedIlluminaManifest(file)`: a file that cannot be read as text is read as
+    /// an empty one.
+    pub fn open(path: &str) -> Result<ExtendedManifest, String> {
+        let lines = || -> Box<dyn Iterator<Item = String>> {
+            match check_utf8(path).and_then(|()| text_lines(path)) {
+                Ok(lines) => Box::new(lines),
+                Err(_) => Box::new(std::iter::empty()),
+            }
+        };
         let mut descriptor = String::new();
         let mut version = "?".to_string();
         let mut count = 0usize;
-        for line in &lines {
-            let row = csv(line);
+        for line in lines() {
+            let row = csv(&line);
             let tag = row[0].trim();
             match tag {
                 "Descriptor File Name" => descriptor = row.get(1).cloned().unwrap_or_default(),
@@ -690,59 +819,103 @@ impl ExtendedManifest {
                 _ => {}
             }
         }
-        let assay = lines
-            .iter()
-            .position(|l| l.trim() == "[Assay]")
+        let mut rows = lines();
+        rows.by_ref()
+            .find(|l| l.trim() == "[Assay]")
             .ok_or_else(|| {
                 format!("java.io.IOException: Unable to find section [Assay] in {path}")
             })?;
-        let header = csv(lines.get(assay + 1).copied().unwrap_or("").trim());
-        let column = |name: &str| header.iter().position(|h| h == name);
-        let mut records = Vec::new();
-        for line in lines.iter().skip(assay + 2).take(count) {
-            let row = csv(line);
-            let get = |name: &str| -> String {
-                column(name)
-                    .and_then(|i| row.get(i).cloned())
-                    .unwrap_or_default()
-            };
-            let end = row.len();
-            let flag_name = row.last().cloned().unwrap_or_default();
-            let flag = crate::gtc_to_vcf::Flag::parse(&flag_name).ok_or_else(|| {
-                format!(
-                    "java.lang.IllegalArgumentException: No enum constant picard.arrays.illumina.Build37ExtendedIlluminaManifestRecord.Flag.{flag_name}"
-                )
-            })?;
-            let at = |back: usize| row.get(end.wrapping_sub(back)).cloned().unwrap_or_default();
-            let failed = flag.is_fail();
-            records.push(crate::gtc_to_vcf::ManifestRecord {
-                name: get("Name"),
-                chr: get("Chr"),
-                position: get("MapInfo").trim().parse().unwrap_or(0),
-                genome_build: get("GenomeBuild"),
-                b37_chr: if failed { "0".to_string() } else { at(7) },
-                b37_pos: if failed {
-                    0
-                } else {
-                    at(6).trim().parse().unwrap_or(0)
-                },
-                ref_allele: if failed { String::new() } else { at(5) },
-                allele_a: if failed { String::new() } else { at(4) },
-                allele_b: if failed { String::new() } else { at(3) },
-                rs_id: if failed { String::new() } else { at(2) },
-                ilmn_strand: get("IlmnStrand"),
-                probe_a: get("AlleleA_ProbeSeq"),
-                probe_b: get("AlleleB_ProbeSeq"),
-                bead_set_id: get("BeadSetID").trim().parse().unwrap_or(0),
-                source: get("Source"),
-                flag,
-            });
-        }
+        let header = csv(rows.next().as_deref().unwrap_or("").trim());
         Ok(ExtendedManifest {
             descriptor_file_name: descriptor,
             extended_manifest_version: version,
             num_assays: count,
-            records,
+            header,
+            rows: Box::new(rows.take(count)),
         })
+    }
+
+    /// `extendedIterator().next()`.
+    fn record(&self, line: &str) -> Result<crate::gtc_to_vcf::ManifestRecord, String> {
+        let row = csv(line);
+        let column = |name: &str| self.header.iter().position(|h| h == name);
+        let get = |name: &str| -> String {
+            column(name)
+                .and_then(|i| row.get(i).cloned())
+                .unwrap_or_default()
+        };
+        let end = row.len();
+        let flag_name = row.last().cloned().unwrap_or_default();
+        let flag = crate::gtc_to_vcf::Flag::parse(&flag_name).ok_or_else(|| {
+            format!(
+                "java.lang.IllegalArgumentException: No enum constant picard.arrays.illumina.Build37ExtendedIlluminaManifestRecord.Flag.{flag_name}"
+            )
+        })?;
+        let at = |back: usize| row.get(end.wrapping_sub(back)).cloned().unwrap_or_default();
+        let failed = flag.is_fail();
+        Ok(crate::gtc_to_vcf::ManifestRecord {
+            name: get("Name"),
+            chr: get("Chr"),
+            position: get("MapInfo").trim().parse().unwrap_or(0),
+            genome_build: get("GenomeBuild"),
+            b37_chr: if failed { "0".to_string() } else { at(7) },
+            b37_pos: if failed {
+                0
+            } else {
+                at(6).trim().parse().unwrap_or(0)
+            },
+            ref_allele: if failed { String::new() } else { at(5) },
+            allele_a: if failed { String::new() } else { at(4) },
+            allele_b: if failed { String::new() } else { at(3) },
+            rs_id: if failed { String::new() } else { at(2) },
+            ilmn_strand: get("IlmnStrand"),
+            probe_a: get("AlleleA_ProbeSeq"),
+            probe_b: get("AlleleB_ProbeSeq"),
+            bead_set_id: get("BeadSetID").trim().parse().unwrap_or(0),
+            source: get("Source"),
+            flag,
+        })
+    }
+
+    /// The first refusal among the rows not read yet: the one a reader of every row before the
+    /// first use of any would have raised first.
+    pub fn first_refusal(&mut self) -> Option<String> {
+        self.find_map(Result::err)
+    }
+}
+
+impl Iterator for ExtendedManifest {
+    type Item = Result<crate::gtc_to_vcf::ManifestRecord, String>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let line = self.rows.next()?;
+        Some(self.record(&line))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn utf8_is_checked_across_the_pieces() {
+        let dir = std::env::temp_dir().join(format!("infinium-utf8-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("a.csv");
+        let path = path.to_str().unwrap();
+        // "é" cut by the end of the first 64 KiB piece.
+        let mut text = vec![b'a'; (1 << 16) - 1];
+        text.extend("é\nb\n".as_bytes());
+        std::fs::write(path, &text).unwrap();
+        assert!(check_utf8(path).is_ok());
+        assert_eq!(text_lines(path).unwrap().count(), 2);
+        text.push(0xC3);
+        std::fs::write(path, &text).unwrap();
+        let error = check_utf8(path).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            std::fs::read_to_string(path).unwrap_err().to_string()
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
