@@ -54,6 +54,25 @@ pub fn sort(features: &[Feature], dictionary: Option<&[String]>) -> Vec<Feature>
     sorted
 }
 
+/// Each contig's place in [`compare`]'s order, so that a sort keyed on it compares two numbers:
+/// its index in the dictionary, or, without one, its rank among `contigs` (which are distinct) as
+/// strings.
+pub fn contig_ranks(contigs: &[String], dictionary: Option<&[String]>) -> Vec<i32> {
+    if let Some(dictionary) = dictionary {
+        return contigs
+            .iter()
+            .map(|contig| sequence_index(dictionary, contig))
+            .collect();
+    }
+    let mut order: Vec<usize> = (0..contigs.len()).collect();
+    order.sort_by(|&a, &b| contigs[a].cmp(&contigs[b]));
+    let mut ranks = vec![0; contigs.len()];
+    for (rank, &index) in order.iter().enumerate() {
+        ranks[index] = rank as i32;
+    }
+    ranks
+}
+
 /// The version directive the codec writes, which is ITS OWN and not the input's.
 ///
 /// A file that opens with `##gff-version 3.1.26` comes back opening with this.
@@ -70,3 +89,32 @@ pub fn cannot_decode_message(path: &str) -> String {
 
 /// `nRecordsInMemory`, which decides only where the sort holds its records.
 pub const DEFAULT_RECORDS_IN_MEMORY: usize = 50000;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Sorting on the ranks gives the order [`sort`] gives, with and without a dictionary.
+    #[test]
+    fn ranks_order_as_compare_does() {
+        let contigs: Vec<String> = ["chr2", "chr10", "chrU", "chr1"].map(String::from).to_vec();
+        let features: Vec<Feature> = [(0, 5), (1, 3), (2, 9), (3, 7), (0, 1), (2, 2), (1, 3)]
+            .iter()
+            .enumerate()
+            .map(|(index, &(contig, start))| Feature {
+                contig: contigs[contig].clone(),
+                start,
+                end: start,
+                index,
+            })
+            .collect();
+        let dictionary: Vec<String> = ["chr1", "chr2", "chr10"].map(String::from).to_vec();
+        for dictionary in [None, Some(&dictionary[..])] {
+            let ranks = contig_ranks(&contigs, dictionary);
+            let rank = |f: &Feature| ranks[contigs.iter().position(|c| *c == f.contig).unwrap()];
+            let mut by_rank = features.clone();
+            by_rank.sort_by(|a, b| rank(a).cmp(&rank(b)).then(a.start.cmp(&b.start)));
+            assert_eq!(by_rank, sort(&features, dictionary));
+        }
+    }
+}
