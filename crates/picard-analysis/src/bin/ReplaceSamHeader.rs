@@ -67,7 +67,7 @@ fn sort_order(header: &SamHeader) -> &str {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("ReplaceSamHeader");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
         .ok_or("INPUT= is required")?;

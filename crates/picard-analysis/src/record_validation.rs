@@ -38,7 +38,7 @@ pub fn stringency() -> Stringency {
         2 => Stringency::Lenient,
         3 => Stringency::Silent,
         _ => {
-            let args: Vec<String> = std::env::args().skip(1).collect();
+            let args: Vec<String> = crate::args::process().into_iter().skip(1).collect();
             let found = from_args(&args);
             set_stringency(found);
             found

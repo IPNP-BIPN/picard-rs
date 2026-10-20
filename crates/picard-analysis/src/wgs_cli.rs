@@ -219,7 +219,7 @@ fn bins(array: &[i64], from: usize) -> Vec<(usize, i64)> {
 
 /// Runs one of the three tools on `std::env::args()`, exiting the way Picard would.
 pub fn main_for(tool: Tool) {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let args: Vec<String> = crate::args::process().into_iter().skip(1).collect();
     let input = one(&args, "INPUT", Some("I"))
         .map(str::to_string)
         .unwrap_or_else(|| fail("Argument 'INPUT' is required"));

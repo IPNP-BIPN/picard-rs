@@ -73,7 +73,7 @@ pub fn reference_argument() -> Option<String> {
 /// winning, with Barclay's `null` meaning none: what a writer is made with.
 pub fn argv_reference() -> Option<String> {
     let mut found = None;
-    for raw in std::env::args().skip(1) {
+    for raw in crate::args::process().into_iter().skip(1) {
         let raw = raw.trim_start_matches('-');
         if let Some((name, value)) = raw.split_once('=') {
             if name == "REFERENCE_SEQUENCE" || name == "R" {
