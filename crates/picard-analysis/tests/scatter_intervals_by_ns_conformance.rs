@@ -103,7 +103,8 @@ fn every_interval_list_is_byte_identical() {
             output_type: output_type(&case.output_type),
             max_to_merge: case.max_to_merge,
         };
-        let got = scatter_intervals_by_ns(&case.reference, &case.dict, &opts).expect("scatter");
+        let got =
+            scatter_intervals_by_ns(case.reference.as_bytes(), &case.dict, &opts).expect("scatter");
         assert_eq!(got, case.output, "{name}");
     }
 }
