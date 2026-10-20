@@ -20,18 +20,29 @@ use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::text::write_alignment;
+use htsjdk_bam::writer::WriteError;
 use htsjdk_bgzf::read::BgzfReader;
 use picard_analysis::args::arg;
 use picard_analysis::record_validation::Validator;
+use picard_analysis::sort_sam::encoded::{bin_zero, Encoded, EncodedBamWriter, SortingCollection};
 use picard_analysis::sort_sam::{
-    mate_cigar_refusal, MateCigarCheck, RequestedOrder, SortingCollection,
-    DEFAULT_MAX_RECORDS_IN_RAM,
+    mate_cigar_refusal, MateCigarCheck, RequestedOrder, DEFAULT_MAX_RECORDS_IN_RAM,
 };
 
 const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
 const MATE_UNMAPPED: u16 = 0x8;
 const FIRST_OF_PAIR: u16 = 0x40;
+
+/// `BamWriter::write`'s bytes, and its error.
+fn write<W: Write>(
+    writer: &mut EncodedBamWriter<W>,
+    encoded: Encoded,
+) -> Result<(), Box<dyn std::error::Error>> {
+    writer
+        .write(encoded)
+        .map_err(|e| format!("{:?}", WriteError::Io(e)).into())
+}
 
 /// The name htsjdk gives the index it writes beside an output.
 fn index_path(output: &str) -> String {
@@ -138,8 +149,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .collect::<Vec<_>>();
         (header, Box::new(records.into_iter()))
     } else if head.starts_with(&[0x1f, 0x8b]) {
-        let (header, stream) = BamStream::open(&input)?;
-        (header, Box::new(stream))
+        // A clean BAM streams through the shared reader, inflating on every core. Its first pass
+        // lets a BGZF error outrank a record that fails validation earlier, which this stream does
+        // not, so a file it refuses is answered by this stream instead.
+        match picard_analysis::bam_stream::Input::open(&input) {
+            Ok(clean) => {
+                let (header, records) = clean.into_parts();
+                (header, Box::new(records.map(Ok)))
+            }
+            Err(_) => {
+                let (header, stream) = BamStream::open(&input)?;
+                (header, Box::new(stream))
+            }
+        }
     } else {
         // shortcut: a SAM input is read whole; stream it if a SAM larger than RAM turns up.
         let text = String::from_utf8(std::fs::read(&input)?)?;
@@ -148,14 +170,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let Some(sort_order) = order.sort_order() else {
-        let records = records.collect::<Result<Vec<_>, _>>()?;
         // The duplicate order, which this corpus never reaches: the sort asks the first record it
         // touches for its mate's unclipped coordinate, and a record with no mate cigar has none.
-        let checks: Vec<MateCigarCheck> = records
-            .iter()
-            .map(|record| check_of(record, &header))
-            .collect();
-        if let Some(message) = mate_cigar_refusal(&checks) {
+        // It touches the second record, then the first, then the rest in file order, and only once
+        // every record is read; so the first record is held until the second is seen, and only the
+        // refused record is described.
+        let refused = |record: &BamRecord| {
+            let check = check_of(record, &header);
+            (check.needs_mate_cigar() && check.mate_cigar.is_none())
+                .then(|| mate_cigar_refusal(&[check]).expect("a record with no mate cigar"))
+        };
+        let lacks = |record: &BamRecord| {
+            record.flags & (READ_PAIRED | READ_UNMAPPED | MATE_UNMAPPED) == READ_PAIRED
+                && !matches!(record.tags.get(Tag::new(b"MC")), Some(TagValue::Str(_)))
+        };
+        let (mut first, mut message, mut count) = (None, None, 0usize);
+        for record in records {
+            let record = record?;
+            if message.is_none() && count != 0 && lacks(&record) {
+                message = refused(&record);
+            }
+            if count == 0 {
+                first = Some(record);
+            } else if count == 1 {
+                let first = first.take().expect("the first record");
+                if message.is_none() && lacks(&first) {
+                    message = refused(&first);
+                }
+            }
+            count += 1;
+        }
+        if let Some(first) = first.filter(|first| lacks(first)) {
+            message = refused(&first);
+        }
+        if let Some(message) = message {
             // The reference's own line, printed as the reference prints it: an uncaught exception
             // on stderr and a status of one. Wrapping it in Rust's `Error:` would be a different
             // message for the same refusal.
@@ -167,12 +215,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     header.set_sort_order(sort_order.name());
-    let mut sorting = SortingCollection::new(sort_order.comparator(), max_records_in_ram, tmp_dir);
+    let lengths: Vec<i32> = header.sequences.iter().map(|s| s.length).collect();
+    let mut sorting = SortingCollection::new(sort_order, max_records_in_ram, tmp_dir);
     // Every record is read before the output is created, so a damaged input leaves no output.
     for record in records {
-        sorting.add(record?)?;
+        let record = record?;
+        sorting
+            .add(&record, bin_zero(&lengths, record.reference_index))
+            .map_err(|e| -> Box<dyn std::error::Error> {
+                match e {
+                    WriteError::Io(e) => e.into(),
+                    e => format!("{e:?}").into(),
+                }
+            })?;
     }
-    let sorted = sorting.into_sorted()?;
 
     if output.ends_with(".sam") {
         let name_of = |index: i32| -> &str {
@@ -183,8 +239,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let mut out = BufWriter::new(std::fs::File::create(&output)?);
         out.write_all(header.encode().as_bytes())?;
-        for record in sorted {
-            let record = record?;
+        sorting.for_each_sorted(|encoded| -> Result<(), Box<dyn std::error::Error>> {
+            let Ok(Some((record, _))) = BamRecord::decode(encoded.bytes) else {
+                unreachable!("the collection decodes what it encoded");
+            };
             let line = write_alignment(
                 &record,
                 name_of(record.reference_index),
@@ -193,35 +251,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .ok_or("records failed to re-encode as SAM")?;
             out.write_all(line.as_bytes())?;
             out.write_all(b"\n")?;
-        }
+            Ok(())
+        })?;
         out.flush()?;
         return Ok(());
     }
 
     if picard_analysis::cram_output::is_cram(&output) {
-        let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)?;
-        for record in sorted {
-            writer.write(&record?).map_err(|e| format!("{e:?}"))?;
-        }
-        let bam = writer.finish()?;
+        let mut writer = EncodedBamWriter::new(Vec::new(), &header, false)?;
+        sorting.for_each_sorted(|encoded| write(&mut writer, encoded))?;
+        let (bam, _) = writer.finish()?;
         picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
         return Ok(());
     }
 
     let out = BufWriter::new(std::fs::File::create(&output)?);
-    let mut writer = picard_analysis::output::bam_writer(out, &header)?;
-    if create_index {
-        writer = writer.with_index();
-    }
-    for record in sorted {
-        writer.write(&record?).map_err(|e| format!("{e:?}"))?;
-    }
-    if create_index {
-        let (out, index) = writer.finish_with_index()?;
-        out.into_inner().map_err(|e| e.into_error())?;
+    let mut writer = EncodedBamWriter::new(out, &header, create_index)?;
+    sorting.for_each_sorted(|encoded| write(&mut writer, encoded))?;
+    let (out, index) = writer.finish()?;
+    out.into_inner().map_err(|e| e.into_error())?;
+    if let Some(index) = index {
         std::fs::write(index_path(&output), index)?;
-    } else {
-        writer.finish()?.into_inner().map_err(|e| e.into_error())?;
     }
     Ok(())
 }
