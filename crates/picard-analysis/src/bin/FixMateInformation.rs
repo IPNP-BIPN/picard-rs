@@ -55,7 +55,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // The reference throws rather than exiting, so its handler prints the class before the
     // message: a row that refuses is a row this has to refuse the same way, text included.
+    // Whether this run created the output, which a refusal then removes: the queryname order
+    // streams into it while the templates are fixed.
+    let created = std::cell::Cell::new(false);
     let refuse = |error: FixMateError| -> ! {
+        if created.get() {
+            let _ = std::fs::remove_file(&output);
+        }
         eprintln!(
             "Exception in thread \"main\" {}: {}",
             error.java_class(),
@@ -108,18 +114,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(template.into_iter().map(Ok).collect())
     })
     .flatten();
-    // Every record is fixed and sorted before the output is created, so a refusal leaves none.
-    let sorted = match output_order {
-        SortOrder::Coordinate => sort(coordinate::compare, &mut fixed)?,
-        SortOrder::Queryname => sort(query_name::compare, &mut fixed)?,
-    };
     header.set_sort_order(output_order.name());
-
-    let mut out = Output::create(&output, &header, false)?;
-    for record in sorted {
-        out.write(&record?)?;
+    match output_order {
+        // `createSamFileWriter` opens a queryname output presorted, so the fixed records are written
+        // in the order they come, and the writer refuses one out of name order, as htsjdk's does.
+        SortOrder::Queryname => {
+            let mut out = Output::create(&output, &header, false)?;
+            created.set(true);
+            for record in fixed {
+                out.write(&record?)?;
+            }
+            out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
+            return Ok(());
+        }
+        // Any other order is sorted by the writer, after every record is fixed, so a refusal
+        // leaves no output.
+        SortOrder::Coordinate => {
+            let sorted = sort(coordinate::compare, &mut fixed)?;
+            let mut out = Output::create(&output, &header, false)?;
+            for record in sorted {
+                out.write(&record?)?;
+            }
+            // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
+            out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
+        }
     }
-    // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
-    out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
     Ok(())
 }

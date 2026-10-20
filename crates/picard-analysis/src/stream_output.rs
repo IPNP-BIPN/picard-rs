@@ -106,6 +106,74 @@ enum Sink {
 pub struct Output {
     path: String,
     sink: Option<Sink>,
+    checker: Option<Checker>,
+}
+
+/// `SAMSortOrderChecker`, which a writer opened presorted runs on every record when its header's
+/// order is coordinate or queryname, as almost every Picard tool opens its writer: the previous
+/// record's `fileOrderCompare` key, and the contig names its coordinate key is printed with.
+struct Checker {
+    queryname: bool,
+    names: Vec<String>,
+    previous: Option<Key>,
+}
+
+/// What `fileOrderCompare` reads: the reference index and start, or the read name.
+#[derive(Clone, PartialEq)]
+enum Key {
+    Coordinate(i32, i32),
+    Queryname(String),
+}
+
+impl Checker {
+    fn for_header(header: &SamHeader) -> Option<Checker> {
+        let queryname = match header.attributes.get("SO") {
+            Some("coordinate") => false,
+            Some("queryname") => true,
+            _ => return None,
+        };
+        Some(Checker {
+            queryname,
+            names: header.sequences.iter().map(|s| s.name.clone()).collect(),
+            previous: None,
+        })
+    }
+
+    fn key(&self, record: &BamRecord) -> Key {
+        if self.queryname {
+            Key::Queryname(record.read_name.clone())
+        } else {
+            Key::Coordinate(record.reference_index, record.alignment_start)
+        }
+    }
+
+    /// `SAMRecordCoordinateComparator` / `SAMRecordQueryNameComparator.fileOrderCompare`.
+    fn after(a: &Key, b: &Key) -> bool {
+        match (a, b) {
+            (Key::Queryname(a), Key::Queryname(b)) => a > b,
+            (Key::Coordinate(r1, s1), Key::Coordinate(r2, s2)) => match (*r1 == -1, *r2 == -1) {
+                (true, true) => false,
+                (true, false) => true,
+                (false, true) => false,
+                (false, false) => (r1, s1) > (r2, s2),
+            },
+            _ => false,
+        }
+    }
+
+    /// `SAMSortOrderChecker.getSortKey`: `name:start` (`*:0` unmapped), or the read name.
+    fn printed(&self, key: &Key) -> String {
+        match key {
+            Key::Queryname(name) => name.clone(),
+            Key::Coordinate(index, start) => {
+                let name = usize::try_from(*index)
+                    .ok()
+                    .and_then(|i| self.names.get(i))
+                    .map_or("*", String::as_str);
+                format!("{name}:{start}")
+            }
+        }
+    }
 }
 
 impl Output {
@@ -143,12 +211,40 @@ impl Output {
         Ok(Output {
             path: path.to_string(),
             sink: Some(sink),
+            checker: Checker::for_header(header),
         })
     }
 
     /// Writes `record`; a record the format cannot carry ends the output as a failure leaves it,
     /// with the message the whole-file writer returned.
     pub fn write(&mut self, record: &BamRecord) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(mut checker) = self.checker.take() {
+            let key = checker.key(record);
+            if let Some(previous) = &checker.previous {
+                if Checker::after(previous, &key) {
+                    // `isSorted` has already made this record the previous one when the message
+                    // asks for it, so both keys printed are this record's.
+                    let message =
+                        format!(
+                        "Alignments added out of order in SAMFileWriterImpl.addAlignment for {}. \
+                         Sort order is {}. Offending records are at [{}] and [{}]",
+                        self.writer_name(),
+                        if checker.queryname { "queryname" } else { "coordinate" },
+                        checker.printed(&key),
+                        checker.printed(&key)
+                    );
+                    // `addAlignment` throws before the record is written, out of a writer that is
+                    // never closed.
+                    self.leave_unclosed()?;
+                    eprintln!(
+                        "Exception in thread \"main\" java.lang.IllegalArgumentException: {message}"
+                    );
+                    std::process::exit(1);
+                }
+            }
+            checker.previous = Some(key);
+            self.checker = Some(checker);
+        }
         let failed = match self.sink.as_mut().expect("open until finished") {
             Sink::Sam(out, header, _) => match crate::bam_stream::sam_line(header, record) {
                 Some(line) => {
@@ -178,9 +274,26 @@ impl Output {
         }
     }
 
+    /// `getFilename()`: a BAM writer's absolute path as a URI, a SAM writer's as a path, neither
+    /// with its links resolved.
+    /// shortcut: the URI is not percent-encoded; encode it once a path with a space matters.
+    fn writer_name(&self) -> String {
+        let absolute = std::path::absolute(&self.path)
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| self.path.clone());
+        match self.sink {
+            Some(Sink::Sam(..)) => absolute,
+            _ => format!("file://{absolute}"),
+        }
+    }
+
     /// Ends a run that threw after the records written so far: the file as htsjdk's unclosed
     /// writer leaves it ([`java_writer`]), whatever the format.
     pub fn abandon_unclosed(mut self) -> io::Result<()> {
+        self.leave_unclosed()
+    }
+
+    fn leave_unclosed(&mut self) -> io::Result<()> {
         close(&self.path);
         match self.sink.take().expect("open until finished") {
             Sink::Sam(out, _, header_len) => {
