@@ -16,10 +16,24 @@ use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use htsjdk_vcf::header::HeaderLine;
 use htsjdk_vcf::variant::VariantContext;
 use picard_analysis::fingerprint::file_uri;
-use picard_analysis::metrics_cli::{refuse_validation, thrown, Args};
-use picard_analysis::vcf_io::read_path;
+use picard_analysis::metrics_cli::{refuse_validation, Args};
+use picard_analysis::vcf_io::VcfReader;
 
 const TOOL: &str = "CollectArraysVariantCallingMetrics";
+
+/// The inputs a refusal is measured against, once both are open: see [`thrown`].
+static READ: std::sync::OnceLock<[String; 2]> = std::sync::OnceLock::new();
+
+/// `metrics_cli::thrown` as a run that had read the INPUT and the DBSNP whole first: the first of
+/// them that fails to read throws instead. Both are streamed, so only a refusal reads them again.
+fn thrown(message: &str) -> ! {
+    for path in READ.get().into_iter().flatten() {
+        if let Err(read) = VcfReader::open(path).and_then(|mut vcf| vcf.check()) {
+            picard_analysis::metrics_cli::thrown(&read);
+        }
+    }
+    picard_analysis::metrics_cli::thrown(message)
+}
 
 const CONTROLS: [&str; 23] = [
     "DNP(High)",
@@ -330,9 +344,14 @@ fn main() {
             file_uri(&input)
         ));
     }
-    let vcf = read_path(&input).unwrap_or_else(|e| thrown(&e));
-    let lines = &vcf.file.header.lines;
-    let dbsnp = read_path(&dbsnp_path).unwrap_or_else(|e| thrown(&e));
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|e| thrown(&e));
+    let mut dbsnp = VcfReader::open(&dbsnp_path).unwrap_or_else(|e| {
+        vcf.check().unwrap_or_else(|read| thrown(&read));
+        thrown(&e)
+    });
+    let _ = READ.set([input.clone(), dbsnp_path.clone()]);
+    let header = vcf.file.header.clone();
+    let lines = &header.lines;
     // `DbSnpBitSetUtil.loadVcf` asserts the dbSNP's contigs are the dictionary's -- the
     // SEQUENCE_DICTIONARY's when one is given, else the INPUT's -- and a VCF with no contig lines
     // has no dictionary to disagree with.
@@ -358,12 +377,10 @@ fn main() {
         }
     }
     // `DbSnpBitSetUtil`: a set of positions, not a list to scan per site.
-    let known: foldhash::HashSet<(String, i64)> = dbsnp
-        .records
-        .iter()
-        .map(|r| &r.variant)
+    let known: foldhash::HashSet<(String, i64)> = std::iter::from_fn(|| dbsnp.try_next())
+        .map(|r| r.unwrap_or_else(|e| thrown(&e)).variant)
         .filter(|v| v.alleles.iter().all(|a| a.len() == 1))
-        .map(|v| (v.contig.clone(), v.start))
+        .map(|v| (v.contig, v.start))
         .collect();
 
     // The control codes, each `control|category|red|green`.
@@ -414,9 +431,9 @@ fn main() {
     let scanner = required(lines, "scannerName");
 
     // `accumulate`, per sample.
-    let samples = vcf.file.header.samples.clone();
+    let samples = header.samples.clone();
     let mut per_sample: Vec<Counts> = vec![Counts::default(); samples.len()];
-    for record in &vcf.records {
+    for record in vcf.by_ref() {
         let vc: &VariantContext = &record.variant;
         let variants: Vec<&htsjdk_vcf::variant::Genotype> = vc
             .genotypes
