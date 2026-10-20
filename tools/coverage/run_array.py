@@ -62,6 +62,16 @@ OMITTED = "<absent>"
 # Outputs whose compressed bytes are compared, not only what they inflate to; see `read_output`.
 WRITTEN_AS_IS = (".vcf.gz", ".vcf.bgz", ".tbi")
 
+# How long one side of one row may run. A Picard reference that throws while one of its executors
+# is alive never exits (a non-daemon pool thread keeps the JVM up), and IlluminaBasecallsToFastq
+# did that intermittently in CI, where the job then sat until its 6 h limit. Every row of every
+# array finishes in seconds, so a row past this bound is a hang, not a slow row.
+ROW_TIMEOUT = 300
+
+
+class RowTimeout(Exception):
+    """One side of a row ran past `ROW_TIMEOUT`; the argument names the side."""
+
 
 def build_fixtures(workdir):
     """Materialize the corpus with MakeFixtures.java, inside the pinned container."""
@@ -197,16 +207,24 @@ def stdin_file(spec, row):
     return spec
 
 
-def run_captured(argv, stdin_bytes=None, env=None):
+def run_captured(argv, stdin_bytes=None, env=None, side="port", container=None):
     """`subprocess.run` that returns text, and feeds standard input when a tool has one.
 
     With no standard input this is exactly the call the runner always made. With one the streams
     are read as bytes and decoded as latin-1, which is lossless, so a binary payload survives the
     trip into the comparison.
+
+    Past `ROW_TIMEOUT` it raises `RowTimeout`. Killing the `docker` client leaves the container
+    running, so a `container` name is removed by name as well.
     """
-    if stdin_bytes is None:
-        return subprocess.run(argv, capture_output=True, text=True, env=env)
-    raw = subprocess.run(argv, capture_output=True, input=stdin_bytes, env=env)
+    try:
+        if stdin_bytes is None:
+            return subprocess.run(argv, capture_output=True, text=True, env=env, timeout=ROW_TIMEOUT)
+        raw = subprocess.run(argv, capture_output=True, input=stdin_bytes, env=env, timeout=ROW_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        if container:
+            subprocess.run(["docker", "rm", "-f", container], capture_output=True)
+        raise RowTimeout(side)
     return subprocess.CompletedProcess(
         argv,
         raw.returncode,
@@ -271,15 +289,18 @@ def run_oracle(tool, row_args, workdir, on_stdout=False, strip_pg=False, output_
     # `java -jar picard.jar <Tool> <args>`: the tool name is the first token, and the arguments
     # follow in Barclay long form.
     command = f"mkdir -p /work/tmp /work/out && {copies}java -jar $PICARD_JAR {tool} {cli}"
+    container = f"picard-rs-row-{os.getpid()}-{row}-{os.urandom(4).hex()}"
     result = run_captured(
         [
-            "docker", "run", "--rm", "--platform", PLATFORM,
+            "docker", "run", "--rm", "--name", container, "--platform", PLATFORM,
             *(["-i"] if stdin_name else []),
             "-v", f"{fixtures}:/work/fixtures:ro",
             "-v", f"{out_dir}:/work/out",
             "-w", "/work", IMAGE, command,
         ],
         stdin_bytes,
+        side="reference",
+        container=container,
     )
     text = stream_answer(result, on_stdout) if on_stdout else read_output(out_dir, strip_pg, output_name)
     return result.returncode, text, first_error(result.stderr or result.stdout)
@@ -672,18 +693,49 @@ def main(argv):
             fixtures = build_fixtures(workdir)
 
         results = []
+        timeouts = []
         for row in rows:
             row_args = row_arguments(row, array["excluded"])
-            code, text, tail = run_oracle(
-                args.tool,
-                row_args,
-                workdir,
-                "stderr" if args.stderr else args.stdout,
-                args.strip_program_records,
-                args.output_name,
-                fixtures,
-                row["row"],
-            )
+            try:
+                code, text, tail = run_oracle(
+                    args.tool,
+                    row_args,
+                    workdir,
+                    "stderr" if args.stderr else args.stdout,
+                    args.strip_program_records,
+                    args.output_name,
+                    fixtures,
+                    row["row"],
+                )
+                if args.port:
+                    p_code, p_text, p_tail = run_port(
+                        args.port,
+                        row_args,
+                        workdir,
+                        "stderr" if args.stderr else args.stdout,
+                        args.strip_program_records,
+                        args.output_name,
+                        fixtures,
+                        args.tool,
+                        row["row"],
+                    )
+            except RowTimeout as hung:
+                # Recorded, named with its arguments and failed at the end, rather than blocking
+                # the job: the arguments are what it takes to forbid the pair or fix the port.
+                timeouts.append(row["row"])
+                message = f"TIMEOUT: the {hung} ran past {ROW_TIMEOUT} s"
+                results.append({
+                    "row": row["row"],
+                    "labels": row["labels"],
+                    "arguments": row_args,
+                    "oracle_exit": None,
+                    "oracle_output": message,
+                    "oracle_error": message,
+                    "port_output": message,
+                    "match": False,
+                })
+                print(f"row {row['row']:>3} {message}: {' '.join(row_args)}", flush=True)
+                continue
             entry = {
                 "row": row["row"],
                 "labels": row["labels"],
@@ -695,17 +747,6 @@ def main(argv):
                 "oracle_error": "" if code == 0 else tail,
             }
             if args.port:
-                p_code, p_text, p_tail = run_port(
-                    args.port,
-                    row_args,
-                    workdir,
-                    "stderr" if args.stderr else args.stdout,
-                    args.strip_program_records,
-                    args.output_name,
-                    fixtures,
-                    args.tool,
-                    row["row"],
-                )
                 entry["port_exit"] = p_code
                 entry["port_output"] = outcome(
                     p_code, p_text, p_tail, args.tool, args.exit_code_is_a_result
@@ -721,7 +762,9 @@ def main(argv):
             extra = ""
             if args.port:
                 extra = "  port=" + ("match" if entry["match"] else "DIFFERS")
-            print(f"row {row['row']:>3} {state}{extra}")
+            # Flushed: behind `| tee` the lines are block-buffered, and a job that hangs never
+            # prints the row it hangs on.
+            print(f"row {row['row']:>3} {state}{extra}", flush=True)
 
         accepted = [r for r in results if r["oracle_exit"] == 0]
         distinct = {r["oracle_output"] for r in accepted}
@@ -760,6 +803,13 @@ def main(argv):
                 if args.port and not entry["match"]:
                     fh.write(f"port\t{entry['row']}:{labels}\t{entry['port_output']}\n")
         print(f"wrote {dump_path}")
+        if timeouts:
+            print(
+                f"\n{args.tool}: rows {', '.join(map(str, timeouts))} ran past {ROW_TIMEOUT} s and "
+                "were killed; the array is not a measurement until they finish",
+                flush=True,
+            )
+            return 1
         return 0
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
