@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use crate::barcode_extractor::{Extractor, Metric};
 use crate::illumina_files::{Segment, SegmentKind};
-use crate::illumina_reader::{eamss, has_barcode_files, matched_barcodes, Run};
+use crate::illumina_reader::{eamss, has_barcode_files, matched_barcodes, Run, Tile};
 use crate::metrics_cli::thrown;
 
 /// A cluster as the converter hands it to a writer: every read the structure does not skip.
@@ -133,9 +133,108 @@ impl Converter {
         }
     }
 
-    /// One tile's clusters, per lane that has it, in the order the provider reads them.
-    pub fn tile(&mut self, tile: i32) -> Vec<ClusterData> {
-        let mut out = Vec::new();
+    /// One tile's files, per lane that has it, with its per-tile barcode file.
+    pub fn load(&self, tile: i32) -> Loaded {
+        let mut parts = Vec::new();
+        for (lane, run, available) in &self.runs {
+            if !available.contains(&tile) {
+                continue;
+            }
+            let data = run
+                .tile(tile, &self.cycles, 2)
+                .unwrap_or_else(|e| thrown(&e));
+            let from_file = self
+                .barcodes_from
+                .as_deref()
+                .and_then(|dir| matched_barcodes(dir, *lane, tile));
+            parts.push((*lane, data, from_file));
+        }
+        Loaded(parts)
+    }
+
+    /// Cluster `at` of a loaded tile without its reads: where it sat, which is all a read name
+    /// needs, and the barcode of its per-tile file.
+    pub fn place(&self, loaded: &Loaded, at: At) -> ClusterData {
+        let (lane, tile, from_file) = &loaded.0[at.0 as usize];
+        let i = at.1 as usize;
+        let (x, y) = tile.position(i);
+        ClusterData {
+            lane: *lane,
+            tile: tile.tile,
+            x,
+            y,
+            pf: tile.pf(i),
+            barcode: from_file.as_ref().and_then(|f| f.get(i).cloned().flatten()),
+            reads: Vec::new(),
+        }
+    }
+
+    /// Cluster `at` of a loaded tile, its reads EAMSS-filtered.
+    pub fn cluster(&self, loaded: &Loaded, at: At) -> ClusterData {
+        let (_, tile, _) = &loaded.0[at.0 as usize];
+        let mut data = self.place(loaded, at);
+        data.reads = tile
+            .cluster(at.1 as usize)
+            .reads
+            .into_iter()
+            .zip(&self.kinds)
+            .map(|((bases, mut quals), kind)| {
+                if self.apply_eamss {
+                    eamss(&bases, &mut quals);
+                }
+                (*kind, bases, quals)
+            })
+            .collect();
+        data
+    }
+
+    /// One tile's clusters, per lane that has it, in the order the provider reads them: each one
+    /// given its barcode and handed to `seen` with a way to decode its reads, then kept by barcode,
+    /// the barcodes in the order first seen, as where it is rather than what it holds.
+    /// [`Self::cluster`] decodes it again.
+    pub fn group(
+        &mut self,
+        loaded: &Loaded,
+        mut seen: impl FnMut(&ClusterData, &dyn Fn() -> ClusterData),
+    ) -> Vec<(Option<String>, Vec<At>)> {
+        // Only an inline match reads the bases to find the barcode.
+        let inline = self.demultiplex && self.extractor.is_some();
+        let mut by_barcode: Vec<(Option<String>, Vec<At>)> = Vec::new();
+        let mut barcode_at: foldhash::HashMap<Option<String>, usize> = Default::default();
+        for (part, (_, tile, _)) in loaded.0.iter().enumerate() {
+            for i in 0..tile.len() {
+                if !(self.include_non_pf || tile.pf(i)) {
+                    continue;
+                }
+                let at = At(part as u32, i as u32);
+                let mut data = match inline {
+                    true => self.cluster(loaded, at),
+                    false => self.place(loaded, at),
+                };
+                self.assign(&mut data);
+                let this = &*self;
+                seen(&data, &|| this.cluster(loaded, at));
+                match barcode_at.get(&data.barcode) {
+                    Some(&g) => by_barcode[g].1.push(at),
+                    None => {
+                        barcode_at.insert(data.barcode.clone(), by_barcode.len());
+                        by_barcode.push((data.barcode, vec![at]));
+                    }
+                }
+            }
+        }
+        by_barcode
+    }
+
+    /// The barcode a cluster is written under.
+    fn assign(&mut self, data: &mut ClusterData) {
+        if !self.demultiplex {
+            data.barcode = None;
+            return;
+        }
+        let Some(ex) = self.extractor.as_mut() else {
+            return;
+        };
         let sample: Vec<usize> = self
             .kinds
             .iter()
@@ -143,84 +242,45 @@ impl Converter {
             .filter(|(_, k)| **k == SegmentKind::Barcode)
             .map(|(i, _)| i)
             .collect();
-        for (lane, run, available) in &self.runs {
-            if !available.contains(&tile) {
-                continue;
-            }
-            let clusters = run
-                .clusters(tile, &self.cycles, 2)
-                .unwrap_or_else(|e| thrown(&e));
-            let from_file = self
-                .barcodes_from
-                .as_deref()
-                .and_then(|dir| matched_barcodes(dir, *lane, tile));
-            for (i, c) in clusters.into_iter().enumerate() {
-                if !(self.include_non_pf || c.pf) {
-                    continue;
+        // `maybeDemultiplex`: an inline match, counted per tile and merged into the declared
+        // barcodes' metrics. The unmatched count goes to the extractor's own row, which nothing
+        // writes.
+        let read: Vec<Vec<u8>> = sample.iter().map(|r| data.reads[*r].1.clone()).collect();
+        let quals: Vec<Vec<u8>> = sample.iter().map(|r| data.reads[*r].2.clone()).collect();
+        let m = ex.find(&read, Some(&quals), true);
+        if m.matched {
+            if let Some(t) = self
+                .metrics
+                .iter_mut()
+                .find(|x| x.barcode.replace('-', "") == m.barcode)
+            {
+                t.reads += 1;
+                if data.pf {
+                    t.pf_reads += 1;
                 }
-                let mut data = ClusterData {
-                    lane: *lane,
-                    tile: c.tile,
-                    x: c.x,
-                    y: c.y,
-                    pf: c.pf,
-                    barcode: from_file.as_ref().and_then(|f| f.get(i).cloned().flatten()),
-                    reads: c
-                        .reads
-                        .into_iter()
-                        .zip(&self.kinds)
-                        .map(|((bases, mut quals), kind)| {
-                            if self.apply_eamss {
-                                eamss(&bases, &mut quals);
-                            }
-                            (*kind, bases, quals)
-                        })
-                        .collect(),
-                };
-                if self.demultiplex {
-                    if let Some(ex) = self.extractor.as_mut() {
-                        // `maybeDemultiplex`: an inline match, counted per tile and merged into
-                        // the declared barcodes' metrics. The unmatched count goes to the
-                        // extractor's own row, which nothing writes.
-                        let read: Vec<Vec<u8>> =
-                            sample.iter().map(|r| data.reads[*r].1.clone()).collect();
-                        let quals: Vec<Vec<u8>> =
-                            sample.iter().map(|r| data.reads[*r].2.clone()).collect();
-                        let m = ex.find(&read, Some(&quals), true);
-                        if m.matched {
-                            if let Some(t) = self
-                                .metrics
-                                .iter_mut()
-                                .find(|x| x.barcode.replace('-', "") == m.barcode)
-                            {
-                                t.reads += 1;
-                                if data.pf {
-                                    t.pf_reads += 1;
-                                }
-                                if m.mismatches == 0 {
-                                    t.perfect += 1;
-                                    if data.pf {
-                                        t.pf_perfect += 1;
-                                    }
-                                } else if m.mismatches == 1 {
-                                    t.one += 1;
-                                    if data.pf {
-                                        t.pf_one += 1;
-                                    }
-                                }
-                            }
-                        }
-                        data.barcode = m.matched.then_some(m.barcode);
+                if m.mismatches == 0 {
+                    t.perfect += 1;
+                    if data.pf {
+                        t.pf_perfect += 1;
                     }
-                } else {
-                    data.barcode = None;
+                } else if m.mismatches == 1 {
+                    t.one += 1;
+                    if data.pf {
+                        t.pf_one += 1;
+                    }
                 }
-                out.push(data);
             }
         }
-        out
+        data.barcode = m.matched.then_some(m.barcode);
     }
 }
+
+/// A tile's files, per lane that has it: [`Converter::load`].
+pub struct Loaded(Vec<(i32, Tile, Option<Vec<Option<String>>>)>);
+
+/// Where a cluster is in a [`Loaded`] tile: the lane's part and the cluster's index.
+#[derive(Clone, Copy)]
+pub struct At(u32, u32);
 
 /// The record of a cluster whose barcode has no writer when unexpected barcodes are not ignored.
 /// The sorted converter meets it on a tile thread, so it surfaces as that executor's failure.

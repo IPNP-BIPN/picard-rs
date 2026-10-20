@@ -90,6 +90,13 @@ impl Run {
         reads: &[Vec<i32>],
         minimum_quality: u8,
     ) -> Result<Vec<Cluster>, String> {
+        let tile = self.tile(tile, reads, minimum_quality)?;
+        Ok((0..tile.len()).map(|i| tile.cluster(i)).collect())
+    }
+
+    /// `makeDataProvider(tile)`: the tile's files read, its clusters decoded one at a time by
+    /// [`Tile::cluster`].
+    pub fn tile(&self, tile: i32, reads: &[Vec<i32>], minimum_quality: u8) -> Result<Tile, String> {
         let cycles: Vec<i32> = reads.iter().flatten().copied().collect();
         let available = self.bcl.files.len();
         if cycles.iter().any(|c| !self.bcl.files.contains_key(c)) {
@@ -119,6 +126,8 @@ impl Run {
                 locs(&std::fs::read(self.layout.intensities.join("s.locs")).unwrap_or_default())
             }
         };
+        // shortcut: a tile's BCLs are held whole, a byte per cluster per cycle (12 MB for 200,000
+        // clusters of 58 cycles); read them a block of clusters at a time if tiles grow far past that.
         let data: Vec<Vec<u8>> = cycles.iter().map(|c| read_bcl(*c)).collect();
         // The clusters are counted by the first BCL, or by the filter file when no cycle is read
         // (a provider of PF and positions alone).
@@ -127,36 +136,79 @@ impl Run {
             Some(_) => 0,
             None => pf.len(),
         };
-        let mut out = Vec::with_capacity(count);
-        for i in 0..count {
-            let mut at = 0;
-            let mut read_data = Vec::with_capacity(reads.len());
-            for read in reads {
-                let mut bases = Vec::with_capacity(read.len());
-                let mut quals = Vec::with_capacity(read.len());
-                for _ in read {
-                    let byte = data[at].get(4 + i).copied().unwrap_or(0);
-                    at += 1;
-                    if byte == 0 {
-                        bases.push(b'N');
-                        quals.push(minimum_quality);
-                    } else {
-                        bases.push(b"ACGT"[(byte & 3) as usize]);
-                        quals.push((byte >> 2).max(minimum_quality));
-                    }
+        Ok(Tile {
+            tile,
+            count,
+            lengths: reads.iter().map(Vec::len).collect(),
+            minimum_quality,
+            data,
+            pf,
+            positions,
+        })
+    }
+}
+
+/// One tile's files as read: a byte per cluster per cycle, the filter's verdicts and the positions.
+pub struct Tile {
+    pub tile: i32,
+    count: usize,
+    lengths: Vec<usize>,
+    minimum_quality: u8,
+    data: Vec<Vec<u8>>,
+    pf: Vec<bool>,
+    positions: Vec<(f32, f32)>,
+}
+
+impl Tile {
+    /// The clusters the tile holds.
+    pub fn len(&self) -> usize {
+        self.count
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    /// Whether cluster `i` passed the filter.
+    pub fn pf(&self, i: usize) -> bool {
+        self.pf.get(i).copied().unwrap_or(false)
+    }
+
+    /// Where cluster `i` sat, as a read name carries it.
+    pub fn position(&self, i: usize) -> (i32, i32) {
+        let (x, y) = self.positions.get(i).copied().unwrap_or((0.0, 0.0));
+        (qseq_coordinate(x), qseq_coordinate(y))
+    }
+
+    /// Cluster `i`, decoded.
+    pub fn cluster(&self, i: usize) -> Cluster {
+        let minimum_quality = self.minimum_quality;
+        let mut at = 0;
+        let mut read_data = Vec::with_capacity(self.lengths.len());
+        for &length in &self.lengths {
+            let mut bases = Vec::with_capacity(length);
+            let mut quals = Vec::with_capacity(length);
+            for _ in 0..length {
+                let byte = self.data[at].get(4 + i).copied().unwrap_or(0);
+                at += 1;
+                if byte == 0 {
+                    bases.push(b'N');
+                    quals.push(minimum_quality);
+                } else {
+                    bases.push(b"ACGT"[(byte & 3) as usize]);
+                    quals.push((byte >> 2).max(minimum_quality));
                 }
-                read_data.push((bases, quals));
             }
-            let (x, y) = positions.get(i).copied().unwrap_or((0.0, 0.0));
-            out.push(Cluster {
-                tile,
-                x: qseq_coordinate(x),
-                y: qseq_coordinate(y),
-                pf: pf.get(i).copied().unwrap_or(false),
-                reads: read_data,
-            });
+            read_data.push((bases, quals));
         }
-        Ok(out)
+        let (x, y) = self.position(i);
+        Cluster {
+            tile: self.tile,
+            x,
+            y,
+            pf: self.pf(i),
+            reads: read_data,
+        }
     }
 }
 
