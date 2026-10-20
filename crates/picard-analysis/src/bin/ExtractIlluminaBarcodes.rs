@@ -154,9 +154,10 @@ fn main() {
         let run = Run::new(&basecalls, lane);
         let tiles = run.available_tiles().unwrap_or_else(|e| thrown(&e));
         for tile in tiles {
-            let clusters = run.clusters(tile, &reads, 2).unwrap_or_else(|e| thrown(&e));
+            let clusters = run.tile(tile, &reads, 2).unwrap_or_else(|e| thrown(&e));
             let mut text = String::new();
-            for c in &clusters {
+            for i in 0..clusters.len() {
+                let c = clusters.cluster(i);
                 let read: Vec<Vec<u8>> = barcode_reads
                     .iter()
                     .map(|i| c.reads[*i].0.clone())
