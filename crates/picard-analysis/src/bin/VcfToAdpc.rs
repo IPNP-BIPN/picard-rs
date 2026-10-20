@@ -10,7 +10,7 @@
 use htsjdk_vcf::variant::Value;
 use picard_analysis::fingerprint::reference_path;
 use picard_analysis::metrics_cli::Args;
-use picard_analysis::vcf_io::{log_error, read_path, unroll_paths};
+use picard_analysis::vcf_io::{log_error, unroll_paths, VcfReader};
 use picard_analysis::vcf_to_adpc::{
     illumina_genotype, markers_file, samples_file, write_record, IlluminaGenotype, Record, HEADER,
 };
@@ -33,69 +33,92 @@ fn float(s: &str) -> Result<f32, String> {
         .map_err(|_| format!("java.lang.NumberFormatException: For input string: \"{s}\""))
 }
 
-fn run(vcfs: &[String], out: &mut Vec<u8>) -> Result<(Vec<String>, usize), String> {
-    let mut samples: Vec<String> = Vec::new();
-    let mut loci: Option<usize> = None;
-    for path in vcfs {
-        let vcf = read_path(path).map_err(|e| e.to_string())?;
-        for (n, sample) in vcf.file.header.samples.iter().enumerate() {
-            samples.push(sample.clone());
-            let mut count = 0;
-            for record in &vcf.records {
-                let ctx = &record.variant;
-                let info = |key: &str| -> Result<String, String> {
-                    ctx.attributes
+/// One sample of `path`'s records, each through a fresh iterator as `vcfFileReader.iterator()` is,
+/// appended to `out` once the pass is over: a read failure leaves none of them, as the whole-file
+/// read did, and so does a refusal the rest of the file outranks.
+fn sample_records(path: &str, n: usize, out: &mut Vec<u8>) -> Result<usize, String> {
+    let mut vcf = VcfReader::open(path)?;
+    let mut records = Vec::new();
+    let mut count = 0;
+    while let Some(record) = vcf.try_next() {
+        let record = record?;
+        if let Err(refused) = sample_record(&record.variant, n, &mut records) {
+            return Err(vcf.check().err().unwrap_or(refused));
+        }
+        count += 1;
+    }
+    out.extend(records);
+    Ok(count)
+}
+
+fn sample_record(
+    ctx: &htsjdk_vcf::variant::VariantContext,
+    n: usize,
+    out: &mut Vec<u8>,
+) -> Result<(), String> {
+    let info = |key: &str| -> Result<String, String> {
+        ctx.attributes
                         .iter()
                         .find(|(k, _)| k == key)
                         .map(|(_, v)| text(v))
                         .ok_or_else(|| {
                             format!("picard.PicardException: Unable to find attribute {key} in VCF.  Is this an Arrays VCF file?")
                         })
-                };
-                let gc = float(&info("GC_SCORE")?)?;
-                let g = &ctx.genotypes[n];
-                let genotype = if g.is_called() {
-                    let a = info("ALLELE_A")?;
-                    let b = info("ALLELE_B")?;
-                    if g.alleles.len() != 2 {
-                        return Err(format!("picard.PicardException: Unexpected number of called alleles in variant context {} found alleles", ctx.contig));
-                    }
-                    let first = g.alleles[0].base_string();
-                    let second = g.alleles[1].base_string();
-                    illumina_genotype(Some((&first, &second)), &a, &b).ok_or_else(|| {
-                        "picard.PicardException: Error matching called alleles to Illumina alleles.".to_string()
-                    })?
-                } else {
-                    IlluminaGenotype::Nn
-                };
-                let format = |key: &str| g.get(key).map(text);
-                let unsigned = |key: &str| -> Result<u16, String> {
-                    let v = format(key).ok_or_else(|| format!("picard.PicardException: Unable to find attribute {key} in VCF Genotype field.  Is this an Arrays VCF file?"))?;
-                    let n: i32 = v.trim().parse().map_err(|_| {
-                        format!("java.lang.NumberFormatException: For input string: \"{v}\"")
-                    })?;
-                    if n < 0 {
-                        return Err(format!("picard.PicardException: Value for key {key} ({n}) is <= 0!  Invalid value for unsigned int"));
-                    }
-                    Ok(n.min(65535) as u16)
-                };
-                let optional = |key: &str| -> Result<f32, String> {
-                    match format(key) {
-                        Some(v) if v != "?" => float(&v),
-                        _ => Ok(f32::NAN),
-                    }
-                };
-                let rec = Record {
-                    a_intensity: unsigned("X")?,
-                    b_intensity: unsigned("Y")?,
-                    a_normalized: optional("NORMX")?,
-                    b_normalized: optional("NORMY")?,
-                    gc_score: gc,
-                    genotype,
-                };
-                out.extend(write_record(&rec));
-                count += 1;
-            }
+    };
+    let gc = float(&info("GC_SCORE")?)?;
+    let g = &ctx.genotypes[n];
+    let genotype = if g.is_called() {
+        let a = info("ALLELE_A")?;
+        let b = info("ALLELE_B")?;
+        if g.alleles.len() != 2 {
+            return Err(format!("picard.PicardException: Unexpected number of called alleles in variant context {} found alleles", ctx.contig));
+        }
+        let first = g.alleles[0].base_string();
+        let second = g.alleles[1].base_string();
+        illumina_genotype(Some((&first, &second)), &a, &b).ok_or_else(|| {
+            "picard.PicardException: Error matching called alleles to Illumina alleles.".to_string()
+        })?
+    } else {
+        IlluminaGenotype::Nn
+    };
+    let format = |key: &str| g.get(key).map(text);
+    let unsigned = |key: &str| -> Result<u16, String> {
+        let v = format(key).ok_or_else(|| format!("picard.PicardException: Unable to find attribute {key} in VCF Genotype field.  Is this an Arrays VCF file?"))?;
+        let n: i32 = v
+            .trim()
+            .parse()
+            .map_err(|_| format!("java.lang.NumberFormatException: For input string: \"{v}\""))?;
+        if n < 0 {
+            return Err(format!("picard.PicardException: Value for key {key} ({n}) is <= 0!  Invalid value for unsigned int"));
+        }
+        Ok(n.min(65535) as u16)
+    };
+    let optional = |key: &str| -> Result<f32, String> {
+        match format(key) {
+            Some(v) if v != "?" => float(&v),
+            _ => Ok(f32::NAN),
+        }
+    };
+    let rec = Record {
+        a_intensity: unsigned("X")?,
+        b_intensity: unsigned("Y")?,
+        a_normalized: optional("NORMX")?,
+        b_normalized: optional("NORMY")?,
+        gc_score: gc,
+        genotype,
+    };
+    out.extend(write_record(&rec));
+    Ok(())
+}
+
+fn run(vcfs: &[String], out: &mut Vec<u8>) -> Result<(Vec<String>, usize), String> {
+    let mut samples: Vec<String> = Vec::new();
+    let mut loci: Option<usize> = None;
+    for path in vcfs {
+        let names = VcfReader::open(path)?.file.header.samples;
+        for (n, sample) in names.into_iter().enumerate() {
+            samples.push(sample);
+            let count = sample_records(path, n, out)?;
             if count == 0 {
                 return Err(format!(
                     "picard.PicardException: Found no records in VCF' {}'",

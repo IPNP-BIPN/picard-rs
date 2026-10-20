@@ -1087,11 +1087,61 @@ impl TextSource {
         utf8.or(parse).expect("a failure")
     }
 
-    fn next(&mut self, file: &VcfFile) -> Option<Result<Record, String>> {
+    /// One line of the input `offset` bytes in, as the codec decodes it: `None` for a `#` line.
+    fn decode(
+        &mut self,
+        file: &VcfFile,
+        buffer: &[u8],
+        offset: u64,
+    ) -> Result<Option<Record>, Failure> {
         use htsjdk_vcf::genotype_parse::{parse_genotypes, GenotypeContext};
         use htsjdk_vcf::genotypes_context::GenotypesContext;
         use htsjdk_vcf::record_parse::{decode_line, split_condensed_borrowed};
 
+        let text = utf8_at(buffer, offset).map_err(Failure::Utf8)?;
+        let line = without_terminator(text);
+        let decoded = decode_line(line, &file.header, self.line_number, file.codec_version)
+            .map_err(|e| Failure::Parse(format!("{}: {}", e.class(), e.message())))?;
+        let Some(decoded) = decoded else {
+            // A `#` line: no record, no refusal, and no increment of the counter.
+            return Ok(None);
+        };
+        // `parseVCFLine` increments on entry.
+        self.line_number += 1;
+        let mut variant = decoded.variant;
+        if let Some(block) = decoded.genotype_block {
+            let context = GenotypeContext {
+                line,
+                header: &file.header,
+                version: file.codec_version,
+                contig: &variant.contig,
+                pos: variant.start,
+                line_number: self.line_number,
+            };
+            let genotypes = parse_genotypes(&block, &variant.alleles, &context)
+                .map_err(|e| Failure::Parse(format!("{}: {}", e.class(), e.message())))?;
+            variant.genotypes = GenotypesContext::lazy(genotypes, block, self.samples.clone());
+            if !self.sorted {
+                variant.genotypes.decode();
+            }
+        }
+        let lazy_genotypes = self
+            .lazy
+            .then(|| {
+                split_condensed_borrowed(line, '\t', NUM_STANDARD_FIELDS + 1, true)
+                    .into_iter()
+                    .nth(NUM_STANDARD_FIELDS)
+                    .map(str::to_string)
+            })
+            .flatten();
+        Ok(Some(Record {
+            variant,
+            lazy_genotypes,
+            fully_decoded: false,
+        }))
+    }
+
+    fn next(&mut self, file: &VcfFile) -> Option<Result<Record, String>> {
         if self.done {
             return None;
         }
@@ -1108,56 +1158,7 @@ impl TextSource {
             }
             let offset = self.offset;
             self.offset += buffer.len() as u64;
-            let decoded = utf8_at(&buffer, offset)
-                .map_err(Failure::Utf8)
-                .and_then(|text| {
-                    let line = without_terminator(text);
-                    let decoded =
-                        decode_line(line, &file.header, self.line_number, file.codec_version)
-                            .map_err(|e| {
-                                Failure::Parse(format!("{}: {}", e.class(), e.message()))
-                            })?;
-                    let Some(decoded) = decoded else {
-                        // A `#` line: no record, no refusal, and no increment of the counter.
-                        return Ok(None);
-                    };
-                    // `parseVCFLine` increments on entry.
-                    self.line_number += 1;
-                    let mut variant = decoded.variant;
-                    if let Some(block) = decoded.genotype_block {
-                        let context = GenotypeContext {
-                            line,
-                            header: &file.header,
-                            version: file.codec_version,
-                            contig: &variant.contig,
-                            pos: variant.start,
-                            line_number: self.line_number,
-                        };
-                        let genotypes = parse_genotypes(&block, &variant.alleles, &context)
-                            .map_err(|e| {
-                                Failure::Parse(format!("{}: {}", e.class(), e.message()))
-                            })?;
-                        variant.genotypes =
-                            GenotypesContext::lazy(genotypes, block, self.samples.clone());
-                        if !self.sorted {
-                            variant.genotypes.decode();
-                        }
-                    }
-                    let lazy_genotypes = self
-                        .lazy
-                        .then(|| {
-                            split_condensed_borrowed(line, '\t', NUM_STANDARD_FIELDS + 1, true)
-                                .into_iter()
-                                .nth(NUM_STANDARD_FIELDS)
-                                .map(str::to_string)
-                        })
-                        .flatten();
-                    Ok(Some(Record {
-                        variant,
-                        lazy_genotypes,
-                        fully_decoded: false,
-                    }))
-                });
+            let decoded = self.decode(file, &buffer, offset);
             self.line = buffer;
             match decoded {
                 Ok(Some(record)) => return Some(Ok(record)),
@@ -1293,6 +1294,33 @@ impl VcfReader {
         }
     }
 
+    /// The record [`VcfReader::try_next`] just returned, kept to be decoded again by
+    /// [`VcfReader::restore`]: a text record as its line, a BCF record as it is.
+    pub fn keep(&self, record: Record) -> Kept {
+        match &self.source {
+            Source::Bcf(_) => Kept::Record(Box::new(record)),
+            Source::Text(source) => Kept::Line(source.line.clone().into_boxed_slice()),
+        }
+    }
+
+    /// A record [`VcfReader::keep`] kept, decoded again as it was the first time.
+    pub fn restore(&mut self, kept: Kept) -> Record {
+        match (kept, &mut self.source) {
+            (Kept::Record(record), _) => *record,
+            (Kept::Line(line), Source::Text(source)) => {
+                // The counter only names a failing line, and this line has decoded once already.
+                let line_number = source.line_number;
+                let decoded = source.decode(&self.file, &line, 0);
+                source.line_number = line_number;
+                match decoded {
+                    Ok(Some(record)) => record,
+                    _ => unreachable!("a kept line decodes as it did"),
+                }
+            }
+            (Kept::Line(_), Source::Bcf(_)) => unreachable!("a BCF record is kept whole"),
+        }
+    }
+
     /// Every record, through `map`, into a writer at `path` with `header`: one record in memory at
     /// a time. What `map` or the writer refuses is thrown through [`VcfReader::fail`].
     pub fn copy_to(
@@ -1317,6 +1345,12 @@ impl VcfReader {
     }
 }
 
+/// A record held for later at a fraction of its decoded size: see [`VcfReader::keep`].
+pub enum Kept {
+    Line(Box<[u8]>),
+    Record(Box<Record>),
+}
+
 /// The records, dying with the whole-file read's exception at the first that fails.
 impl Iterator for VcfReader {
     type Item = Record;
@@ -1325,6 +1359,18 @@ impl Iterator for VcfReader {
         self.try_next()
             .map(|record| record.unwrap_or_else(|exception| die(&exception)))
     }
+}
+
+/// [`VcfReader::fail`] for a tool that read several inputs whole, in order, before `exception`:
+/// the first of them that fails to read throws instead. A reader's own failure is `exception`
+/// with `files` the inputs before it.
+pub fn fail_all(files: &mut [VcfReader], exception: &str) -> ! {
+    for file in files {
+        if let Err(read) = file.check() {
+            die(&read);
+        }
+    }
+    die(exception)
 }
 
 /// `FileExtensions.VCF_LIST`: what `IOUtil.unrollPaths` takes as a variant file rather than a list.

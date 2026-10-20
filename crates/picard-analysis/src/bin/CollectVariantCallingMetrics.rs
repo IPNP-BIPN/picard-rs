@@ -25,6 +25,7 @@ use picard_analysis::collect_variant_calling_metrics::{
 };
 use picard_analysis::java_hash_map::string_hash_code;
 use picard_analysis::overlap::{PositionSet, Spans};
+use picard_analysis::vcf_io::{die, fail_all, VcfReader};
 
 /// One interval of an interval list, uniqued the way `IntervalList.uniqued` does.
 struct Interval {
@@ -349,21 +350,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if arg(&args, "GVCF_INPUT=").is_some_and(|v| picard_analysis::args::is_true(&v)) {
         // `GvcfMetricAccumulator.setup` refuses a file with more than one sample, and the message
         // is the tool's answer for those rows.
-        let vcf = picard_analysis::vcf_io::read_vcf_file(&input)?;
-        if vcf.header.samples.len() != 1 {
-            eprintln!(
-                "Exception in thread \"main\" java.lang.IllegalArgumentException: Expected to have exactly 1 sample in a GVCF, found {}",
-                vcf.header.samples.len()
-            );
-            std::process::exit(1);
+        let mut vcf = VcfReader::open(&input).unwrap_or_else(|e| die(&e));
+        let samples = vcf.file.header.samples.len();
+        if samples != 1 {
+            vcf.fail(&format!(
+                "java.lang.IllegalArgumentException: Expected to have exactly 1 sample in a GVCF, found {samples}"
+            ));
         }
     }
 
-    let vcf = picard_analysis::vcf_io::read_vcf_file(&input)?;
-    let known = picard_analysis::vcf_io::read_vcf_file(&dbsnp)?;
+    // Both files are streamed, the input after the known sites it is measured against, and a
+    // failure is the one reading them whole in that order gave: the input's first.
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|e| die(&e));
+    let mut known =
+        VcfReader::open(&dbsnp).unwrap_or_else(|e| fail_all(std::slice::from_mut(&mut vcf), &e));
     let intervals = match arg(&args, "TARGET_INTERVALS=") {
         None => Vec::new(),
-        Some(path) => read_intervals(&std::fs::read_to_string(path)?),
+        Some(path) => match std::fs::read_to_string(path) {
+            Ok(text) => read_intervals(&text),
+            Err(e) => {
+                vcf.check().unwrap_or_else(|read| die(&read));
+                known.check().unwrap_or_else(|read| die(&read));
+                return Err(e.into());
+            }
+        },
     };
 
     // `createSnpAndIndelBitSets`: one set of SNP sites and one of indel sites, over the intervals.
@@ -373,7 +383,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let within = |r: &VariantContext| targets.overlaps(r.contig.as_str(), r.start, r.stop);
     let mut snp_sites = PositionSet::default();
     let mut indel_sites = PositionSet::default();
-    for record in &known.records {
+    while let Some(record) = known.try_next() {
+        let record = &record
+            .unwrap_or_else(|e| fail_all(std::slice::from_mut(&mut vcf), &e))
+            .variant;
         if !intervals.is_empty() && !within(record) {
             continue;
         }
@@ -387,13 +400,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         sites.set_range(&record.contig, record.start, record.stop);
     }
 
-    let samples = vcf.header.samples.clone();
+    let samples = vcf.file.header.samples.clone();
     let mut summary = Counts::default();
     let mut summary_hidden = HiddenCounts::default();
     let mut details: Vec<(Counts, HiddenCounts)> =
         samples.iter().map(|_| Default::default()).collect();
 
-    for record in &vcf.records {
+    for record in vcf {
+        let record = &record.variant;
         if !intervals.is_empty() && !within(record) {
             continue;
         }

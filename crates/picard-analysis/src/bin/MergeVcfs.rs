@@ -20,9 +20,9 @@ use htsjdk_vcf::merge::{smart_merge_headers, Source};
 use picard_analysis::args::arg;
 use picard_analysis::merge_vcfs::{merge_streams, MergeFailure};
 use picard_analysis::vcf_io::{
-    add_other_meta_data_line, die, header_dictionary, is_compressed_vcf, parse_sam_dictionary,
-    sample_names_in_order, set_sequence_dictionary, unroll_paths, Record, Sequence, VcfReader,
-    VcfWriter,
+    add_other_meta_data_line, die, fail_all, header_dictionary, is_compressed_vcf,
+    parse_sam_dictionary, sample_names_in_order, set_sequence_dictionary, unroll_paths, Record,
+    Sequence, VcfReader, VcfWriter,
 };
 
 /// A collection argument: every occurrence appends, and the value `null` empties it (Barclay).
@@ -247,15 +247,4 @@ fn admit(
         ));
     }
     Ok(())
-}
-
-/// Throw `exception` as a run that had read every input whole first would: unless one of them
-/// fails to read, the first in input order, which it would have thrown instead.
-fn fail_all(files: &mut [VcfReader], exception: &str) -> ! {
-    for file in files {
-        if let Err(read) = file.check() {
-            die(&read);
-        }
-    }
-    die(exception)
 }

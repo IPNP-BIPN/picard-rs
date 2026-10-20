@@ -40,7 +40,8 @@ use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
 use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
 use picard_analysis::metrics_cli::{absolute, thrown, Args};
 use picard_analysis::vcf_io::{
-    add_other_meta_data_line, header_dictionary, is_compressed_vcf, read_path, write_output, Record,
+    add_other_meta_data_line, header_dictionary, is_compressed_vcf, thrown as write_thrown, Record,
+    VcfReader, VcfWriter,
 };
 
 /// Java's `String.split(regex)` for a one-character pattern: trailing empty strings removed.
@@ -317,9 +318,12 @@ fn run(args: &Args, output: &str) -> Result<(), String> {
 
     let thresholds = parse_thresholds(&thresholds_path)?;
     let calls = parse_ped(&args.required("PED_FILE"), &args.required("MAP_FILE"))?;
-    let vcf = read_path(&vcf_path)?;
+    let mut vcf = VcfReader::open(&vcf_path)?;
+    // The whole input was read before anything below, so a read failure anywhere outranks it.
+    let refuse = |vcf: &mut VcfReader, refusal: String| Err(vcf.check().err().unwrap_or(refusal));
     if vcf.file.header.samples.len() > 1 {
-        return Err(
+        return refuse(
+            &mut vcf,
             "picard.PicardException: MergePedIntoVCF only works with single-sample VCFs."
                 .to_string(),
         );
@@ -358,6 +362,7 @@ fn run(args: &Args, output: &str) -> Result<(), String> {
     let dictionary =
         header_dictionary(&vcf.file.header).or_else(|| is_compressed_vcf(output).then(Vec::new));
     let Some(dictionary) = dictionary else {
+        vcf.check()?;
         std::fs::write(output, b"").map_err(|e| format!("{e}"))?;
         return Err(
             "java.lang.IllegalArgumentException: A reference dictionary is required for \
@@ -367,9 +372,15 @@ fn run(args: &Args, output: &str) -> Result<(), String> {
     };
 
     let encoder = VcfEncoder::new(&header);
-    let mut written: Vec<Record> = Vec::new();
+    let mut writer = match VcfWriter::create(output, &header, Some(&dictionary), Default::default())
+        .or_else(write_thrown)
+    {
+        Ok(writer) => writer,
+        Err(e) => return refuse(&mut vcf, format!("{e}")),
+    };
     let mut failure = None;
-    for record in &vcf.records {
+    while let Some(record) = vcf.try_next() {
+        let record = record?;
         let merged = match merge_record(&record.variant, &thresholds, &calls) {
             Ok(merged) => merged,
             Err(e) => {
@@ -381,13 +392,20 @@ fn run(args: &Args, output: &str) -> Result<(), String> {
             failure = Some(format!("java.lang.IllegalStateException: {e:?}"));
             break;
         }
-        written.push(Record {
+        let record = Record {
             variant: merged,
             lazy_genotypes: None,
             fully_decoded: false,
-        });
+        };
+        if let Err(e) = writer.add(&record).or_else(write_thrown) {
+            return refuse(&mut vcf, format!("{e}"));
+        }
     }
-    write_output(output, &header, &written, Some(&dictionary)).map_err(|e| format!("{e}"))?;
+    vcf.check()?;
+    writer
+        .finish()
+        .or_else(write_thrown)
+        .map_err(|e| format!("{e}"))?;
     match failure {
         Some(e) => Err(e),
         None => Ok(()),
