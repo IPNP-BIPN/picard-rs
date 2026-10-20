@@ -64,6 +64,97 @@ fn sort_order(header: &SamHeader) -> &str {
     }
 }
 
+/// `reheaderBamFile`'s first refusal: the INPUT must be writable.
+fn check_writable(input: &str) {
+    if std::fs::OpenOptions::new().write(true).open(input).is_err() {
+        // `File.getAbsolutePath()`: the working directory joined to a relative path, with no
+        // symlink resolution. Canonicalizing instead would rewrite /var to /private/var on
+        // macOS and print a path the reference never would.
+        let absolute = if std::path::Path::new(input).is_absolute() {
+            input.to_string()
+        } else {
+            std::env::current_dir()
+                .map(|cwd| cwd.join(input).display().to_string())
+                .unwrap_or_else(|_| input.to_string())
+        };
+        eprintln!(
+            "Exception in thread \"main\" htsjdk.samtools.SAMException: \
+             File exists but is not writable: {absolute}"
+        );
+        std::process::exit(1);
+    }
+}
+
+/// `reheaderBamFile`'s sort-order refusal, on the two headers.
+fn check_sort_order(input_header: &SamHeader, replacement: &SamHeader) {
+    // The block copy has a sort-order check of its own, in htsjdk rather than in Picard, and
+    // it is not the same rule as the text path's: an `unsorted` new header is accepted against
+    // any original, and the message names what the header would have to be.
+    if sort_order(replacement) != "unsorted" && sort_order(replacement) != sort_order(input_header)
+    {
+        eprintln!(
+            "Exception in thread \"main\" htsjdk.samtools.SAMException: \
+             Sort order of new header does not match the original file, needs to be {}",
+            sort_order(input_header)
+        );
+        std::process::exit(1);
+    }
+}
+
+/// Whether the INPUT is a BGZF stream, by its gzip magic, as `SamReaderFactory` tells them apart.
+fn is_bam(path: &str) -> std::io::Result<bool> {
+    let mut magic = Vec::new();
+    std::fs::File::open(path)?.take(2).read_to_end(&mut magic)?;
+    Ok(magic == [0x1f, 0x8b])
+}
+
+/// The last block's worth of the file, all `checkTermination` reads.
+fn tail(path: &str) -> std::io::Result<Vec<u8>> {
+    use std::io::{Seek, SeekFrom};
+    let mut file = std::fs::File::open(path)?;
+    let len = file.metadata()?.len();
+    file.seek(SeekFrom::Start(
+        len.saturating_sub(htsjdk_bgzf::MAX_COMPRESSED_BLOCK_SIZE as u64),
+    ))?;
+    let mut data = Vec::new();
+    file.read_to_end(&mut data)?;
+    Ok(data)
+}
+
+/// The INPUT's header, inflating no further than it reaches, as `findVirtualOffsetOfFirstRecordInBam`
+/// reads it.
+fn header_only(path: &str) -> Result<SamHeader, picard_analysis::bam_stream::Failure> {
+    let file = std::io::BufReader::new(std::fs::File::open(path)?);
+    picard_analysis::bam_stream::RecordStream::new(htsjdk_bgzf::BgzfReader::new(file)).header()
+}
+
+/// The block copy: the new header's blocks, then the input's record blocks as they are.
+fn block_copy(
+    input: &str,
+    output: &str,
+    replacement: &SamHeader,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::Write;
+    let (level, deflater) = picard_analysis::output::current();
+    let copied = (|| -> Result<(), Box<dyn std::error::Error>> {
+        let mut source = std::fs::File::open(input)?;
+        let mut out = std::io::BufWriter::new(std::fs::File::create(output)?);
+        out.write_all(&htsjdk_bam::writer::write_bam_header_block_with(
+            replacement,
+            level,
+            deflater,
+        )?)?;
+        htsjdk_bam::reheader::block_copy_to(&mut source, &mut out, true, false, level, deflater)
+            .map_err(|e| format!("{e:?}"))?;
+        out.flush()?;
+        Ok(())
+    })();
+    if copied.is_err() {
+        let _ = std::fs::remove_file(output);
+    }
+    copied
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("ReplaceSamHeader");
     picard_analysis::output::install();
@@ -79,49 +170,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(false);
 
+    // `doWork` reads HEADER first; a BAM INPUT then goes to `reheaderBamFile`, which asserts it is
+    // writable and that its last block is a valid one, compares the sort orders on the header
+    // alone, and copies the record blocks without inflating them. Anything else, and a header that
+    // does not read, takes the whole read below.
+    // shortcut: CREATE_INDEX=true still re-encodes, to index as it writes; index the copy instead
+    // once there is a streaming indexer.
+    if is_bam(&input)? {
+        let replacement = read_any(&header_path)?.0.header;
+        check_writable(&input);
+        if htsjdk_bgzf::check_termination(&tail(&input)?) == htsjdk_bgzf::FileTermination::Defective
+        {
+            eprintln!(
+                "Exception in thread \"main\" htsjdk.samtools.SAMException: {} does not have a \
+                 valid GZIP block at the end of the file.",
+                picard_analysis::fingerprint::file_uri(&input)
+            );
+            std::process::exit(1);
+        }
+        if !create_index {
+            if let Ok(input_header) = header_only(&input) {
+                check_sort_order(&input_header, &replacement);
+                return block_copy(&input, &output, &replacement);
+            }
+        }
+    }
+
     let (input_file, input_is_bam) = read_any(&input)?;
     let (input_header, records) = input_file.into_parts();
     // HEADER is read as INPUT is, whole, so it fails as it did; only its header is kept.
     let replacement = read_any(&header_path)?.0.header;
 
     if input_is_bam {
-        // `reheaderBamFile` asserts the INPUT is readable and then WRITABLE, before it copies a
-        // block, because the block copy is written for the in-place case as well. A corpus mounted
-        // read-only therefore refuses every BAM row, and the message names the file.
-        if std::fs::OpenOptions::new()
-            .write(true)
-            .open(&input)
-            .is_err()
-        {
-            // `File.getAbsolutePath()`: the working directory joined to a relative path, with no
-            // symlink resolution. Canonicalizing instead would rewrite /var to /private/var on
-            // macOS and print a path the reference never would.
-            let absolute = if std::path::Path::new(&input).is_absolute() {
-                input.clone()
-            } else {
-                std::env::current_dir()
-                    .map(|cwd| cwd.join(&input).display().to_string())
-                    .unwrap_or_else(|_| input.clone())
-            };
-            eprintln!(
-                "Exception in thread \"main\" htsjdk.samtools.SAMException: \
-                 File exists but is not writable: {absolute}"
-            );
-            std::process::exit(1);
-        }
-        // The block copy has a sort-order check of its own, in htsjdk rather than in Picard, and
-        // it is not the same rule as the text path's: an `unsorted` new header is accepted against
-        // any original, and the message names what the header would have to be.
-        if sort_order(&replacement) != "unsorted"
-            && sort_order(&replacement) != sort_order(&input_header)
-        {
-            eprintln!(
-                "Exception in thread \"main\" htsjdk.samtools.SAMException: \
-                 Sort order of new header does not match the original file, needs to be {}",
-                sort_order(&input_header)
-            );
-            std::process::exit(1);
-        }
+        check_writable(&input);
+        check_sort_order(&input_header, &replacement);
     } else if sort_order(&replacement) != sort_order(&input_header) {
         // The text path's own rule, in Picard: the two orders must be equal, `unsorted` included.
         eprintln!(
