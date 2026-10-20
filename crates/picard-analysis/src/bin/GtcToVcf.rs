@@ -180,18 +180,26 @@ fn main() {
 
     // `fillContexts`, each line spilled as it is made: the `SortingCollection` the reference sorts
     // them through, as compact keys over a file that is gone once the run ends.
-    let tmp_dir = args
+    // `CommandLineProgram` makes each TMP_DIR and goes on whatever happens; a sort that stays in
+    // memory never writes there, so a TMP_DIR that cannot take the spill falls back to the
+    // system's.
+    let spill_in = |dir: std::path::PathBuf| {
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join(format!("GtcToVcf-{}.lines", std::process::id()));
+        std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .map(|file| (file, path))
+    };
+    let (spill, spill_path) = args
         .all("TMP_DIR")
         .first()
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    let spill_path = tmp_dir.join(format!("GtcToVcf-{}.lines", std::process::id()));
-    let spill = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(&spill_path)
+        .and_then(|dir| spill_in(dir).ok())
+        .map_or_else(|| spill_in(std::env::temp_dir()), Ok)
         .unwrap_or_else(|e| raise(&format!("htsjdk.samtools.SAMException: {e}")));
     let _ = std::fs::remove_file(&spill_path);
     let mut spilled = std::io::BufWriter::with_capacity(1 << 16, &spill);
