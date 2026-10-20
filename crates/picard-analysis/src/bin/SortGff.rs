@@ -692,6 +692,15 @@ fn main() {
     let mut contigs: Vec<String> = Vec::new();
     let mut contig_index: HashMap<String, u32> = HashMap::new();
     let mut latest_start_map: HashMap<String, i32> = HashMap::new();
+    // `Gff3SortingCollectionCodec.encode` prints "hi" for every feature starting at 113982 it
+    // writes to disk, which the SortingCollection does to each chunk it spills: every record, once
+    // there are more than `nRecordsInMemory`.
+    let (mut spilled, mut unspilled_his) = (false, 0usize);
+    let spill = |unspilled_his: &mut usize| {
+        for _ in 0..std::mem::take(unspilled_his) {
+            println!("hi");
+        }
+    };
     while let Some((offset, length)) = lines.next_line() {
         let feature = match codec.decode(&lines.text()) {
             Ok(Some(feature)) => feature,
@@ -724,6 +733,14 @@ fn main() {
                 index
             }
         };
+        // `add`: the chunk in memory spills when it is full, before this record joins the next.
+        if !keys.is_empty() && keys.len().is_multiple_of(records_in_memory as usize) {
+            spill(&mut unspilled_his);
+            spilled = true;
+        }
+        if feature.start == 113982 {
+            unspilled_his += 1;
+        }
         keys.push(Key {
             offset,
             length,
@@ -732,6 +749,10 @@ fn main() {
         });
     }
     drop(lines);
+    // `doneAdding`: once anything spilled, so does what is left in memory.
+    if spilled {
+        spill(&mut unspilled_his);
+    }
 
     // `FeatureComparator` over a stable sort, which a spill and its merge leave unchanged.
     let ranks = contig_ranks(&contigs, dictionary.as_deref());

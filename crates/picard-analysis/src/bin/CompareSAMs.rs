@@ -71,6 +71,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &options,
     )
     .map_err(|e| format!("{e:?}"))?;
+    if let Some(exception) = &metric.thrown {
+        for line in &metric.report {
+            println!("{line}");
+        }
+        eprintln!("Exception in thread \"main\" {exception}");
+        std::process::exit(1);
+    }
     if let Some(output) = arg(&args, "OUTPUT=").or_else(|| arg(&args, "O=")) {
         let mut file = MetricsFile::new();
         for header in picard_analysis::command_line::default_headers("CompareSAMs") {
@@ -91,6 +98,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
         }
         std::fs::write(output, file.write())?;
+    }
+    for line in &metric.report {
+        println!("{line}");
     }
     println!("{}", picard_analysis::compare_sams::verdict(&metric));
     std::process::exit(if metric.are_equal { 0 } else { 1 });
