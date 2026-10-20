@@ -137,21 +137,25 @@ impl CanSkip {
 pub fn can_skip(records: &[BamRecord], options: &Options) -> CanSkip {
     // Only records that answer neither question count against the limit, and the loop stops at
     // the first that answers either.
-    for record in records
+    records
         .iter()
         .take(options.max_records_to_examine.max(0) as usize)
-    {
-        if options.restore_original_qualities && record.tags.get(Tag::new(b"OQ")).is_some() {
-            return CanSkip::FoundOq;
-        }
-        if record.flags & READ_PAIRED != 0 && record.flags & MATE_UNMAPPED == 0 {
-            return match record.tags.get(Tag::new(b"MC")) {
-                Some(_) => CanSkip::CanSkip,
-                None => CanSkip::FoundNoMateCigar,
-            };
-        }
+        .find_map(|record| skip_answer(record, options))
+        .unwrap_or(CanSkip::FoundNoEvidence)
+}
+
+/// What one record of [`can_skip`]'s loop answers, if it answers at all.
+pub fn skip_answer(record: &BamRecord, options: &Options) -> Option<CanSkip> {
+    if options.restore_original_qualities && record.tags.get(Tag::new(b"OQ")).is_some() {
+        return Some(CanSkip::FoundOq);
     }
-    CanSkip::FoundNoEvidence
+    if record.flags & READ_PAIRED != 0 && record.flags & MATE_UNMAPPED == 0 {
+        return Some(match record.tags.get(Tag::new(b"MC")) {
+            Some(_) => CanSkip::CanSkip,
+            None => CanSkip::FoundNoMateCigar,
+        });
+    }
+    None
 }
 
 fn is_primary(rec: &BamRecord) -> bool {
@@ -159,7 +163,7 @@ fn is_primary(rec: &BamRecord) -> bool {
 }
 
 /// `RESTORE_ORIGINAL_QUALITIES`: move the `OQ` tag back into `QUAL` and drop it.
-fn restore_original_qualities(rec: &mut BamRecord) {
+pub fn restore_original_qualities(rec: &mut BamRecord) {
     if let Some(TagValue::Str(oq)) = rec.tags.get(Tag::new(b"OQ")) {
         rec.base_qualities = fastq_to_phred(oq);
         rec.tags.remove(Tag::new(b"OQ"));
@@ -173,7 +177,7 @@ fn restore_original_qualities(rec: &mut BamRecord) {
 /// Secondary records are carried through untouched. A template whose paired primaries are not
 /// exactly one first and one second end is the `SAMException` the iterator throws: a second primary
 /// on the same end as soon as it is met, a missing end once the template is read.
-fn add_mate_info(records: &mut [BamRecord]) -> Result<(), String> {
+pub fn add_mate_info(records: &mut [BamRecord]) -> Result<(), String> {
     let mut start = 0;
     while start < records.len() {
         let mut end = start + 1;
@@ -355,7 +359,7 @@ pub fn revert_original_records_with(
 
 /// `SO:duplicate`: htsjdk's duplicate comparator over the records, which needs each record's
 /// library and read group as well as its own fields.
-fn sort_by_duplicate_order(header: &htsjdk_bam::header::SamHeader, records: &mut [BamRecord]) {
+pub fn sort_by_duplicate_order(header: &htsjdk_bam::header::SamHeader, records: &mut [BamRecord]) {
     use crate::mark_duplicates::{base_quality_score, Record, ScoringStrategy, Span};
     let library_of = |record: &BamRecord| -> (String, i32) {
         let id = match record.tags.get(Tag::new(b"RG")) {
