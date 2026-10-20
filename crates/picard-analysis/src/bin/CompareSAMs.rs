@@ -11,51 +11,52 @@ use std::io::Read;
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam_with;
-use htsjdk_bam::text_parse::{parse_line_with, ValidationStringency};
+use htsjdk_bam::text_parse::ValidationStringency;
 use htsjdk_metrics::file::{Histogram, MetricsFile};
 use picard_analysis::args::arg;
-use picard_analysis::bam_stream::{Input, InputError};
-use picard_analysis::compare_sams::{compare_records, CompareError, CompareOptions};
+use picard_analysis::compare_sams::{compare_parsed, CompareError, CompareOptions};
 
-type Records = Box<dyn Iterator<Item = Result<BamRecord, String>>>;
+/// A file as `CompareSAMs` reads it: a BAM (or a CRAM, decoded as one) as its records decode, a
+/// SAM as text for `compare_sams_with_options` to parse.
+enum Input {
+    Records(SamHeader, Vec<BamRecord>),
+    Text(String),
+}
 
-/// The file's header and records as the comparison reads them, from its SAM text at SILENT: a
-/// BAM's records are written as SAM lines and parsed back one at a time, as the whole text was.
-/// A record that fails is the run's error, with the message the whole-file read gave.
-fn as_sam(path: &str) -> Result<(SamHeader, Records), Box<dyn std::error::Error>> {
-    let mut magic = Vec::new();
-    std::fs::File::open(path)?.take(4).read_to_end(&mut magic)?;
-    let bam = magic.starts_with(&[0x1f, 0x8b]) || picard_analysis::cram_input::is_cram(&magic);
-    let (header, records) = match Input::open_with(path, ValidationStringency::Silent) {
-        Err(InputError::Sam(e)) => return Err(format!("{:?}", CompareError::Parse(e)).into()),
-        opened => opened?.into_parts(),
-    };
-    if !bam {
-        return Ok((header, Box::new(records.map(Ok))));
+fn read(path: &str) -> Result<Input, Box<dyn std::error::Error + Send + Sync>> {
+    let mut raw = Vec::new();
+    std::fs::File::open(path)?.read_to_end(&mut raw)?;
+    let raw = picard_analysis::cram_input::uncram(raw);
+    if !raw.starts_with(&[0x1f, 0x8b]) {
+        return Ok(Input::Text(String::from_utf8(raw)?));
     }
-    let (text, _) = read_sam_with(&header.encode(), ValidationStringency::Silent)
-        .map_err(|e| format!("{:?}", CompareError::Parse(e)))?;
-    let parsed = text.clone();
-    let records = records.map(move |record| {
-        let line = picard_analysis::bam_stream::sam_line(&header, &record)
-            .ok_or("records failed to re-encode as SAM")?;
-        let index_of = |name: &str| {
-            parsed
-                .sequences
-                .iter()
-                .position(|s| s.name == name)
-                .map(|i| i as i32)
-        };
-        parse_line_with(&line, index_of, ValidationStringency::Silent)
-            .map_err(|e| format!("{:?}", CompareError::Parse(e)))
-    });
-    Ok((text, Box::new(records)))
+    let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
+    let reader =
+        picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
+    let header = reader.header.text.clone();
+    let records: Vec<_> = reader
+        .map(|r| r.map_err(|e| format!("{e:?}")))
+        .collect::<Result<_, _>>()?;
+    Ok(Input::Records(header, records))
+}
+
+/// The records of a SAM read as `compare_sams_with_options` reads them.
+fn parsed(input: Input) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::error::Error>> {
+    match input {
+        Input::Records(header, records) => Ok((header, records)),
+        // The same refusal text the parse inside `compare_sams_with_options` gave.
+        Input::Text(text) => Ok(read_sam_with(&text, ValidationStringency::Silent)
+            .map_err(|e| format!("{:?}", CompareError::from(e)))?),
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CompareSAMs");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let args: Vec<String> = picard_analysis::args::process()
+        .into_iter()
+        .skip(1)
+        .collect();
     let files: Vec<&String> = args.iter().filter(|a| !a.contains('=')).collect();
     if files.len() != 2 {
         return Err("exactly two SAM files are required".into());
@@ -84,22 +85,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| path.to_string())
         }
     };
-    let (h1, left) = as_sam(files[0])?;
-    let (h2, right) = as_sam(files[1])?;
-    let (mut left_error, mut right_error) = (None, None);
-    let metric = compare_records(
-        &h1,
-        left.map_while(|r| r.map_err(|e| left_error = Some(e)).ok()),
-        &h2,
-        right.map_while(|r| r.map_err(|e| right_error = Some(e)).ok()),
+    // The two files are read at once, one on its own thread; the left one's failure is still the
+    // one reported when both fail.
+    let (left, right) = std::thread::scope(|scope| {
+        let right = scope.spawn(|| read(files[1]));
+        (read(files[0]), right.join().expect("the reading thread"))
+    });
+    let unsend = |e: Box<dyn std::error::Error + Send + Sync>| -> Box<dyn std::error::Error> { e };
+    let (left, right) = (left.map_err(unsend)?, right.map_err(unsend)?);
+    let (left, right) = (parsed(left)?, parsed(right)?);
+    let metric = compare_parsed(
+        &left.0,
+        &left.1,
+        &right.0,
+        &right.1,
         &absolute(files[0]),
         &absolute(files[1]),
         &options,
     );
-    if let Some(e) = left_error.or(right_error) {
-        return Err(e.into());
+    if let Some(exception) = &metric.thrown {
+        for line in &metric.report {
+            println!("{line}");
+        }
+        eprintln!("Exception in thread \"main\" {exception}");
+        std::process::exit(1);
     }
-    let metric = metric.map_err(|e| format!("{e:?}"))?;
     if let Some(output) = arg(&args, "OUTPUT=").or_else(|| arg(&args, "O=")) {
         let mut file = MetricsFile::new();
         for header in picard_analysis::command_line::default_headers("CompareSAMs") {
@@ -120,6 +130,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
         }
         std::fs::write(output, file.write())?;
+    }
+    for line in &metric.report {
+        println!("{line}");
     }
     println!("{}", picard_analysis::compare_sams::verdict(&metric));
     std::process::exit(if metric.are_equal { 0 } else { 1 });

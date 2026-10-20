@@ -132,7 +132,11 @@ fn records(
         if representative_only {
             vec![p.representative().clone()]
         } else {
-            map.blocks[p.block].snps.clone()
+            map.blocks[p.block]
+                .snps
+                .iter()
+                .map(|s| (**s).clone())
+                .collect()
         }
     };
     let mut names: Vec<String> = Vec::new();
@@ -217,7 +221,7 @@ pub fn run(args: &Args, extract_contamination: bool, locus_max_reads: i64) {
         &|p, snp, base, qual| p.add_contaminator_base(snp, base, qual),
     )
     .unwrap_or_else(|e| thrown(&e));
-    let by_sample = merge_by(&by_group, DataType::Sample);
+    let by_sample = merge_by(by_group, DataType::Sample);
     if by_sample.len() != 1 {
         log_error(
             "ExtractFingerprint",

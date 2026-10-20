@@ -21,20 +21,22 @@
 //! that a Picard tool prints when it throws rather than exits: a row that refuses is a row a port
 //! has to refuse the same way, message included.
 
-use std::io::Write;
+use std::io::{Read, Write};
 
 use picard_analysis::args::arg;
-use picard_analysis::bam_index_stats::bam_index_stats_with_index;
+use picard_analysis::bam_index_stats::{bam_index_stats_with_index, index_stats};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("BamIndexStats");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
         .ok_or("INPUT= is required")?;
 
-    let bam = std::fs::read(&input)?;
+    // Enough of the file to sniff it; the header is read on its own below.
+    let mut bam = Vec::new();
+    std::fs::File::open(&input)?.take(4).read_to_end(&mut bam)?;
     // `SamFiles.findIndex`: the `.bam` suffix is dropped, anything else keeps its whole name.
     let index_path = match input.strip_suffix(".bam") {
         Some(stem) => format!("{stem}.bai"),
@@ -63,7 +65,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         std::process::exit(1);
     };
-    let out = bam_index_stats_with_index(&bam, &bai).map_err(|e| format!("{e:?}"))?;
+    let out = match picard_analysis::bam_stream::clean_header(&input) {
+        Some(header) => index_stats(&header.sequences, &bai),
+        None => bam_index_stats_with_index(&std::fs::read(&input)?, &bai),
+    }
+    .map_err(|e| format!("{e:?}"))?;
     let mut stdout = std::io::BufWriter::new(std::io::stdout().lock());
     stdout.write_all(out.as_bytes())?;
     stdout.flush()?;

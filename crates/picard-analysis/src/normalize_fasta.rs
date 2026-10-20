@@ -11,6 +11,10 @@
 //! whitespace only when requested). Each sequence is written as `>name`, then its bases wrapped at
 //! `LINE_LENGTH`, then a newline; a zero-base sequence writes only its `>name` line.
 
+use crate::fasta_records::records;
+use htsjdk_bam::fasta::FastaError;
+use std::io::{Read, Write};
+
 /// `NormalizeFasta`'s options.
 #[derive(Debug, Clone, Copy)]
 pub struct Options {
@@ -36,68 +40,45 @@ pub enum NormalizeError {
     ExpectedHeader,
     /// A header carried no name (`Missing sequence name in FASTA`).
     MissingName,
+    /// The file could not be read or the output written.
+    Io(String),
 }
 
-/// `SAMSequenceRecord.truncateSequenceName`: everything up to the first whitespace.
-fn truncate_at_whitespace(name: &str) -> &str {
-    match name.find(char::is_whitespace) {
-        Some(i) => &name[..i],
-        None => name,
+impl From<FastaError> for NormalizeError {
+    fn from(error: FastaError) -> Self {
+        match error {
+            FastaError::ExpectedHeader(_) => NormalizeError::ExpectedHeader,
+            FastaError::MissingName => NormalizeError::MissingName,
+            FastaError::Io(e) => NormalizeError::Io(e.to_string()),
+        }
     }
-}
-
-struct Sequence {
-    name: String,
-    bases: Vec<u8>,
 }
 
 /// `NormalizeFasta.doWork` over FASTA text, returning the normalized FASTA text.
 pub fn normalize_fasta(input: &str, opts: &Options) -> Result<String, NormalizeError> {
-    let mut sequences: Vec<Sequence> = Vec::new();
-    for line in input.lines() {
-        // Blank lines between records are skipped (`skipNewlines`), not treated as bases.
-        if line.trim().is_empty() {
-            continue;
-        }
-        if let Some(header) = line.strip_prefix('>') {
-            let trimmed = header.trim();
-            let name = if opts.truncate_names_at_whitespace {
-                truncate_at_whitespace(trimmed)
-            } else {
-                trimmed
-            };
-            if name.is_empty() {
-                return Err(NormalizeError::MissingName);
-            }
-            sequences.push(Sequence {
-                name: name.to_string(),
-                bases: Vec::new(),
-            });
-        } else {
-            match sequences.last_mut() {
-                Some(seq) => seq.bases.extend_from_slice(line.trim_end().as_bytes()),
-                None => return Err(NormalizeError::ExpectedHeader),
-            }
-        }
-    }
+    let mut out = Vec::new();
+    normalize_fasta_to(input.as_bytes(), opts, &mut out)?;
+    Ok(String::from_utf8(out).expect("FASTA bases are ASCII"))
+}
 
-    let mut out = String::new();
-    for seq in &sequences {
-        out.push('>');
-        out.push_str(&seq.name);
-        out.push('\n');
+/// [`normalize_fasta`] one sequence at a time, from a reader to a writer.
+pub fn normalize_fasta_to(
+    input: impl Read,
+    opts: &Options,
+    out: &mut impl Write,
+) -> Result<(), NormalizeError> {
+    let io = |e: std::io::Error| NormalizeError::Io(e.to_string());
+    for seq in records(input, opts.truncate_names_at_whitespace) {
+        let seq = seq?;
+        writeln!(out, ">{}", seq.name).map_err(io)?;
         if !seq.bases.is_empty() {
-            for (i, chunk) in seq.bases.chunks(opts.line_length).enumerate() {
-                if i > 0 {
-                    out.push('\n');
-                }
-                // Bases are ASCII, so the chunk is valid UTF-8.
-                out.push_str(std::str::from_utf8(chunk).expect("FASTA bases are ASCII"));
+            for chunk in seq.bases.chunks(opts.line_length) {
+                out.write_all(chunk).map_err(io)?;
+                out.write_all(b"\n").map_err(io)?;
             }
-            out.push('\n');
         }
     }
-    Ok(out)
+    Ok(())
 }
 
 #[cfg(test)]

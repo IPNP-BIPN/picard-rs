@@ -14,16 +14,38 @@
 //! one turns `OUTPUT` into a directory of scattered lists, cut as `SUBDIVISION_MODE` says.
 
 use picard_analysis::args::arg;
-use picard_analysis::interval_list_tools::{
-    interval_list_tools, scatter, Action, Options, ScatterMode,
-};
+use std::fs::File;
+use std::io::{BufReader, BufWriter, Write};
+
+use picard_analysis::compact_interval::{write_lines, Contigs, Iv};
+use picard_analysis::interval_list_tools::{run, scatter, Action, Options, ScatterMode};
+
+/// An interval list file: its header, then its intervals.
+fn write_list(
+    path: &std::path::Path,
+    header: &str,
+    contigs: &Contigs,
+    intervals: &[Iv],
+) -> std::io::Result<()> {
+    let mut out = BufWriter::new(File::create(path)?);
+    out.write_all(header.as_bytes())?;
+    write_lines(contigs, intervals, &mut out)?;
+    out.flush()
+}
+
+/// Every list opened as it is reached, the order a whole-file read of each gave.
+fn open(paths: &[String]) -> impl Iterator<Item = std::io::Result<BufReader<File>>> + '_ {
+    paths
+        .iter()
+        .map(|path| File::open(path).map(BufReader::new))
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("IntervalListTools");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let inputs = picard_analysis::args::inputs(&args)?;
-    let output = arg(&args, "OUTPUT=")
+    let output_path = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
         .ok_or("OUTPUT= is required")?;
     // Both are lists: each is padded, then reduced by the action's `reduceEach`.
@@ -110,30 +132,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or(0),
     };
 
-    let read = |paths: &[String]| -> std::io::Result<Vec<String>> {
-        paths.iter().map(std::fs::read_to_string).collect()
-    };
-    let (firsts, seconds) = (read(&inputs)?, read(&second_inputs)?);
-    let firsts: Vec<&str> = firsts.iter().map(String::as_str).collect();
-    let seconds: Vec<&str> = seconds.iter().map(String::as_str).collect();
-    let text = interval_list_tools(&firsts, &seconds, &options).map_err(|e| format!("{e:?}"))?;
+    let output =
+        run(open(&inputs), open(&second_inputs), &options)?.map_err(|e| format!("{e:?}"))?;
+    let text = output.header;
     // `header.addComment` for every COMMENT: the comments close the header, after any `@PG`.
     let comments: Vec<String> = args
         .iter()
         .filter_map(|a| a.strip_prefix("COMMENT=").or_else(|| a.strip_prefix("CO=")))
         .map(|c| format!("@CO\t{c}\n"))
         .collect();
-    let header_end = text
-        .lines()
-        .take_while(|line| line.starts_with('@'))
-        .map(|line| line.len() + 1)
-        .sum::<usize>();
     // `doWork` "decides on a PG ID": the first integer from 1 that no `@PG` of the header has, with
     // the command line and the tool's name and no version. The text codec writes every `@PG`
     // before every `@CO`, so the new one goes after the input's records and before its comments.
     let program_end = text
         .lines()
-        .take_while(|line| line.starts_with('@') && !line.starts_with("@CO"))
+        .take_while(|line| !line.starts_with("@CO"))
         .map(|line| line.len() + 1)
         .sum::<usize>();
     let taken: Vec<&str> = text[..program_end]
@@ -149,32 +162,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "@PG\tID:{id}\tCL:{}\tPN:IntervalListTools\n",
         picard_analysis::command_line::command_line("IntervalListTools")
     );
-    let text = format!(
-        "{}{}{}{}{}",
+    let header = format!(
+        "{}{}{}{}",
         &text[..program_end],
         program,
-        &text[program_end..header_end],
+        &text[program_end..],
         comments.concat(),
-        &text[header_end..]
     );
+    let (contigs, intervals) = (output.contigs, output.intervals);
     // `SCATTER_CONTENT` replaces the count with the list's weight over it, rounded.
     if let Some(content) = scatter_content {
-        let intervals = picard_analysis::interval_list_tools::parse_intervals(&text)
-            .map_err(|e| format!("{e:?}"))?;
         let weight = mode.list_weight(&intervals) as f64;
         scatter_count = (weight / content as f64 + 0.5).floor() as i32;
     }
     if scatter_count > 1 {
         // `writeScatterIntervals`: OUTPUT is a directory of `temp_NNNN_of_N/scattered.interval_list`.
-        let lists = scatter(&text, scatter_count, mode).map_err(|e| format!("{e:?}"))?;
+        let (list_header, lists) = scatter(&header, intervals, &contigs, scatter_count, mode);
         let (mut bases, mut intervals) = (0i64, 0i64);
         for (index, list) in lists.iter().enumerate() {
-            let directory = std::path::Path::new(&output)
+            let directory = std::path::Path::new(&output_path)
                 .join(format!("temp_{:04}_of_{scatter_count}", index + 1));
             std::fs::create_dir_all(&directory)?;
-            std::fs::write(directory.join("scattered.interval_list"), &list.text)?;
-            bases += list.bases;
-            intervals += list.intervals;
+            write_list(
+                &directory.join("scattered.interval_list"),
+                &list_header,
+                &contigs,
+                list,
+            )?;
+            bases += list.iter().map(|i| i64::from(i.length())).sum::<i64>();
+            intervals += list.len() as i64;
         }
         if let Some(path) = &count_output {
             let value = if output_value == "BASES" {
@@ -186,22 +202,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         return Ok(());
     }
-    std::fs::write(&output, &text)?;
+    write_list(
+        std::path::Path::new(&output_path),
+        &header,
+        &contigs,
+        &intervals,
+    )?;
     // `OUTPUT_VALUE.output`: the bases or the intervals of what was written, one line.
     if let Some(path) = &count_output {
-        let intervals: Vec<(i64, i64)> = text
-            .lines()
-            .filter(|line| !line.starts_with('@'))
-            .filter_map(|line| {
-                let mut fields = line.split('\t').skip(1);
-                Some((fields.next()?.parse().ok()?, fields.next()?.parse().ok()?))
-            })
-            .collect();
         let value = match output_value.as_str() {
-            "BASES" => intervals
-                .iter()
-                .map(|(start, end)| end - start + 1)
-                .sum::<i64>(),
+            "BASES" => intervals.iter().map(|i| i64::from(i.length())).sum::<i64>(),
             _ => intervals.len() as i64,
         };
         std::fs::write(path, format!("{value}\n"))?;

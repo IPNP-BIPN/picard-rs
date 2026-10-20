@@ -15,14 +15,14 @@
 use picard_analysis::args::arg;
 use picard_analysis::sort_vcf::{smart_merge_header_lines, sort_records};
 use picard_analysis::vcf_io::{
-    assert_same_dictionary, die, header_dictionary, parse_sam_dictionary, read_path,
-    sample_names_in_order, set_sequence_dictionary, write_output,
+    assert_same_dictionary, die, header_dictionary, parse_sam_dictionary, sample_names_in_order,
+    set_sequence_dictionary, thrown, Kept, VcfReader, VcfWriter,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SortVcf");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
         .ok_or("INPUT= is required")?;
@@ -48,12 +48,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // `collectFileReadersAndHeaders`.
-    let mut vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
     match header_dictionary(&vcf.file.header) {
         None => match &dictionary {
             None => {
                 let absolute = std::path::absolute(&input)?;
-                die(&format!(
+                vcf.fail(&format!(
                     "java.lang.IllegalArgumentException: Sequence dictionary was missing or empty \
                      for the VCF: {} Please add a sequence dictionary to this VCF or specify \
                      SEQUENCE_DICTIONARY.",
@@ -68,7 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             None => {}
             Some(given) => {
                 if let Err(message) = assert_same_dictionary(given, &own) {
-                    die(&format!(
+                    vcf.fail(&format!(
                         "java.lang.IllegalArgumentException: java.lang.AssertionError: {message}"
                     ));
                 }
@@ -79,15 +79,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `new VCFHeader(VCFUtils.smartMergeHeaders(inputHeaders, false), sampleList)`.
     let mut header = vcf.file.header.clone();
     header.lines = smart_merge_header_lines(&header.lines).unwrap_or_else(|message| {
-        die(&format!("java.lang.IllegalStateException: {message}"));
+        vcf.fail(&format!("java.lang.IllegalStateException: {message}"));
     });
     header.samples = sample_names_in_order(&vcf.file.header);
 
     let output_dictionary = header_dictionary(&header).unwrap_or_default();
     let contigs: Vec<String> = output_dictionary.iter().map(|s| s.name.clone()).collect();
-    let mut records = vcf.records;
+    // Each record is held as its line and sorted by its contig and start, then decoded again on
+    // its way out: the input's size in memory rather than its decoded records'.
+    let mut records: Vec<(usize, i64, Kept)> = Vec::new();
+    while let Some(record) = vcf.try_next() {
+        let record = record.unwrap_or_else(|exception| die(&exception));
+        let variant = &record.variant;
+        let contig = contigs.iter().position(|c| *c == variant.contig);
+        let start = variant.start;
+        records.push((contig.unwrap_or(usize::MAX), start, vcf.keep(record)));
+    }
     if let Err(message) = sort_records(&mut records, &contigs, |record| {
-        (record.variant.contig.as_str(), record.variant.start)
+        (contigs.get(record.0).map_or("", String::as_str), record.1)
     }) {
         die(&message);
     }
@@ -97,6 +106,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         None
     };
-    write_output(&output, &header, &records, index_dictionary)?;
+    let mut writer = VcfWriter::create(&output, &header, index_dictionary, Default::default())
+        .or_else(thrown)?;
+    for (_, _, kept) in records {
+        writer.add(&vcf.restore(kept)).or_else(thrown)?;
+    }
+    writer.finish().or_else(thrown)?;
     Ok(())
 }

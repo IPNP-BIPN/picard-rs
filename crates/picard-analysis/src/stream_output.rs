@@ -40,6 +40,24 @@ fn leave(path: &str, empty: bool) {
     };
 }
 
+/// `IOUtil.assertDirectoryIsWritable`: refuses, as htsjdk throws, a directory that does not exist,
+/// is not one, or cannot be written to. `toUri()` ends an existing directory's URI with `/`.
+pub fn assert_directory_is_writable(dir: &str) {
+    let path = std::path::Path::new(dir);
+    let uri = crate::fingerprint::file_uri(dir);
+    let message = if !path.exists() {
+        format!("Directory does not exist: {uri}")
+    } else if !path.is_dir() {
+        format!("Cannot write to directory because it is not a directory: {uri}")
+    } else if std::fs::metadata(path).is_ok_and(|m| m.permissions().readonly()) {
+        format!("Directory exists but is not writable: {uri}/")
+    } else {
+        return;
+    };
+    eprintln!("Exception in thread \"main\" htsjdk.samtools.SAMException: {message}");
+    std::process::exit(1);
+}
+
 /// An output directory the tool creates, removed again with everything in it if the run fails
 /// before [`OutputDir::keep`], as the whole-file writers had not created it yet.
 pub struct OutputDir(Option<String>);

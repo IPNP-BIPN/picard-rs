@@ -210,6 +210,46 @@ fn sample_outward(
     }
 }
 
+/// Whether `getOutieMode`'s pass over one file reads the record that follows its first `before`
+/// first ends: the pass stops once it has sampled `per_file` outward pairs, checked before every
+/// record, or after the first unmapped first end with no reference.
+pub fn outward_pass_reaches(
+    pairs: &[(Pair, bool)],
+    before: usize,
+    per_file: usize,
+    arguments: &Arguments,
+) -> bool {
+    let mut sampled = 0usize;
+    for (index, (pair, mate_is_to_the_right)) in pairs.iter().enumerate() {
+        if index == before || sampled >= per_file {
+            break;
+        }
+        if pair.unmapped && pair.reference_index < 0 {
+            return false;
+        }
+        if pair.unmapped || pair.mate_unmapped {
+            continue;
+        }
+        if passes_quality(pair, arguments)
+            && pair.mate_reverse != pair.reverse
+            && pair.mate_reference_index == pair.reference_index
+            && orientation(pair.reverse, pair.mate_reverse, *mate_is_to_the_right)
+                == Orientation::Rf
+        {
+            sampled += 1;
+        }
+    }
+    before <= pairs.len() && sampled < per_file
+}
+
+/// Whether `doWork`'s pass over one file reads the record that follows its first `before` first
+/// ends: it stops after the first pair unmapped at both ends with no reference.
+pub fn main_pass_reaches(pairs: &[(Pair, bool)], before: usize) -> bool {
+    !pairs[..before.min(pairs.len())]
+        .iter()
+        .any(|(pair, _)| pair.unmapped && pair.mate_unmapped && pair.reference_index < 0)
+}
+
 /// `Histogram.getMode`, which is the id of the bin with the largest count.
 ///
 /// A tie goes to the FIRST such bin in key order, and an empty histogram has no mode at all: the
@@ -271,12 +311,10 @@ pub fn histogram_mean(histogram: &BTreeMap<i64, i64>) -> f64 {
     sum / total as f64
 }
 
-/// `Histogram.getStandardDeviation`, which divides by the count and not by the count less one.
+/// `Histogram.getStandardDeviation`. An empty histogram is `sqrt(0 / (0 - 1))`, minus zero, which
+/// the metric writes as `-0`, where its mean is NaN, `?`.
 pub fn histogram_standard_deviation(histogram: &BTreeMap<i64, i64>) -> f64 {
     let total: i64 = histogram.values().sum();
-    if total == 0 {
-        return f64::NAN;
-    }
     let mean = histogram_mean(histogram);
     let mut sum = 0.0;
     for (id, count) in histogram {

@@ -39,10 +39,15 @@ use htsjdk_bam::pair::set_mate_info;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sequence::{reverse_complement, reverse_qualities};
 use htsjdk_bam::tag::{Tag, TagValue};
+use picard_analysis::bam_stream::Input;
 use picard_analysis::insert_size::forward_mate_five_prime;
 use picard_analysis::java_hash_map::string_hash_code;
-use picard_analysis::metrics_cli::{absolute, read_input, refuse_validation, thrown};
+use picard_analysis::metrics_cli::{
+    absolute, fail, open_input, read_input, refuse_validation, thrown,
+};
 use picard_analysis::set_nm_md_and_uq_tags::{fix_record, Options as NmOptions};
+use picard_analysis::sort_sam::{SortingCollection, DEFAULT_MAX_RECORDS_IN_RAM};
+use picard_analysis::stream_output::Output;
 
 const TOOL: &str = "MergeBamAlignment";
 
@@ -1065,21 +1070,19 @@ fn replace_hard_with_soft_clips(rec: &mut BamRecord) {
 
 /// `MultiHitAlignedReadIterator`, over the aligned reads that survive both filters.
 struct AlignedIterator<'a> {
-    records: Vec<BamRecord>,
-    at: usize,
+    records: std::iter::Peekable<Box<dyn Iterator<Item = BamRecord> + 'a>>,
     the_next: Option<Hits>,
     picker: &'a mut Picker,
 }
 
 impl<'a> AlignedIterator<'a> {
     fn new(
-        records: Vec<BamRecord>,
+        records: Box<dyn Iterator<Item = BamRecord> + 'a>,
         picker: &'a mut Picker,
         header: &SamHeader,
     ) -> Result<Self, Failure> {
         let mut iterator = AlignedIterator {
-            records,
-            at: 0,
+            records: records.peekable(),
             the_next: None,
             picker,
         };
@@ -1100,7 +1103,7 @@ impl<'a> AlignedIterator<'a> {
     }
 
     fn advance(&mut self, header: &SamHeader) -> Result<(), Failure> {
-        while self.at < self.records.len() {
+        while self.records.peek().is_some() {
             let hits = self.next_maybe_empty(header)?;
             if hits.num_hits() > 0 {
                 self.the_next = Some(hits);
@@ -1112,14 +1115,13 @@ impl<'a> AlignedIterator<'a> {
     }
 
     fn next_maybe_empty(&mut self, header: &SamHeader) -> Result<Hits, Failure> {
-        let name = self.records[self.at].read_name.clone();
+        let name = self.records.peek().expect("a record").read_name.clone();
         let mut hits = Hits::default();
         let mut is_paired: Option<bool> = None;
         loop {
-            let mut rec = self.records[self.at].clone();
-            self.at += 1;
+            let mut rec = self.records.next().expect("a record");
             replace_hard_with_soft_clips(&mut rec);
-            if let Some(peek) = self.records.get(self.at) {
+            if let Some(peek) = self.records.peek() {
                 if rec.read_name.as_str() > peek.read_name.as_str() {
                     return Err(Failure::IllegalState(
                         "Underlying iterator is not queryname sorted".to_string(),
@@ -1153,7 +1155,7 @@ impl<'a> AlignedIterator<'a> {
                     "Read is marked as pair but neither first or second: {name}"
                 )));
             }
-            match self.records.get(self.at) {
+            match self.records.peek() {
                 Some(peek) if peek.read_name == name => {}
                 _ => break,
             }
@@ -1660,8 +1662,95 @@ fn clip_3prime_end_of_read_maybe_hard(
 }
 
 /// Where a merge pass ended up.
-struct PassOutput {
-    records: Vec<BamRecord>,
+/// Where a pass reads records from: the file again, or the records already held.
+enum Source {
+    /// The path, and whether [`Input::open`] streamed it.
+    File(String, bool),
+    Held(Vec<BamRecord>),
+}
+
+impl Source {
+    fn records(&self) -> Box<dyn Iterator<Item = BamRecord> + '_> {
+        match self {
+            Source::File(path, streamed) => Box::new(
+                Input::reopen(path, *streamed)
+                    .unwrap_or_else(|e| fail(&e.message()))
+                    .into_iter(),
+            ),
+            Source::Held(records) => Box::new(records.iter().cloned()),
+        }
+    }
+}
+
+/// `MAX_RECORDS_IN_RAM` and `TMP_DIR`, for the `SortingCollection`s.
+struct Spill {
+    max_records_in_ram: usize,
+    tmp_dir: std::path::PathBuf,
+}
+
+impl Spill {
+    fn collection(&self, compare: fn(&BamRecord, &BamRecord) -> Ordering) -> SortingCollection {
+        SortingCollection::new(compare, self.max_records_in_ram, self.tmp_dir.clone())
+    }
+}
+
+/// The output, written as records come. A record it cannot encode was refused only after the
+/// whole merge had run, so that failure waits for [`Writer::finish`] and nothing more is written.
+struct Writer {
+    output: Option<Output>,
+    failed: Option<String>,
+}
+
+impl Writer {
+    fn create(path: &str, header: &SamHeader) -> Writer {
+        let output = Output::create(path, header, false)
+            .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")));
+        Writer {
+            output: Some(output),
+            failed: None,
+        }
+    }
+
+    fn write(&mut self, rec: &BamRecord) {
+        if let Some(output) = &mut self.output {
+            if let Err(e) = output.write(rec) {
+                self.output = None;
+                self.failed = Some(format!("htsjdk.samtools.SAMException: {e}"));
+            }
+        }
+    }
+
+    fn finish(self) {
+        if let Some(failed) = self.failed {
+            thrown(&failed);
+        }
+        if let Some(output) = self.output {
+            output.finish(false, false).unwrap_or_else(|e| {
+                thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}"))
+            });
+        }
+    }
+}
+
+/// `mergeAlignment`'s `Sink`: a `SortingCollection` in coordinate order for coordinate output,
+/// the output itself for any other order.
+enum Sink {
+    Sort(SortingCollection),
+    Write(Box<Writer>),
+}
+
+impl Sink {
+    fn add(&mut self, rec: BamRecord) -> Result<(), Failure> {
+        match self {
+            Sink::Sort(sorting) => sorting.add(rec).map_err(|e| {
+                Failure::Other(format!("htsjdk.samtools.util.RuntimeIOException: {e}"))
+            }),
+            Sink::Write(writer) => {
+                writer.write(&rec);
+                Ok(())
+            }
+        }
+    }
 }
 
 /// `mergeAlignment`, once. `force_sort` is the second attempt's queryname sort of the aligned
@@ -1671,36 +1760,50 @@ fn merge_pass(
     merger: &mut Merger,
     picker: &mut Picker,
     unmapped_header: &SamHeader,
-    unmapped: &[BamRecord],
+    unmapped: &Source,
     aligned_header: &SamHeader,
-    aligned: &[BamRecord],
+    aligned: &Source,
     reference_dictionary: &[SequenceRecord],
     force_sort: bool,
-) -> Result<PassOutput, Failure> {
+    output: &str,
+    spill: &Spill,
+) -> Result<Sink, Failure> {
     let settings = merger.settings;
     merger.header.read_groups = unmapped_header.read_groups.clone();
 
     // `getQuerynameSortedAlignedRecords`, then the gap filter.
-    let mut stream: Vec<BamRecord> = aligned.to_vec();
+    let mut stream = aligned.records();
     if force_sort {
-        stream.sort_by(htsjdk_bam::query_name::compare);
+        let mut sorting = spill.collection(htsjdk_bam::query_name::compare);
+        for rec in stream {
+            sorting.add(rec).map_err(|e| {
+                Failure::Other(format!("htsjdk.samtools.util.RuntimeIOException: {e}"))
+            })?;
+        }
+        let sorted = sorting
+            .into_sorted()
+            .map_err(|e| Failure::Other(format!("htsjdk.samtools.util.RuntimeIOException: {e}")))?;
+        stream = Box::new(sorted.map(|rec| {
+            rec.unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")))
+        }));
     }
-    let stream: Vec<BamRecord> = stream
-        .into_iter()
-        .filter(|rec| {
-            if settings.max_gaps == -1 {
-                return true;
-            }
-            let gaps = rec
-                .cigar
-                .elements
-                .iter()
-                .filter(|e| matches!(e.op, Op::I | Op::D))
-                .count() as i32;
-            gaps <= settings.max_gaps
-        })
-        .filter(|rec| !is_unmapped(rec) && !cigar_maps_no_bases_to_ref(&rec.cigar))
-        .collect();
+    let max_gaps = settings.max_gaps;
+    let stream: Box<dyn Iterator<Item = BamRecord> + '_> = Box::new(
+        stream
+            .filter(move |rec| {
+                if settings.max_gaps == -1 {
+                    return true;
+                }
+                let gaps = rec
+                    .cigar
+                    .elements
+                    .iter()
+                    .filter(|e| matches!(e.op, Op::I | Op::D))
+                    .count() as i32;
+                gaps <= max_gaps
+            })
+            .filter(|rec| !is_unmapped(rec) && !cigar_maps_no_bases_to_ref(&rec.cigar)),
+    );
 
     let mut iterator = AlignedIterator::new(stream, picker, aligned_header)?;
 
@@ -1717,27 +1820,31 @@ fn merge_pass(
         }
     }
 
-    let mut sink: Vec<BamRecord> = Vec::new();
-    let add_if_not_filtered = |sink: &mut Vec<BamRecord>, rec: BamRecord| {
+    let mut sink = if settings.sort_order == "coordinate" {
+        Sink::Sort(spill.collection(htsjdk_bam::coordinate::compare))
+    } else {
+        let mut header = merger.header.clone();
+        header.set_sort_order(&settings.sort_order);
+        Sink::Write(Box::new(Writer::create(output, &header)))
+    };
+    let add_if_not_filtered = |sink: &mut Sink, rec: BamRecord| {
         if settings.include_secondary || !flag(&rec, SECONDARY) {
-            sink.push(rec);
+            sink.add(rec)
+        } else {
+            Ok(())
         }
     };
 
-    let mut index = 0;
-    while index < unmapped.len() {
-        let mut rec = unmapped[index].clone();
-        index += 1;
+    let mut unmapped = unmapped.records();
+    while let Some(mut rec) = unmapped.next() {
         merger.maybe_set_pg_tag(&mut rec);
         let mut second_of_pair: Option<BamRecord> = None;
         if flag(&rec, PAIRED) {
-            let Some(next) = unmapped.get(index) else {
+            let Some(mut second) = unmapped.next() else {
                 return Err(Failure::Other(
                     "java.util.NoSuchElementException".to_string(),
                 ));
             };
-            let mut second = next.clone();
-            index += 1;
             merger.maybe_set_pg_tag(&mut second);
             if rec.read_name != second.read_name {
                 return Err(picard(format!(
@@ -1808,10 +1915,10 @@ fn merge_pass(
                         r2_primary = Some(second_out.clone());
                     }
                     if !is_unmapped(&first_out) || is_primary {
-                        add_if_not_filtered(&mut sink, first_out);
+                        add_if_not_filtered(&mut sink, first_out)?;
                     }
                     if !is_unmapped(&second_out) || is_primary {
-                        add_if_not_filtered(&mut sink, second_out);
+                        add_if_not_filtered(&mut sink, second_out)?;
                     }
                 }
                 for is_read1 in [true, false] {
@@ -1838,7 +1945,7 @@ fn merge_pass(
                             );
                         }
                         if !is_unmapped(&out) {
-                            add_if_not_filtered(&mut sink, out);
+                            add_if_not_filtered(&mut sink, out)?;
                         }
                     }
                 }
@@ -1856,7 +1963,7 @@ fn merge_pass(
                     let is_primary = !is_secondary_or_supplementary(fragment);
                     merger.transfer_to_fragment(&mut out, fragment, aligned_header, contaminant)?;
                     if !is_unmapped(&out) || is_primary {
-                        add_if_not_filtered(&mut sink, out);
+                        add_if_not_filtered(&mut sink, out)?;
                     }
                 }
                 for supplemental in &hits.supplemental_first {
@@ -1868,7 +1975,7 @@ fn merge_pass(
                         contaminant,
                     )?;
                     if !is_unmapped(&out) {
-                        add_if_not_filtered(&mut sink, out);
+                        add_if_not_filtered(&mut sink, out)?;
                     }
                 }
             }
@@ -1884,9 +1991,9 @@ fn merge_pass(
                 }
             }
             if !settings.aligned_reads_only {
-                sink.push(rec);
+                sink.add(rec)?;
                 if let Some(second) = second_of_pair {
-                    sink.push(second);
+                    sink.add(second)?;
                 }
             }
         }
@@ -1900,7 +2007,7 @@ fn merge_pass(
             "Reads remaining on alignment iterator: {name}!"
         )));
     }
-    Ok(PassOutput { records: sink })
+    Ok(sink)
 }
 
 /// `SAMSequenceDictionary.mergeDictionaries(aligned, reference, [M5, LN])`.
@@ -1992,7 +2099,7 @@ impl CommandLine {
             ("UNMAP_CONTAM", "UNMAP_CONTAMINANT_READS"),
         ];
         let mut pairs = Vec::new();
-        for raw in std::env::args().skip(1) {
+        for raw in picard_analysis::args::process().into_iter().skip(1) {
             let raw = raw.trim_start_matches('-');
             if let Some((name, value)) = raw.split_once('=') {
                 let name = match name {
@@ -2217,6 +2324,16 @@ fn merge_for_iteration(
         ),
         Err(other) => thrown(&format!("htsjdk.samtools.SAMException: {other:?}")),
     }
+}
+
+/// `getQuerynameSortedAlignedRecords` for one `ALIGNED_BAM`: [`aligned_files`] with nothing to
+/// merge, the records streamed.
+fn aligned_file(path: &str) -> (SamHeader, Source, Option<ProgramRecord>) {
+    let input = open_input(path);
+    let program = (input.header.programs.len() == 1).then(|| input.header.programs[0].clone());
+    let source = Source::File(path.to_string(), input.streams());
+    let (header, _) = merge_for_iteration(vec![(input.header, Vec::new())], "queryname");
+    (header, source, program)
 }
 
 /// `getQuerynameSortedAlignedRecords` for `ALIGNED_BAM`: the files' dictionaries asserted equal
@@ -2493,11 +2610,31 @@ fn main() {
         }
     }
 
-    let (unmapped_header, unmapped) = read_input(&unmapped_path);
+    // Every input is read through once here, so that a file that cannot be read fails the run
+    // before anything the merge would refuse, as the whole-file reads did; the passes stream them.
+    let unmapped_input = open_input(&unmapped_path);
+    let unmapped = Source::File(unmapped_path.clone(), unmapped_input.streams());
+    let unmapped_header = unmapped_input.header;
+    // shortcut: several aligned files, or READ1/READ2_ALIGNED_BAM, are still held whole for the
+    // merge across files; stream them through a lazy priority_merge once that input matters.
     let (aligned_header, aligned, aligned_program) = if aligned_bams.is_empty() {
-        separate_ends(&read1, &read2)
+        let (header, records, program) = separate_ends(&read1, &read2);
+        (header, Source::Held(records), program)
+    } else if aligned_bams.len() == 1 {
+        aligned_file(&aligned_bams[0])
     } else {
-        aligned_files(&aligned_bams)
+        let (header, records, program) = aligned_files(&aligned_bams);
+        (header, Source::Held(records), program)
+    };
+    let spill = Spill {
+        max_records_in_ram: args
+            .int("MAX_RECORDS_IN_RAM", DEFAULT_MAX_RECORDS_IN_RAM as i32)
+            .max(1) as usize,
+        // shortcut: the first TMP_DIR only, where htsjdk picks the one with the most free space.
+        tmp_dir: args
+            .collection("TMP_DIR", &[])
+            .first()
+            .map_or_else(std::env::temp_dir, std::path::PathBuf::from),
     };
     let dictionary_text =
         std::fs::read_to_string(std::path::Path::new(&reference).with_extension("dict"))
@@ -2522,6 +2659,8 @@ fn main() {
             matching.join(",")
         ));
     }
+    // shortcut: the whole reference is held, where Picard walks it a contig at a time; walk it
+    // with picard_analysis::fasta_records once that lands.
     let contigs = htsjdk_bam::fasta::read_fasta_file(&reference)
         .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.SAMException: {e:?}")));
 
@@ -2565,6 +2704,8 @@ fn main() {
         &aligned,
         &reference_dictionary,
         false,
+        &output,
+        &spill,
     );
     if let Err(Failure::IllegalState(_)) = result {
         result = merge_pass(
@@ -2576,57 +2717,66 @@ fn main() {
             &aligned,
             &reference_dictionary,
             true,
+            &output,
+            &spill,
         );
     }
-    let mut records = match result {
-        Ok(pass) => pass.records,
+    let sink = match result {
+        Ok(sink) => sink,
         Err(Failure::IllegalState(message)) => {
             thrown(&format!("java.lang.IllegalStateException: {message}"))
         }
         Err(Failure::Other(message)) => thrown(&message),
     };
 
+    let sorting = match sink {
+        Sink::Write(writer) => return writer.finish(),
+        Sink::Sort(sorting) => sorting,
+    };
     let mut header = merger.header.clone();
-    if settings.sort_order == "coordinate" {
-        records.sort_by(htsjdk_bam::coordinate::compare);
-        let bases: HashMap<&str, &[u8]> = contigs
-            .iter()
-            .map(|c| (c.name.as_str(), c.bases.as_slice()))
-            .collect();
-        for rec in &mut records {
-            if is_unmapped(rec) {
-                continue;
-            }
-            let name = header.sequences[rec.reference_index as usize].name.clone();
+    header.set_sort_order("coordinate");
+    let bases: HashMap<&str, &[u8]> = contigs
+        .iter()
+        .map(|c| (c.name.as_str(), c.bases.as_slice()))
+        .collect();
+    let sorted = sorting
+        .into_sorted()
+        .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")));
+    let mut writer = Writer::create(&output, &header);
+    for rec in sorted {
+        let mut rec = rec
+            .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")));
+        if !is_unmapped(&rec) {
+            let name = &header.sequences[rec.reference_index as usize].name;
             let reference_bases = bases.get(name.as_str()).copied().unwrap_or(&[]);
             // `calculateMdAndNmTags` stops where the reference does, but not where the read
             // does: a cigar consuming more bases than the read holds reads past its end.
-            if let Some(failure) = md_out_of_bounds(rec, reference_bases) {
+            if let Some(failure) = md_out_of_bounds(&rec, reference_bases) {
                 thrown(&failure);
             }
             // The bisulfite NM is counted base by base against the reference.
             if settings.bisulfite
                 && !picard_analysis::set_nm_md_and_uq_tags::aligned_within_reference(
-                    rec,
+                    &rec,
                     reference_bases,
                 )
             {
                 // `calculateMdAndNmTags` has set MD by the time the count throws, and the
                 // exception names the record with it.
-                picard_analysis::set_nm_md_and_uq_tags::set_md(rec, reference_bases);
+                picard_analysis::set_nm_md_and_uq_tags::set_md(&mut rec, reference_bases);
                 thrown(&format!(
                     "htsjdk.samtools.SAMException: Exception counting mismatches for read {}",
-                    describe(rec, &header)
+                    describe(&rec, &header)
                 ));
             }
             // `fixUq` after it: `sumQualitiesOfMismatches` has no bound on either array.
             if !rec.base_qualities.is_empty() {
-                if let Some(failure) = uq_out_of_bounds(rec, reference_bases) {
+                if let Some(failure) = uq_out_of_bounds(&rec, reference_bases) {
                     thrown(&failure);
                 }
             }
             fix_record(
-                rec,
+                &mut rec,
                 reference_bases,
                 NmOptions {
                     is_bisulfite_sequence: settings.bisulfite,
@@ -2634,32 +2784,9 @@ fn main() {
                 },
             );
         }
+        writer.write(&rec);
     }
-    header.set_sort_order(&settings.sort_order);
-
-    // The extension decides the format, and everything that is not `.sam` is a BAM.
-    if output.ends_with(".sam") {
-        let text = htsjdk_bam::sam_file::write_sam(&header, &records).unwrap_or_else(|| {
-            thrown("htsjdk.samtools.SAMException: records failed to re-encode as SAM")
-        });
-        if let Err(e) = std::fs::write(&output, text) {
-            thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}"));
-        }
-        return;
-    }
-    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)
-        .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")));
-    for rec in &records {
-        writer
-            .write(rec)
-            .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.SAMException: {e:?}")));
-    }
-    let bytes = writer
-        .finish()
-        .unwrap_or_else(|e| thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")));
-    if let Err(e) = picard_analysis::cram_output::write(&output, bytes) {
-        thrown(&format!("htsjdk.samtools.util.RuntimeIOException: {e}"));
-    }
+    writer.finish();
 }
 
 /// A `TreeSet<String>`'s contents: sorted, without duplicates.

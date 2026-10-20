@@ -21,7 +21,7 @@
 use std::io::Write;
 
 use picard_analysis::args::arg;
-use picard_analysis::interval_list_to_bed::{interval_list_to_bed, Options};
+use picard_analysis::interval_list_to_bed::{read, write, Options};
 
 /// A boolean argument, which the legacy parser builds as `new Boolean(value)`.
 fn flag(args: &[String], key: &str, default: bool) -> bool {
@@ -31,7 +31,7 @@ fn flag(args: &[String], key: &str, default: bool) -> bool {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("IntervalListToBed");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
         .ok_or("INPUT= is required")?;
@@ -46,11 +46,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         sort: flag(&args, "SORT=", true),
     };
 
-    let list = std::fs::read_to_string(&input)?;
-    let bed = interval_list_to_bed(&list, &opts).map_err(|e| format!("{e:?}"))?;
+    let list = std::io::BufReader::new(std::fs::File::open(&input)?);
+    let (contigs, intervals) = read(list, &opts)?.map_err(|e| format!("{e:?}"))?;
 
     let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
-    out.write_all(bed.as_bytes())?;
+    write(&contigs, &intervals, &opts, &mut out)?;
     out.flush()?;
     Ok(())
 }

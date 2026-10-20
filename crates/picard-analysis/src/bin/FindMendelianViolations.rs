@@ -14,8 +14,9 @@
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use picard_analysis::args::arg;
 use picard_analysis::find_mendelian_violations::{
-    collect, Genotype, Interval, Metrics, Options, Sex, Site, Trio,
+    accumulate, metrics_for, Genotype, Interval, Metrics, Options, Outcome, Sex, Site, Trio,
 };
+use picard_analysis::vcf_io::{die, VcfReader};
 
 fn args_of(args: &[String], key: &str) -> Vec<String> {
     args.iter()
@@ -124,19 +125,37 @@ fn parse_interval(text: &str) -> Option<Interval> {
     })
 }
 
+/// The record as the trio's accumulator sees it, or `None` when one of the three has no genotype.
+fn site_of(record: &htsjdk_vcf::variant::VariantContext, trio: &Trio) -> Option<Site> {
+    Some(Site {
+        contig: record.contig.clone(),
+        position: record.start as i32,
+        filtered: record.filters.as_ref().is_some_and(|f| !f.is_empty()),
+        alleles: record
+            .alleles
+            .iter()
+            .map(|allele| allele.base_string())
+            .collect(),
+        father: genotype_of(record, &trio.father)?,
+        mother: genotype_of(record, &trio.mother)?,
+        child: genotype_of(record, &trio.offspring)?,
+    })
+}
+
 /// `FindMendelianViolations.writeAllViolations` for one family: the input's header lines and four
 /// INFO lines over the trio's three samples, and each violating record cut to those samples with
 /// its type and the input's AC, AF and AN beside it, in the dictionary's order with one record a
 /// position (a `TreeSet` on the `VariantContextComparator`).
 fn write_violations(
     dir: &str,
-    vcf: &htsjdk_vcf::reader::VcfFile,
+    input: &htsjdk_vcf::header::VcfHeader,
+    records: &std::collections::HashMap<usize, htsjdk_vcf::variant::VariantContext>,
     trio: &picard_analysis::find_mendelian_violations::Trio,
     violations: &[(usize, &str)],
 ) -> Result<(), Box<dyn std::error::Error>> {
     use htsjdk_vcf::encoder::{MissingFields, VcfEncoder};
     use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
-    let mut lines = vcf.header.lines.clone();
+    let mut lines = input.lines.clone();
     lines.push(HeaderLine::info(
         "MV",
         Cardinality::Fixed(1),
@@ -170,8 +189,7 @@ fn write_violations(
         lines,
         samples: samples.clone(),
     };
-    let contigs: Vec<String> = vcf
-        .header
+    let contigs: Vec<String> = input
         .lines
         .iter()
         .filter_map(|line| match line {
@@ -190,17 +208,17 @@ fn write_violations(
     };
     let mut ordered: Vec<(usize, &str)> = violations.to_vec();
     ordered.sort_by_key(|(index, _)| {
-        let record = &vcf.records[*index];
+        let record = &records[index];
         (order(&record.contig), record.start)
     });
     ordered.dedup_by_key(|(index, _)| {
-        let record = &vcf.records[*index];
+        let record = &records[index];
         (record.contig.clone(), record.start)
     });
     let mut text = header.write();
     let encoder = VcfEncoder::new(&header).with_missing_fields(MissingFields::Allow);
     for (index, kind) in ordered {
-        let mut record = vcf.records[index].clone();
+        let mut record = records[&index].clone();
         record.genotypes = record
             .genotypes
             .iter()
@@ -277,7 +295,7 @@ fn genotype_of(record: &htsjdk_vcf::variant::VariantContext, sample: &str) -> Op
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("FindMendelianViolations");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
         .ok_or("INPUT= is required")?;
@@ -376,57 +394,64 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         std::process::exit(1);
     }
-    let vcf = picard_analysis::vcf_io::read_vcf_file(&input)?;
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|e| die(&e));
     let tab_mode =
         arg(&args, "TAB_MODE=").is_some_and(|value| picard_analysis::args::is_true(&value));
-    let pedigree = read_pedigree(&std::fs::read_to_string(&trios)?, tab_mode);
-    let samples = &vcf.header.samples;
+    // The input was read whole before the pedigree, so its read failure outranks the pedigree's.
+    let pedigree = match std::fs::read_to_string(&trios) {
+        Ok(text) => read_pedigree(&text, tab_mode),
+        Err(e) => {
+            vcf.check().unwrap_or_else(|read| die(&read));
+            return Err(e.into());
+        }
+    };
+    let header = vcf.file.header.clone();
+    let samples = &header.samples;
 
-    let mut by_family: std::collections::HashMap<String, Vec<(usize, &'static str)>> =
-        std::collections::HashMap::new();
     let mut file = MetricsFile::new();
     for header in picard_analysis::command_line::default_headers("FindMendelianViolations") {
         file.add_header(&header);
     }
-    for trio in &pedigree {
-        // "Removing trio due to the following missing samples in VCF": a pedigree row naming a
-        // parent the file does not have is dropped, which is what the placeholder `0` rows are.
-        if ![&trio.father, &trio.mother, &trio.offspring]
-            .iter()
-            .all(|name| samples.contains(name))
-        {
-            continue;
-        }
-        let mut from_record: Vec<usize> = Vec::new();
-        let sites: Vec<Site> = vcf
-            .records
-            .iter()
-            .enumerate()
-            .filter_map(|(index, record)| {
-                let site = Some(Site {
-                    contig: record.contig.clone(),
-                    position: record.start as i32,
-                    filtered: record.filters.as_ref().is_some_and(|f| !f.is_empty()),
-                    alleles: record
-                        .alleles
-                        .iter()
-                        .map(|allele| allele.base_string())
-                        .collect(),
-                    father: genotype_of(record, &trio.father)?,
-                    mother: genotype_of(record, &trio.mother)?,
-                    child: genotype_of(record, &trio.offspring)?,
-                });
-                from_record.push(index);
-                site
-            })
-            .collect();
-        let (metrics, violations) = collect(&sites, trio, &options);
-        file.add_metric(&Row(metrics));
-        by_family.entry(trio.family_id.clone()).or_default().extend(
-            violations
+    // "Removing trio due to the following missing samples in VCF": a pedigree row naming a
+    // parent the file does not have is dropped, which is what the placeholder `0` rows are.
+    let kept: Vec<&Trio> = pedigree
+        .iter()
+        .filter(|trio| {
+            [&trio.father, &trio.mother, &trio.offspring]
                 .iter()
-                .map(|(site, violation)| (from_record[*site], violation.name())),
-        );
+                .all(|name| samples.contains(name))
+        })
+        .collect();
+    let mut rows: Vec<Metrics> = kept.iter().map(|trio| metrics_for(trio)).collect();
+    let mut violations: Vec<Vec<(usize, &'static str)>> = vec![Vec::new(); kept.len()];
+    // The violating records, which are all the VCFs write.
+    let mut records: std::collections::HashMap<usize, htsjdk_vcf::variant::VariantContext> =
+        std::collections::HashMap::new();
+    for (index, record) in vcf.enumerate() {
+        let record = record.variant;
+        let mut violated = false;
+        for (n, trio) in kept.iter().enumerate() {
+            let Some(site) = site_of(&record, trio) else {
+                continue;
+            };
+            if let Outcome::Violated(violation) = accumulate(&site, trio, &options, &mut rows[n]) {
+                violations[n].push((index, violation.name()));
+                violated = true;
+            }
+        }
+        if violated && vcf_dir.is_some() {
+            records.insert(index, record);
+        }
+    }
+    let mut by_family: std::collections::HashMap<String, Vec<(usize, &'static str)>> =
+        std::collections::HashMap::new();
+    for ((trio, mut metrics), found) in kept.iter().zip(rows).zip(violations) {
+        metrics.calculate_derived_fields();
+        file.add_metric(&Row(metrics));
+        by_family
+            .entry(trio.family_id.clone())
+            .or_default()
+            .extend(found);
     }
     std::fs::write(&output, file.write())?;
     // `writeAllViolations` walks the WHOLE pedigree, a `TreeMap` by individual, not the trios the
@@ -441,8 +466,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
                 std::process::exit(1);
             }
-            let records = by_family.get(&trio.family_id).cloned().unwrap_or_default();
-            write_violations(dir, &vcf, trio, &records)?;
+            let found = by_family.get(&trio.family_id).cloned().unwrap_or_default();
+            write_violations(dir, &header, &records, trio, &found)?;
         }
     }
     Ok(())

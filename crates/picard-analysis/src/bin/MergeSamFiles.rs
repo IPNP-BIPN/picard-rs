@@ -196,7 +196,7 @@ fn check_of(record: &BamRecord, header: &SamHeader) -> MateCigarCheck {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("MergeSamFiles");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let mut inputs = args_all(&args, "INPUT=");
     inputs.extend(args_all(&args, "I="));
     if inputs.is_empty() {

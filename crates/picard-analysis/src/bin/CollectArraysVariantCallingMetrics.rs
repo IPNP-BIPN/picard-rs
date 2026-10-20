@@ -7,19 +7,33 @@
 //!
 //! # Two dates, two zones
 //!
-//! The AutoCall date is parsed as `MM/dd/yyyy HH:mm` in the JVM's zone, which the oracle leaves at
-//! UTC, and the imaging date as `MM/dd/yyyy hh:mm:ss a` in America/New_York; both are written as
-//! `Iso8601Date` in the JVM's zone. So the imaging date moves by four or five hours, by the US
-//! daylight-saving rule of its year.
+//! The AutoCall date is parsed as `MM/dd/yyyy HH:mm` in the JVM's zone, and the imaging date as
+//! `MM/dd/yyyy hh:mm:ss a` in America/New_York; both are written as `Iso8601Date` in the JVM's
+//! zone, which is the system's (UTC in the oracle). So the imaging date moves by the difference
+//! between New York and that zone, by the US daylight-saving rule of its year.
 
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use htsjdk_vcf::header::HeaderLine;
 use htsjdk_vcf::variant::VariantContext;
 use picard_analysis::fingerprint::file_uri;
-use picard_analysis::metrics_cli::{refuse_validation, thrown, Args};
-use picard_analysis::vcf_io::read_path;
+use picard_analysis::metrics_cli::{refuse_validation, Args};
+use picard_analysis::vcf_io::VcfReader;
 
 const TOOL: &str = "CollectArraysVariantCallingMetrics";
+
+/// The inputs a refusal is measured against, once both are open: see [`thrown`].
+static READ: std::sync::OnceLock<[String; 2]> = std::sync::OnceLock::new();
+
+/// `metrics_cli::thrown` as a run that had read the INPUT and the DBSNP whole first: the first of
+/// them that fails to read throws instead. Both are streamed, so only a refusal reads them again.
+fn thrown(message: &str) -> ! {
+    for path in READ.get().into_iter().flatten() {
+        if let Err(read) = VcfReader::open(path).and_then(|mut vcf| vcf.check()) {
+            picard_analysis::metrics_cli::thrown(&read);
+        }
+    }
+    picard_analysis::metrics_cli::thrown(message)
+}
 
 const CONTROLS: [&str; 23] = [
     "DNP(High)",
@@ -240,27 +254,6 @@ fn new_york_offset(y: i64, mo: i64, d: i64, h: i64) -> i64 {
     }
 }
 
-/// Seconds since the epoch to `yyyy-MM-dd'T'HH:mm:ss+0000`.
-fn iso(seconds: i64) -> String {
-    let days = seconds.div_euclid(86_400);
-    let secs = seconds.rem_euclid(86_400);
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    format!(
-        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}+0000",
-        secs / 3600,
-        secs % 3600 / 60,
-        secs % 60
-    )
-}
-
 fn number(s: &str) -> Option<i64> {
     s.trim().parse().ok()
 }
@@ -297,11 +290,13 @@ fn parse_date(value: &str, key: &str, imaging: bool) -> String {
             _ => fail(),
         }
     }
-    let mut seconds = days_from_civil(y, mo, d) * 86_400 + h * 3600 + mi * 60 + s;
-    if imaging {
-        seconds -= new_york_offset(y, mo, d, h) * 3600;
-    }
-    iso(seconds)
+    let seconds = if imaging {
+        days_from_civil(y, mo, d) * 86_400 + h * 3600 + mi * 60 + s
+            - new_york_offset(y, mo, d, h) * 3600
+    } else {
+        picard_analysis::command_line::local_epoch(y, mo, d, h, mi, s)
+    };
+    picard_analysis::command_line::java_iso8601(seconds)
 }
 
 fn main() {
@@ -330,9 +325,14 @@ fn main() {
             file_uri(&input)
         ));
     }
-    let vcf = read_path(&input).unwrap_or_else(|e| thrown(&e));
-    let lines = &vcf.file.header.lines;
-    let dbsnp = read_path(&dbsnp_path).unwrap_or_else(|e| thrown(&e));
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|e| thrown(&e));
+    let mut dbsnp = VcfReader::open(&dbsnp_path).unwrap_or_else(|e| {
+        vcf.check().unwrap_or_else(|read| thrown(&read));
+        thrown(&e)
+    });
+    let _ = READ.set([input.clone(), dbsnp_path.clone()]);
+    let header = vcf.file.header.clone();
+    let lines = &header.lines;
     // `DbSnpBitSetUtil.loadVcf` asserts the dbSNP's contigs are the dictionary's -- the
     // SEQUENCE_DICTIONARY's when one is given, else the INPUT's -- and a VCF with no contig lines
     // has no dictionary to disagree with.
@@ -358,12 +358,10 @@ fn main() {
         }
     }
     // `DbSnpBitSetUtil`: a set of positions, not a list to scan per site.
-    let known: foldhash::HashSet<(String, i64)> = dbsnp
-        .records
-        .iter()
-        .map(|r| &r.variant)
+    let known: foldhash::HashSet<(String, i64)> = std::iter::from_fn(|| dbsnp.try_next())
+        .map(|r| r.unwrap_or_else(|e| thrown(&e)).variant)
         .filter(|v| v.alleles.iter().all(|a| a.len() == 1))
-        .map(|v| (v.contig.clone(), v.start))
+        .map(|v| (v.contig, v.start))
         .collect();
 
     // The control codes, each `control|category|red|green`.
@@ -414,9 +412,9 @@ fn main() {
     let scanner = required(lines, "scannerName");
 
     // `accumulate`, per sample.
-    let samples = vcf.file.header.samples.clone();
+    let samples = header.samples.clone();
     let mut per_sample: Vec<Counts> = vec![Counts::default(); samples.len()];
-    for record in &vcf.records {
+    for record in vcf.by_ref() {
         let vc: &VariantContext = &record.variant;
         let variants: Vec<&htsjdk_vcf::variant::Genotype> = vc
             .genotypes

@@ -38,7 +38,7 @@ fn quality_out_of_range<'a>(lines: impl Iterator<Item = &'a str>, format: &str) 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("FastqToSam");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let fastq = arg(&args, "FASTQ=")
         .or_else(|| arg(&args, "F1="))
         .ok_or("FASTQ= is required")?;

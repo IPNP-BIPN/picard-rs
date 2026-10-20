@@ -48,6 +48,7 @@ use picard_analysis::genotype_concordance::{
     HOM_VAR_TRUTH_STATES, NO_CALL_STRING, OUTPUT_VCF_CALL_SAMPLE_NAME, OUTPUT_VCF_FILE_EXTENSION,
     OUTPUT_VCF_TRUTH_SAMPLE_NAME, TRUTH_DECLARATION_ORDER, VAR_CALL_STATES, VAR_TRUTH_STATES,
 };
+use picard_analysis::vcf_io::{die, VcfReader};
 
 /// `VariantContext.Type`, as far as the counter cares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,8 +63,64 @@ enum VariantType {
 }
 
 fn throw(message: &str) -> ! {
-    eprintln!("Exception in thread \"main\" picard.PicardException: {message}");
-    std::process::exit(1);
+    fail(&format!("picard.PicardException: {message}"))
+}
+
+/// The TRUTH_VCF and CALL_VCF, once both are named: see [`fail`].
+static INPUTS: std::sync::OnceLock<[String; 2]> = std::sync::OnceLock::new();
+
+/// Exit with `exception` as a run that had read the truth and then the call whole first would:
+/// unless one of them fails to read, which throws instead. Both are streamed, so only a failure
+/// reads them again.
+fn fail(exception: &str) -> ! {
+    die_on_read_failure();
+    die(exception)
+}
+
+/// `result`, once a read failure that would have come first has had its turn.
+fn after_reading<T, E>(result: Result<T, E>) -> Result<T, E> {
+    if result.is_err() {
+        die_on_read_failure();
+    }
+    result
+}
+
+fn die_on_read_failure() {
+    for path in INPUTS.get().into_iter().flatten() {
+        if let Err(read) = VcfReader::open(path).and_then(|mut vcf| vcf.check()) {
+            die(&read);
+        }
+    }
+}
+
+/// One input's records as the walk takes them. Under INTERVALS only the records some interval
+/// overlaps are held, which [`within_intervals`] then orders as the reference does.
+///
+/// shortcut: under INTERVALS every overlapping record is held, since the reference walks the
+/// records once per interval; stream them per interval if a targeted run that size turns up.
+fn records(
+    mut vcf: VcfReader,
+    merged: &[Interval],
+) -> std::iter::Peekable<Box<dyn Iterator<Item = VariantContext>>> {
+    let streamed = std::iter::from_fn(move || {
+        vcf.try_next()
+            .map(|record| record.unwrap_or_else(|e| fail(&e)).variant)
+    });
+    let records: Box<dyn Iterator<Item = VariantContext>> = if merged.is_empty() {
+        Box::new(streamed)
+    } else {
+        let overlapping: Vec<VariantContext> = streamed
+            .filter(|record| {
+                merged.iter().any(|interval| {
+                    record.contig == interval.contig
+                        && record.start <= interval.end
+                        && record.stop >= interval.start
+                })
+            })
+            .collect();
+        Box::new(within_intervals(&overlapping, merged).into_iter())
+    };
+    records.peekable()
 }
 
 /// One interval of an interval list, which is all this tool reads out of one.
@@ -635,7 +692,7 @@ fn metrics_file<B: MetricBean>(beans: Vec<B>) -> String {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("GenotypeConcordance");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let truth_vcf = arg(&args, "TRUTH_VCF=").ok_or("TRUTH_VCF= is required")?;
     let call_vcf = arg(&args, "CALL_VCF=").ok_or("CALL_VCF= is required")?;
     let output = arg(&args, "OUTPUT=")
@@ -664,8 +721,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let truth = picard_analysis::vcf_io::read_vcf_file(&truth_vcf)?;
-    let call = picard_analysis::vcf_io::read_vcf_file(&call_vcf)?;
+    let truth_reader = VcfReader::open(&truth_vcf).unwrap_or_else(|e| die(&e));
+    let _ = INPUTS.set([truth_vcf.clone(), call_vcf.clone()]);
+    let call_reader = VcfReader::open(&call_vcf).unwrap_or_else(|e| fail(&e));
+    let (truth, call) = (truth_reader.file.clone(), call_reader.file.clone());
 
     // `TRUTH_SAMPLE is required when the TRUTH_VCF has more than one sample`, and the same for the
     // call side: a one-sample file names its own sample, and a two-sample file refuses.
@@ -703,13 +762,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     // `getVariantContextWriter`, before any record is read: the header is written first.
     let mut vcf_writer = if output_vcf {
-        Some(OutputVcf::new(
+        Some(after_reading(OutputVcf::new(
             &output,
             &truth.header,
             &call.header,
             &truth_sample,
             &call_sample,
-        )?)
+        ))?)
     } else {
         None
     };
@@ -725,18 +784,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         // One list is taken as it lies; INTERSECT_INTERVALS only decides how a SECOND list would
         // be combined with the first.
-        read_intervals(&std::fs::read_to_string(&intervals[0])?)
+        read_intervals(&after_reading(std::fs::read_to_string(&intervals[0]))?)
     };
-    let truth_records = if merged.is_empty() {
-        truth.records.clone()
-    } else {
-        within_intervals(&truth.records, &merged)
-    };
-    let call_records = if merged.is_empty() {
-        call.records.clone()
-    } else {
-        within_intervals(&call.records, &merged)
-    };
+    let mut truth_records = records(truth_reader, &merged);
+    let mut call_records = records(call_reader, &merged);
 
     // `VariantContextComparator`: the sequence dictionary's order, then the start.
     let contig_order: HashMap<String, usize> = if contigs.is_empty() {
@@ -761,36 +812,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut snp_counter = Counts::new();
     let mut indel_counter = Counts::new();
-    let (mut left, mut right) = (0usize, 0usize);
-    while left < truth_records.len() || right < call_records.len() {
+    loop {
         // `PairedVariantSubContextIterator`: whichever side is behind is taken alone, and a tie
         // takes both.
-        let (truth_site, call_site) = match (truth_records.get(left), call_records.get(right)) {
+        let (truth_site, call_site) = match (truth_records.peek(), call_records.peek()) {
             (Some(l), Some(r)) => match key(l).cmp(&key(r)) {
-                std::cmp::Ordering::Equal => {
-                    left += 1;
-                    right += 1;
-                    (Some(l), Some(r))
-                }
-                std::cmp::Ordering::Less => {
-                    left += 1;
-                    (Some(l), None)
-                }
-                std::cmp::Ordering::Greater => {
-                    right += 1;
-                    (None, Some(r))
-                }
+                std::cmp::Ordering::Equal => (truth_records.next(), call_records.next()),
+                std::cmp::Ordering::Less => (truth_records.next(), None),
+                std::cmp::Ordering::Greater => (None, call_records.next()),
             },
-            (Some(l), None) => {
-                left += 1;
-                (Some(l), None)
-            }
-            (None, Some(r)) => {
-                right += 1;
-                (None, Some(r))
-            }
+            (Some(_), None) => (truth_records.next(), None),
+            (None, Some(_)) => (None, call_records.next()),
             (None, None) => break,
         };
+        let (truth_site, call_site) = (truth_site.as_ref(), call_site.as_ref());
 
         let truth_view = truth_site.and_then(|record| sub_context(record, &truth_sample));
         let call_view = call_site.and_then(|record| sub_context(record, &call_sample));
@@ -836,14 +871,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         if let Some(writer) = vcf_writer.as_mut() {
-            writer.add(
+            after_reading(writer.add(
                 side(truth_site, &truth_view),
                 side(call_site, &call_view),
                 (truth_state, call_state),
                 scheme,
                 missing_sites_hom_ref,
                 ignore_filter_status,
-            )?;
+            ))?;
         }
     }
 

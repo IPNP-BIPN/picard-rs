@@ -44,7 +44,8 @@ fn main() {
     picard_analysis::output::install();
     // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
-        std::env::args()
+        picard_analysis::args::process()
+            .into_iter()
             .find_map(|a| a.strip_prefix("READ_NAME_REGEX=").map(str::to_string))
             .as_deref(),
     )
@@ -84,7 +85,8 @@ fn main() {
         remove_duplicates: args.bool("REMOVE_DUPLICATES", false),
         parse_read_names: !read_name_regex.is_off(),
         read_name_regex,
-        max_optical_duplicate_set_size: std::env::args()
+        max_optical_duplicate_set_size: picard_analysis::args::process()
+            .into_iter()
             .find_map(|a| {
                 a.strip_prefix("MAX_OPTICAL_DUPLICATE_SET_SIZE=")
                     .and_then(|v| v.parse().ok())
@@ -226,7 +228,10 @@ fn main() {
     }
 
     // `COMMENT.forEach(outputHeader::addComment)`, inherited from SimpleMarkDuplicatesWithMateCigar.
-    for comment in std::env::args().filter_map(|a| a.strip_prefix("COMMENT=").map(str::to_string)) {
+    for comment in picard_analysis::args::process()
+        .into_iter()
+        .filter_map(|a| a.strip_prefix("COMMENT=").map(str::to_string))
+    {
         header.comments.push(format!("@CO\t{comment}"));
     }
     let result = run(&marked_records, &umis, &contigs, &options).unwrap_or_else(|m| {

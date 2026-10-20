@@ -56,6 +56,14 @@ impl From<InputError> for Box<dyn std::error::Error> {
         match e {
             InputError::Io(e) => e.into(),
             InputError::Utf8(e) => e.into(),
+            // The two a damaged BAM meets most, thrown as htsjdk throws them out of a reader that
+            // `SamReaderFactory` opened on a stream with no name.
+            InputError::Bgzf(BgzfError::PrematureEnd) => crate::metrics_cli::thrown(
+                "htsjdk.samtools.FileTruncatedException: Premature end of file: data stream",
+            ),
+            InputError::Bgzf(BgzfError::InvalidGzipHeader) => crate::metrics_cli::thrown(
+                "htsjdk.samtools.SAMFormatException: Invalid GZIP header",
+            ),
             InputError::Bgzf(e) => format!("{e:?}").into(),
             InputError::Bam(e) => format!("{e:?}").into(),
             InputError::Sam(e) => format!("{e:?}").into(),
@@ -374,6 +382,21 @@ impl<R: Read> Read for Blocks<R> {
 /// Appends up to `n` bytes of `inner` to `out`, fewer only at the end; how many it appended.
 fn read_up_to(inner: &mut impl Read, out: &mut Vec<u8>, n: usize) -> io::Result<usize> {
     inner.by_ref().take(n as u64).read_to_end(out)
+}
+
+/// The header of a BAM, for a tool that reads no record, when every block inflates cleanly and
+/// the header parses: then the whole-file read would have answered with it. `None` otherwise, for
+/// the caller's whole-file read to give the answer it gave.
+pub fn clean_header(path: &str) -> Option<SamHeader> {
+    let file = File::open(path).ok()?;
+    let mut stream = RecordStream::new(inflater(Blocks::new(BufReader::new(file))));
+    let header = stream.header().ok()?;
+    let mut inflater = stream.into_inner();
+    io::copy(&mut inflater, &mut io::sink()).ok()?;
+    let inflated = inflater.count;
+    let mut blocks = inflater.inner.finish().ok()?;
+    io::copy(&mut blocks, &mut io::sink()).ok()?;
+    (!blocks.damaged && blocks.declared == inflated).then_some(header)
 }
 
 /// noodles' multithreaded reader, counting what it inflates.

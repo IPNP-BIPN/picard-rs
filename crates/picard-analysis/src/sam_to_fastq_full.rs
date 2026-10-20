@@ -780,7 +780,7 @@ fn run_into(
 /// The runnable binary, for both tools: `NAME=value` arguments in, the files and the exit code
 /// out. `with_tags` is `SamToFastqWithTags`.
 pub fn main_with(with_tags: bool) -> ! {
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = crate::args::process().into_iter().collect();
     let one = |key: &str| -> Option<String> {
         args.iter()
             .find_map(|a| a.strip_prefix(&format!("{key}=")).map(str::to_string))

@@ -147,6 +147,99 @@ pub fn merge_intervals(intervals: &[Interval], concatenate_names: bool) -> Vec<I
 /// `new SAMFileHeader(dictionary)` through `SAMTextHeaderCodec.encode`, then one line per
 /// interval as `IntervalListWriter.write` puts it.
 ///
+/// [`to_intervals`] then [`merge_intervals`], a site at a time: what a caller that never holds the
+/// sites needs. `push` answers each merged interval once the next site cannot join it.
+pub struct Merger {
+    include_filtered: bool,
+    concatenate_names: bool,
+    unnamed: usize,
+    /// The interval being built: the first site's start, the furthest end so far.
+    building: Option<Interval>,
+    /// The smallest start and the distinct names, in order, of the sites it holds.
+    start: i64,
+    names: Vec<String>,
+    /// `names` as a set: a long run of sites would make `contains` quadratic.
+    seen: std::collections::HashSet<String>,
+}
+
+impl Merger {
+    pub fn new(include_filtered: bool, concatenate_names: bool) -> Self {
+        Merger {
+            include_filtered,
+            concatenate_names,
+            unnamed: 0,
+            building: None,
+            start: 0,
+            names: Vec::new(),
+            seen: std::collections::HashSet::new(),
+        }
+    }
+
+    pub fn push(&mut self, site: Site) -> Option<Interval> {
+        if site.filtered && !self.include_filtered {
+            return None;
+        }
+        let name = if site.id == "." {
+            self.unnamed += 1;
+            format!("interval-{}", self.unnamed)
+        } else {
+            site.id
+        };
+        let next = Interval {
+            contig: site.contig,
+            start: site.start,
+            end: site.end,
+            name,
+        };
+        if let Some(building) = &mut self.building {
+            if within_distance(building, &next, 0) || within_distance(building, &next, 1) {
+                building.end = building.end.max(next.end);
+                self.start = self.start.min(next.start);
+                if self.concatenate_names && self.seen.insert(next.name.clone()) {
+                    self.names.push(next.name);
+                }
+                return None;
+            }
+        }
+        let done = self.take();
+        self.start = next.start;
+        self.names = vec![next.name.clone()];
+        self.seen.clear();
+        self.seen.insert(next.name.clone());
+        self.building = Some(next);
+        done
+    }
+
+    /// The interval still being built.
+    pub fn finish(mut self) -> Option<Interval> {
+        self.take()
+    }
+
+    fn take(&mut self) -> Option<Interval> {
+        let mut building = self.building.take()?;
+        if self.concatenate_names {
+            building.start = self.start;
+            building.name = self.names.join("|");
+        }
+        Some(building)
+    }
+}
+
+/// The header [`render`] writes, before any interval.
+pub fn render_header(dictionary: &[crate::vcf_io::Sequence]) -> String {
+    render(dictionary, &[])
+}
+
+/// One interval line as [`render`] writes it.
+pub fn push_interval(out: &mut String, interval: &Interval) {
+    use std::fmt::Write;
+    let _ = writeln!(
+        out,
+        "{}\t{}\t{}\t+\t{}",
+        interval.contig, interval.start, interval.end, interval.name
+    );
+}
+
 /// The header is `@HD VN:1.6` alone, with no sort order, and one `@SQ` per contig carrying the
 /// only attribute a VCF contig line gives a `SAMSequenceRecord`: its assembly, as `AS`.
 pub fn render(dictionary: &[crate::vcf_io::Sequence], intervals: &[Interval]) -> String {
@@ -162,10 +255,7 @@ pub fn render(dictionary: &[crate::vcf_io::Sequence], intervals: &[Interval]) ->
         out.push('\n');
     }
     for interval in intervals {
-        out.push_str(&format!(
-            "{}\t{}\t{}\t+\t{}\n",
-            interval.contig, interval.start, interval.end, interval.name
-        ));
+        push_interval(&mut out, interval);
     }
     out
 }
@@ -209,6 +299,34 @@ mod tests {
         assert_eq!((merged[0].start, merged[0].end), (100, 101));
         assert_eq!(merged[0].name, "rs1|interval-1");
         assert_eq!(merge_intervals(&intervals, false)[0].name, "rs1");
+    }
+
+    #[test]
+    fn the_merger_answers_what_the_two_passes_do() {
+        let sites = [
+            site("chr1", 100, 100, "rs1", false),
+            site("chr1", 101, 101, ".", false),
+            site("chr1", 99, 102, "rs1", false),
+            site("chr1", 103, 103, "rs2", true),
+            site("chr1", 105, 105, ".", false),
+            site("chr2", 5, 5, "b", false),
+            site("chr1", 100, 100, "c", false),
+        ];
+        for (include_filtered, concatenate) in
+            [(false, true), (true, true), (false, false), (true, false)]
+        {
+            let mut merger = Merger::new(include_filtered, concatenate);
+            let mut streamed: Vec<Interval> = sites
+                .iter()
+                .cloned()
+                .filter_map(|s| merger.push(s))
+                .collect();
+            streamed.extend(merger.finish());
+            assert_eq!(
+                streamed,
+                merge_intervals(&to_intervals(&sites, include_filtered), concatenate)
+            );
+        }
     }
 
     #[test]

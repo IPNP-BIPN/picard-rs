@@ -34,7 +34,7 @@ impl Args {
     /// `std::env::args()` with the short names in `aliases` (short, long) mapped to long ones.
     pub fn from_env(aliases: &[(&str, &str)]) -> Self {
         let mut pairs = Vec::new();
-        for raw in std::env::args().skip(1) {
+        for raw in crate::args::process().into_iter().skip(1) {
             let raw = raw.trim_start_matches('-').to_string();
             if let Some((name, value)) = raw.split_once('=') {
                 let long = aliases

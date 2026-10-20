@@ -508,34 +508,33 @@ fn main() {
     }
     for tile in converter.tiles.clone() {
         // Clusters by barcode, each in the order it was read, the barcodes in the order first seen.
-        let mut by_barcode: Vec<(Option<String>, Vec<ClusterData>)> = Vec::new();
-        let mut barcode_at: foldhash::HashMap<Option<String>, usize> = Default::default();
-        for data in converter.tile(tile) {
-            let key = data.barcode.clone();
-            if !writer_at.contains_key(&key) && !ignore_unexpected {
-                unexpected(&key, sort);
+        let loaded = converter.load(tile);
+        let mut by_barcode = converter.group(&loaded, |data, _| {
+            if !writer_at.contains_key(&data.barcode) && !ignore_unexpected {
+                unexpected(&data.barcode, sort);
             }
-            match barcode_at.get(&key) {
-                Some(&at) => by_barcode[at].1.push(data),
-                None => {
-                    barcode_at.insert(key.clone(), by_barcode.len());
-                    by_barcode.push((key, vec![data]));
-                }
-            }
-        }
+        });
         for (key, clusters) in by_barcode.iter_mut() {
+            let Some(&at) = writer_at.get(key) else {
+                continue;
+            };
+            let decode = |at| {
+                let mut c = converter.cluster(&loaded, at);
+                c.barcode = key.clone();
+                c
+            };
             if sort {
-                clusters.sort_by_cached_key(|c| {
+                clusters.sort_by_cached_key(|at| {
+                    let c = converter.place(&loaded, *at);
                     settings.lane = c.lane;
-                    settings.short_name(c)
+                    settings.short_name(&c)
                 });
             }
-            if let Some(&at) = writer_at.get(key) {
-                let w = &mut writers[at].1;
-                for c in clusters.iter() {
-                    settings.lane = c.lane;
-                    settings.write(w, c);
-                }
+            let w = &mut writers[at].1;
+            for c in clusters.iter() {
+                let c = decode(*c);
+                settings.lane = c.lane;
+                settings.write(w, &c);
             }
         }
     }

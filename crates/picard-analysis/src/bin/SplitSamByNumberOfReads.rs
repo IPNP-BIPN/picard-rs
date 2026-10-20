@@ -22,7 +22,7 @@ use picard_analysis::stream_output::{Output, OutputDir};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SplitSamByNumberOfReads");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
         .ok_or("INPUT= is required")?;
@@ -60,6 +60,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::File::open(&input)?
         .take(4)
         .read_to_end(&mut magic)?;
+    // `IOUtil.assertDirectoryIsWritable(OUTPUT)`, once the input is known to be readable.
+    picard_analysis::stream_output::assert_directory_is_writable(&output);
     let cram_input = picard_analysis::cram_input::is_cram(&magic);
     // A CRAM's shards are named `.cram` and written by `makeSAMOrBAMWriter`, which writes BAM for
     // any name that is not `.sam`.

@@ -4,6 +4,43 @@
 //! which builds each value with the option type's `String` constructor. These helpers are the
 //! ones every binary shares, so one rule holds for every tool.
 
+static TOOL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// The tool whose names [`process`] resolves, set by `argument_check::check`.
+pub fn set_tool(tool: &str) {
+    let _ = TOOL.set(tool.to_string());
+}
+
+/// The process's arguments as a binary reads them: each `NAME=value` word under the full name
+/// Picard's legacy parser resolves NAME to, in any case and short or full, so a tool that asks for
+/// `PROBABILITY=` reads `P=0.5`, and one that asks for `INPUT=` reads `input=x`. A word the tool
+/// does not declare, or a Barclay `-` word, is left as it is. The first word is the program.
+pub fn process() -> Vec<String> {
+    let raw: Vec<String> = std::env::args().collect();
+    match TOOL.get() {
+        Some(tool) => raw
+            .into_iter()
+            .enumerate()
+            .map(|(i, word)| if i == 0 { word } else { canonical(tool, &word) })
+            .collect(),
+        None => raw,
+    }
+}
+
+/// One word under its full name, when `tool` declares the name it starts with.
+fn canonical(tool: &str, word: &str) -> String {
+    if word.starts_with('-') {
+        return word.to_string();
+    }
+    match word.split_once('=') {
+        Some((name, value)) => match crate::argument_check::full_name(tool, &name.to_uppercase()) {
+            Some(full) => format!("{full}={value}"),
+            None => word.to_string(),
+        },
+        None => word.to_string(),
+    }
+}
+
 /// The value of the first word that starts with `key`, which carries its `=` (`"INPUT="`).
 pub fn arg(args: &[String], key: &str) -> Option<String> {
     args.iter()
@@ -38,6 +75,21 @@ pub fn inputs(args: &[String]) -> Result<Vec<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_short_or_lower_case_name_reads_as_the_full_one() {
+        assert_eq!(canonical("DownsampleSam", "P=0.5"), "PROBABILITY=0.5");
+        assert_eq!(
+            canonical("DownsampleSam", "probability=0.5"),
+            "PROBABILITY=0.5"
+        );
+        assert_eq!(canonical("DownsampleSam", "I=a=b.bam"), "INPUT=a=b.bam");
+        assert_eq!(
+            canonical("DownsampleSam", "NOT_AN_OPTION=1"),
+            "NOT_AN_OPTION=1"
+        );
+        assert_eq!(canonical("DownsampleSam", "--P"), "--P");
+    }
 
     fn words(line: &str) -> Vec<String> {
         line.split(' ').map(str::to_string).collect()

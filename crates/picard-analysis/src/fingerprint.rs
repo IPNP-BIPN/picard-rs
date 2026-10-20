@@ -23,6 +23,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use crate::java_hash_map::string_hash_code;
 
@@ -135,7 +136,13 @@ pub fn normalized_log_likelihoods(ll: [f64; 3]) -> [f64; 3] {
 
 /// `QualityUtil.getErrorProbabilityFromPhredScore`: htsjdk's table, `1 / pow(10, q / 10)`.
 pub fn error_probability(quality: u8) -> f64 {
-    htsjdk_bam::quality_util::error_probability_from_phred_score(i32::from(quality)).unwrap_or(1.0)
+    // htsjdk-rs builds its table again on every call (101 `pow`s): once per quality here.
+    static TABLE: std::sync::OnceLock<[f64; 256]> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| {
+        std::array::from_fn(|q| {
+            htsjdk_bam::quality_util::error_probability_from_phred_score(q as i32).unwrap_or(1.0)
+        })
+    })[usize::from(quality)]
 }
 
 /// `MathUtil.LOG_10_MATH.sum`: the log of a sum of powers, scaled by the largest, with the log
@@ -204,10 +211,10 @@ impl Snp {
 pub struct Block {
     pub maf: f64,
     pub frequencies: [f64; 3],
-    /// `snpsByName`, in its `HashMap` iteration order.
-    pub snps: Vec<Snp>,
-    pub first: Snp,
-    pub chrom: String,
+    /// `snpsByName`, in its `HashMap` iteration order. Shared with every fingerprint's evidence.
+    pub snps: Vec<Arc<Snp>>,
+    pub first: Arc<Snp>,
+    pub chrom: Arc<str>,
     pub start: i32,
     pub end: i32,
 }
@@ -215,7 +222,7 @@ pub struct Block {
 /// The key a `TreeMap<HaplotypeBlock, _>` orders by: `HaplotypeBlock.compareTo`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockKey {
-    pub chrom: String,
+    pub chrom: Arc<str>,
     pub start: i32,
     pub end: i32,
 }
@@ -240,17 +247,17 @@ impl Block {
         Block {
             maf,
             frequencies: [major * major, major * maf * 2.0, maf * maf],
-            chrom: snp.chrom.clone(),
+            chrom: Arc::from(snp.chrom.as_str()),
             start: snp.pos,
             end: snp.pos,
-            first: snp.clone(),
-            snps: vec![snp],
+            first: Arc::new(snp.clone()),
+            snps: vec![Arc::new(snp)],
         }
     }
 
     /// `addSnp`, after the first.
     fn add(&mut self, snp: Snp) -> Result<(), String> {
-        if self.chrom != snp.chrom {
+        if *self.chrom != *snp.chrom {
             return Err(format!(
                 "picard.PicardException: Snp chromosome {} does not agree with chromosome of existing snp(s): {}",
                 snp.chrom, self.chrom
@@ -258,14 +265,14 @@ impl Block {
         }
         if snp.pos < self.start {
             self.start = snp.pos;
-            self.first = snp.clone();
+            self.first = Arc::new(snp.clone());
         }
         if snp.pos > self.end {
             self.end = snp.pos;
         }
         match self.snps.iter().position(|s| s.name == snp.name) {
-            Some(at) => self.snps[at] = snp,
-            None => self.snps.push(snp),
+            Some(at) => self.snps[at] = Arc::new(snp),
+            None => self.snps.push(Arc::new(snp)),
         }
         Ok(())
     }
@@ -306,7 +313,7 @@ pub struct HaplotypeMap {
     /// `getHaplotypes()`: the anchors' `HashMap` order.
     pub blocks: Vec<Block>,
     /// `haplotypesBySnpLocus` and `snpsByPosition`.
-    by_locus: std::collections::HashMap<(String, i32), (usize, Snp)>,
+    by_locus: std::collections::HashMap<(String, i32), (usize, Arc<Snp>)>,
 }
 
 /// The `@SQ` lines of a SAM-format header, in order.
@@ -432,17 +439,15 @@ impl HaplotypeMap {
                 .collect(),
         );
         let mut by_locus = std::collections::HashMap::new();
-        let mut seen: Vec<(String, i32)> = Vec::new();
         for (index, block) in blocks.iter().enumerate() {
             for snp in &block.snps {
                 let key = (snp.chrom.clone(), snp.pos);
-                if seen.contains(&key) {
+                if by_locus.contains_key(&key) {
                     return Err(format!(
                         "java.lang.IllegalStateException: Same snp name cannot be used twice{}:{}",
                         snp.chrom, snp.pos
                     ));
                 }
-                seen.push(key.clone());
                 by_locus.insert(key, (index, snp.clone()));
             }
         }
@@ -454,7 +459,7 @@ impl HaplotypeMap {
     }
 
     /// `getHaplotype(chrom, pos)` and `getSnp(chrom, pos)` together.
-    pub fn at(&self, chrom: &str, pos: i32) -> Option<(usize, &Snp)> {
+    pub fn at(&self, chrom: &str, pos: i32) -> Option<(usize, &Arc<Snp>)> {
         self.by_locus
             .get(&(chrom.to_string(), pos))
             .map(|(b, s)| (*b, s))
@@ -496,7 +501,10 @@ pub enum Evidence {
     /// `HaplotypeProbabilitiesFromGenotypeLikelihoods`.
     GenotypeLikelihoods { ll: [f64; 3] },
     /// `HaplotypeProbabilitiesFromGenotype`: likelihoods as they are, and the SNP they came from.
-    Genotype { likelihoods: [f64; 3], snp: Snp },
+    Genotype {
+        likelihoods: [f64; 3],
+        snp: Arc<Snp>,
+    },
     /// `CappedHaplotypeProbabilities`: another's log-likelihoods, floored a distance below their
     /// maximum and renormalised.
     Capped { ll: [f64; 3] },
@@ -516,7 +524,7 @@ pub enum Evidence {
 pub struct Probs {
     pub block: usize,
     pub priors: [f64; 3],
-    pub first: Snp,
+    pub first: Arc<Snp>,
     pub evidence: Evidence,
 }
 
@@ -1149,9 +1157,9 @@ pub fn calculate_match_results(
             tumor: probs2,
             p_loh,
         };
-        let snp = probs2.representative().clone();
         if locus_info {
             let _ = map;
+            let snp = probs2.representative().clone();
             loci.push(LocusResult {
                 expected_genotype: snp.genotype(probs2.most_likely_index()),
                 most_likely_genotype: snp.genotype(probs1.most_likely_index()),
@@ -1201,83 +1209,86 @@ pub fn calculate_match_results(
     }
 }
 
-/// A read as the pileup needs it.
-pub struct PileupRead {
-    pub name: String,
-    pub flags: u16,
-    pub reference: Option<String>,
-    pub start: i32,
-    pub mapping_quality: u8,
-    pub cigar: Vec<(usize, char)>,
-    pub bases: Vec<u8>,
-    pub qualities: Vec<u8>,
-    pub read_group: Option<String>,
+/// What [`calculate_match_results`] reads of one block's evidence when it has some, worked out
+/// once for a fingerprint that is compared many times.
+pub struct BlockTerms<'f> {
+    key: &'f BlockKey,
+    likelihoods: [f64; 3],
+    posterior_likelihoods: [f64; 3],
+    shifted_log_evidence: f64,
+    /// The same evidence as a tumour's: [`NormalGivenTumor`].
+    tumor_likelihoods: [f64; 3],
+    tumor_shifted_log_evidence: f64,
 }
 
-/// One base a read shows at a SNP: `SamLocusIterator.RecordAndOffset`.
-pub struct Observed<'r> {
-    pub read: &'r PileupRead,
-    pub offset: usize,
-}
-
-/// `SamLocusIterator` over the map's loci with `FingerprintChecker`'s settings: one list per
-/// locus, in locus order, holding each passing base in the order the reads came.
-///
-/// Secondary and supplementary reads are dropped, and duplicates too unless `allow_duplicates`
-/// (which swaps the filters for `SecondaryAlignmentFilter` alone, so a supplementary read is
-/// then KEPT); so are unmapped reads and reads below the mapping-quality cutoff, and bases below
-/// the base-quality cutoff.
-pub fn pileup<'r>(
-    reads: &'r [PileupRead],
-    loci: &[(String, i32)],
-    min_mapping_quality: u8,
-    min_base_quality: u8,
-    allow_duplicates: bool,
-) -> Vec<Vec<Observed<'r>>> {
-    let index: std::collections::HashMap<(&str, i32), usize> = loci
+/// [`BlockTerms`] of every block with evidence, in the fingerprint's block order.
+pub fn block_terms(fp: &Fingerprint, p_loh: f64) -> Vec<BlockTerms<'_>> {
+    fp.blocks
         .iter()
-        .enumerate()
-        .map(|(i, (c, p))| ((c.as_str(), *p), i))
-        .collect();
-    let mut piles: Vec<Vec<Observed>> = (0..loci.len()).map(|_| Vec::new()).collect();
-    for read in reads {
-        let filtered = if allow_duplicates {
-            read.flags & 0x100 != 0
-        } else {
-            read.flags & (0x100 | 0x800 | 0x400) != 0
-        };
-        if filtered || read.flags & 0x4 != 0 || read.mapping_quality < min_mapping_quality {
-            continue;
-        }
-        let Some(contig) = read.reference.as_deref() else {
-            continue;
-        };
-        let mut position = read.start;
-        let mut offset = 0usize;
-        for &(length, op) in &read.cigar {
-            match op {
-                'M' | '=' | 'X' => {
-                    for step in 0..length {
-                        let q = read.qualities.get(offset + step).copied();
-                        if read.qualities.is_empty() || q.is_some_and(|q| q >= min_base_quality) {
-                            if let Some(&at) = index.get(&(contig, position + step as i32)) {
-                                piles[at].push(Observed {
-                                    read,
-                                    offset: offset + step,
-                                });
-                            }
-                        }
-                    }
-                    offset += length;
-                    position += length as i32;
-                }
-                'I' | 'S' => offset += length,
-                'D' | 'N' => position += length as i32,
-                _ => {}
+        .filter(|(_, probs)| probs.has_evidence())
+        .map(|(key, probs)| {
+            let tumor = NormalGivenTumor {
+                tumor: probs,
+                p_loh,
+            };
+            BlockTerms {
+                key,
+                likelihoods: probs.likelihoods(),
+                posterior_likelihoods: probs.posterior_likelihoods(),
+                shifted_log_evidence: probs.shifted_log_evidence(),
+                tumor_likelihoods: tumor.likelihoods(),
+                tumor_shifted_log_evidence: tumor.shifted_log_evidence(),
             }
+        })
+        .collect()
+}
+
+/// [`calculate_match_results`] without locus results, from both sides' [`block_terms`]: the same
+/// terms summed in the same order, so the same doubles.
+pub fn calculate_match_lods(
+    observed: &[BlockTerms],
+    expected_fp: &Fingerprint,
+    expected: &[BlockTerms],
+    tumor_aware: bool,
+) -> MatchResults {
+    let (mut no_swap, mut swap, mut tn, mut nt) = (0.0, 0.0, 0.0, 0.0);
+    let mut at = 0;
+    for two in expected {
+        while at < observed.len() && observed[at].key < two.key {
+            at += 1;
+        }
+        let Some(one) = observed.get(at).filter(|one| one.key == two.key) else {
+            continue;
+        };
+        no_swap += log_evidence(one.likelihoods, two.posterior_likelihoods);
+        swap += one.shifted_log_evidence + two.shifted_log_evidence;
+        if tumor_aware {
+            tn += log_evidence(one.tumor_likelihoods, two.posterior_likelihoods)
+                - one.tumor_shifted_log_evidence
+                - two.shifted_log_evidence;
+            nt += log_evidence(two.tumor_likelihoods, one.posterior_likelihoods)
+                - two.tumor_shifted_log_evidence
+                - one.shifted_log_evidence;
         }
     }
-    piles
+    MatchResults {
+        source: expected_fp.source.clone(),
+        sample: expected_fp.sample.clone(),
+        sample_likelihood: no_swap,
+        population_likelihood: swap,
+        lod: no_swap - swap,
+        lod_tn: tn,
+        lod_nt: nt,
+        locus_results: Vec::new(),
+    }
+}
+
+/// One base a read shows at a SNP: `SamLocusIterator.RecordAndOffset`, the read held by its place
+/// among the reads that showed any.
+struct Observed {
+    read: u32,
+    base: Option<u8>,
+    quality: u8,
 }
 
 /// `FingerprintChecker.loadFingerprints` on a VCF: one fingerprint per sample, keyed by sample,
@@ -1294,77 +1305,115 @@ pub fn load_vcf_fingerprints(
     specific_sample: Option<&str>,
     genotyping_error_rate: f64,
 ) -> Result<Vec<(String, Fingerprint)>, String> {
-    use crate::vcf_io::read_path;
-    let vcf = read_path(path)?;
-    check_dictionary(&vcf_dictionary(&vcf.file.header), map)?;
+    let mut vcf = crate::vcf_io::VcfReader::open(path)?;
+    if let Err(e) = check_dictionary(&vcf_dictionary(&vcf.file.header), map) {
+        // A record the whole-file read refused outranks the dictionary.
+        vcf.check()?;
+        return Err(e);
+    }
     let indexed = std::path::Path::new(&format!("{path}.idx")).exists()
         || std::path::Path::new(&format!("{path}.tbi")).exists();
-    let records: Vec<&htsjdk_vcf::variant::VariantContext> = if indexed {
-        let mut snps: Vec<&Snp> = map.blocks.iter().flat_map(|b| b.snps.iter()).collect();
-        snps.sort_by(|a, b| a.compare(b));
-        // The first record in the file that covers the SNP's position and matches its alleles:
-        // measured on the oracle, a deletion that covers the position before the SNP's own record
-        // does not hide it. The records of each contig are kept by start, with the longest span
-        // among them, so the records that cover a position start within that span before it: a
-        // scan of the whole file per SNP was quadratic.
-        // Per contig: (start, record index) pairs, and the longest span.
-        type Starts = (Vec<(i64, usize)>, i64);
-        let mut by_contig: foldhash::HashMap<&str, Starts> = foldhash::HashMap::default();
-        for (at, record) in vcf.records.iter().enumerate() {
-            let v = &record.variant;
-            let entry = by_contig.entry(v.contig.as_str()).or_default();
-            entry.0.push((v.start, at));
-            entry.1 = entry.1.max(v.stop - v.start);
-        }
-        for (starts, _) in by_contig.values_mut() {
-            starts.sort_unstable();
-        }
-        snps.iter()
-            .filter_map(|snp| {
-                let (starts, span) = by_contig.get(snp.chrom.as_str())?;
-                let pos = i64::from(snp.pos);
-                let from = starts.partition_point(|&(start, _)| start < pos - span);
-                let to = starts.partition_point(|&(start, _)| start <= pos);
-                starts[from..to]
-                    .iter()
-                    .map(|&(_, at)| at)
-                    .filter(|&at| {
-                        let v = &vcf.records[at].variant;
-                        v.stop >= pos && matches_snp(v, snp)
-                    })
-                    .min()
-                    .map(|at| &vcf.records[at].variant)
-            })
-            .collect()
-    } else {
-        vcf.records.iter().map(|r| &r.variant).collect()
-    };
+    let header_samples = vcf.file.header.samples.clone();
     let mut fingerprints: Vec<(String, Fingerprint)> = Vec::new();
     let source = Some(path.to_string());
     let mut started = false;
-    for ctx in records {
-        if !started {
-            started = true;
-            let samples: Vec<String> = match specific_sample {
-                Some(s) => vec![s.to_string()],
-                None => vcf.file.header.samples.clone(),
+    let mut start = |fingerprints: &mut Vec<(String, Fingerprint)>| {
+        if started {
+            return;
+        }
+        started = true;
+        let samples: Vec<String> = match specific_sample {
+            Some(s) => vec![s.to_string()],
+            None => header_samples.clone(),
+        };
+        let samples: Vec<String> = java_hash_order(
+            samples
+                .into_iter()
+                .map(|s| (string_hash_code(&s), s))
+                .collect(),
+        );
+        for s in &samples {
+            fingerprints.push((
+                s.clone(),
+                Fingerprint::new(Some(s.clone()), source.clone(), None),
+            ));
+        }
+    };
+    if indexed {
+        let mut snps: Vec<&Snp> = map
+            .blocks
+            .iter()
+            .flat_map(|b| b.snps.iter().map(|s| &**s))
+            .collect();
+        snps.sort_by(|a, b| a.compare(b));
+        // Each SNP takes the first record in the file that covers its position and matches its
+        // alleles: measured on the oracle, a deletion that covers the position before the SNP's
+        // own record does not hide it. Per contig, the SNPs as (position, SNP), by position.
+        let mut on_contig: foldhash::HashMap<&str, Vec<(i64, usize)>> =
+            foldhash::HashMap::default();
+        for (at, snp) in snps.iter().enumerate() {
+            on_contig
+                .entry(snp.chrom.as_str())
+                .or_default()
+                .push((i64::from(snp.pos), at));
+        }
+        for on in on_contig.values_mut() {
+            on.sort_unstable();
+        }
+        let mut taken = vec![false; snps.len()];
+        // Picard adds the taken records in SNP order, where likelihoods replace a block's evidence
+        // and a genotype only fills an empty block: so a block ends with the last likelihoods, or
+        // failing those the first genotype. Here the records are added in file order, each kept
+        // over what a block holds when it would have come later in SNP order. Per sample and
+        // block: whether from likelihoods, and the SNP rank.
+        let mut ranks: Vec<Vec<Option<(bool, usize)>>> = Vec::new();
+        while let Some(record) = vcf.try_next() {
+            let v = record?.variant;
+            let Some(on) = on_contig.get(v.contig.as_str()) else {
+                continue;
             };
-            let samples: Vec<String> = java_hash_order(
-                samples
-                    .into_iter()
-                    .map(|s| (string_hash_code(&s), s))
-                    .collect(),
-            );
-            for s in &samples {
-                fingerprints.push((
-                    s.clone(),
-                    Fingerprint::new(Some(s.clone()), source.clone(), None),
-                ));
+            let from = on.partition_point(|&(pos, _)| pos < v.start);
+            // The SNP ranks this record is taken at: the first and the last.
+            let mut at: Option<(usize, usize)> = None;
+            for &(_, k) in on[from..].iter().take_while(|&&(pos, _)| pos <= v.stop) {
+                if !taken[k] && matches_snp(&v, snps[k]) {
+                    taken[k] = true;
+                    at = Some(at.map_or((k, k), |(lo, hi)| (lo.min(k), hi.max(k))));
+                }
+            }
+            let Some((lo, hi)) = at else {
+                continue;
+            };
+            start(&mut fingerprints);
+            ranks.resize_with(fingerprints.len(), || vec![None; map.blocks.len()]);
+            for (sample, from_likelihoods, probs) in
+                vc_probs(map, &fingerprints, &v, genotyping_error_rate)
+            {
+                let held = &mut ranks[sample][probs.block];
+                let wins = match (*held, from_likelihoods) {
+                    (None, _) | (Some((false, _)), true) => true,
+                    (Some((true, rank)), true) => hi > rank,
+                    (Some((false, rank)), false) => lo < rank,
+                    (Some((true, _)), false) => false,
+                };
+                if wins {
+                    *held = Some((from_likelihoods, if from_likelihoods { hi } else { lo }));
+                    fingerprints[sample].1.add(map, probs);
+                }
             }
         }
-        add_from_vc(map, &mut fingerprints, ctx, genotyping_error_rate);
+    } else {
+        while let Some(record) = vcf.try_next() {
+            start(&mut fingerprints);
+            add_from_vc(
+                map,
+                &mut fingerprints,
+                &record?.variant,
+                genotyping_error_rate,
+            );
+        }
     }
-    for s in &vcf.file.header.samples {
+    for s in &header_samples {
         if !fingerprints.iter().any(|(n, _)| n == s) {
             fingerprints.push((
                 s.clone(),
@@ -1441,19 +1490,39 @@ fn add_from_vc(
     ctx: &htsjdk_vcf::variant::VariantContext,
     error_rate: f64,
 ) {
+    for (at, from_likelihoods, probs) in vc_probs(map, fingerprints, ctx, error_rate) {
+        let fp = &mut fingerprints[at].1;
+        if from_likelihoods || !fp.blocks.contains_key(&map.blocks[probs.block].key()) {
+            fp.add(map, probs);
+        }
+    }
+}
+
+/// What `add_from_vc` adds, sample by sample (by place in `fingerprints`): the evidence, and
+/// whether it came from likelihoods, which replace a block's evidence where a genotype only fills
+/// a block that has none.
+fn vc_probs(
+    map: &HaplotypeMap,
+    fingerprints: &[(String, Fingerprint)],
+    ctx: &htsjdk_vcf::variant::VariantContext,
+    error_rate: f64,
+) -> Vec<(usize, bool, Probs)> {
+    let mut added = Vec::new();
     let Some((block, snp)) = map.at(&ctx.contig, ctx.start as i32) else {
-        return;
+        return added;
     };
     let snp = snp.clone();
     // `subsetVCToMatchSnp`, for a biallelic site.
     if ctx.is_filtered() || ctx.alleles[0].len() != 1 {
-        return;
+        return added;
     }
     let reference = ctx.alleles[0].base_string().as_bytes()[0].to_ascii_uppercase();
     let ref_allele = [snp.allele1, snp.allele2]
         .into_iter()
         .find(|b| b.to_ascii_uppercase() == reference);
-    let Some(ref_allele) = ref_allele else { return };
+    let Some(ref_allele) = ref_allele else {
+        return added;
+    };
     let other = if snp.allele1 == ref_allele {
         snp.allele2
     } else {
@@ -1464,13 +1533,13 @@ fn add_from_vc(
         .iter()
         .any(|a| a.len() == 1 && a.base_string().as_bytes()[0].eq_ignore_ascii_case(&other));
     if !matching || alts.len() != 1 {
-        return;
+        return added;
     }
     for allele in &ctx.alleles {
         let bases = allele.base_string();
         let b = bases.as_bytes();
         if b.len() > 1 || (b[0] != snp.allele1 && b[0] != snp.allele2) {
-            return;
+            return added;
         }
     }
     let first = ctx.alleles[0].base_string().as_bytes()[0];
@@ -1480,13 +1549,13 @@ fn add_from_vc(
     for g in ctx.genotypes.iter().rev() {
         by_sample.insert(g.sample_name.as_str(), g);
     }
-    for (sample, fp) in fingerprints.iter_mut() {
+    for (at, (sample, _)) in fingerprints.iter().enumerate() {
         let Some(&genotype) = by_sample.get(sample.as_str()) else {
-            return;
+            return added;
         };
         if let Some(pl) = &genotype.pl {
             if pl.len() != 3 {
-                return;
+                return added;
             }
             let gl = [
                 f64::from(pl[0]) / -10.0,
@@ -1498,7 +1567,7 @@ fn add_from_vc(
             } else if snp.allele2 == first && snp.allele1 == second {
                 [gl[2], gl[1], gl[0]]
             } else {
-                return;
+                return added;
             };
             let probs = Probs::with(
                 map,
@@ -1507,12 +1576,9 @@ fn add_from_vc(
                     ll: normalized_log_likelihoods(ll),
                 },
             );
-            fp.add(map, probs);
+            added.push((at, true, probs));
         } else {
             if genotype.is_no_call() {
-                continue;
-            }
-            if fp.blocks.contains_key(&map.blocks[block].key()) {
                 continue;
             }
             let hom = genotype.is_hom();
@@ -1532,8 +1598,9 @@ fn add_from_vc(
                     half
                 },
             ];
-            fp.add(
-                map,
+            added.push((
+                at,
+                false,
                 Probs::with(
                     map,
                     block,
@@ -1542,9 +1609,10 @@ fn add_from_vc(
                         snp: snp.clone(),
                     },
                 ),
-            );
+            ));
         }
     }
+    added
 }
 
 /// What `fingerprintSamFile` needs to know beyond the file.
@@ -1605,8 +1673,22 @@ pub fn fingerprint_sam_file(
     make: &dyn Fn(&HaplotypeMap, usize) -> Probs,
     add: &dyn Fn(&mut Probs, &Snp, u8, u8),
 ) -> Result<Vec<(IdDetails, Fingerprint)>, String> {
+    let input = crate::metrics_cli::open_input(path);
+    fingerprint_sam_input(input, path, map, options, random, make, add)
+}
+
+/// [`fingerprint_sam_file`] on an input already opened from `path`.
+pub fn fingerprint_sam_input(
+    input: crate::bam_stream::Input,
+    path: &str,
+    map: &HaplotypeMap,
+    options: &SamOptions,
+    random: &mut SharedRandom,
+    make: &dyn Fn(&HaplotypeMap, usize) -> Probs,
+    add: &dyn Fn(&mut Probs, &Snp, u8, u8),
+) -> Result<Vec<(IdDetails, Fingerprint)>, String> {
     use htsjdk_bam::tag::{Tag, TagValue};
-    let (header, records) = crate::metrics_cli::read_input(path);
+    let (header, records) = input.into_parts();
     let dictionary: Vec<Sequence> = header
         .sequences
         .iter()
@@ -1638,48 +1720,99 @@ pub fn fingerprint_sam_file(
         let fp = new_fp(&details);
         groups.push((Some(rg.id.clone()), details, fp));
     }
-    let reads: Vec<PileupRead> = records
-        .iter()
-        .map(|r| PileupRead {
-            name: r.read_name.clone(),
-            flags: r.flags,
-            reference: (r.reference_index >= 0)
-                .then(|| {
-                    header
-                        .sequences
-                        .get(r.reference_index as usize)
-                        .map(|s| s.name.clone())
-                })
-                .flatten(),
-            start: r.alignment_start,
-            mapping_quality: r.mapping_quality,
-            cigar: r
-                .cigar
-                .elements
-                .iter()
-                .map(|e| (e.length as usize, char::from(e.op.to_char())))
-                .collect(),
-            bases: r.read_bases.clone(),
-            qualities: r.base_qualities.clone(),
-            read_group: match r.tags.get(Tag::new(b"RG")) {
-                Some(TagValue::Str(id)) if header.read_groups.iter().any(|g| g.id == *id) => {
-                    Some(id.clone())
-                }
-                _ => None,
-            },
-        })
-        .collect();
     let mut loci = map.loci();
     let order = |c: &str| dictionary.iter().position(|d| d.name == c);
     loci.sort_by(|a, b| order(&a.0).cmp(&order(&b.0)).then(a.1.cmp(&b.1)));
-    let piles = pileup(
-        &reads,
-        &loci,
-        options.min_mapping_quality,
-        options.min_base_quality,
-        options.allow_duplicates,
-    );
-    let mut used: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    // Per reference index, the loci on its contig as (position, locus), by position.
+    let mut on_contig: std::collections::HashMap<&str, Vec<(i32, usize)>> =
+        std::collections::HashMap::new();
+    for (at, (contig, pos)) in loci.iter().enumerate() {
+        on_contig
+            .entry(contig.as_str())
+            .or_default()
+            .push((*pos, at));
+    }
+    for on in on_contig.values_mut() {
+        on.sort_unstable();
+    }
+    let none: Vec<(i32, usize)> = Vec::new();
+    let by_reference: Vec<&[(i32, usize)]> = header
+        .sequences
+        .iter()
+        .map(|s| on_contig.get(s.name.as_str()).unwrap_or(&none).as_slice())
+        .collect();
+
+    // `SamLocusIterator` over the loci with `FingerprintChecker`'s settings, one read at a time:
+    // one list per locus, holding each passing base in the order the reads came. Secondary and
+    // supplementary reads are dropped, and duplicates too unless `allow_duplicates` (which swaps
+    // the filters for `SecondaryAlignmentFilter` alone, so a supplementary read is then KEPT); so
+    // are unmapped reads and reads below the mapping-quality cutoff, and bases below the
+    // base-quality cutoff. Only the reads that show a base are kept: their name and read group.
+    let mut piles: Vec<Vec<Observed>> = (0..loci.len()).map(|_| Vec::new()).collect();
+    // shortcut: u32 read numbers, so at most 4G reads that show a base; widen if one ever has more.
+    let mut reads: Vec<(Box<str>, Option<usize>)> = Vec::new();
+    for r in records {
+        let filtered = if options.allow_duplicates {
+            r.flags & 0x100 != 0
+        } else {
+            r.flags & (0x100 | 0x800 | 0x400) != 0
+        };
+        if filtered || r.flags & 0x4 != 0 || r.mapping_quality < options.min_mapping_quality {
+            continue;
+        }
+        let Some(&on) = usize::try_from(r.reference_index)
+            .ok()
+            .and_then(|i| by_reference.get(i))
+        else {
+            continue;
+        };
+        if on.is_empty() {
+            continue;
+        }
+        let read = reads.len() as u32;
+        let mut shown = false;
+        let mut position = r.alignment_start;
+        let mut offset = 0usize;
+        for e in &r.cigar.elements {
+            let length = e.length as usize;
+            match char::from(e.op.to_char()) {
+                'M' | '=' | 'X' => {
+                    let from = on.partition_point(|&(p, _)| p < position);
+                    for &(p, at) in on[from..]
+                        .iter()
+                        .take_while(|&&(p, _)| p < position + length as i32)
+                    {
+                        let step = (p - position) as usize;
+                        let q = r.base_qualities.get(offset + step).copied();
+                        if r.base_qualities.is_empty()
+                            || q.is_some_and(|q| q >= options.min_base_quality)
+                        {
+                            piles[at].push(Observed {
+                                read,
+                                base: r.read_bases.get(offset + step).copied(),
+                                quality: q.unwrap_or(0),
+                            });
+                            shown = true;
+                        }
+                    }
+                    offset += length;
+                    position += length as i32;
+                }
+                'I' | 'S' => offset += length,
+                'D' | 'N' => position += length as i32,
+                _ => {}
+            }
+        }
+        if shown {
+            // The header's read group, by its place, which is its place among `groups` too.
+            let read_group = match r.tags.get(Tag::new(b"RG")) {
+                Some(TagValue::Str(id)) => header.read_groups.iter().position(|g| g.id == *id),
+                _ => None,
+            };
+            reads.push((r.read_name.into_boxed_str(), read_group));
+        }
+    }
+    let mut used: foldhash::HashSet<&str> = foldhash::HashSet::default();
     let mut found = false;
     for ((contig, pos), pile) in loci.iter().zip(&piles) {
         let (block, snp) = map.at(contig, *pos).expect("a map locus");
@@ -1691,12 +1824,12 @@ pub fn fingerprint_sam_file(
         };
         for i in chosen {
             let rec = &pile[i];
-            let rg = rec.read.read_group.clone();
+            let (name, rg) = &reads[rec.read as usize];
             if rg.is_none() && !groups.iter().any(|(g, _, _)| g.is_none()) {
                 if options.strict {
                     return Err(format!(
                         "picard.PicardException: Found read with no readgroup: {} in file: {path}",
-                        rec.read.name
+                        name
                     ));
                 }
                 let mut details = IdDetails::new(Some("<UNKNOWN>.0.ZZZ"), &uri);
@@ -1706,14 +1839,18 @@ pub fn fingerprint_sam_file(
                 groups.push((None, details, fp));
             }
             found = true;
-            let name = rec.read.name.as_str();
             if used.insert(name) {
-                let at = groups.iter().position(|(g, _, _)| *g == rg).expect("known");
+                let at = match rg {
+                    Some(at) => *at,
+                    None => groups
+                        .iter()
+                        .position(|(g, _, _)| g.is_none())
+                        .expect("known"),
+                };
                 let key = map.blocks[block].key();
                 let probs = groups[at].2.blocks.get_mut(&key).expect("every block");
-                let base = rec.read.bases[rec.offset].to_ascii_uppercase();
-                let qual = rec.read.qualities.get(rec.offset).copied().unwrap_or(0);
-                add(probs, snp, base, qual);
+                let base = rec.base.expect("a read base at every aligned offset");
+                add(probs, snp, base.to_ascii_uppercase(), rec.quality);
             }
         }
     }
@@ -1761,5 +1898,64 @@ mod tests {
         let ll = normalized_log_likelihoods([-1.0, -2.0, -3.0]);
         let total: f64 = ll.iter().map(|l| 10f64.powf(*l)).sum();
         assert!((total - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn match_lods_from_block_terms_are_the_match_results() {
+        let path = std::env::temp_dir().join(format!("fp-terms-{}.txt", std::process::id()));
+        std::fs::write(
+            &path,
+            "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:1000\n\
+             chr1\t10\ts10\tA\tC\t0.3\nchr1\t50\ts50\tA\tG\t0.2\n\
+             chr1\t90\ts90\tC\tT\t0.4\nchr1\t95\ts95\tG\tT\t0.1\n",
+        )
+        .unwrap();
+        let map = HaplotypeMap::load(path.to_str().unwrap()).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        let fingerprint = |lls: &[Option<[f64; 3]>]| {
+            let mut fp = Fingerprint::new(Some("s".into()), Some("f".into()), None);
+            for (block, ll) in lls.iter().enumerate() {
+                if let Some(ll) = ll {
+                    let ll = normalized_log_likelihoods(*ll);
+                    fp.add(
+                        &map,
+                        Probs::with(&map, block, Evidence::GenotypeLikelihoods { ll }),
+                    );
+                }
+            }
+            fp
+        };
+        // A block only one side has, and one with no evidence (all zero).
+        let one = fingerprint(&[
+            Some([-0.1, -2.0, -5.0]),
+            Some([0.0; 3]),
+            Some([-3.0, -0.2, -4.0]),
+            None,
+        ]);
+        let two = fingerprint(&[
+            Some([-4.0, -0.5, -0.1]),
+            Some([-1.0, -1.0, -0.3]),
+            Some([-2.5, -0.1, -6.0]),
+            Some([-0.2, -1.0, -2.0]),
+        ]);
+        for tumor_aware in [false, true] {
+            let slow = calculate_match_results(&map, &one, &two, 0.5, false, tumor_aware);
+            let fast = calculate_match_lods(
+                &block_terms(&one, 0.5),
+                &two,
+                &block_terms(&two, 0.5),
+                tumor_aware,
+            );
+            for (a, b) in [
+                (slow.sample_likelihood, fast.sample_likelihood),
+                (slow.population_likelihood, fast.population_likelihood),
+                (slow.lod, fast.lod),
+                (slow.lod_tn, fast.lod_tn),
+                (slow.lod_nt, fast.lod_nt),
+            ] {
+                assert_eq!(a.to_bits(), b.to_bits());
+            }
+            assert_ne!(fast.lod, 0.0);
+        }
     }
 }

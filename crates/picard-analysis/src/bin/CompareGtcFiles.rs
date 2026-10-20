@@ -14,24 +14,24 @@
 //! digits cut to three places, through `BigDecimal.valueOf(float)`.
 
 use picard_analysis::extract_run::{java_double_to_string, java_float_to_string};
-use picard_analysis::infinium::{Bpm, Gtc, ReadError};
+use picard_analysis::infinium::{Bpm, Gtc, ReadError, Reader};
 use picard_analysis::metrics_cli::{thrown, Args};
 use picard_analysis::vcf_io::log_error;
 
 /// A getter's boxed value.
-enum Got {
-    Text(Option<String>),
+enum Got<'a> {
+    Text(Option<&'a str>),
     Int(i32),
     Long(i64),
     Double(f64),
     Float(f32),
-    Ints(Option<Vec<i32>>),
-    Floats(Option<Vec<f32>>),
-    Bytes(Option<Vec<i8>>),
-    Pairs(Option<Vec<[i8; 2]>>),
+    Ints(Option<&'a [i32]>),
+    Floats(Option<&'a [f32]>),
+    Bytes(Option<&'a [i8]>),
+    Pairs(Option<&'a [[i8; 2]]>),
 }
 
-fn getters(g: &Gtc) -> Result<Vec<(&'static str, Got)>, String> {
+fn getters(g: &Gtc) -> Result<Vec<(&'static str, Got<'_>)>, String> {
     let percentile = |p: &Option<[i32; 3]>, i: usize| -> Result<Got, String> {
         p.map(|v| Got::Int(v[i]))
             .ok_or_else(|| "java.lang.NullPointerException".to_string())
@@ -41,29 +41,32 @@ fn getters(g: &Gtc) -> Result<Vec<(&'static str, Got)>, String> {
             "getHetPercent",
             Got::Double(f64::from(g.ab_calls) / f64::from(g.num_calls)),
         ),
-        ("getSampleName", Got::Text(g.sample_name.clone())),
-        ("getSamplePlate", Got::Text(g.sample_plate.clone())),
-        ("getSampleWell", Got::Text(g.sample_well.clone())),
-        ("getClusterFile", Got::Text(g.cluster_file.clone())),
-        ("getSnpManifest", Got::Text(g.snp_manifest.clone())),
-        ("getImagingDate", Got::Text(g.imaging_date.clone())),
-        ("getAutoCallDate", Got::Text(g.auto_call_date.clone())),
-        ("getAutoCallVersion", Got::Text(g.auto_call_version.clone())),
+        ("getSampleName", Got::Text(g.sample_name.as_deref())),
+        ("getSamplePlate", Got::Text(g.sample_plate.as_deref())),
+        ("getSampleWell", Got::Text(g.sample_well.as_deref())),
+        ("getClusterFile", Got::Text(g.cluster_file.as_deref())),
+        ("getSnpManifest", Got::Text(g.snp_manifest.as_deref())),
+        ("getImagingDate", Got::Text(g.imaging_date.as_deref())),
+        ("getAutoCallDate", Got::Text(g.auto_call_date.as_deref())),
+        (
+            "getAutoCallVersion",
+            Got::Text(g.auto_call_version.as_deref()),
+        ),
         (
             "getRawControlXIntensities",
-            Got::Ints(g.raw_control_x.clone()),
+            Got::Ints(g.raw_control_x.as_deref()),
         ),
         (
             "getRawControlYIntensities",
-            Got::Ints(g.raw_control_y.clone()),
+            Got::Ints(g.raw_control_y.as_deref()),
         ),
-        ("getScannerName", Got::Text(g.scanner_name.clone())),
+        ("getScannerName", Got::Text(g.scanner_name.as_deref())),
         ("getPmtGreen", Got::Int(g.pmt_green)),
         ("getPmtRed", Got::Int(g.pmt_red)),
-        ("getScannerVersion", Got::Text(g.scanner_version.clone())),
-        ("getImagingUser", Got::Text(g.imaging_user.clone())),
+        ("getScannerVersion", Got::Text(g.scanner_version.as_deref())),
+        ("getImagingUser", Got::Text(g.imaging_user.as_deref())),
         ("getCallRate", Got::Double(g.call_rate)),
-        ("getGender", Got::Text(g.gender.clone())),
+        ("getGender", Got::Text(g.gender.as_deref())),
         ("getNumberOfSnps", Got::Int(g.number_of_snps)),
         ("getNumCalls", Got::Int(g.num_calls)),
         ("getNumNoCalls", Got::Int(g.num_no_calls)),
@@ -81,27 +84,30 @@ fn getters(g: &Gtc) -> Result<Vec<(&'static str, Got)>, String> {
         ("getNumIntensityOnly", Got::Int(g.num_intensity_only)),
         ("getAaCalls", Got::Long(g.aa_calls)),
         ("getBbCalls", Got::Long(g.bb_calls)),
-        ("getSentrixBarcode", Got::Text(g.sentrix_barcode.clone())),
+        ("getSentrixBarcode", Got::Text(g.sentrix_barcode.as_deref())),
         ("getDx", Got::Int(g.dx)),
-        ("getBaseCalls", Got::Pairs(g.base_calls.clone())),
+        ("getBaseCalls", Got::Pairs(g.base_calls.as_deref())),
         ("getAbCalls", Got::Int(g.ab_calls)),
-        ("getRawXIntensities", Got::Ints(g.raw_x.clone())),
-        ("getRawYIntensities", Got::Ints(g.raw_y.clone())),
+        ("getRawXIntensities", Got::Ints(g.raw_x.as_deref())),
+        ("getRawYIntensities", Got::Ints(g.raw_y.as_deref())),
         (
             "getNormalizedXIntensities",
-            Got::Floats(Some(g.normalized_x.clone())),
+            Got::Floats(Some(&g.normalized_x)),
         ),
         (
             "getNormalizedYIntensities",
-            Got::Floats(Some(g.normalized_y.clone())),
+            Got::Floats(Some(&g.normalized_y)),
         ),
-        ("getbAlleleFreqs", Got::Floats(g.b_allele_freqs.clone())),
-        ("getLogRRatios", Got::Floats(g.log_r_ratios.clone())),
-        ("getRIlmn", Got::Floats(Some(g.r_ilmn.clone()))),
-        ("getThetaIlmn", Got::Floats(Some(g.theta_ilmn.clone()))),
-        ("getGenotypeBytes", Got::Bytes(g.genotypes.clone())),
-        ("getGenotypeScores", Got::Floats(g.genotype_scores.clone())),
-        ("getIdentifier", Got::Text(Some(g.identifier.clone()))),
+        ("getbAlleleFreqs", Got::Floats(g.b_allele_freqs.as_deref())),
+        ("getLogRRatios", Got::Floats(g.log_r_ratios.as_deref())),
+        ("getRIlmn", Got::Floats(Some(&g.r_ilmn))),
+        ("getThetaIlmn", Got::Floats(Some(&g.theta_ilmn))),
+        ("getGenotypeBytes", Got::Bytes(g.genotypes.as_deref())),
+        (
+            "getGenotypeScores",
+            Got::Floats(g.genotype_scores.as_deref()),
+        ),
+        ("getIdentifier", Got::Text(Some(&g.identifier))),
     ])
 }
 
@@ -203,7 +209,7 @@ fn compare(one: &Gtc, two: &Gtc) -> Result<Vec<String>, String> {
                 }
             }
             (Got::Ints(Some(a)), Got::Ints(Some(b))) => {
-                let n = differences(name, &a, &b, &mut found);
+                let n = differences(name, a, b, &mut found);
                 if n > 0 {
                     found.push(format!(
                         "{name} do not match. {n} elements of the array differ."
@@ -211,7 +217,7 @@ fn compare(one: &Gtc, two: &Gtc) -> Result<Vec<String>, String> {
                 }
             }
             (Got::Bytes(Some(a)), Got::Bytes(Some(b))) => {
-                let n = differences(name, &a, &b, &mut found);
+                let n = differences(name, a, b, &mut found);
                 if n > 0 {
                     found.push(format!(
                         "{name} do not match. {n} elements of the array differ."
@@ -219,7 +225,7 @@ fn compare(one: &Gtc, two: &Gtc) -> Result<Vec<String>, String> {
                 }
             }
             (Got::Floats(Some(a)), Got::Floats(Some(b))) => {
-                let n = differences(name, &float_keys(&a), &float_keys(&b), &mut found);
+                let n = differences(name, &float_keys(a), &float_keys(b), &mut found);
                 if n > 0 {
                     found.push(format!(
                         "{name} do not match. {n} elements of the array differ."
@@ -235,7 +241,7 @@ fn compare(one: &Gtc, two: &Gtc) -> Result<Vec<String>, String> {
                     ));
                 } else {
                     let mut n = 0;
-                    for (x, y) in a.iter().zip(&b) {
+                    for (x, y) in a.iter().zip(b) {
                         n += differences(name, x, y, &mut found);
                     }
                     if n > 0 {
@@ -262,10 +268,10 @@ fn main() {
     let args = Args::from_env(&[("I", "INPUT"), ("BPM", "ILLUMINA_BEAD_POOL_MANIFEST_FILE")]);
     let inputs = args.collection("INPUT", &[]);
     let bpm_path = args.required("ILLUMINA_BEAD_POOL_MANIFEST_FILE");
-    let read = |p: &str| std::fs::read(p).unwrap_or_else(|_| file_error());
-    let bpm = Bpm::parse(&read(&bpm_path)).unwrap_or_else(|_| file_error());
+    let open = |p: &str| Reader::open(p).unwrap_or_else(|_| file_error());
+    let bpm = Bpm::parse(&mut open(&bpm_path)).unwrap_or_else(|_| file_error());
     let parse = |p: &str| -> Gtc {
-        match Gtc::parse(&read(p), &bpm) {
+        match Gtc::parse(&mut open(p), &bpm) {
             Ok(g) => g,
             Err(ReadError::Io(_)) | Err(ReadError::Picard(_)) => file_error(),
         }
