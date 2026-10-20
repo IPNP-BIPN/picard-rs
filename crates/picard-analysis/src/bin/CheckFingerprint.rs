@@ -14,13 +14,22 @@
 
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use picard_analysis::fingerprint::{
-    calculate_match_results, fingerprint_sam_file, java_compare, load_vcf_fingerprints,
+    calculate_match_results, fingerprint_sam_input, java_compare, load_vcf_fingerprints,
     Fingerprint, HaplotypeMap, MatchResults, Probs, SamOptions, SharedRandom,
 };
 use picard_analysis::metrics_cli::{refuse_validation, thrown, Args};
 use picard_analysis::theoretical_sensitivity::JavaRandom;
+use picard_analysis::vcf_io::VcfReader;
 
 const TOOL: &str = "CheckFingerprint";
+
+/// Throw `exception`, unless the rest of the VCF fails to read, which the whole-file read threw first.
+fn refuse(vcf: &mut VcfReader, exception: &str) -> ! {
+    if let Err(e) = vcf.check() {
+        thrown(&e);
+    }
+    thrown(exception)
+}
 
 struct Row {
     class: &'static str,
@@ -195,8 +204,11 @@ fn main() {
     let map = HaplotypeMap::load(&map_path).unwrap_or_else(|e| thrown(&e));
 
     // `extractObservedSampleName`.
+    let mut sam = None;
     let observed_sample: Option<String> = if reads {
-        let (header, _) = picard_analysis::metrics_cli::read_input(&input);
+        let opened = picard_analysis::metrics_cli::open_input(&input);
+        let header = opened.header.clone();
+        sam = Some(opened);
         let mut observed: Option<String> = None;
         for rg in &header.read_groups {
             let sample = rg.attributes.get("SM").map(str::to_string);
@@ -210,17 +222,20 @@ fn main() {
         }
         observed
     } else {
-        let vcf = picard_analysis::vcf_io::read_path(&input).unwrap_or_else(|e| thrown(&e));
-        let samples = &vcf.file.header.samples;
+        let mut vcf = VcfReader::open(&input).unwrap_or_else(|e| thrown(&e));
+        let samples = vcf.file.header.samples.clone();
         if samples.is_empty() {
-            thrown("picard.PicardException: inputPath VCF file must contain at least one sample.");
+            refuse(
+                &mut vcf,
+                "picard.PicardException: inputPath VCF file must contain at least one sample.",
+            );
         }
         if samples.len() > 1 && observed_alias.is_none() {
-            thrown("picard.PicardException: inputPath VCF file contains multiple samples and yet the OBSERVED_SAMPLE_ALIAS parameter is not set.");
+            refuse(&mut vcf, "picard.PicardException: inputPath VCF file contains multiple samples and yet the OBSERVED_SAMPLE_ALIAS parameter is not set.");
         }
         let observed = observed_alias.clone().unwrap_or_else(|| samples[0].clone());
         if !samples.contains(&observed) {
-            thrown(&format!(
+            refuse(&mut vcf, &format!(
                 "picard.PicardException: inputPath VCF file does not contain OBSERVED_SAMPLE_ALIAS: {observed}"
             ));
         }
@@ -231,12 +246,14 @@ fn main() {
         .map(str::to_string)
         .or_else(|| observed_sample.clone());
 
-    let genotype_vcf =
-        picard_analysis::vcf_io::read_path(&genotypes).unwrap_or_else(|e| thrown(&e));
+    let mut genotype_vcf = VcfReader::open(&genotypes).unwrap_or_else(|e| thrown(&e));
     if !expected_sample
         .as_ref()
         .is_some_and(|s| genotype_vcf.file.header.samples.contains(s))
     {
+        if let Err(e) = genotype_vcf.check() {
+            thrown(&e);
+        }
         eprintln!(
             "WARN\t{TOOL}\tSample {} where fingerprint was expected not found in {genotypes}",
             expected_sample.as_deref().unwrap_or("null")
@@ -258,7 +275,8 @@ fn main() {
             strict,
             ..SamOptions::default()
         };
-        let by_group = fingerprint_sam_file(
+        let by_group = fingerprint_sam_input(
+            sam.take().expect("opened above"),
             &input,
             &map,
             &options,

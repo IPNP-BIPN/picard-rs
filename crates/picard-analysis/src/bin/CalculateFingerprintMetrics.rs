@@ -190,7 +190,7 @@ fn main() {
     let fps =
         fingerprint_files_concurrent(&inputs, &map, &SamOptions::default(), false, &mut random)
             .unwrap_or_else(|e| thrown(&e));
-    let merged = merge_by(&fps, by);
+    let merged = merge_by(fps, by);
     let mut file = MetricsFile::new();
     for header in picard_analysis::command_line::default_headers(TOOL) {
         file.add_header(&header);
