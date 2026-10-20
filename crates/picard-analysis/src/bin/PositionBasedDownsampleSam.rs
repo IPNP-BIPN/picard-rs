@@ -27,7 +27,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::output::install();
     // `READ_NAME_REGEX`, which a name has to match whole for its tile and position to be read.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
-        std::env::args()
+        picard_analysis::args::process()
+            .into_iter()
             .find_map(|a| a.strip_prefix("READ_NAME_REGEX=").map(str::to_string))
             .as_deref(),
     )
@@ -35,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Exception in thread \"main\" {thrown}");
         std::process::exit(1);
     });
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
         .ok_or("INPUT= is required")?;

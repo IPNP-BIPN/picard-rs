@@ -130,7 +130,7 @@ impl Distributors {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CollectInsertSizeMetrics");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
         .ok_or("INPUT= is required")?;
@@ -140,7 +140,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Optional since Picard 3.5.0, which refuses it only where there is no R.
     picard_analysis::metrics_cli::refuse_chart_without_r(
         "CollectInsertSizeMetrics",
-        arg(&args, "Histogram_FILE=").is_some() || arg(&args, "H=").is_some(),
+        arg(&args, "HISTOGRAM_FILE=").is_some() || arg(&args, "H=").is_some(),
     );
     let flag = |key: &str, default: bool| {
         arg(&args, key)

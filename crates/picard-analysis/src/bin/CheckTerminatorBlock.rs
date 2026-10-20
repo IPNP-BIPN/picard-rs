@@ -24,7 +24,10 @@ fn tail(path: &str) -> std::io::Result<Vec<u8>> {
 fn main() {
     picard_analysis::argument_check::check("CheckTerminatorBlock");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let args: Vec<String> = picard_analysis::args::process()
+        .into_iter()
+        .skip(1)
+        .collect();
     let input = args
         .iter()
         .find_map(|a| a.strip_prefix("INPUT=").or_else(|| a.strip_prefix("I=")))

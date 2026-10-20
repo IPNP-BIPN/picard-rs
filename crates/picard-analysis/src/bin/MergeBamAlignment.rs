@@ -2099,7 +2099,7 @@ impl CommandLine {
             ("UNMAP_CONTAM", "UNMAP_CONTAMINANT_READS"),
         ];
         let mut pairs = Vec::new();
-        for raw in std::env::args().skip(1) {
+        for raw in picard_analysis::args::process().into_iter().skip(1) {
             let raw = raw.trim_start_matches('-');
             if let Some((name, value)) = raw.split_once('=') {
                 let name = match name {

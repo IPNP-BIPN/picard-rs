@@ -29,7 +29,7 @@ use picard_analysis::bam_index_stats::{bam_index_stats_with_index, index_stats};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("BamIndexStats");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
         .ok_or("INPUT= is required")?;

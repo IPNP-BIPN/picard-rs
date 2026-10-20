@@ -65,7 +65,8 @@ pub struct Declared {
 /// Refuses the process's command line the way Picard would, or prints the help it asked for, and
 /// exits; returns when the tool should run. Every binary calls this first.
 pub fn check(tool: &str) {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    crate::args::set_tool(tool);
+    let args: Vec<String> = crate::args::process().into_iter().skip(1).collect();
     if let Some(answer) = answer(tool, &args) {
         print!("{}", answer.stdout);
         eprint!("{}", answer.stderr);
@@ -117,6 +118,16 @@ pub fn declared(tool: &str) -> Option<Declared> {
         }
     }
     found.then_some(declared)
+}
+
+/// The full name the legacy parser resolves `name` to for `tool`: a short name or the full name
+/// itself, upper-cased as the parser upper-cases it before the lookup.
+pub fn full_name(tool: &str, name: &str) -> Option<&'static str> {
+    gunzip(DECLARATIONS).lines().find_map(|line| {
+        let fields: Vec<&str> = line.splitn(4, '\t').collect();
+        (fields.len() == 4 && fields[0] == "legacy" && fields[1] == tool && fields[2] == name)
+            .then(|| fields[3])
+    })
 }
 
 /// One probe `CommandLineDump` ran, as the reference answered it.
