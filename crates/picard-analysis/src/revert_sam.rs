@@ -380,9 +380,9 @@ fn revert_record(rec: &mut BamRecord) {
 }
 
 /// `RevertSam.sanitize`: group the queryname-sorted records by name and keep only the groups that
-/// look like one template.
+/// look like one template, a group at a time as the records come.
 ///
-/// Returns the kept records and `(discarded, total)`. Three rules, in Picard's order:
+/// It counts `(discarded, total)` as it goes. Three rules, in Picard's order:
 ///
 /// * every read in the group must have as many qualities as bases, or the whole group goes;
 /// * a paired group must hold exactly one R1 and exactly one R2. With `KEEP_FIRST_DUPLICATE` a
@@ -392,27 +392,71 @@ fn revert_record(rec: &mut BamRecord) {
 ///
 /// The counting is what the discard fraction is computed from, so a group trimmed by
 /// `KEEP_FIRST_DUPLICATE` counts its dropped reads as discarded while still writing two.
-fn sanitize(records: Vec<BamRecord>, keep_first_duplicate: bool) -> (Vec<BamRecord>, u64, u64) {
-    let mut out = Vec::with_capacity(records.len());
-    let mut discarded: u64 = 0;
-    let mut total: u64 = 0;
+pub struct Sanitizer {
+    keep_first_duplicate: bool,
+    group: Vec<BamRecord>,
+    discarded: u64,
+    total: u64,
+}
 
-    let mut index = 0;
-    while index < records.len() {
-        let mut end = index + 1;
-        while end < records.len() && records[end].read_name == records[index].read_name {
-            end += 1;
+impl Sanitizer {
+    pub fn new(keep_first_duplicate: bool) -> Self {
+        Sanitizer {
+            keep_first_duplicate,
+            group: Vec::new(),
+            discarded: 0,
+            total: 0,
         }
-        let group = &records[index..end];
-        index = end;
-        total += group.len() as u64;
+    }
+
+    /// Takes the next record in query-name order; the group before it, now whole, goes to `emit`.
+    pub fn push<E>(
+        &mut self,
+        record: BamRecord,
+        emit: &mut impl FnMut(BamRecord) -> Result<(), E>,
+    ) -> Result<(), E> {
+        if self
+            .group
+            .first()
+            .is_some_and(|first| first.read_name != record.read_name)
+        {
+            self.flush(emit)?;
+        }
+        self.group.push(record);
+        Ok(())
+    }
+
+    /// Hands the last group to `emit`, and answers whether more than `max_discard_fraction` of the
+    /// records were discarded.
+    pub fn finish<E>(
+        mut self,
+        emit: &mut impl FnMut(BamRecord) -> Result<(), E>,
+        max_discard_fraction: f64,
+    ) -> Result<Option<RevertError>, E> {
+        self.flush(emit)?;
+        let fraction = if self.total == 0 {
+            0.0
+        } else {
+            self.discarded as f64 / self.total as f64
+        };
+        Ok(
+            (fraction > max_discard_fraction).then_some(RevertError::DiscardedTooMuch {
+                discarded: fraction,
+                max: max_discard_fraction,
+            }),
+        )
+    }
+
+    fn flush<E>(&mut self, emit: &mut impl FnMut(BamRecord) -> Result<(), E>) -> Result<(), E> {
+        let group = std::mem::take(&mut self.group);
+        self.total += group.len() as u64;
 
         if group
             .iter()
             .any(|rec| rec.read_bases.len() != rec.base_qualities.len())
         {
-            discarded += group.len() as u64;
-            continue;
+            self.discarded += group.len() as u64;
+            return Ok(());
         }
 
         let mut firsts = 0;
@@ -435,53 +479,39 @@ fn sanitize(records: Vec<BamRecord>, keep_first_duplicate: bool) -> (Vec<BamReco
             }
         }
 
-        let kept: Vec<&BamRecord> = if firsts > 0 || seconds > 0 {
+        let kept: Vec<usize> = if firsts > 0 || seconds > 0 {
             if firsts == 1 && seconds == 1 {
-                group.iter().collect()
-            } else if keep_first_duplicate && firsts >= 1 && seconds >= 1 {
-                discarded += group.len() as u64 - 2;
-                vec![
-                    &group[first_record.unwrap()],
-                    &group[second_record.unwrap()],
-                ]
+                (0..group.len()).collect()
+            } else if self.keep_first_duplicate && firsts >= 1 && seconds >= 1 {
+                self.discarded += group.len() as u64 - 2;
+                vec![first_record.unwrap(), second_record.unwrap()]
             } else {
-                discarded += group.len() as u64;
-                continue;
+                self.discarded += group.len() as u64;
+                return Ok(());
             }
         } else if unpaired > 1 {
-            if keep_first_duplicate {
-                discarded += group.len() as u64 - 1;
-                vec![&group[unpaired_record.unwrap()]]
+            if self.keep_first_duplicate {
+                self.discarded += group.len() as u64 - 1;
+                vec![unpaired_record.unwrap()]
             } else {
-                discarded += group.len() as u64;
-                continue;
+                self.discarded += group.len() as u64;
+                return Ok(());
             }
         } else {
-            group.iter().collect()
+            (0..group.len()).collect()
         };
 
-        out.extend(kept.into_iter().cloned());
+        let mut group: Vec<Option<BamRecord>> = group.into_iter().map(Some).collect();
+        for index in kept {
+            emit(group[index].take().expect("each record kept once"))?;
+        }
+        Ok(())
     }
-
-    (out, discarded, total)
 }
 
-/// What a run produced: the output, and the refusal if there was one.
-///
-/// A `Result` would be the wrong shape here, because the discard-fraction refusal does not
-/// replace the output. Picard closes the writer and throws afterwards, so the file exists and the
-/// run still fails, and a caller that wrote nothing on the error would differ from the reference
-/// on the bytes as well as on the message.
-pub struct Reverted {
-    pub header: SamHeader,
-    pub records: Vec<BamRecord>,
-    pub error: Option<RevertError>,
-}
-
-/// `RevertSam.doWork` up to the write, with the tool's arguments.
-pub fn revert_with(header: &SamHeader, records: Vec<BamRecord>, options: &Options) -> Reverted {
-    // createOutHeader: a fresh header carrying the sort order; the dictionary and the @PG records
-    // survive only when the alignment is kept. The read groups are added afterwards, always.
+/// `createOutHeader`: a fresh header carrying the sort order; the dictionary and the @PG records
+/// survive only when the alignment is kept. The read groups are added afterwards, always.
+pub fn revert_header(header: &SamHeader, options: &Options) -> SamHeader {
     let mut out_header = SamHeader::new();
     out_header.set_sort_order(options.sort_order.name());
     if !options.remove_alignment_information {
@@ -489,57 +519,38 @@ pub fn revert_with(header: &SamHeader, records: Vec<BamRecord>, options: &Option
         out_header.programs = header.programs.clone();
     }
     out_header.read_groups = header.read_groups.clone();
-
-    // "Weed out non-primary and supplemental read as we don't want duplicates in the reverted
-    // file": the drop happens before the revert, so a secondary record never reaches the output
-    // however the flags would have been cleared.
-    let mut records: Vec<BamRecord> = records
-        .into_iter()
-        .filter(|rec| rec.flags & (SECONDARY_ALIGNMENT | SUPPLEMENTARY_ALIGNMENT) == 0)
-        .collect();
-    records
-        .par_iter_mut()
-        .for_each(|rec| revert_record_with(rec, options));
-
-    // isPresorted: the writer sorts unless the input already carries the order asked for, or the
-    // sanitizer has just produced it.
-    let presorted = header.attributes.get("SO") == Some(options.sort_order.name())
-        || (options.sort_order == SortOrder::Queryname && options.sanitize);
-
-    if options.sanitize {
-        // The sorting collection the sanitizer reads from is queryname-ordered, and SANITIZE is
-        // refused for any other order, so this is the only sort it can be.
-        records.sort_by(query_name::compare);
-        let (kept, discarded, total) = sanitize(records, options.keep_first_duplicate);
-        let fraction = if total == 0 {
-            0.0
-        } else {
-            discarded as f64 / total as f64
-        };
-        let error =
-            (fraction > options.max_discard_fraction).then_some(RevertError::DiscardedTooMuch {
-                discarded: fraction,
-                max: options.max_discard_fraction,
-            });
-        return Reverted {
-            header: out_header,
-            records: kept,
-            error,
-        };
-    }
-
-    if !presorted {
-        match options.sort_order {
-            SortOrder::Queryname => records.sort_by(query_name::compare),
-            SortOrder::Coordinate => records.sort_by(coordinate::compare),
-        }
-    }
-    Reverted {
-        header: out_header,
-        records,
-        error: None,
-    }
+    out_header
 }
+
+/// "Weed out non-primary and supplemental read as we don't want duplicates in the reverted
+/// file": the drop happens before the revert, so a secondary record never reaches the output
+/// however the flags would have been cleared. Then the record is reverted.
+pub fn revert_primary(mut rec: BamRecord, options: &Options) -> Option<BamRecord> {
+    if rec.flags & (SECONDARY_ALIGNMENT | SUPPLEMENTARY_ALIGNMENT) != 0 {
+        return None;
+    }
+    revert_record_with(&mut rec, options);
+    Some(rec)
+}
+
+/// The order the reverted records are sorted in before they are written, or `None` when the
+/// writer takes them as they come. Sanitizing always sorts by query name, whatever the input
+/// says; otherwise the writer is presorted when the input is already in the output's order.
+pub fn sort_before_writing(header: &SamHeader, options: &Options) -> Option<RecordComparator> {
+    if options.sanitize {
+        return Some(query_name::compare);
+    }
+    if header.attributes.get("SO") == Some(options.sort_order.name()) {
+        return None;
+    }
+    Some(match options.sort_order {
+        SortOrder::Queryname => query_name::compare,
+        SortOrder::Coordinate => coordinate::compare,
+    })
+}
+
+/// A record comparator, as the sort orders expose one.
+pub type RecordComparator = fn(&BamRecord, &BamRecord) -> std::cmp::Ordering;
 
 /// `RevertSam.doWork` up to the write: the bare output header and the reverted, queryname-sorted
 /// records.

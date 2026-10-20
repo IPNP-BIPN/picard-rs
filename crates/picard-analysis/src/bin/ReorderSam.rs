@@ -15,14 +15,13 @@
 //! not carry a dictionary, so the `.dict` beside it is what is opened. Passing `ref.fasta` and
 //! reading `ref.dict` is not a shortcut here, it is the reference's own rule.
 
-use std::io::{Read, Write};
-
-use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::{read_sam_with, write_sam};
 use htsjdk_bam::text_parse::ValidationStringency;
 use picard_analysis::args::arg;
-use picard_analysis::reorder_sam::{reorder_records, Options};
+use picard_analysis::bam_stream::{Input, Records};
+use picard_analysis::reorder_sam::{reorder_header, reorder_record, Options};
+use picard_analysis::sort_sam::SortingCollection;
+use picard_analysis::stream_output::Output;
 
 fn flag(args: &[String], key: &str) -> bool {
     arg(args, key)
@@ -30,31 +29,15 @@ fn flag(args: &[String], key: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// A SAM or BAM input, whichever it turns out to be, as a header and its records. A BAM's records
-/// come decoded from their bytes, which an untouched record is written back from.
-fn read_input(path: &str) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::error::Error>> {
-    let mut raw = Vec::new();
-    std::fs::File::open(path)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok((header, records))
-    } else {
-        let text = String::from_utf8(raw)?;
-        Ok(read_sam_with(&text, ValidationStringency::Lenient).map_err(|e| format!("{e:?}"))?)
-    }
-}
-
-/// The text of a SAM or BAM input, for a dictionary read from one.
+/// The text of a SAM or BAM input's header, for a dictionary read from one. Its records are read
+/// through and checked as the whole text was, and none is kept.
 fn read_as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let (header, records) = read_input(path)?;
-    Ok(write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?)
+    let (header, records) = Input::open_with(path, ValidationStringency::Lenient)?.into_parts();
+    for record in records {
+        picard_analysis::bam_stream::sam_line(&header, &record)
+            .ok_or("records failed to re-encode as SAM")?;
+    }
+    Ok(header.encode())
 }
 
 /// `SAMSequenceDictionaryExtractor.extractDictionary`: a FASTA's dictionary is the `.dict` file
@@ -90,26 +73,55 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         allow_contig_length_discordance: flag(&args, "ALLOW_CONTIG_LENGTH_DISCORDANCE="),
     };
 
-    let (header, records) = read_input(&input)?;
+    let opened = Input::open_with(&input, ValidationStringency::Lenient)?;
+    let streamed = opened.streams();
+    let (header, records) = opened.into_parts();
     let dict = read_dictionary(&dictionary)?;
-    let (out_header, records) =
-        reorder_records(header, records, &dict, &options).map_err(|e| format!("{e:?}"))?;
+    let (out_header, new_index, sort) =
+        reorder_header(header, &dict, &options).map_err(|e| format!("{e:?}"))?;
+    let reordered = |records: Records| {
+        records.map(|mut record| {
+            reorder_record(&mut record, &new_index);
+            record
+        })
+    };
 
-    // `SAMFileWriterFactory.makeWriter` decides by the output's name: `.sam` is text, anything
-    // else is a BAM, including the `output.txt` the arrays pass.
-    if output.ends_with(".sam") {
-        let sam = write_sam(&out_header, &records).ok_or("records failed to re-encode as SAM")?;
-        let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
-        out.write_all(sam.as_bytes())?;
-        out.flush()?;
-        return Ok(());
+    // `SAMFileWriterFactory.makeWriter` decides by the output's name: `.sam` is text, a CRAM name
+    // is CRAM, anything else is a BAM, including the `output.txt` the arrays pass.
+    let mut out = Output::create(&output, &out_header, false)?;
+    // The presorted=false writer re-sorts by the header's sort order, stably, so records already
+    // in that order are written as they come. One that is not starts the output again, sorted.
+    let mut previous: Option<BamRecord> = None;
+    let mut in_order = true;
+    for record in reordered(records) {
+        if let (Some(compare), Some(previous)) = (sort, &previous) {
+            if compare(previous, &record) == std::cmp::Ordering::Greater {
+                in_order = false;
+                break;
+            }
+        }
+        out.write(&record)?;
+        previous = Some(record);
     }
-    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &out_header)
-        .map_err(|e| format!("{e:?}"))?;
-    for record in &records {
-        writer.write(record).map_err(|e| format!("{e:?}"))?;
+    if !in_order {
+        drop(out);
+        let compare = sort.expect("only a sorting writer finds records out of order");
+        let mut sorting = SortingCollection::from_args(compare, &args)?;
+        let again = if streamed {
+            Input::reopen(&input, true)?
+        } else {
+            Input::open_with(&input, ValidationStringency::Lenient)?
+        };
+        for record in reordered(again.into_parts().1) {
+            sorting.add(record)?;
+        }
+        let sorted = sorting.into_sorted()?;
+        out = Output::create(&output, &out_header, false)?;
+        for record in sorted {
+            out.write(&record?)?;
+        }
     }
-    let bam = writer.finish().map_err(|e| format!("{e:?}"))?;
-    picard_analysis::cram_output::write(&output, bam)?;
+    // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
+    out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
     Ok(())
 }

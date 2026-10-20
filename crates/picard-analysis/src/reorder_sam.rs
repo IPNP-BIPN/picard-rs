@@ -137,7 +137,7 @@ fn new_order_index(old_index: i32, new_index: &[i32]) -> i32 {
 
 /// `ReorderSam.writeReads`' per-record update: remap the reference and mate reference indices, and
 /// turn a read (or its mate) unmapped when its contig has left the reference.
-fn reorder_record(rec: &mut BamRecord, new_index: &[i32]) {
+pub fn reorder_record(rec: &mut BamRecord, new_index: &[i32]) {
     let old_ref = rec.reference_index;
     let old_mate = rec.mate_reference_index;
 
@@ -163,7 +163,7 @@ fn reorder_record(rec: &mut BamRecord, new_index: &[i32]) {
 }
 
 /// A record comparator, as the sort orders expose one.
-type RecordComparator = fn(&BamRecord, &BamRecord) -> std::cmp::Ordering;
+pub type RecordComparator = fn(&BamRecord, &BamRecord) -> std::cmp::Ordering;
 
 /// The comparator the `presorted=false` writer would apply for the output header's sort order, or
 /// `None` for `unsorted` (write in input order). Errors on an order this port does not write.
@@ -197,27 +197,34 @@ pub fn reorder_records(
     dict_text: &str,
     opts: &Options,
 ) -> Result<(SamHeader, Vec<BamRecord>), ReorderError> {
-    let (dict_header, _) = read_sam(dict_text)?;
-    let reference = dict_header.sequences;
-
-    let new_index = build_new_index(&input_header.sequences, &reference, opts)?;
-
-    // outHeader = in.getFileHeader().clone(); outHeader.setSequenceDictionary(outputDictionary).
-    let mut out_header = input_header.clone();
-    out_header.sequences = reference;
-
+    let (out_header, new_index, sort) = reorder_header(input_header, dict_text, opts)?;
     // The remap is independent per record and order-preserving (decision 0006).
     records
         .par_iter_mut()
         .for_each(|rec| reorder_record(rec, &new_index));
-
     // The presorted=false writer re-sorts by the header's sort order; a stable sort keeps records
     // that compare equal in input order (decision 0021).
-    if let Some(cmp) = writer_sort(&out_header)? {
+    if let Some(cmp) = sort {
         records.sort_by(cmp);
     }
-
     Ok((out_header, records))
+}
+
+/// [`reorder_records`] before any record: the output header, the new index of each input
+/// reference ([`reorder_record`]'s map), and the order the writer sorts in, if any.
+pub fn reorder_header(
+    input_header: SamHeader,
+    dict_text: &str,
+    opts: &Options,
+) -> Result<(SamHeader, Vec<i32>, Option<RecordComparator>), ReorderError> {
+    let (dict_header, _) = read_sam(dict_text)?;
+    let reference = dict_header.sequences;
+    let new_index = build_new_index(&input_header.sequences, &reference, opts)?;
+    // outHeader = in.getFileHeader().clone(); outHeader.setSequenceDictionary(outputDictionary).
+    let mut out_header = input_header;
+    out_header.sequences = reference;
+    let sort = writer_sort(&out_header)?;
+    Ok((out_header, new_index, sort))
 }
 
 /// `ReorderSam.doWork` for SAM input and output. `dict_text` is the `SEQUENCE_DICTIONARY` file (a
