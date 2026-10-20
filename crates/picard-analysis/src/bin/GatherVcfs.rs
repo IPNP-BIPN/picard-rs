@@ -29,28 +29,22 @@ use htsjdk_vcf::variant::VariantContext;
 use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
     add_other_meta_data_line, assert_same_dictionary, die, header_dictionary, is_compressed_vcf,
-    java_compare, log_error, thrown, unroll_paths, Record, VcfReader, VcfWriter,
+    java_compare, log_error, thrown, unroll_paths, Record, VcfReader, VcfWriter, WriteError,
 };
 
-/// One input read through once: its header and its first and last records, which are all the
-/// checks look at. The records are written by reading the file again.
+/// One input as `assertSameSamplesAndValidOrdering` opens it: its header and its first record. The
+/// records are read, and their failures met, as `gatherConventionally` writes them.
 struct Scanned {
     file: VcfFile,
     first: Option<Record>,
-    last: Option<Record>,
 }
 
-/// `new VCFFileReader(path, false)` and every record read, or the exception that read gave.
+/// `new VCFFileReader(path, false)` and its first record, or the exception that read gave.
 fn scan(path: &str) -> Result<Scanned, String> {
     let mut reader = VcfReader::open(path)?;
     let first = reader.try_next().transpose()?;
-    let mut last = None;
-    while let Some(record) = reader.try_next() {
-        last = Some(record?);
-    }
     Ok(Scanned {
         file: reader.file,
-        last: last.or_else(|| first.clone()),
         first,
     })
 }
@@ -196,12 +190,19 @@ fn assert_same_samples_and_valid_ordering(
     Ok(files)
 }
 
-/// `gatherConventionally`, up to the writing: the header, and the files in the order their records
-/// are written.
+/// `gatherConventionally`, up to the writing: the header, the comparator its order check uses, and
+/// the files in the order their records are written.
 fn gather_conventionally(
     files: Vec<(String, Scanned)>,
     comments: &[String],
-) -> Result<(htsjdk_vcf::header::VcfHeader, Vec<String>), Failure> {
+) -> Result<
+    (
+        htsjdk_vcf::header::VcfHeader,
+        VariantContextComparator,
+        Vec<String>,
+    ),
+    Failure,
+> {
     let mut header = files[0].1.file.header.clone();
     for comment in comments {
         add_other_meta_data_line(&mut header, "GatherVcfs.comment", comment);
@@ -214,34 +215,53 @@ fn gather_conventionally(
         .collect();
     let comparator = VariantContextComparator::from_header_lines(&contigs)
         .map_err(|e| Failure::Caught(format!("{}: {}", e.class(), e.message())))?;
+    Ok((
+        header,
+        comparator,
+        files.into_iter().map(|(path, _)| path).collect(),
+    ))
+}
 
-    let mut paths = Vec::with_capacity(files.len());
+/// `gatherConventionally`'s loop: each file's records written as they are read, the first checked
+/// against the last one written, as Picard does on the stream. A failure is the caught one: the
+/// caller logs it and deletes the output. A write error is the writer's, thrown as it was.
+fn write_conventionally(
+    writer: &mut VcfWriter,
+    comparator: &VariantContextComparator,
+    paths: &[String],
+) -> Result<Result<(), WriteError>, Failure> {
     let mut last: Option<Record> = None;
-    let mut last_file: Option<String> = None;
-    for (path, vcf) in files {
-        if let (Some(last_context), Some(first)) = (&last, &vcf.first) {
-            if compare(&comparator, &first.variant, &last_context.variant)? <= 0 {
+    let mut last_file: Option<&String> = None;
+    for path in paths {
+        // Opened once already, so a failure now is the file changing underneath.
+        let mut reader = VcfReader::open(path).unwrap_or_else(|exception| die(&exception));
+        let mut next = reader.try_next().transpose().map_err(Failure::Caught)?;
+        if let (Some(last_context), Some(first)) = (&last, &next) {
+            if compare(comparator, &first.variant, &last_context.variant)? <= 0 {
                 let (vc, lc) = (&first.variant, &last_context.variant);
                 return Err(Failure::Caught(format!(
                     "java.lang.IllegalArgumentException: First variant in file {} is at {}:{} but \
                      last variant in earlier file {} is at {}:{}",
-                    absolute(&path),
+                    absolute(path),
                     vc.contig,
                     vc.start,
-                    absolute(last_file.as_deref().unwrap_or_default()),
+                    absolute(last_file.map(String::as_str).unwrap_or_default()),
                     lc.contig,
                     lc.start
                 )));
             }
         }
-        if vcf.last.is_some() {
-            last = vcf.last;
+        while let Some(record) = next {
+            if let Err(error) = writer.add(&record).or_else(thrown) {
+                return Ok(Err(error));
+            }
+            last = Some(record);
+            next = reader.try_next().transpose().map_err(Failure::Caught)?;
         }
         // Set for every file, an empty one included.
-        last_file = Some(path.clone());
-        paths.push(path);
+        last_file = Some(path);
     }
-    Ok((header, paths))
+    Ok(Ok(()))
 }
 
 /// `IOUtil.hasBlockCompressedExtension`, and not `VCFFileReader.isBCF`: what `areAllBlockCompressed`
@@ -319,7 +339,11 @@ fn gather_with_block_copying(paths: &[String]) -> Result<Vec<u8>, Failure> {
 
 /// What the `try` block produced: records to write, or the bytes the block copy assembled.
 enum Gathered {
-    Conventionally(htsjdk_vcf::header::VcfHeader, Vec<String>),
+    Conventionally(
+        htsjdk_vcf::header::VcfHeader,
+        VariantContextComparator,
+        Vec<String>,
+    ),
     WithBlockCopying(Vec<u8>),
 }
 
@@ -389,8 +413,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .to_string(),
             ));
         }
-        let (header, paths) = gather_conventionally(files, &comments)?;
-        Ok(Gathered::Conventionally(header, paths))
+        let (header, comparator, paths) = gather_conventionally(files, &comments)?;
+        Ok(Gathered::Conventionally(header, comparator, paths))
     })();
 
     match gathered {
@@ -398,7 +422,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::fs::write(&output, bytes)?;
             Ok(())
         }
-        Ok(Gathered::Conventionally(header, paths)) => {
+        Ok(Gathered::Conventionally(header, comparator, paths)) => {
             let index_dictionary = if create_index {
                 sequence_dictionary.as_deref()
             } else {
@@ -407,23 +431,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut writer =
                 VcfWriter::create(&output, &header, index_dictionary, MissingFields::default())
                     .or_else(thrown)?;
-            for path in &paths {
-                // Read once already, so a failure now is the file changing underneath.
-                for record in VcfReader::open(path).unwrap_or_else(|exception| die(&exception)) {
-                    writer.add(&record).or_else(thrown)?;
+            match write_conventionally(&mut writer, &comparator, &paths) {
+                Ok(Ok(())) => writer.finish().or_else(thrown)?,
+                Ok(Err(error)) => return Err(error.into()),
+                Err(failure) => {
+                    drop(writer);
+                    fail(failure, &output);
                 }
             }
-            writer.finish().or_else(thrown)?;
             Ok(())
         }
-        Err(Failure::Caught(exception)) => {
+        Err(failure) => fail(failure, &output),
+    }
+}
+
+/// The `catch`: a caught exception is logged and the output deleted, exit status 1; an escaped one
+/// is thrown out of `doWork`.
+fn fail(failure: Failure, output: &str) -> ! {
+    match failure {
+        Failure::Caught(exception) => {
             log_error(
                 "GatherVcfs",
                 &format!("There was a problem with gathering the INPUT.{exception}"),
             );
-            let _ = std::fs::remove_file(&output);
+            let _ = std::fs::remove_file(output);
             std::process::exit(1);
         }
-        Err(Failure::Escaped(exception)) => die(&exception),
+        Failure::Escaped(exception) => die(&exception),
     }
 }
