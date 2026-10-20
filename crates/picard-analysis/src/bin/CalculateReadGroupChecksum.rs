@@ -35,19 +35,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "O="))
         .unwrap_or_else(|| format!("{input}.read_group_md5"));
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let read_groups = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        reader.header.text.read_groups.clone()
-    } else {
-        let text = String::from_utf8(raw)?;
-        let (header, _) =
-            read_sam_with(&text, ValidationStringency::Lenient).map_err(|e| format!("{e:?}"))?;
-        header.read_groups
+    let read_groups = match picard_analysis::bam_stream::clean_header(&input) {
+        Some(header) => header.read_groups,
+        None => {
+            let mut raw = Vec::new();
+            std::fs::File::open(&input)?.read_to_end(&mut raw)?;
+            let raw = picard_analysis::cram_input::uncram(raw);
+            if raw.starts_with(&[0x1f, 0x8b]) {
+                let plain =
+                    picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
+                let reader = picard_analysis::record_validation::reader(&plain)
+                    .map_err(|e| format!("{e:?}"))?;
+                reader.header.text.read_groups.clone()
+            } else {
+                let text = String::from_utf8(raw)?;
+                let (header, _) = read_sam_with(&text, ValidationStringency::Lenient)
+                    .map_err(|e| format!("{e:?}"))?;
+                header.read_groups
+            }
+        }
     };
 
     let digest = calculate_read_group_record_checksum(&read_groups);

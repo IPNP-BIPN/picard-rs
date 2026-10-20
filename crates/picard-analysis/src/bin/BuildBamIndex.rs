@@ -38,14 +38,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
 
+    // shortcut: the compressed file is held for `build_bam_index`'s slice API (the records are
+    // inflated a block at a time); stream it once htsjdk-rs takes a reader.
     let raw = std::fs::read(&input)?;
     if !raw.starts_with(&[0x1f, 0x8b]) {
         refuse("Input file must be bam file, not sam file.");
     }
-    let plain = picard_analysis::bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
-    let reader =
-        picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-    if reader.header.text.attributes.get("SO") != Some("coordinate") {
+    let header = match picard_analysis::bam_stream::clean_header(&input) {
+        Some(header) => header,
+        None => {
+            let plain =
+                picard_analysis::bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
+            let reader =
+                picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
+            reader.header.text.clone()
+        }
+    };
+    if header.attributes.get("SO") != Some("coordinate") {
         refuse("Input bam file must be sorted by coordinate");
     }
     let bai = build_bam_index(&raw).map_err(|e| format!("{e:?}"))?;
