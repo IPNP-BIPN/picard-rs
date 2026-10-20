@@ -180,7 +180,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `createUri`: the argument when given, else the reference's own absolute `file:` URI.
     let uri = match arg(&args, "URI=") {
         Some(uri) => uri,
-        None => format!("file:{}", std::fs::canonicalize(&reference)?.display()),
+        // `getHtsPath().getURIString()`: the path made absolute against the working directory, its
+        // links left as they are, as a `file://` URI.
+        // shortcut: the URI is not percent-encoded; encode it once a path with a space matters.
+        None => {
+            std::fs::metadata(&reference)?;
+            format!("file://{}", std::path::absolute(&reference)?.display())
+        }
     };
 
     if !truncate {

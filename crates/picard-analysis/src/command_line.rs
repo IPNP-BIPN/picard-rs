@@ -377,6 +377,55 @@ fn local_time(seconds: i64) -> LocalTime {
     }
 }
 
+/// `Iso8601Date.toString()`, `yyyy-MM-dd'T'HH:mm:ssZ` in the default zone: the local wall time
+/// and its offset from UTC (`+0200`).
+pub fn java_iso8601(seconds: i64) -> String {
+    // SAFETY: `localtime_r` writes only into the `tm` it is given.
+    let (tm, ok) = unsafe {
+        let time: libc::time_t = seconds as libc::time_t;
+        let mut tm: libc::tm = std::mem::zeroed();
+        let ok = !libc::localtime_r(&time, &mut tm).is_null();
+        (tm, ok)
+    };
+    let (local, offset) = if ok {
+        (local_time(seconds), tm.tm_gmtoff)
+    } else {
+        (utc(seconds), 0)
+    };
+    let sign = if offset < 0 { '-' } else { '+' };
+    let offset = offset.abs();
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}{sign}{:02}{:02}",
+        local.year,
+        local.month + 1,
+        local.day,
+        local.hour,
+        local.minute,
+        local.second,
+        offset / 3600,
+        offset % 3600 / 60
+    )
+}
+
+/// The moment a wall time names in the default zone, as a `SimpleDateFormat` in that zone parses
+/// it: `month` is 1-based.
+/// shortcut: a wall time that a daylight-saving change skips or repeats is resolved by the C
+/// library's `mktime`, which may not pick the instant Java's calendar does.
+pub fn local_epoch(year: i64, month: i64, day: i64, hour: i64, minute: i64, second: i64) -> i64 {
+    // SAFETY: `mktime` reads and normalizes only the `tm` it is given.
+    unsafe {
+        let mut tm: libc::tm = std::mem::zeroed();
+        tm.tm_year = (year - 1900) as libc::c_int;
+        tm.tm_mon = (month - 1) as libc::c_int;
+        tm.tm_mday = day as libc::c_int;
+        tm.tm_hour = hour as libc::c_int;
+        tm.tm_min = minute as libc::c_int;
+        tm.tm_sec = second as libc::c_int;
+        tm.tm_isdst = -1;
+        libc::mktime(&mut tm) as i64
+    }
+}
+
 /// The same fields in UTC, for when the C library cannot say.
 fn utc(seconds: i64) -> LocalTime {
     let days = seconds.div_euclid(86_400);
