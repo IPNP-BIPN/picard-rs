@@ -289,3 +289,69 @@ fn the_refusals_are_the_reference_ones() {
     );
     assert!(marked(&text, "a-queryname-sorted-file.markduplicates").is_some());
 }
+
+/// A SAM line with 100 bases, every quality `quality`.
+fn line(name: &str, flags: u16, pos: i32, cigar: &str, mate: (&str, i32), quality: char) -> String {
+    format!(
+        "{name}\t{flags}\tchr1\t{pos}\t60\t{cigar}\t{}\t{}\t0\t{}\t{}",
+        mate.0,
+        mate.1,
+        "A".repeat(100),
+        quality.to_string().repeat(100)
+    )
+}
+
+fn duplicates(input: &[Record]) -> Vec<(String, u16)> {
+    let marking = mark_with_mate_cigar(input, SortOrder::Coordinate, &MateCigarOptions::default())
+        .expect("a coordinate-sorted file");
+    produced(input, &marking)
+}
+
+/// `ReadEndsForMateCigar.isPaired` is the paired FLAG: a read whose mate is unmapped, though placed,
+/// outranks an unpaired fragment at its 5' end whatever their scores. Both end at 314 on the reverse
+/// strand; Picard 3.5.0 marks the better-scoring fragment and keeps the paired read.
+#[test]
+fn a_read_with_an_unmapped_mate_is_paired_against_a_fragment() {
+    let input: Vec<Record> = [
+        line("fragment", 16, 215, "100M", ("*", 0), 'I'),
+        line("mate-unmapped", 123, 225, "40M10I50M", ("=", 425), '5'),
+    ]
+    .iter()
+    .map(|l| record(l))
+    .collect();
+    assert_eq!(
+        duplicates(&input),
+        [
+            ("fragment".to_string(), 16 | 0x400),
+            ("mate-unmapped".to_string(), 123)
+        ]
+    );
+}
+
+/// A secondary alignment is never marked, but its end drains the window as any mapped read's does:
+/// here its unclipped end, 18594, is more than the 200-base minimum distance past 18392, so the
+/// first fragment leaves the queue before the second, clipped to the same 5' start, arrives. Picard
+/// 3.5.0 marks neither; without the secondary in between, the two are duplicates.
+#[test]
+fn a_secondary_alignment_drains_the_window() {
+    let first = line("first", 0, 18392, "100M", ("*", 0), 'I');
+    let secondary = line("secondary", 272, 18395, "30M100N70M", ("*", 0), 'I');
+    let clipped = line("clipped", 0, 18402, "10S90M", ("*", 0), '5');
+    let with: Vec<Record> = [&first, &secondary, &clipped]
+        .iter()
+        .map(|l| record(l))
+        .collect();
+    assert_eq!(
+        duplicates(&with),
+        [
+            ("first".to_string(), 0),
+            ("secondary".to_string(), 272),
+            ("clipped".to_string(), 0)
+        ]
+    );
+    let without: Vec<Record> = [&first, &clipped].iter().map(|l| record(l)).collect();
+    assert_eq!(
+        duplicates(&without),
+        [("first".to_string(), 0), ("clipped".to_string(), 0x400)]
+    );
+}
