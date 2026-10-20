@@ -591,73 +591,104 @@ pub fn merge_sam_files_to_bam(
     Ok(w.finish().expect("finish never fails on a Vec"))
 }
 
-/// `MergingSamRecordIterator` over inputs already read: a `java.util.PriorityQueue` of the inputs
-/// keyed by each one's next record, polled one record at a time and offered back while it has
-/// more. The queue's sift order is reproduced rather than a stable sort, because two heads the
-/// comparator calls equal leave in the heap's order, not in file order.
+/// `MergingSamRecordIterator` over inputs already read; see [`PriorityMerge`].
 pub fn priority_merge(
     per_input: Vec<Vec<BamRecord>>,
     compare: fn(&BamRecord, &BamRecord) -> std::cmp::Ordering,
 ) -> Vec<BamRecord> {
-    use std::cmp::Ordering;
-    let total = per_input.iter().map(Vec::len).sum();
-    let mut rest: Vec<std::vec::IntoIter<BamRecord>> =
-        per_input.into_iter().map(Vec::into_iter).collect();
-    let mut heads: Vec<Option<BamRecord>> = rest.iter_mut().map(Iterator::next).collect();
-    let order = |heads: &[Option<BamRecord>], a: usize, b: usize| -> Ordering {
-        let head = |i: usize| heads[i].as_ref().expect("a queued input has a record");
-        compare(head(a), head(b))
-    };
-    // `offer`: siftUp.
-    let offer = |queue: &mut Vec<usize>, heads: &[Option<BamRecord>], x: usize| {
-        let mut k = queue.len();
-        queue.push(x);
+    PriorityMerge::new(per_input.into_iter().map(Vec::into_iter).collect(), compare).collect()
+}
+
+/// `MergingSamRecordIterator`: a `java.util.PriorityQueue` of the inputs keyed by each one's next
+/// record, polled one record at a time and offered back while it has more, holding one record per
+/// input. The queue's sift order is reproduced rather than a stable merge, because two heads the
+/// comparator calls equal leave in the heap's order, not in file order.
+pub struct PriorityMerge<I: Iterator<Item = BamRecord>> {
+    rest: Vec<I>,
+    heads: Vec<Option<BamRecord>>,
+    queue: Vec<usize>,
+    compare: fn(&BamRecord, &BamRecord) -> std::cmp::Ordering,
+}
+
+impl<I: Iterator<Item = BamRecord>> PriorityMerge<I> {
+    pub fn new(
+        mut rest: Vec<I>,
+        compare: fn(&BamRecord, &BamRecord) -> std::cmp::Ordering,
+    ) -> Self {
+        let heads = rest.iter_mut().map(Iterator::next).collect();
+        let mut merge = PriorityMerge {
+            queue: Vec::with_capacity(rest.len()),
+            rest,
+            heads,
+            compare,
+        };
+        for index in 0..merge.heads.len() {
+            if merge.heads[index].is_some() {
+                merge.offer(index);
+            }
+        }
+        merge
+    }
+
+    fn order(&self, a: usize, b: usize) -> std::cmp::Ordering {
+        let head = |i: usize| self.heads[i].as_ref().expect("a queued input has a record");
+        (self.compare)(head(a), head(b))
+    }
+
+    /// `offer`: siftUp.
+    fn offer(&mut self, x: usize) {
+        let mut k = self.queue.len();
+        self.queue.push(x);
         while k > 0 {
             let parent = (k - 1) >> 1;
-            let e = queue[parent];
-            if order(heads, x, e) != Ordering::Less {
+            let e = self.queue[parent];
+            if self.order(x, e) != std::cmp::Ordering::Less {
                 break;
             }
-            queue[k] = e;
+            self.queue[k] = e;
             k = parent;
         }
-        queue[k] = x;
-    };
-    let mut queue: Vec<usize> = Vec::with_capacity(heads.len());
-    for index in 0..heads.len() {
-        if heads[index].is_some() {
-            offer(&mut queue, &heads, index);
-        }
+        self.queue[k] = x;
     }
-    let mut out = Vec::with_capacity(total);
-    while !queue.is_empty() {
+}
+
+impl<I: Iterator<Item = BamRecord>> Iterator for PriorityMerge<I> {
+    type Item = BamRecord;
+
+    fn next(&mut self) -> Option<BamRecord> {
+        use std::cmp::Ordering;
+        if self.queue.is_empty() {
+            return None;
+        }
         // `poll`: the head leaves, and the last element sifts down from the root.
-        let head = queue[0];
-        let last = queue.pop().expect("the queue is not empty");
-        let n = queue.len();
+        let head = self.queue[0];
+        let last = self.queue.pop().expect("the queue is not empty");
+        let n = self.queue.len();
         if n > 0 {
             let mut k = 0;
             while k < n >> 1 {
                 let mut child = 2 * k + 1;
                 let right = child + 1;
-                if right < n && order(&heads, queue[child], queue[right]) == Ordering::Greater {
+                if right < n
+                    && self.order(self.queue[child], self.queue[right]) == Ordering::Greater
+                {
                     child = right;
                 }
-                if order(&heads, last, queue[child]) != Ordering::Greater {
+                if self.order(last, self.queue[child]) != Ordering::Greater {
                     break;
                 }
-                queue[k] = queue[child];
+                self.queue[k] = self.queue[child];
                 k = child;
             }
-            queue[k] = last;
+            self.queue[k] = last;
         }
-        let next = rest[head].next();
-        out.push(std::mem::replace(&mut heads[head], next).expect("a queued input has a record"));
-        if heads[head].is_some() {
-            offer(&mut queue, &heads, head);
+        let next = self.rest[head].next();
+        let record = std::mem::replace(&mut self.heads[head], next);
+        if self.heads[head].is_some() {
+            self.offer(head);
         }
+        record
     }
-    out
 }
 
 /// What `MergingSamRecordIterator` hands out for each input after `SamFileHeaderMerger` has merged

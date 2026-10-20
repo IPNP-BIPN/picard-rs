@@ -188,6 +188,24 @@ impl Outputs {
         }
     }
 
+    /// Leaves every file as the reference's unclosed writers leave it when the tool throws: a
+    /// text FASTQ holds only the whole buffers its `BufferedOutputStream` flushed.
+    /// shortcut: a gzip FASTQ is closed as it is; cut it at its deflater's flushes once a
+    /// compressed output that throws matters.
+    pub fn abandon_unclosed(self) {
+        for (path, sink) in self.files {
+            crate::stream_output::untrack(&path);
+            if let Sink::Text(out) = sink {
+                if let Ok(file) = out.into_inner() {
+                    if let Ok(len) = file.metadata().map(|m| m.len()) {
+                        let buffer = crate::java_writer::BUFFER_SIZE as u64;
+                        let _ = file.set_len(len / buffer * buffer);
+                    }
+                }
+            }
+        }
+    }
+
     /// Closes every file in the order they were built. The whole-file writer wrote them in that
     /// order and stopped at the first that failed, so that one is the error and the files after
     /// it are not left.
@@ -841,6 +859,12 @@ pub fn main_with(with_tags: bool) -> ! {
         }
     };
     let (outputs, result) = run(&header, records, &opts, stringency == "STRICT");
+    // The reference throws out of writers it never closes.
+    if let Err(thrown) = &result {
+        outputs.abandon_unclosed();
+        eprintln!("Exception in thread \"main\" {thrown}");
+        std::process::exit(1);
+    }
     if let Err(failed) = outputs.finish() {
         eprintln!("{failed}");
         std::process::exit(1);

@@ -215,6 +215,9 @@ fn main() {
                 .1
                 .nth(index)
                 .expect("the record read the first time");
+            // `makeWriter` opened the output before the first record was read, and the throw
+            // leaves it as it is, empty.
+            let _ = std::fs::File::create(&output);
             thrown(&format!(
                 "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found: {}",
                 picard_analysis::view_sam::sam_string(&header, &named)
@@ -241,7 +244,8 @@ fn main() {
     let program_group =
         picard_analysis::command_line::ProgramGroup::of("UmiAwareMarkDuplicatesWithMateCigar");
     let molecular_identifier_tag = args.get("MOLECULAR_IDENTIFIER_TAG").map(tag_of);
-    let mut out = Output::bam(&output, &header, false).unwrap_or_else(|e| fail(&format!("{e:?}")));
+    // Opened before the first record, as `makeWriter` is, so a throw leaves it empty.
+    let mut out = Output::bam(&output, &header, true).unwrap_or_else(|e| fail(&format!("{e:?}")));
     for (index, mut written) in open(Some(streamed)).1.enumerate() {
         if base.remove_duplicates && result.duplicate[index] {
             continue;

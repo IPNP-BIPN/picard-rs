@@ -219,6 +219,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .expect("the record read the first time");
                 picard_analysis::view_sam::sam_string(&header, &record)
             });
+            // `makeWriter` opened the output before the first record was read, and the throw
+            // leaves it as it is, empty.
+            let _ = std::fs::File::create(&output);
             eprintln!(
                 "Exception in thread \"main\" {}: {}",
                 refusal.exception(),
@@ -239,7 +242,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let program_group =
         picard_analysis::command_line::ProgramGroup::of("SimpleMarkDuplicatesWithMateCigar");
-    let mut out = Output::bam(&output, &out_header, false)?;
+    // Opened before the first record, as `makeWriter` is, so a throw leaves it empty.
+    let mut out = Output::bam(&output, &out_header, true)?;
     for (index, mut written) in open(Some(streamed))?.1.enumerate() {
         if !marking.written[index] {
             continue;

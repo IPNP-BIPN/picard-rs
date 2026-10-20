@@ -266,11 +266,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `CREATE_INDEX` is accepted and writes nothing: an index needs a coordinate-sorted file, and
     // this tool refuses anything but queryname order as soon as it sees a paired read. htsjdk logs
     // that it is not creating one and writes the file anyway, which is a line on stderr rather
-    // than a difference in the answer. The output is a BAM whatever its name, and nothing is left
-    // of it when the run throws.
+    // than a difference in the answer. The output is a BAM whatever its name, opened before the
+    // first record as `makeWriter` opens it, so a run that throws leaves it empty.
     let mut out = output
         .as_deref()
-        .map(|output| picard_analysis::stream_output::Output::bam(output, &header, false))
+        .map(|output| picard_analysis::stream_output::Output::bam(output, &header, true))
         .transpose()?;
     // `histo.increment(r.getReadLength() - clip + 1)`: the bases a read would lose if it were
     // clipped at the tag, counted for every marked record and for no other.

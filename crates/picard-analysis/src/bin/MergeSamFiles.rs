@@ -42,7 +42,7 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::text_parse::ValidationStringency;
 use picard_analysis::args::arg;
-use picard_analysis::merge_sam_files::{merge_headers, merge_parsed};
+use picard_analysis::merge_sam_files::{merge_headers, merge_parsed, PriorityMerge};
 use picard_analysis::sort_sam::{
     mate_cigar_refusal_in_order, MateCigarCheck, RequestedOrder, SortOrder,
 };
@@ -284,7 +284,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter_map(|a| a.strip_prefix("COMMENT=").or_else(|| a.strip_prefix("CO=")))
         .map(|comment| format!("@CO\t{comment}"))
         .collect();
-    // A presorted writer keeps the merge order, which is each input in turn: written as read.
+    // A presorted writer keeps the merge order: `MergingSamRecordIterator` interleaves the inputs
+    // by the order's comparator, and for `unsorted` by object identity, which no run reproduces,
+    // so those are written each input in turn.
     if presorted && sort_order != "duplicate" {
         let headers: Vec<SamHeader> = opened.iter().map(|(_, h)| h.clone()).collect();
         let (mut header, remaps) = merge_headers(&headers, &sort_order, merge_dictionaries)
@@ -292,10 +294,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // `header.addComment(comment)` for every COMMENT, after the inputs' own comments.
         header.comments.extend(comments);
         let mut out = Output::create(&output, &header, false)?;
-        for (index, remap) in remaps.iter().enumerate() {
-            for mut record in records_of(index)? {
-                remap.apply(&mut record);
-                out.write(&record)?;
+        let compare: Option<fn(&BamRecord, &BamRecord) -> std::cmp::Ordering> =
+            match sort_order.as_str() {
+                "coordinate" => Some(htsjdk_bam::coordinate::compare),
+                "queryname" => Some(htsjdk_bam::query_name::compare),
+                _ => None,
+            };
+        match compare {
+            Some(compare) => {
+                // shortcut: records are compared after their reference indices are remapped to the
+                // merged dictionary, where htsjdk's merged-dictionary comparator also places an
+                // unmapped read by its mate's contig; compare through the mapping if that matters.
+                let streams = remaps
+                    .iter()
+                    .enumerate()
+                    .map(|(index, remap)| {
+                        Ok(records_of(index)?.map(move |mut record| {
+                            remap.apply(&mut record);
+                            record
+                        }))
+                    })
+                    .collect::<Result<Vec<_>, String>>()?;
+                for record in PriorityMerge::new(streams, compare) {
+                    out.write(&record)?;
+                }
+            }
+            None => {
+                for (index, remap) in remaps.iter().enumerate() {
+                    for mut record in records_of(index)? {
+                        remap.apply(&mut record);
+                        out.write(&record)?;
+                    }
+                }
             }
         }
         let coordinate = header.attributes.get("SO") == Some("coordinate");
