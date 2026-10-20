@@ -276,7 +276,10 @@ impl Converter {
 }
 
 /// A tile's files, per lane that has it: [`Converter::load`].
-pub struct Loaded(Vec<(i32, Tile, Option<Vec<Option<String>>>)>);
+pub struct Loaded(Vec<(i32, Tile, Option<Barcodes>)>);
+
+/// A per-tile barcode file: per cluster, the barcode it matched.
+type Barcodes = Vec<Option<String>>;
 
 /// Where a cluster is in a [`Loaded`] tile: the lane's part and the cluster's index.
 #[derive(Clone, Copy)]
