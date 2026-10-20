@@ -70,6 +70,7 @@ pub mod extract_fingerprint;
 pub mod extract_illumina_barcodes;
 pub mod extract_run;
 pub mod extract_sequences;
+pub mod fasta_records;
 pub mod fastq_to_sam;
 pub mod fifo_buffer;
 pub mod filter_sam_reads;

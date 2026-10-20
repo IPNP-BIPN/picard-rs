@@ -10,12 +10,12 @@
 
 use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{die, header_dictionary, VcfReader};
-use picard_analysis::vcf_to_interval_list::{merge_intervals, render, to_intervals, Site};
+use picard_analysis::vcf_to_interval_list::{push_interval, render_header, Merger, Site};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("VcfToIntervalList");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
         .ok_or("INPUT= is required")?;
@@ -46,28 +46,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     };
 
-    let sites: Vec<Site> = vcf
-        .map(|record| {
-            let variant = &record.variant;
-            // `getCommonInfo().getAttributeAsInt(END, getEnd())`.
-            let end = variant
-                .attributes
-                .iter()
-                .find(|(key, _)| key == "END")
-                .and_then(|(_, value)| value.format())
-                .and_then(|text| text.parse().ok())
-                .unwrap_or(variant.stop);
-            Site {
-                contig: variant.contig.clone(),
-                start: variant.start,
-                end,
-                id: variant.id.clone(),
-                filtered: variant.is_filtered(),
-            }
-        })
-        .collect();
-
-    let intervals = merge_intervals(&to_intervals(&sites, include_filtered), concatenate_ids);
-    std::fs::write(&output, render(&dictionary, &intervals))?;
+    // The output is held as text, not written as it comes: a read failure exits before anything
+    // is written, as the whole-file read did. The sites and intervals are never held.
+    let mut out = render_header(&dictionary);
+    let mut merger = Merger::new(include_filtered, concatenate_ids);
+    for record in vcf {
+        let variant = &record.variant;
+        // `getCommonInfo().getAttributeAsInt(END, getEnd())`.
+        let end = variant
+            .attributes
+            .iter()
+            .find(|(key, _)| key == "END")
+            .and_then(|(_, value)| value.format())
+            .and_then(|text| text.parse().ok())
+            .unwrap_or(variant.stop);
+        let site = Site {
+            contig: variant.contig.clone(),
+            start: variant.start,
+            end,
+            id: variant.id.clone(),
+            filtered: variant.is_filtered(),
+        };
+        if let Some(interval) = merger.push(site) {
+            push_interval(&mut out, &interval);
+        }
+    }
+    if let Some(interval) = merger.finish() {
+        push_interval(&mut out, &interval);
+    }
+    std::fs::write(&output, out)?;
     Ok(())
 }

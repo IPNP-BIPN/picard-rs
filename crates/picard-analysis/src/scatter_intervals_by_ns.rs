@@ -20,8 +20,10 @@
 
 use std::collections::VecDeque;
 
-use htsjdk_bam::fasta::{read_fasta, FastaError};
+use crate::fasta_records::records;
+use htsjdk_bam::fasta::FastaError;
 use htsjdk_bam::interval::Interval;
+use std::io::Read;
 
 const NMER: &str = "Nmer";
 const ACGTMER: &str = "ACGTmer";
@@ -89,15 +91,14 @@ fn sq_lines(sequence_dictionary: &str) -> Vec<String> {
 /// `ScatterIntervalsByNs.doWork` over a reference FASTA and its dictionary, returning the interval
 /// list text.
 pub fn scatter_intervals_by_ns(
-    reference_fasta: &str,
+    reference_fasta: impl Read,
     sequence_dictionary: &str,
     opts: &Options,
 ) -> Result<String, FastaError> {
-    let contigs = read_fasta(reference_fasta.as_bytes())?;
-
     // Build the alternating N / ACGT runs across every contig, in dictionary (file) order.
     let mut preliminary: Vec<Interval> = Vec::new();
-    for contig in &contigs {
+    for contig in records(reference_fasta, true) {
+        let contig = contig?;
         let bases = &contig.bases;
         if bases.is_empty() {
             continue;
@@ -193,7 +194,7 @@ mod tests {
             max_to_merge: 1,
             ..Options::default()
         };
-        let out = scatter_intervals_by_ns(fasta, DICT, &opts).unwrap();
+        let out = scatter_intervals_by_ns(fasta.as_bytes(), DICT, &opts).unwrap();
         assert_eq!(
             out,
             format!(
@@ -207,7 +208,7 @@ mod tests {
     fn a_short_n_run_folds_its_flanking_acgt_runs_together() {
         // 4 ACGT, 1 N, 4 ACGT: the single N is <= MAX_TO_MERGE, so all nine bases become one ACGT.
         let fasta = ">chr1\nACGTNACGT\n";
-        let out = scatter_intervals_by_ns(fasta, DICT, &Options::default()).unwrap();
+        let out = scatter_intervals_by_ns(fasta.as_bytes(), DICT, &Options::default()).unwrap();
         assert_eq!(out, format!("{}chr1\t1\t9\t+\tACGTmer\n", header()));
     }
 
@@ -218,7 +219,7 @@ mod tests {
             output_type: OutputType::N,
             max_to_merge: 1,
         };
-        let out = scatter_intervals_by_ns(fasta, DICT, &opts).unwrap();
+        let out = scatter_intervals_by_ns(fasta.as_bytes(), DICT, &opts).unwrap();
         assert_eq!(out, format!("{}chr1\t5\t8\t+\tNmer\n", header()));
     }
 
@@ -229,7 +230,7 @@ mod tests {
             output_type: OutputType::N,
             max_to_merge: 1,
         };
-        let out = scatter_intervals_by_ns(fasta, DICT, &opts).unwrap();
+        let out = scatter_intervals_by_ns(fasta.as_bytes(), DICT, &opts).unwrap();
         assert_eq!(out, format!("{}chr1\t5\t8\t+\tNmer\n", header()));
     }
 }

@@ -63,8 +63,11 @@ struct End {
 }
 
 impl End {
+    /// `ReadEndsForMateCigar.isPaired`, which overrides `ReadEnds.isPaired` with the record's paired
+    /// FLAG: a read whose mate is unmapped is still paired here, and so outranks a fragment at its
+    /// position, where MarkDuplicates would compare the two as fragments.
     fn is_paired(&self) -> bool {
-        self.read2_reference_index != -1
+        self.paired
     }
 }
 
@@ -130,7 +133,20 @@ fn compare_ends(left: &End, right: &End, scoring: ScoringStrategy, records: &[Re
     if by_score != Ordering::Equal {
         return by_score;
     }
-    left.name.cmp(&right.name)
+    let by_name = left.name.cmp(&right.name);
+    if by_name != Ordering::Equal {
+        return by_name;
+    }
+    // Two ends of one paired read at one position: the first of the pair is preferred, so that it
+    // is the one optical duplicate detection sees.
+    if left.is_paired() && right.is_paired() {
+        return if left.first_of_pair {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        };
+    }
+    Ordering::Equal
 }
 
 /// A `TreeSet` under a comparator: a sorted vector whose keys are unique under that comparator, so
@@ -288,7 +304,7 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
         if skip[index] {
             continue;
         }
-        if record.unmapped() || record.secondary_or_supplementary() {
+        if record.unmapped() {
             // Not considered for duplicate marking at all; the queue never sees them.
             continue;
         }
@@ -322,6 +338,11 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
             reference_index,
         );
         reference_index = current.read1_reference_index;
+        // A secondary or supplementary alignment is never marked, but its end has just drained the
+        // window as any mapped record's does: only the queue is closed to it.
+        if record.secondary_or_supplementary() {
+            continue;
+        }
 
         add(
             &mut non_duplicate,

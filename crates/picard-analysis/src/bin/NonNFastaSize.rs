@@ -24,8 +24,8 @@
 
 use std::io::Write;
 
-use htsjdk_bam::fasta::read_fasta;
 use picard_analysis::args::arg;
+use picard_analysis::fasta_records::{records, unreadable};
 
 /// One interval of a Picard interval list: 1-based, inclusive, on the contig at `index` in the
 /// list's own dictionary (`None` for a contig the dictionary lacks).
@@ -63,7 +63,7 @@ fn read_intervals(path: &str) -> Result<Vec<Interval>, String> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("NonNFastaSize");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let input = arg(&args, "INPUT=")
         .or_else(|| arg(&args, "I="))
         .ok_or("INPUT= is required")?;
@@ -75,11 +75,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => None,
     };
 
-    let fasta = std::fs::read_to_string(&input)?;
-    let sequences = read_fasta(fasta.as_bytes()).map_err(|e| format!("{e:?}"))?;
-
     let mut non_n: u64 = 0;
-    for (contig_index, sequence) in sequences.iter().enumerate() {
+    let sequences = records(std::fs::File::open(&input)?, true);
+    for (contig_index, sequence) in sequences.enumerate() {
+        let sequence = sequence.map_err(|e| match unreadable(&input) {
+            Some(io) => Box::<dyn std::error::Error>::from(io),
+            None => format!("{e:?}").into(),
+        })?;
         // The mask is a union of bits, so overlapping intervals count a position once. Building it
         // per contig keeps that true without sorting or uniquing the list. It is keyed by INDEX:
         // `IntervalListReferenceSequenceMask` asks the list's own dictionary for an interval's

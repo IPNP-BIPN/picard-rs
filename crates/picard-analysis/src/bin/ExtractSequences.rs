@@ -12,7 +12,7 @@ use picard_analysis::extract_sequences::{extract_sequences_to, ExtractError, Opt
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("ExtractSequences");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let interval_list = arg(&args, "INTERVAL_LIST=").ok_or("INTERVAL_LIST= is required")?;
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))

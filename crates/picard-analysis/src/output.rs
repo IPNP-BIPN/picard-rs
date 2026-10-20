@@ -41,7 +41,7 @@ static SETTING: OnceLock<(u32, Deflater)> = OnceLock::new();
 /// Without `USE_JDK_DEFLATER=true` the deflater is Intel's GKL, which is Picard's default and
 /// therefore what an unchanged Picard command line writes; with it, libdeflate.
 pub fn install() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let args: Vec<String> = crate::args::process().into_iter().skip(1).collect();
     let _ = SETTING.set(setting(&args));
 }
 

@@ -30,7 +30,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::output::install();
     // `READ_NAME_REGEX`: `null` turns the locations, and with them the optical duplicates, off.
     let read_name_regex = picard_analysis::mark_duplicates::ReadNameRegex::from_arg(
-        std::env::args()
+        picard_analysis::args::process()
+            .into_iter()
             .find_map(|a| a.strip_prefix("READ_NAME_REGEX=").map(str::to_string))
             .as_deref(),
     )
@@ -38,7 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Exception in thread \"main\" {thrown}");
         std::process::exit(1);
     });
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let inputs = picard_analysis::args::inputs(&args)?;
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
@@ -74,7 +75,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or(100),
         parse_read_names: !read_name_regex.is_off(),
         read_name_regex,
-        max_optical_duplicate_set_size: std::env::args()
+        max_optical_duplicate_set_size: picard_analysis::args::process()
+            .into_iter()
             .find_map(|a| {
                 a.strip_prefix("MAX_OPTICAL_DUPLICATE_SET_SIZE=")
                     .and_then(|v| v.parse().ok())

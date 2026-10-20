@@ -12,7 +12,9 @@
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::args::arg;
-use picard_analysis::jumping_library::{collect_files, unsorted_message, Arguments, Pair};
+use picard_analysis::jumping_library::{
+    collect_files, main_pass_reaches, outward_pass_reaches, unsorted_message, Arguments, Pair,
+};
 
 const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
@@ -25,7 +27,7 @@ const DUPLICATE: u16 = 0x400;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CollectJumpingLibraryMetrics");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let inputs = picard_analysis::args::inputs(&args)?;
     let output = arg(&args, "OUTPUT=")
         .or_else(|| arg(&args, "O="))
@@ -48,13 +50,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Every file is read in order into one set of counters; the first that is not coordinate
-    // sorted is the refusal.
-    let files = inputs
+    let read = inputs
         .iter()
         .map(|input| pairs_of(input))
         .collect::<Result<Vec<_>, _>>()?;
-    let files: Vec<&[(Pair, bool)]> = files.iter().map(Vec::as_slice).collect();
+    // `getFirstOfPairFlag()` throws for a read that is not paired, and both passes ask it of every
+    // record they reach: `getOutieMode` over every file first, then the counting pass, file by
+    // file, after each one's sort order is checked.
+    let unpaired = || -> ! {
+        eprintln!(
+            "Exception in thread \"main\" java.lang.IllegalStateException: Inappropriate call if \
+             not paired read"
+        );
+        std::process::exit(1);
+    };
+    let per_file = picard_analysis::jumping_library::SAMPLE_FOR_MODE / read.len().max(1);
+    for file in &read {
+        if let Some(before) = file.unpaired_at {
+            if outward_pass_reaches(&file.pairs, before, per_file, &arguments) {
+                unpaired();
+            }
+        }
+    }
+    // Every file is read in order into one set of counters; the first that is not coordinate
+    // sorted is the refusal.
+    for file in &read {
+        if !file.sorted {
+            eprintln!(
+                "Exception in thread \"main\" picard.PicardException: {}",
+                unsorted_message(&file.name)
+            );
+            std::process::exit(1);
+        }
+        if file
+            .unpaired_at
+            .is_some_and(|before| main_pass_reaches(&file.pairs, before))
+        {
+            unpaired();
+        }
+    }
+    let files: Vec<&[(Pair, bool)]> = read.iter().map(|file| file.pairs.as_slice()).collect();
     let metrics = collect_files(&files, &arguments);
     let mut file = MetricsFile::new();
     for header in picard_analysis::command_line::default_headers("CollectJumpingLibraryMetrics") {
@@ -65,23 +100,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// One file's first ends, in file order, each with whether its mate lies to the right.
-fn pairs_of(input: &str) -> Result<Vec<(Pair, bool)>, Box<dyn std::error::Error>> {
+/// One file as the passes read it: its name and whether it is coordinate sorted, its first ends
+/// in file order, each with whether its mate lies to the right, and how many of them come before
+/// its first read that is not paired.
+struct FileReads {
+    name: String,
+    sorted: bool,
+    pairs: Vec<(Pair, bool)>,
+    unpaired_at: Option<usize>,
+}
+
+fn pairs_of(input: &str) -> Result<FileReads, Box<dyn std::error::Error>> {
     let (header, records) = picard_analysis::bam_stream::Input::open(input)?.into_parts();
-
-    if header.attributes.get("SO") != Some("coordinate") {
-        let name = input.rsplit('/').next().unwrap_or(input);
-        eprintln!(
-            "Exception in thread \"main\" picard.PicardException: {}",
-            unsorted_message(name)
-        );
-        std::process::exit(1);
-    }
-
+    let mut unpaired_at = None;
+    let mut first_ends = 0usize;
     // "We're getting all our info from the first of each pair."
-    Ok(records
+    let pairs = records
         .into_iter()
-        .filter(|rec| rec.flags & READ_PAIRED != 0 && rec.flags & FIRST_OF_PAIR != 0)
+        .filter(|rec| {
+            if rec.flags & READ_PAIRED == 0 {
+                unpaired_at.get_or_insert(first_ends);
+                return false;
+            }
+            let first = rec.flags & FIRST_OF_PAIR != 0;
+            first_ends += usize::from(first);
+            first
+        })
         .map(|rec| {
             let mate_quality = match rec.tags.get(Tag::new(b"MQ")) {
                 Some(TagValue::Int(value)) => Some(*value as i32),
@@ -118,5 +162,11 @@ fn pairs_of(input: &str) -> Result<Vec<(Pair, bool)>, Box<dyn std::error::Error>
             };
             (pair, mate_is_to_the_right)
         })
-        .collect())
+        .collect();
+    Ok(FileReads {
+        name: input.rsplit('/').next().unwrap_or(input).to_string(),
+        sorted: header.attributes.get("SO") == Some("coordinate"),
+        pairs,
+        unpaired_at,
+    })
 }

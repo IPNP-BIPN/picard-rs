@@ -14,7 +14,7 @@ use picard_analysis::args::arg;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("AccumulateQualityYieldMetrics");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let mut inputs: Vec<String> = args
         .iter()
         .filter_map(|a| a.strip_prefix("INPUT=").map(str::to_string))

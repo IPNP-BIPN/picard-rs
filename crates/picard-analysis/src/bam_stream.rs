@@ -56,6 +56,14 @@ impl From<InputError> for Box<dyn std::error::Error> {
         match e {
             InputError::Io(e) => e.into(),
             InputError::Utf8(e) => e.into(),
+            // The two a damaged BAM meets most, thrown as htsjdk throws them out of a reader that
+            // `SamReaderFactory` opened on a stream with no name.
+            InputError::Bgzf(BgzfError::PrematureEnd) => crate::metrics_cli::thrown(
+                "htsjdk.samtools.FileTruncatedException: Premature end of file: data stream",
+            ),
+            InputError::Bgzf(BgzfError::InvalidGzipHeader) => crate::metrics_cli::thrown(
+                "htsjdk.samtools.SAMFormatException: Invalid GZIP header",
+            ),
             InputError::Bgzf(e) => format!("{e:?}").into(),
             InputError::Bam(e) => format!("{e:?}").into(),
             InputError::Sam(e) => format!("{e:?}").into(),

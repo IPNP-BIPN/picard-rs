@@ -32,7 +32,7 @@ fn dictionary_path(reference: &str) -> String {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("ScatterIntervalsByNs");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let reference = arg(&args, "REFERENCE=")
         .or_else(|| arg(&args, "R="))
         .ok_or("REFERENCE= is required")?;
@@ -54,9 +54,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     };
 
-    let fasta = std::fs::read_to_string(&reference)?;
-    let dictionary = std::fs::read_to_string(dictionary_path(&reference))?;
-    let list = scatter_intervals_by_ns(&fasta, &dictionary, &opts).map_err(|e| format!("{e:?}"))?;
+    let fasta = std::fs::File::open(&reference)?;
+    // The whole-file read of the reference came first, so its error does too.
+    let dictionary = std::fs::read_to_string(dictionary_path(&reference))
+        .map_err(|e| picard_analysis::fasta_records::unreadable(&reference).unwrap_or(e))?;
+    let list = scatter_intervals_by_ns(fasta, &dictionary, &opts).map_err(|e| {
+        match picard_analysis::fasta_records::unreadable(&reference) {
+            Some(io) => Box::<dyn std::error::Error>::from(io),
+            None => format!("{e:?}").into(),
+        }
+    })?;
 
     let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
     out.write_all(list.as_bytes())?;

@@ -69,7 +69,7 @@ pub fn create_index_argument() -> bool {
 
 fn boolean_argument(prefix: &str) -> bool {
     let mut value = false;
-    for raw in std::env::args().skip(1) {
+    for raw in crate::args::process().into_iter().skip(1) {
         if let Some(v) = raw.trim_start_matches('-').strip_prefix(prefix) {
             value = v.eq_ignore_ascii_case("true");
         }

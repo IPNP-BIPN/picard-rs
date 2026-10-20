@@ -12,11 +12,12 @@
 //! `[Heading]` comes out as `[Heading],`.
 
 use picard_analysis::create_extended_illumina_manifest::{
-    process_snp, render_row, Extension, Flag, Record, Statistics, Strand, VERSION,
+    process_snp, render_row, Flag, Record, Statistics, Strand, VERSION,
 };
-use picard_analysis::infinium::Egt;
+use picard_analysis::infinium::{check_utf8, text_lines, Egt, Reader};
 use picard_analysis::metrics_cli::{refuse_validation, thrown, Args};
-use picard_analysis::vcf_io::read_path;
+use picard_analysis::vcf_io::VcfReader;
+use std::io::Write;
 
 const TOOL: &str = "CreateExtendedIlluminaManifest";
 
@@ -47,6 +48,48 @@ fn header_line(width: usize, fields: &[&str]) -> String {
         row.push("");
     }
     row.join(",")
+}
+
+/// The lines of a file [`check_utf8`] passed, without their closing `\r`s.
+fn lines(path: &str) -> impl Iterator<Item = String> {
+    text_lines(path)
+        .unwrap_or_else(|e| thrown(&format!("{e}")))
+        .map(|l| l.trim_end_matches('\r').to_string())
+}
+
+/// The assay rows: up to `count` of the lines after the `[Assay]` header, until one is not as
+/// wide as the header, each split and as a record.
+fn assays<'a>(
+    path: &str,
+    columns: &'a [String],
+    count: usize,
+) -> impl Iterator<Item = (Vec<String>, Record)> + 'a {
+    let mut lines = lines(path);
+    lines.by_ref().find(|l| l.trim() == "[Assay]");
+    lines.next();
+    lines
+        .take(count)
+        .map(|line| line.split(',').map(str::to_string).collect::<Vec<String>>())
+        .take_while(|row| row.len() == columns.len())
+        .map(|row| {
+            let column = |name: &str| columns.iter().position(|c| c == name);
+            let get = |name: &str| column(name).map(|i| row[i].clone()).unwrap_or_default();
+            let record = Record {
+                ilmn_id: get("IlmnID"),
+                name: get("Name"),
+                ilmn_strand: get("IlmnStrand"),
+                snp: get("SNP").to_uppercase(),
+                address_a: get("AddressA_ID"),
+                allele_a_probe_seq: get("AlleleA_ProbeSeq"),
+                address_b: get("AddressB_ID"),
+                allele_b_probe_seq: get("AlleleB_ProbeSeq"),
+                genome_build: get("GenomeBuild"),
+                chr: get("Chr"),
+                map_info: get("MapInfo").trim().parse().unwrap_or(0),
+                ref_strand: Strand::parse(&get("RefStrand")),
+            };
+            (row, record)
+        })
 }
 
 fn main() {
@@ -103,12 +146,12 @@ fn main() {
         .map(|s| (s.name, s.bases))
         .collect();
 
-    // `IlluminaManifest`: the heading rows up to "Loci Count", then the assay rows.
-    let text = std::fs::read_to_string(&input).unwrap_or_else(|e| thrown(&format!("{e}")));
-    let lines: Vec<&str> = text.lines().map(|l| l.trim_end_matches('\r')).collect();
+    // `IlluminaManifest`: the heading rows up to "Loci Count", then the assay rows, read twice: to
+    // find the duplicates and the dbSNP loci, then to write each row.
+    check_utf8(&input).unwrap_or_else(|e| thrown(&format!("{e}")));
     let mut heading: Vec<Vec<String>> = Vec::new();
     let mut count = 0usize;
-    for line in &lines {
+    for line in lines(&input) {
         let row: Vec<String> = line.split(',').map(str::to_string).collect();
         let tag = row[0].trim().to_string();
         heading.push(row.clone());
@@ -117,43 +160,26 @@ fn main() {
             break;
         }
     }
-    let assay = lines
-        .iter()
-        .position(|l| l.trim() == "[Assay]")
+    let mut assay_lines = lines(&input);
+    assay_lines
+        .by_ref()
+        .find(|l| l.trim() == "[Assay]")
         .unwrap_or_else(|| thrown("picard.PicardException: no [Assay] section"));
-    let columns: Vec<String> = lines[assay + 1]
+    let columns: Vec<String> = assay_lines
+        .next()
+        .expect("a line after [Assay]")
         .trim()
         .split(',')
         .map(str::to_string)
         .collect();
-    let column = |name: &str| columns.iter().position(|c| c == name);
-    let mut rows: Vec<(Vec<String>, Record, Extension)> = Vec::new();
-    for line in lines.iter().skip(assay + 2).take(count) {
-        let row: Vec<String> = line.split(',').map(str::to_string).collect();
-        if row.len() != columns.len() {
-            break;
-        }
-        let get = |name: &str| column(name).map(|i| row[i].clone()).unwrap_or_default();
-        let record = Record {
-            ilmn_id: get("IlmnID"),
-            name: get("Name"),
-            ilmn_strand: get("IlmnStrand"),
-            snp: get("SNP").to_uppercase(),
-            address_a: get("AddressA_ID"),
-            allele_a_probe_seq: get("AlleleA_ProbeSeq"),
-            address_b: get("AddressB_ID"),
-            allele_b_probe_seq: get("AlleleB_ProbeSeq"),
-            genome_build: get("GenomeBuild"),
-            chr: get("Chr"),
-            map_info: get("MapInfo").trim().parse().unwrap_or(0),
-            ref_strand: Strand::parse(&get("RefStrand")),
-        };
+    drop(assay_lines);
+    let reference_base = |record: &Record| -> String {
         let bases = sequences
             .iter()
             .find(|(n, _)| *n == record.chr)
             .map(|(_, b)| b)
             .unwrap_or_else(|| thrown("java.lang.NullPointerException"));
-        let base = bases
+        bases
             .get((record.map_info - 1).max(0) as usize)
             .map(|b| (b.to_ascii_uppercase() as char).to_string())
             .unwrap_or_else(|| {
@@ -162,60 +188,35 @@ fn main() {
                     record.map_info,
                     bases.len()
                 ))
-            });
-        let extension = process_snp(&record, &base);
-        rows.push((row, record, extension));
-    }
+            })
+    };
 
-    // dbSNP: every position a record spans, mapped to its ID, for the loci the manifest has.
-    let mut known: foldhash::HashMap<String, String> = foldhash::HashMap::default();
-    if let Some(path) = &dbsnp {
-        let vcf = read_path(path).unwrap_or_else(|e| thrown(&e));
-        // The loci a record may overlap, found by an overlap index: a scan of every locus for
-        // every record was quadratic on a chip.
-        let loci = picard_analysis::overlap::Spans::new(
-            rows.iter()
-                .filter(|(_, _, e)| !e.flag.is_fail())
-                .map(|(_, _, e)| {
-                    let start = i64::from(e.b37_pos);
-                    let end = start + e.allele_a.len().max(e.allele_b.len()) as i64;
-                    (e.b37_chr.as_str(), start, end)
-                }),
-        );
-        for v in vcf.records.iter().map(|r| &r.variant) {
-            let wanted = loci.overlaps(v.contig.as_str(), v.start, v.stop);
-            if !wanted {
-                continue;
-            }
-            for pos in v.start..=v.stop {
-                known.insert(format!("{}.{pos}", v.contig), v.id.clone());
-            }
+    // The first pass keeps, of each passing locus, its build-37 span (by contig number) and its
+    // duplicate key.
+    let mut contigs: Vec<String> = Vec::new();
+    let mut spans: Vec<(usize, i64, i64)> = Vec::new();
+    let mut keys: Vec<(String, usize, String)> = Vec::new();
+    let mut rows = 0usize;
+    for (i, (_, record)) in assays(&input, &columns, count).enumerate() {
+        rows += 1;
+        let e = process_snp(&record, &reference_base(&record));
+        if e.flag.is_fail() {
+            continue;
         }
-    }
-    for (_, record, extension) in &mut rows {
-        let key = format!("{}.{}", record.chr, record.map_info);
-        extension.rs_id = known
-            .get(&key)
-            .cloned()
-            .unwrap_or_else(|| "null".to_string());
-    }
-
-    // `flagDuplicates`.
-    if flag_duplicates {
-        let path = cluster.clone().unwrap_or_default();
-        let egt = Egt::parse(&std::fs::read(&path).unwrap_or_default()).unwrap_or_else(|_| {
-            thrown(&format!(
-                "picard.PicardException: Error reading cluster file '{}'",
-                absolute(&path)
-            ))
-        });
-        // The groups in the order their first locus came, found by key through `group_of`.
-        let mut groups: Vec<(String, Vec<usize>)> = Vec::new();
-        let mut group_of: foldhash::HashMap<String, usize> = foldhash::HashMap::default();
-        for (i, (_, _, e)) in rows.iter().enumerate() {
-            if e.flag.is_fail() {
-                continue;
+        let contig = match contigs.iter().position(|c| *c == e.b37_chr) {
+            Some(at) => at,
+            None => {
+                contigs.push(e.b37_chr.clone());
+                contigs.len() - 1
             }
+        };
+        let start = i64::from(e.b37_pos);
+        spans.push((
+            contig,
+            start,
+            start + e.allele_a.len().max(e.allele_b.len()) as i64,
+        ));
+        if flag_duplicates {
             let mut key = format!("{}:{}.{}", e.b37_chr, e.b37_pos, e.ref_allele);
             if e.allele_a != e.ref_allele {
                 key.push_str(&format!(".{}", e.allele_a));
@@ -223,34 +224,67 @@ fn main() {
             if e.allele_b != e.allele_a && e.allele_b != e.ref_allele {
                 key.push_str(&format!(".{}", e.allele_b));
             }
-            match group_of.get(&key) {
-                Some(&at) => groups[at].1.push(i),
-                None => {
-                    group_of.insert(key.clone(), groups.len());
-                    groups.push((key, vec![i]));
-                }
+            keys.push((key, i, record.name));
+        }
+    }
+
+    // dbSNP: every position a record spans, mapped to its ID, for the loci the manifest has.
+    let mut known: foldhash::HashMap<String, String> = foldhash::HashMap::default();
+    if let Some(path) = &dbsnp {
+        let mut vcf = VcfReader::open(path).unwrap_or_else(|e| thrown(&e));
+        // The loci a record may overlap, found by an overlap index: a scan of every locus for
+        // every record was quadratic on a chip.
+        let loci = picard_analysis::overlap::Spans::new(spans.drain(..));
+        while let Some(record) = vcf.try_next() {
+            let v = record.unwrap_or_else(|e| thrown(&e)).variant;
+            let Some(contig) = contigs.iter().position(|c| *c == v.contig) else {
+                continue;
+            };
+            if !loci.overlaps(&contig, v.start, v.stop) {
+                continue;
+            }
+            for pos in v.start..=v.stop {
+                known.insert(format!("{}.{pos}", v.contig), v.id.clone());
             }
         }
-        let score = |i: usize| -> f32 {
-            let name = &rows[i].1.name;
+    }
+    drop(spans);
+
+    // `flagDuplicates`: of each group of loci sharing a key, all but the best scored.
+    let mut dupe = vec![false; rows];
+    if flag_duplicates {
+        let path = cluster.clone().unwrap_or_default();
+        let egt = Reader::open(&path)
+            .map_err(drop)
+            .and_then(|mut r| Egt::parse(&mut r).map_err(drop))
+            .unwrap_or_else(|()| {
+                thrown(&format!(
+                    "picard.PicardException: Error reading cluster file '{}'",
+                    absolute(&path)
+                ))
+            });
+        let score = |name: &str| -> f32 {
             egt.index_of(name)
                 .map(|at| egt.total_score[at])
                 .unwrap_or_else(|| thrown("java.lang.NullPointerException"))
         };
-        let mut dupes: Vec<usize> = Vec::new();
-        for (_, list) in groups.into_iter().filter(|(_, l)| l.len() > 1) {
-            let mut best = list[0];
-            for &i in &list[1..] {
-                if score(i) > score(best) {
-                    best = i;
+        // Each group's loci together, in the order the manifest has them.
+        keys.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
+        for group in keys.chunk_by(|a, b| a.0 == b.0).filter(|g| g.len() > 1) {
+            let mut best = 0;
+            for at in 1..group.len() {
+                if score(&group[at].2) > score(&group[best].2) {
+                    best = at;
                 }
             }
-            dupes.extend(list.into_iter().filter(|&i| i != best));
-        }
-        for i in dupes {
-            rows[i].2.flag = Flag::Dupe;
+            for (at, (_, i, _)) in group.iter().enumerate() {
+                if at != best {
+                    dupe[*i] = true;
+                }
+            }
         }
     }
+    drop(keys);
 
     // The manifest.
     let width = heading.first().map_or(1, Vec::len);
@@ -311,7 +345,25 @@ fn main() {
     out.push('\n');
     let mut statistics = Statistics::default();
     let mut bad: Vec<String> = Vec::new();
-    for (row, record, extension) in &rows {
+    let mut file = std::fs::File::create(&output)
+        .map(|f| std::io::BufWriter::with_capacity(1 << 16, f))
+        .unwrap_or_else(|e| thrown(&format!("picard.PicardException: {e}")));
+    let mut put = |text: &str| {
+        file.write_all(text.as_bytes())
+            .unwrap_or_else(|e| thrown(&format!("picard.PicardException: {e}")))
+    };
+    put(&out);
+    for (i, (row, record)) in assays(&input, &columns, count).enumerate() {
+        let mut extension = process_snp(&record, &reference_base(&record));
+        extension.rs_id = known
+            .get(&format!("{}.{}", record.chr, record.map_info))
+            .cloned()
+            .unwrap_or_else(|| "null".to_string());
+        if dupe[i] {
+            extension.flag = Flag::Dupe;
+        }
+        let extension = &extension;
+        let record = &record;
         statistics.update(record, extension, &target_build);
         if extension.flag.is_fail() {
             bad.push(
@@ -326,10 +378,11 @@ fn main() {
                 .join(","),
             );
         }
-        out.push_str(&render_row(row, extension));
-        out.push('\n');
+        let mut line = render_row(&row, extension);
+        line.push('\n');
+        put(&line);
     }
-    if let Err(e) = std::fs::write(&output, out) {
+    if let Err(e) = file.into_inner().map_err(|e| e.into_error()) {
         thrown(&format!("picard.PicardException: {e}"));
     }
     if let Some(path) = &bad_path {

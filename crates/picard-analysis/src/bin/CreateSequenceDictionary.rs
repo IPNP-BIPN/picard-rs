@@ -12,7 +12,7 @@
 //! carries a description is refused by `SAMSequenceRecord.validateSequenceName` as the dictionary
 //! is built, and a header without one names its contig exactly as the truncating path does.
 
-use std::io::Write;
+use std::io::{BufRead, Write};
 
 use picard_analysis::args::arg;
 use picard_analysis::create_sequence_dictionary::{create_sequence_dictionary_with, Options};
@@ -110,7 +110,7 @@ fn with_alt_names(dict: &str, alt_names: &str, path: &str) -> String {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CreateSequenceDictionary");
     picard_analysis::output::install();
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let reference = arg(&args, "REFERENCE=")
         .or_else(|| arg(&args, "R="))
         .ok_or("REFERENCE= is required")?;
@@ -180,17 +180,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `createUri`: the argument when given, else the reference's own absolute `file:` URI.
     let uri = match arg(&args, "URI=") {
         Some(uri) => uri,
-        None => format!("file:{}", std::fs::canonicalize(&reference)?.display()),
+        // `getHtsPath().getURIString()`: the path made absolute against the working directory, its
+        // links left as they are, as a `file://` URI.
+        // shortcut: the URI is not percent-encoded; encode it once a path with a space matters.
+        None => {
+            std::fs::metadata(&reference)?;
+            format!("file://{}", std::path::absolute(&reference)?.display())
+        }
     };
 
-    let fasta = std::fs::read(&reference)?;
     if !truncate {
         // The contigs are read in order and at most NUM_SEQUENCES of them, so the refusal is the
         // first whole header among those that the legal-name pattern does not match.
         let limit = options.num_sequences.unwrap_or(usize::MAX);
-        let names = String::from_utf8_lossy(&fasta)
-            .lines()
-            .filter_map(|line| line.strip_prefix('>').map(|name| name.trim().to_string()))
+        let lines = std::io::BufReader::new(std::fs::File::open(&reference)?).split(b'\n');
+        let names = lines
+            .map_while(Result::ok)
+            .filter_map(|line| {
+                let line = String::from_utf8_lossy(&line);
+                line.strip_prefix('>').map(|name| name.trim().to_string())
+            })
             .take(limit)
             .collect::<Vec<_>>();
         if let Some(name) = names.iter().find(|name| !legal_name(name)) {
@@ -200,8 +209,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     }
-    let dict =
-        create_sequence_dictionary_with(&fasta, &uri, &options).map_err(|e| format!("{e:?}"))?;
+    let dict = create_sequence_dictionary_with(std::fs::File::open(&reference)?, &uri, &options)
+        .map_err(|e| format!("{e:?}"))?;
     let dict = match arg(&args, "ALT_NAMES=").or_else(|| arg(&args, "AN=")) {
         Some(path) => with_alt_names(&dict, &std::fs::read_to_string(&path)?, &path),
         None => dict,
