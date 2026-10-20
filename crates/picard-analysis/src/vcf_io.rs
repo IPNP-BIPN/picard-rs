@@ -37,7 +37,6 @@
 
 use htsjdk_vcf::encoder::{EncodeError, MissingFields, VcfEncoder};
 use htsjdk_vcf::header::{HeaderLine, VcfHeader};
-use htsjdk_vcf::header_parse::VcfVersion;
 use htsjdk_vcf::reader::{read_vcf, ReadFailure, VcfFile};
 use htsjdk_vcf::record_parse::{split_condensed, NUM_STANDARD_FIELDS};
 use htsjdk_vcf::variant::VariantContext;
@@ -1087,8 +1086,7 @@ fn without_terminator(line: &str) -> &str {
 /// [`TextSource::decode`] for a line whose counter is `line_number`: free of the source, so the
 /// lines read ahead decode on every core.
 fn decode_at(
-    header: &VcfHeader,
-    version: VcfVersion,
+    file: &VcfFile,
     samples: &std::sync::Arc<[String]>,
     sorted: bool,
     lazy: bool,
@@ -1102,7 +1100,7 @@ fn decode_at(
 
     let text = utf8_at(buffer, offset).map_err(Failure::Utf8)?;
     let line = without_terminator(text);
-    let decoded = decode_line(line, header, line_number, version)
+    let decoded = decode_line(line, &file.header, line_number, file.codec_version)
         .map_err(|e| Failure::Parse(format!("{}: {}", e.class(), e.message())))?;
     let Some(decoded) = decoded else {
         // A `#` line: no record, no refusal, and no increment of the counter.
@@ -1114,8 +1112,8 @@ fn decode_at(
     if let Some(block) = decoded.genotype_block {
         let context = GenotypeContext {
             line,
-            header,
-            version,
+            header: &file.header,
+            version: file.codec_version,
             contig: &variant.contig,
             pos: variant.start,
             line_number,
@@ -1184,8 +1182,7 @@ impl TextSource {
         offset: u64,
     ) -> Result<Option<Record>, Failure> {
         let decoded = decode_at(
-            &file.header,
-            file.codec_version,
+            file,
             &self.samples,
             self.sorted,
             self.lazy,
@@ -1237,16 +1234,7 @@ impl TextSource {
             .into_par_iter()
             .with_min_len(256)
             .map(|(line, offset, at)| {
-                let decoded = decode_at(
-                    &file.header,
-                    file.codec_version,
-                    samples,
-                    sorted,
-                    lazy,
-                    at,
-                    &line,
-                    offset,
-                );
+                let decoded = decode_at(file, samples, sorted, lazy, at, &line, offset);
                 Ahead {
                     line,
                     offset,
