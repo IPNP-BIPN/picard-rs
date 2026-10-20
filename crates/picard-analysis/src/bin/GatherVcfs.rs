@@ -23,12 +23,37 @@
 //! `new VariantContextComparator(null)`, whose `NullPointerException` is caught like the rest.
 
 use htsjdk_vcf::comparator::VariantContextComparator;
+use htsjdk_vcf::encoder::MissingFields;
+use htsjdk_vcf::reader::VcfFile;
 use htsjdk_vcf::variant::VariantContext;
 use picard_analysis::args::arg;
 use picard_analysis::vcf_io::{
     add_other_meta_data_line, assert_same_dictionary, die, header_dictionary, is_compressed_vcf,
-    java_compare, log_error, read_path, unroll_paths, write_output, LazyVcf, Record,
+    java_compare, log_error, thrown, unroll_paths, Record, VcfReader, VcfWriter,
 };
+
+/// One input read through once: its header and its first and last records, which are all the
+/// checks look at. The records are written by reading the file again.
+struct Scanned {
+    file: VcfFile,
+    first: Option<Record>,
+    last: Option<Record>,
+}
+
+/// `new VCFFileReader(path, false)` and every record read, or the exception that read gave.
+fn scan(path: &str) -> Result<Scanned, String> {
+    let mut reader = VcfReader::open(path)?;
+    let first = reader.try_next().transpose()?;
+    let mut last = None;
+    while let Some(record) = reader.try_next() {
+        last = Some(record?);
+    }
+    Ok(Scanned {
+        file: reader.file,
+        last: last.or_else(|| first.clone()),
+        first,
+    })
+}
 
 /// A collection argument: every occurrence appends, and the value `null` empties it (Barclay).
 fn collection(args: &[String], keys: &[&str]) -> Vec<String> {
@@ -84,9 +109,9 @@ fn compare(
 
 /// `assertSameSamplesAndValidOrdering`: the files, reordered when asked.
 fn assert_same_samples_and_valid_ordering(
-    mut files: Vec<(String, LazyVcf)>,
+    mut files: Vec<(String, Scanned)>,
     reorder: bool,
-) -> Result<Vec<(String, LazyVcf)>, Failure> {
+) -> Result<Vec<(String, Scanned)>, Failure> {
     let header = files[0].1.file.header.clone();
     let Some(dict) = header_dictionary(&header) else {
         return Err(Failure::Caught(
@@ -105,7 +130,7 @@ fn assert_same_samples_and_valid_ordering(
         // `List.sort` is a stable merge sort; a file with no records sorts after every other.
         let mut failure: Option<Failure> = None;
         files.sort_by(|a, b| {
-            let (first_a, first_b) = (a.1.records.first(), b.1.records.first());
+            let (first_a, first_b) = (a.1.first.as_ref(), b.1.first.as_ref());
             match (first_a, first_b) {
                 (None, None) => std::cmp::Ordering::Equal,
                 (None, Some(_)) => std::cmp::Ordering::Greater,
@@ -154,7 +179,7 @@ fn assert_same_samples_and_valid_ordering(
                 unique_to(these, &samples)
             )));
         }
-        if let Some(current) = vcf.records.first() {
+        if let Some(current) = &vcf.first {
             if let Some((last_path, last_context)) = last {
                 if compare(&comparator, last_context, &current.variant)? >= 0 {
                     return Err(Failure::Caught(format!(
@@ -171,11 +196,12 @@ fn assert_same_samples_and_valid_ordering(
     Ok(files)
 }
 
-/// `gatherConventionally`, up to the writing: the header and the records.
+/// `gatherConventionally`, up to the writing: the header, and the files in the order their records
+/// are written.
 fn gather_conventionally(
-    files: Vec<(String, LazyVcf)>,
+    files: Vec<(String, Scanned)>,
     comments: &[String],
-) -> Result<(htsjdk_vcf::header::VcfHeader, Vec<Record>), Failure> {
+) -> Result<(htsjdk_vcf::header::VcfHeader, Vec<String>), Failure> {
     let mut header = files[0].1.file.header.clone();
     for comment in comments {
         add_other_meta_data_line(&mut header, "GatherVcfs.comment", comment);
@@ -189,10 +215,11 @@ fn gather_conventionally(
     let comparator = VariantContextComparator::from_header_lines(&contigs)
         .map_err(|e| Failure::Caught(format!("{}: {}", e.class(), e.message())))?;
 
-    let mut records: Vec<Record> = Vec::new();
+    let mut paths = Vec::with_capacity(files.len());
+    let mut last: Option<Record> = None;
     let mut last_file: Option<String> = None;
     for (path, vcf) in files {
-        if let (Some(last_context), Some(first)) = (records.last(), vcf.records.first()) {
+        if let (Some(last_context), Some(first)) = (&last, &vcf.first) {
             if compare(&comparator, &first.variant, &last_context.variant)? <= 0 {
                 let (vc, lc) = (&first.variant, &last_context.variant);
                 return Err(Failure::Caught(format!(
@@ -207,11 +234,14 @@ fn gather_conventionally(
                 )));
             }
         }
-        records.extend(vcf.records);
+        if vcf.last.is_some() {
+            last = vcf.last;
+        }
         // Set for every file, an empty one included.
-        last_file = Some(path);
+        last_file = Some(path.clone());
+        paths.push(path);
     }
-    Ok((header, records))
+    Ok((header, paths))
 }
 
 /// `IOUtil.hasBlockCompressedExtension`, and not `VCFFileReader.isBCF`: what `areAllBlockCompressed`
@@ -289,7 +319,7 @@ fn gather_with_block_copying(paths: &[String]) -> Result<Vec<u8>, Failure> {
 
 /// What the `try` block produced: records to write, or the bytes the block copy assembled.
 enum Gathered {
-    Conventionally(htsjdk_vcf::header::VcfHeader, Vec<Record>),
+    Conventionally(htsjdk_vcf::header::VcfHeader, Vec<String>),
     WithBlockCopying(Vec<u8>),
 }
 
@@ -320,7 +350,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let paths = unroll_paths(&inputs).unwrap_or_else(|exception| die(&exception));
 
     // `VCFFileReader.getSequenceDictionary(unrolledPaths.get(0))`, outside the `try`.
-    let first = read_path(&paths[0]).unwrap_or_else(|exception| die(&exception));
+    let first = scan(&paths[0]).unwrap_or_else(|exception| die(&exception));
     let sequence_dictionary = header_dictionary(&first.file.header);
     if create_index && sequence_dictionary.is_none() {
         die(
@@ -332,7 +362,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let gathered = (|| {
         let mut files = vec![(paths[0].clone(), first)];
         for path in &paths[1..] {
-            let vcf = read_path(path).map_err(Failure::Caught)?;
+            let vcf = scan(path).map_err(Failure::Caught)?;
             files.push((path.clone(), vcf));
         }
         let files = assert_same_samples_and_valid_ordering(files, reorder)?;
@@ -359,8 +389,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .to_string(),
             ));
         }
-        let (header, records) = gather_conventionally(files, &comments)?;
-        Ok(Gathered::Conventionally(header, records))
+        let (header, paths) = gather_conventionally(files, &comments)?;
+        Ok(Gathered::Conventionally(header, paths))
     })();
 
     match gathered {
@@ -368,13 +398,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::fs::write(&output, bytes)?;
             Ok(())
         }
-        Ok(Gathered::Conventionally(header, records)) => {
+        Ok(Gathered::Conventionally(header, paths)) => {
             let index_dictionary = if create_index {
                 sequence_dictionary.as_deref()
             } else {
                 None
             };
-            write_output(&output, &header, &records, index_dictionary)?;
+            let mut writer =
+                VcfWriter::create(&output, &header, index_dictionary, MissingFields::default())
+                    .or_else(thrown)?;
+            for path in &paths {
+                // Read once already, so a failure now is the file changing underneath.
+                for record in VcfReader::open(path).unwrap_or_else(|exception| die(&exception)) {
+                    writer.add(&record).or_else(thrown)?;
+                }
+            }
+            writer.finish().or_else(thrown)?;
             Ok(())
         }
         Err(Failure::Caught(exception)) => {

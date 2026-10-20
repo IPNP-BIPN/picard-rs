@@ -117,58 +117,85 @@ pub fn merge_sorted<T, E>(
     compare: impl Fn(&T, &T) -> Result<Ordering, E>,
 ) -> (Vec<(usize, usize)>, Option<MergeFailure<E>>) {
     let mut positions = vec![0usize; inputs.len()];
-    let mut queue = JavaPriorityQueue::new();
     let mut out: Vec<(usize, usize)> = Vec::new();
+    let failure = merge_streams(
+        inputs.len(),
+        |input| {
+            let position = positions[input];
+            positions[input] += 1;
+            inputs[input]
+                .get(position)
+                .map(|item| (input, position, item))
+        },
+        comparator_class,
+        |a, b| compare(a.2, b.2),
+        |&(input, position, _)| out.push((input, position)),
+    );
+    (out, failure)
+}
+
+/// `MergingIterator` over inputs read as it goes: `next(input)` is that input's next item, and
+/// `emit` gets each item in merged order, one input's next item in hand at a time.
+pub fn merge_streams<T, E>(
+    inputs: usize,
+    mut next: impl FnMut(usize) -> Option<T>,
+    comparator_class: &str,
+    compare: impl Fn(&T, &T) -> Result<Ordering, E>,
+    mut emit: impl FnMut(&T),
+) -> Option<MergeFailure<E>> {
+    let mut heads: Vec<Option<T>> = (0..inputs).map(&mut next).collect();
+    let mut queue = JavaPriorityQueue::new();
 
     macro_rules! peek_compare {
-        ($positions:expr) => {
-            |a: usize, b: usize| compare(&inputs[a][$positions[a]], &inputs[b][$positions[b]])
+        ($heads:expr) => {
+            |a: usize, b: usize| {
+                compare(
+                    $heads[a].as_ref().expect("a queued input has an item"),
+                    $heads[b].as_ref().expect("a queued input has an item"),
+                )
+            }
         };
     }
 
-    for (input, items) in inputs.iter().enumerate() {
+    for input in 0..inputs {
         // `addIfNotEmpty`: an exhausted iterator is closed rather than queued.
-        if !items.is_empty() {
-            if let Err(e) = queue.offer(input, &mut peek_compare!(positions)) {
-                return (out, Some(MergeFailure::Compare(e)));
+        if heads[input].is_some() {
+            if let Err(e) = queue.offer(input, &mut peek_compare!(heads)) {
+                return Some(MergeFailure::Compare(e));
             }
         }
     }
 
-    let mut last: Option<(usize, usize)> = None;
+    let mut last: Option<T> = None;
     loop {
-        let polled = match queue.poll(&mut peek_compare!(positions)) {
+        let polled = match queue.poll(&mut peek_compare!(heads)) {
             Ok(Some(input)) => input,
             Ok(None) => break,
-            Err(e) => return (out, Some(MergeFailure::Compare(e))),
+            Err(e) => return Some(MergeFailure::Compare(e)),
         };
-        let next = (polled, positions[polled]);
-        positions[polled] += 1;
-        if let Some((li, lp)) = last {
-            match compare(&inputs[li][lp], &inputs[next.0][next.1]) {
+        let item = std::mem::replace(&mut heads[polled], next(polled)).expect("a polled input");
+        if let Some(last) = &last {
+            match compare(last, &item) {
                 Ok(Ordering::Greater) => {
-                    return (
-                        out,
-                        Some(MergeFailure::NotSorted(format!(
-                            "java.lang.IllegalStateException: The elements of the input \
-                             Iterators are not sorted according to the comparator \
-                             {comparator_class}"
-                        ))),
-                    )
+                    return Some(MergeFailure::NotSorted(format!(
+                        "java.lang.IllegalStateException: The elements of the input \
+                         Iterators are not sorted according to the comparator \
+                         {comparator_class}"
+                    )))
                 }
                 Ok(_) => {}
-                Err(e) => return (out, Some(MergeFailure::Compare(e))),
+                Err(e) => return Some(MergeFailure::Compare(e)),
             }
         }
-        if positions[polled] < inputs[polled].len() {
-            if let Err(e) = queue.offer(polled, &mut peek_compare!(positions)) {
-                return (out, Some(MergeFailure::Compare(e)));
+        if heads[polled].is_some() {
+            if let Err(e) = queue.offer(polled, &mut peek_compare!(heads)) {
+                return Some(MergeFailure::Compare(e));
             }
         }
-        out.push(next);
-        last = Some(next);
+        emit(&item);
+        last = Some(item);
     }
-    (out, None)
+    None
 }
 
 #[cfg(test)]
