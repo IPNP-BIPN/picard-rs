@@ -14,27 +14,35 @@
 //!   through the new alleles), then `tryToAddVariant`'s reference check with the swapped-SNP
 //!   recovery;
 //! * rejects go out as they come, carrying the source record with the filter ADDED to its own;
-//!   the lifted records are sorted by the target dictionary and start (a stable in-memory sort:
-//!   `SortingCollection` never spills here) unless `DISABLE_SORT`, and every write refuses an
-//!   INFO key its header lacks unless `ALLOW_MISSING_FIELDS_IN_HEADER`.
+//!   the lifted records are sorted by the target dictionary and start unless `DISABLE_SORT`, and
+//!   every write refuses an INFO key its header lacks unless `ALLOW_MISSING_FIELDS_IN_HEADER`.
+//!
+//! The input is streamed. Both outputs are held as their encoded lines in a `SortingCollection`
+//! that spills past `MAX_RECORDS_IN_RAM`, as Picard's `VCFRecordCodec` does, and each line is
+//! decoded again on its way to the writer. Neither file is opened before the whole input is read,
+//! as with the whole-file read, and the rejects are still written first.
 //!
 //! A record untouched by the lift keeps its genotype block as the file had it, when the file's
 //! samples were already sorted: htsjdk's lazy genotypes, which nothing here decodes.
 
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use htsjdk_bam::fasta::read_fasta_file;
 use htsjdk_bam::interval::Interval;
 use htsjdk_bam::liftover::LiftOver;
 use htsjdk_vcf::allele::Allele;
 use htsjdk_vcf::attributes::{as_double, as_string};
-use htsjdk_vcf::encoder::MissingFields;
+use htsjdk_vcf::encoder::{MissingFields, VcfEncoder};
 use htsjdk_vcf::header::{Cardinality, HeaderLine, LineType, VcfHeader};
+use htsjdk_vcf::header_parse::VcfVersion;
 use htsjdk_vcf::variant::{Genotype, Value, VariantContext};
+use picard_analysis::liftover_vcf::LineSpool;
 use picard_analysis::metrics_cli::{absolute, Args};
+use picard_analysis::sort_sam::DEFAULT_MAX_RECORDS_IN_RAM;
 use picard_analysis::vcf_io::{
-    add_other_meta_data_line, die, log_error, parse_sam_dictionary, read_path,
-    set_sequence_dictionary, write_output_with, Record, Sequence, WriteError,
+    add_other_meta_data_line, die, is_bcf, log_error, parse_sam_dictionary,
+    set_sequence_dictionary, Record, Sequence, VcfReader, VcfWriter, WriteError,
 };
 
 const TOOL: &str = "LiftoverVcf";
@@ -51,6 +59,25 @@ const ATTEMPTED_ALLELES: &str = "AttemptedAlleles";
 const SWAPPED_ALLELES: &str = "SwappedAlleles";
 const REV_COMPED_ALLELES: &str = "ReverseComplementedAlleles";
 const END_KEY: &str = "END";
+
+/// The input, re-read for a failure further on once something has been refused.
+static INPUT: OnceLock<String> = OnceLock::new();
+
+/// The whole-file read's failure, when the input has one: it came before anything the records
+/// could be refused for.
+fn read_failure_first() {
+    if let Some(Ok(mut vcf)) = INPUT.get().map(|path| VcfReader::open(path)) {
+        if let Err(exception) = vcf.check() {
+            die(&exception);
+        }
+    }
+}
+
+/// [`die`] for a refusal once the records are being read.
+fn refuse(exception: &str) -> ! {
+    read_failure_first();
+    die(exception)
+}
 
 fn has_attribute(vc: &VariantContext, key: &str) -> bool {
     vc.attributes.iter().any(|(k, _)| k == key)
@@ -105,7 +132,7 @@ fn reverse_complement_allele(allele: &Allele) -> Allele {
     }
     let bases = reverse_complement(allele.base_string().as_bytes());
     Allele::create(&bases, allele.is_reference())
-        .unwrap_or_else(|e| die(&format!("java.lang.IllegalArgumentException: {e:?}")))
+        .unwrap_or_else(|e| refuse(&format!("java.lang.IllegalArgumentException: {e:?}")))
 }
 
 /// `VariantContext.isSNP()`: every allele one base, at least one alternate.
@@ -142,7 +169,7 @@ fn reference_differs(alleles: &[Allele], reference: &[u8], start: i64, end: i64)
         .iter()
         .find(|a| a.is_reference())
         .unwrap_or_else(|| {
-            die("java.lang.IllegalStateException: Error: no reference allele was present")
+            refuse("java.lang.IllegalStateException: Error: no reference allele was present")
         });
     !ref_string.eq_ignore_ascii_case(&ref_allele.base_string())
 }
@@ -224,7 +251,7 @@ fn left_align(
             }
             let new_bases = &bases.iter().find(|(k, _)| k == a).expect("allele").1;
             Allele::create(new_bases, a.is_reference())
-                .unwrap_or_else(|e| die(&format!("java.lang.IllegalArgumentException: {e:?}")))
+                .unwrap_or_else(|e| refuse(&format!("java.lang.IllegalArgumentException: {e:?}")))
         })
         .collect();
     (the_start, the_end, fixed)
@@ -252,7 +279,7 @@ fn fix_genotypes(
                         a.clone()
                     } else {
                         (*map.get(a).unwrap_or_else(|| {
-                            die(&format!(
+                            refuse(&format!(
                                 "java.lang.IllegalStateException: Allele not found: {}",
                                 a.display_string()
                             ))
@@ -342,9 +369,9 @@ fn swap_ref_alt(vc: &VariantContext, to_reverse: &[String], to_drop: &[String]) 
     let mut swapped = vc.clone();
     set_attribute(&mut swapped, SWAPPED_ALLELES, Value::Bool(true));
     let new_ref = Allele::create(vc.alleles[1].base_string().as_bytes(), true)
-        .unwrap_or_else(|e| die(&format!("java.lang.IllegalArgumentException: {e:?}")));
+        .unwrap_or_else(|e| refuse(&format!("java.lang.IllegalArgumentException: {e:?}")));
     let new_alt = Allele::create(vc.alleles[0].base_string().as_bytes(), false)
-        .unwrap_or_else(|e| die(&format!("java.lang.IllegalArgumentException: {e:?}")));
+        .unwrap_or_else(|e| refuse(&format!("java.lang.IllegalArgumentException: {e:?}")));
     swapped.alleles = vec![new_ref.clone(), new_alt.clone()];
     let genotypes: Vec<Genotype> = vc
         .genotypes
@@ -381,7 +408,7 @@ fn swap_ref_alt(vc: &VariantContext, to_reverse: &[String], to_drop: &[String]) 
             remove_attribute(&mut swapped, key);
         } else if to_reverse.contains(key) && as_string(Some(value), "") != "." {
             let x = as_double(Some(value), -1.0)
-                .unwrap_or_else(|e| die(&format!("{}: {}", e.class(), e.message())));
+                .unwrap_or_else(|e| refuse(&format!("{}: {}", e.class(), e.message())));
             set_attribute(&mut swapped, key, Value::Double(1.0 - x));
         }
     }
@@ -404,23 +431,148 @@ fn add_line(header: &mut VcfHeader, line: HeaderLine) {
     }
 }
 
-/// `VCFWriter.writeHeader` then `add` per record: a record still lazy has its site columns
-/// encoded and its genotype block copied, as `vcf_io::write_records` does, and every encode
-/// refuses an INFO key the header lacks unless missing fields are allowed.
+/// `VCFEncoder.encode` of one record as `VCFWriter.add` makes it: a record still lazy has its site
+/// columns encoded over the header without samples and its genotype block copied, as
+/// `vcf_io::VcfWriter` does.
+struct LineEncoder {
+    header: VcfHeader,
+    sites: VcfHeader,
+}
+
+impl LineEncoder {
+    fn new(header: &VcfHeader) -> Self {
+        LineEncoder {
+            header: header.clone(),
+            sites: VcfHeader {
+                lines: header.lines.clone(),
+                samples: Vec::new(),
+            },
+        }
+    }
+
+    fn encode(
+        &self,
+        record: &Record,
+        missing: MissingFields,
+        out: &mut String,
+    ) -> Result<(), WriteError> {
+        out.clear();
+        match &record.lazy_genotypes {
+            Some(block) => {
+                let mut site = record.variant.clone();
+                site.genotypes.clear();
+                VcfEncoder::new(&self.sites)
+                    .with_missing_fields(missing)
+                    .encode_into(&site, out)?;
+                out.push('\t');
+                out.push_str(block);
+            }
+            None => {
+                record.variant.genotypes.decode();
+                VcfEncoder::new(&self.header)
+                    .with_missing_fields(missing)
+                    .encode_into(&record.variant, out)?
+            }
+        }
+        Ok(())
+    }
+
+    /// The line decoded again: its site columns parsed, its genotype block kept to be copied.
+    fn decode(&self, line: &[u8], version: VcfVersion) -> Record {
+        let line = std::str::from_utf8(line).expect("a line this tool encoded");
+        let decoded = htsjdk_vcf::record_parse::decode_line(line, &self.header, 0, version)
+            .ok()
+            .flatten()
+            .expect("a line this tool encoded decodes");
+        Record {
+            variant: decoded.variant,
+            lazy_genotypes: decoded.genotype_block,
+            fully_decoded: false,
+        }
+    }
+}
+
+/// One output's records until the input is read: encoded lines, or for a `.bcf` the records
+/// themselves.
+enum Held {
+    Lines(LineSpool),
+    // shortcut: a BCF output keeps its records in memory, since a line decoded again carries
+    // strings where the BCF2 writer was given typed values; spill them as lines once the two are
+    // shown to write the same bytes.
+    Records(Vec<(u32, i64, Record)>),
+}
+
+impl Held {
+    fn new(path: &str, sort: bool, max_records_in_ram: usize, tmp_dir: &std::path::Path) -> Self {
+        if is_bcf(path) {
+            Held::Records(Vec::new())
+        } else {
+            Held::Lines(LineSpool::new(
+                sort,
+                max_records_in_ram,
+                tmp_dir.to_path_buf(),
+            ))
+        }
+    }
+
+    fn add(&mut self, key: (u32, i64), record: Record, line: &str) {
+        match self {
+            Held::Lines(spool) => spool
+                .add(key.0, key.1, line.as_bytes())
+                .unwrap_or_else(|e| {
+                    refuse(&format!("htsjdk.samtools.util.RuntimeIOException: {e}"))
+                }),
+            Held::Records(records) => records.push((key.0, key.1, record)),
+        }
+    }
+}
+
+/// `VCFWriter.writeHeader` then `add` per record, the records in order; every encode refuses an
+/// INFO key the header lacks unless missing fields are allowed.
 fn write_all(
     path: &str,
     header: &VcfHeader,
-    records: &[Record],
+    held: Held,
+    sort: bool,
     missing: MissingFields,
     index_dictionary: Option<&[Sequence]>,
+    version: VcfVersion,
 ) {
-    match write_output_with(path, header, records, index_dictionary, missing) {
-        Ok(()) => {}
-        Err(e @ (WriteError::Encode(_) | WriteError::Exception(_))) => die(&e.exception()),
-        Err(WriteError::Io(e)) => die(&format!("htsjdk.tribble.TribbleException: {e}")),
-        // The BCF2 writer's own failure, which it reports as an I/O one.
-        Err(WriteError::Other(e)) => die(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")),
+    let fail = |error: WriteError| -> ! {
+        match error {
+            e @ (WriteError::Encode(_) | WriteError::Exception(_)) => die(&e.exception()),
+            WriteError::Io(e) => die(&format!("htsjdk.tribble.TribbleException: {e}")),
+            // The BCF2 writer's own failure, which it reports as an I/O one.
+            WriteError::Other(e) => die(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")),
+        }
+    };
+    let mut writer =
+        VcfWriter::create(path, header, index_dictionary, missing).unwrap_or_else(|e| fail(e));
+    match held {
+        Held::Lines(spool) => {
+            let encoder = LineEncoder::new(header);
+            let lines = spool
+                .into_lines()
+                .unwrap_or_else(|e| die(&format!("htsjdk.samtools.util.RuntimeIOException: {e}")));
+            for line in lines {
+                let line = line.unwrap_or_else(|e| {
+                    die(&format!("htsjdk.samtools.util.RuntimeIOException: {e}"))
+                });
+                writer
+                    .add(&encoder.decode(&line, version))
+                    .unwrap_or_else(|e| fail(e));
+            }
+        }
+        Held::Records(mut records) => {
+            if sort {
+                records.sort_by_key(|(contig, start, _)| (*contig, *start));
+            }
+            for (_, _, record) in &records {
+                writer.add(record).unwrap_or_else(|e| fail(e));
+            }
+        }
     }
+    writer.finish().unwrap_or_else(|e| fail(e));
 }
 
 fn main() {
@@ -450,6 +602,15 @@ fn main() {
     let tags_to_drop = args.collection("TAGS_TO_DROP", &["MAX_AF"]);
     let disable_sort = args.bool("DISABLE_SORT", false);
     let create_index = args.bool("CREATE_INDEX", false);
+    let max_records_in_ram = args
+        .int("MAX_RECORDS_IN_RAM", DEFAULT_MAX_RECORDS_IN_RAM as i64)
+        .max(1) as usize;
+    // shortcut: the first TMP_DIR only, where htsjdk picks the one with the most free space.
+    let tmp_dir = args
+        .all("TMP_DIR")
+        .first()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
 
     if create_index && disable_sort {
         log_error(
@@ -463,15 +624,18 @@ fn main() {
         LiftOver::load(&std::fs::read_to_string(&chain).unwrap_or_else(|e| die(&format!("{e}"))))
             .unwrap_or_else(|e| die(&format!("htsjdk.samtools.SAMException: {e:?}")));
     // A file whose samples are not in sorted order has its genotypes decoded by the codec, and
-    // `read_path` leaves those records without a block to copy.
-    let vcf = read_path(&input).unwrap_or_else(|exception| die(&exception));
-    let file = &vcf.file;
+    // the reader leaves those records without a block to copy.
+    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
+    INPUT.set(input.clone()).expect("set once");
+    let file = vcf.file.clone();
+    let file = &file;
 
     // The target reference and its dictionary, which must sit beside it.
     let dict_path = std::path::Path::new(&reference).with_extension("dict");
     let dictionary = match std::fs::read_to_string(&dict_path) {
         Ok(text) => parse_sam_dictionary(&text),
         Err(_) => {
+            read_failure_first();
             log_error(
                 TOOL,
                 &format!(
@@ -483,16 +647,14 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let contigs = read_fasta_file(&reference).unwrap_or_else(|e| die(&format!("{e:?}")));
-    let ref_seqs: HashMap<String, Vec<u8>> = dictionary
-        .iter()
-        .filter_map(|s| {
-            contigs
-                .iter()
-                .find(|c| c.name == s.name)
-                .map(|c| (s.name.clone(), c.bases.clone()))
-        })
-        .collect();
+    let contigs = read_fasta_file(&reference).unwrap_or_else(|e| refuse(&format!("{e:?}")));
+    // The first contig of each name the dictionary has, moved rather than copied.
+    let mut ref_seqs: HashMap<String, Vec<u8>> = HashMap::new();
+    for contig in contigs {
+        if dictionary.iter().any(|s| s.name == contig.name) {
+            ref_seqs.entry(contig.name).or_insert(contig.bases);
+        }
+    }
 
     // The output header.
     let mut out_header = VcfHeader {
@@ -623,21 +785,32 @@ fn main() {
     } else {
         MissingFields::Refuse
     };
-    let mut rejected: Vec<Record> = Vec::new();
-    let mut lifted: Vec<Record> = Vec::new();
-    // With DISABLE_SORT the output is written on the fly, so a record the header cannot carry
+    let out_encoder = LineEncoder::new(&out_header);
+    let reject_encoder = LineEncoder::new(&reject_header);
+    let index_of = |name: &str| dictionary.iter().position(|s| s.name == name).unwrap_or(0) as u32;
+    let mut lifted = Held::new(&output, !disable_sort, max_records_in_ram, &tmp_dir);
+    let mut rejected = Held::new(&reject, false, max_records_in_ram, &tmp_dir);
+    let mut line = String::new();
+    // Held as encoded with missing fields allowed, so that the writer refuses them in its turn;
+    // with DISABLE_SORT the output is written on the fly, so a record the header cannot carry
     // fails at the record rather than after the loop.
-    let add_lifted = |record: Record, lifted: &mut Vec<Record>| {
-        if disable_sort {
-            write_all(
-                "/dev/null",
-                &out_header,
-                std::slice::from_ref(&record),
-                missing,
-                None,
-            );
+    let lifted_missing = if disable_sort {
+        missing
+    } else {
+        MissingFields::Allow
+    };
+    let mut add_lifted = |record: Record, line: &mut String| {
+        if let Err(e) = out_encoder.encode(&record, lifted_missing, line) {
+            refuse(&e.exception());
         }
-        lifted.push(record);
+        let key = (index_of(&record.variant.contig), record.variant.start);
+        lifted.add(key, record, line);
+    };
+    let mut add_rejected = |record: Record, line: &mut String| {
+        if let Err(e) = reject_encoder.encode(&record, MissingFields::Allow, line) {
+            refuse(&e.exception());
+        }
+        rejected.add((0, 0), record, line);
     };
     let reject_record = |record: &Record, reason: &str| {
         let mut r = record.clone();
@@ -645,7 +818,8 @@ fn main() {
         r
     };
 
-    for record in &vcf.records {
+    while let Some(record) = vcf.try_next() {
+        let record = &record.unwrap_or_else(|exception| die(&exception));
         let ctx = &record.variant;
         let source = Interval {
             contig: ctx.contig.clone(),
@@ -655,16 +829,20 @@ fn main() {
             name: Some(format!("{}:{}-{}", ctx.contig, ctx.start, ctx.stop)),
         };
         let Some(target) = lift_over.lift_over_with_min_match(&source, min_match) else {
-            rejected.push(reject_record(record, FILTER_NO_TARGET));
+            add_rejected(reject_record(record, FILTER_NO_TARGET), &mut line);
             continue;
         };
         if ctx.reference().len() as i64 != i64::from(target.end - target.start + 1) {
-            rejected.push(reject_record(record, FILTER_INDEL_STRADDLES_TWO_INTERVALS));
+            add_rejected(
+                reject_record(record, FILTER_INDEL_STRADDLES_TWO_INTERVALS),
+                &mut line,
+            );
             continue;
         }
         let Some(reference_bases) = ref_seqs.get(&target.contig) else {
-            rejected.push(reject_record(record, FILTER_NO_TARGET));
+            add_rejected(reject_record(record, FILTER_NO_TARGET), &mut line);
             if !warn_on_missing_contig {
+                read_failure_first();
                 log_error(
                     TOOL,
                     &format!(
@@ -683,7 +861,10 @@ fn main() {
             write_original_position,
             write_original_alleles,
         ) else {
-            rejected.push(reject_record(record, FILTER_CANNOT_LIFTOVER_REV_COMP));
+            add_rejected(
+                reject_record(record, FILTER_CANNOT_LIFTOVER_REV_COMP),
+                &mut line,
+            );
             continue;
         };
 
@@ -701,7 +882,7 @@ fn main() {
                         lazy_genotypes: None,
                         fully_decoded: false,
                     },
-                    &mut lifted,
+                    &mut line,
                 );
                 continue;
             }
@@ -731,7 +912,7 @@ fn main() {
                         .join(",")
                 )),
             );
-            rejected.push(r);
+            add_rejected(r, &mut line);
         } else {
             let lazy_genotypes = if touched {
                 None
@@ -744,22 +925,31 @@ fn main() {
                     lazy_genotypes,
                     fully_decoded: false,
                 },
-                &mut lifted,
+                &mut line,
             );
         }
     }
 
+    let version = file.codec_version;
     // `unsetOption(INDEX_ON_THE_FLY)`: the rejects are never indexed.
-    write_all(&reject, &reject_header, &rejected, missing, None);
-    if !disable_sort {
-        let index_of = |name: &str| dictionary.iter().position(|s| s.name == name).unwrap_or(0);
-        lifted.sort_by(|a, b| {
-            index_of(&a.variant.contig)
-                .cmp(&index_of(&b.variant.contig))
-                .then(a.variant.start.cmp(&b.variant.start))
-        });
-    }
+    write_all(
+        &reject,
+        &reject_header,
+        rejected,
+        false,
+        missing,
+        None,
+        version,
+    );
     // `modifyOption(INDEX_ON_THE_FLY, !DISABLE_SORT)` over the target reference's dictionary.
     let index_dictionary = (!disable_sort).then_some(dictionary.as_slice());
-    write_all(&output, &out_header, &lifted, missing, index_dictionary);
+    write_all(
+        &output,
+        &out_header,
+        lifted,
+        !disable_sort,
+        missing,
+        index_dictionary,
+        version,
+    );
 }
