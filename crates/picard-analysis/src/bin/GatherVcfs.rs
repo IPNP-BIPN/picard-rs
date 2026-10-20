@@ -454,7 +454,7 @@ fn fail(failure: Failure, output: &str) -> ! {
                 "GatherVcfs",
                 &format!("There was a problem with gathering the INPUT.{exception}"),
             );
-            let _ = std::fs::remove_file(&output);
+            let _ = std::fs::remove_file(output);
             std::process::exit(1);
         }
         Failure::Escaped(exception) => die(&exception),
