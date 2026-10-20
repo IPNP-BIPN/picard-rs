@@ -20,7 +20,7 @@ use picard_analysis::combine_genotyping_array_vcfs::{
 use picard_analysis::fingerprint::reference_path;
 use picard_analysis::metrics_cli::{thrown, Args};
 use picard_analysis::vcf_io::{
-    fail_all, header_dictionary, is_compressed_vcf, unroll_paths, Record, VcfReader, VcfWriter,
+    die, header_dictionary, is_compressed_vcf, unroll_paths, Record, VcfReader, VcfWriter,
 };
 
 /// `sampleSpecificHeaders` at 3.4.0.
@@ -144,7 +144,7 @@ fn main() {
     let create_index = args.bool("CREATE_INDEX", true);
     let mut files: Vec<VcfReader> = Vec::with_capacity(inputs.len());
     for path in &inputs {
-        let file = VcfReader::open(path).unwrap_or_else(|e| fail_all(&mut files, &e));
+        let file = VcfReader::open(path).unwrap_or_else(|e| die(&e));
         files.push(file);
     }
     let dictionary = files
@@ -155,9 +155,9 @@ fn main() {
         .zip(&files)
         .map(|(p, f)| (reference_path(p), f.file.header.samples.clone()))
         .collect();
-    let samples = sample_list(&named).unwrap_or_else(|r| fail_all(&mut files, &refuse(&r)));
+    let samples = sample_list(&named).unwrap_or_else(|r| die(&refuse(&r)));
     if create_index && dictionary.is_none() {
-        fail_all(&mut files, &refuse(&Refusal::NoSequenceDictionary));
+        die(&refuse(&Refusal::NoSequenceDictionary));
     }
     // `CREATE_INDEX=false` adds nothing, but the builder's default options already hold
     // `INDEX_ON_THE_FLY`, so `build()` still asks for the dictionary and the `.vcf` is indexed.
@@ -166,7 +166,7 @@ fn main() {
         .iter()
         .any(|ext| lower.ends_with(ext));
     if dictionary.is_none() && plain {
-        fail_all(&mut files, "java.lang.IllegalArgumentException: A reference dictionary is required for creating Tribble indices on the fly");
+        die("java.lang.IllegalArgumentException: A reference dictionary is required for creating Tribble indices on the fly");
     }
     let sources: Vec<Source> = files
         .iter()
@@ -176,8 +176,7 @@ fn main() {
         })
         .collect();
     let merged = smart_merge_headers(&sources, false);
-    let (mut lines, _) =
-        merged.unwrap_or_else(|e| fail_all(&mut files, &format!("{}: {}", e.class(), e.message())));
+    let (mut lines, _) = merged.unwrap_or_else(|e| die(&format!("{}: {}", e.class(), e.message())));
     lines.retain(|l| match l {
         HeaderLine::Unstructured { key, .. } | HeaderLine::Structured { key, .. } => {
             !SAMPLE_SPECIFIC.contains(&key.as_str())
@@ -213,13 +212,18 @@ fn main() {
     // The whole walk is written before its own failure is thrown, and a write failure wins.
     let written = |error| format!("htsjdk.samtools.SAMException: {error}");
     let mut writer = VcfWriter::create(&output, &header, index, MissingFields::default())
-        .unwrap_or_else(|e| fail_all(&mut files, &written(e)));
+        .unwrap_or_else(|e| die(&written(e)));
+    // The inputs are read in step, a record from each in turn, and whatever throws inside the
+    // writer's try-with-resources is thrown after the writer is closed.
     let mut failure: Option<String> = None;
-    loop {
+    'records: loop {
         let mut current: Vec<Option<Record>> = Vec::with_capacity(files.len());
-        for i in 0..files.len() {
-            match files[i].try_next() {
-                Some(Err(e)) => fail_all(&mut files[..i], &e),
+        for file in files.iter_mut() {
+            match file.try_next() {
+                Some(Err(e)) => {
+                    failure = Some(e);
+                    break 'records;
+                }
                 record => current.push(record.map(|r| r.expect("not an error"))),
             }
         }
@@ -239,7 +243,8 @@ fn main() {
                     fully_decoded: false,
                 };
                 if let Err(e) = writer.add(&record) {
-                    fail_all(&mut files, &written(e));
+                    failure = Some(written(e));
+                    break;
                 }
             }
             Err(e) => {
@@ -248,10 +253,12 @@ fn main() {
             }
         }
     }
-    if let Err(e) = writer.finish() {
-        fail_all(&mut files, &written(e));
-    }
+    // A close that fails after the body threw is suppressed by the body's exception.
+    let finished = writer.finish();
     if let Some(e) = failure {
-        fail_all(&mut files, &e);
+        die(&e);
+    }
+    if let Err(e) = finished {
+        die(&written(e));
     }
 }
