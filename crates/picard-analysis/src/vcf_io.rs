@@ -962,6 +962,12 @@ pub struct VcfReader {
     /// The header and versions; `records` stays empty.
     pub file: VcfFile,
     source: Source,
+    /// `WFIterator.currentRecord`: the record after the one last handed out, read as that one was,
+    /// once the first has been asked for. `Some(None)` once the input is done.
+    ahead: Option<Option<Result<Record, String>>>,
+    /// The line of the record last handed out, which [`VcfReader::keep`] keeps; the source's own
+    /// line is the one read ahead.
+    handed: Vec<u8>,
 }
 
 enum Source {
@@ -1181,6 +1187,8 @@ impl VcfReader {
             return Ok(VcfReader {
                 file,
                 source: Source::Bcf(records.into_iter()),
+                ahead: None,
+                handed: Vec::new(),
             });
         }
         let mut reader = std::io::BufReader::with_capacity(
@@ -1251,14 +1259,43 @@ impl VcfReader {
         Ok(VcfReader {
             file,
             source: Source::Text(Box::new(source)),
+            ahead: None,
+            handed: Vec::new(),
         })
     }
 
     /// The next record, or the exception the whole-file read gave.
+    ///
+    /// `WFIterator` reads the first record when the iterator is made and, in each `next()`, the
+    /// one after before it returns: a record that fails to decode throws as the one before it is
+    /// handed out, which is then lost.
     pub fn try_next(&mut self) -> Option<Result<Record, String>> {
         match &mut self.source {
             Source::Bcf(records) => records.next().map(Ok),
-            Source::Text(source) => source.next(&self.file),
+            Source::Text(source) => {
+                let current = match self.ahead.take() {
+                    Some(current) => current,
+                    None => source.next(&self.file),
+                };
+                let record = match current {
+                    Some(Ok(record)) => record,
+                    other => {
+                        self.ahead = Some(None);
+                        return other;
+                    }
+                };
+                self.handed = source.line.clone();
+                match source.next(&self.file) {
+                    Some(Err(e)) => {
+                        self.ahead = Some(None);
+                        Some(Err(e))
+                    }
+                    next => {
+                        self.ahead = Some(next);
+                        Some(Ok(record))
+                    }
+                }
+            }
         }
     }
 
@@ -1299,7 +1336,7 @@ impl VcfReader {
     pub fn keep(&self, record: Record) -> Kept {
         match &self.source {
             Source::Bcf(_) => Kept::Record(Box::new(record)),
-            Source::Text(source) => Kept::Line(source.line.clone().into_boxed_slice()),
+            Source::Text(_) => Kept::Line(self.handed.clone().into_boxed_slice()),
         }
     }
 
