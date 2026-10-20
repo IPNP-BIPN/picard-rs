@@ -18,7 +18,7 @@
 //! `picard.sam.SamErrorMetric.BaseErrorAggregation` and
 //! `picard.sam.SamErrorMetric.ReadBaseStratification` in Picard 3.4.0.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::theoretical_sensitivity::JavaRandom;
 
@@ -235,19 +235,43 @@ fn consumes_reference(operator: char) -> bool {
 /// The thresholds drop observations rather than loci, one by read and one by base, which is why a
 /// mismatch below `--MIN_BASE_Q` lowers the denominator instead of raising the error count.
 pub fn pileup(reads: &[Read], options: &Options) -> Vec<Locus> {
-    let mut loci: BTreeMap<i32, Pile> = BTreeMap::new();
-    let cutoff = options.min_base_q;
-    let passes = |read: &Read, offset: usize| {
-        cutoff == 0
-            || read.qualities.is_empty()
-            || read.qualities.get(offset).is_none_or(|&q| q >= cutoff)
-    };
+    let mut builder = PileupBuilder::new(options);
     for (index, read) in reads.iter().enumerate() {
+        builder.add(index, read);
+    }
+    builder.finish()
+}
+
+/// [`pileup`] a read at a time, for a walk over a coordinate-sorted file that hands on each locus
+/// as soon as no later read can reach it.
+pub struct PileupBuilder {
+    loci: BTreeMap<i32, Pile>,
+    cutoff: u8,
+    min_mapping_q: u8,
+}
+
+impl PileupBuilder {
+    pub fn new(options: &Options) -> PileupBuilder {
+        PileupBuilder {
+            loci: BTreeMap::new(),
+            cutoff: options.min_base_q,
+            min_mapping_q: options.min_mapping_q,
+        }
+    }
+
+    /// One read, the `index`-th, added to the loci it covers.
+    pub fn add(&mut self, index: usize, read: &Read) {
+        let cutoff = self.cutoff;
+        let passes = |read: &Read, offset: usize| {
+            cutoff == 0
+                || read.qualities.is_empty()
+                || read.qualities.get(offset).is_none_or(|&q| q >= cutoff)
+        };
         if read.flags & (0x100 | 0x800 | 0x400) != 0
             || read.is_unmapped()
-            || read.mapping_quality < options.min_mapping_q
+            || read.mapping_quality < self.min_mapping_q
         {
-            continue;
+            return;
         }
         // accumulateSamRecord: one observation per aligned base that meets the cutoff.
         let mut position = read.start;
@@ -256,7 +280,8 @@ pub fn pileup(reads: &[Read], options: &Options) -> Vec<Locus> {
             if matches!(operator, 'M' | '=' | 'X') {
                 for step in 0..length {
                     if passes(read, offset + step) {
-                        loci.entry(position + step as i32)
+                        self.loci
+                            .entry(position + step as i32)
                             .or_default()
                             .matches
                             .push(Observation {
@@ -281,7 +306,8 @@ pub fn pileup(reads: &[Read], options: &Options) -> Vec<Locus> {
             match operator {
                 'I' => {
                     if passes(read, read_base.max(0) as usize) {
-                        loci.entry(position - 1)
+                        self.loci
+                            .entry(position - 1)
                             .or_default()
                             .insertions
                             .push(Observation {
@@ -294,7 +320,8 @@ pub fn pileup(reads: &[Read], options: &Options) -> Vec<Locus> {
                 }
                 'D' => {
                     for step in 0..length {
-                        loci.entry(position + step as i32)
+                        self.loci
+                            .entry(position + step as i32)
                             .or_default()
                             .deletions
                             .push(Observation {
@@ -316,14 +343,32 @@ pub fn pileup(reads: &[Read], options: &Options) -> Vec<Locus> {
             }
         }
     }
-    loci.into_iter()
-        .map(|(position, pile)| {
-            let mut records = pile.matches;
-            records.extend(pile.deletions);
-            records.extend(pile.insertions);
-            Locus { position, records }
-        })
-        .collect()
+
+    /// How many loci are held.
+    pub fn held(&self) -> usize {
+        self.loci.len()
+    }
+
+    /// The loci before `position`, which a read starting at `position + 1` or later cannot reach:
+    /// it shows an insertion at the base before its first, and nothing earlier.
+    pub fn take_before(&mut self, position: i32) -> Vec<Locus> {
+        let rest = self.loci.split_off(&position);
+        let done = std::mem::replace(&mut self.loci, rest);
+        done.into_iter().map(flatten).collect()
+    }
+
+    /// Every locus still held.
+    pub fn finish(self) -> Vec<Locus> {
+        self.loci.into_iter().map(flatten).collect()
+    }
+}
+
+/// A pile as the walk shows it: the matched bases, then the deletions, then the insertions.
+fn flatten((position, pile): (i32, Pile)) -> Locus {
+    let mut records = pile.matches;
+    records.extend(pile.deletions);
+    records.extend(pile.insertions);
+    Locus { position, records }
 }
 
 /// The loci a run actually counts, in the order the tool's loop takes them.
@@ -1264,203 +1309,260 @@ pub fn try_collect_joint(
     stratifiers: &[Stratifier],
     options: &Options,
 ) -> Result<Table, Thrown> {
-    let prior = prior_error(options.prior_q);
-    let mut strata: BTreeMap<Key, Counts> = BTreeMap::new();
-    let all = [Stratifier::All];
-    let stratifiers = if stratifiers.is_empty() {
-        &all[..]
-    } else {
-        stratifiers
-    };
+    let mut joint = Joint::new(calculator, stratifiers, options);
+    joint.add(reads, reference, reference_start, loci, 0, options)?;
+    Ok(joint.finish())
+}
+
+/// One aggregator's state across the walk, for a run that hands it the loci a batch at a time:
+/// [`try_collect_joint`] is one [`Joint::add`] of every locus.
+pub struct Joint {
+    calculator: Calculator,
+    stratifiers: Vec<Stratifier>,
+    prior: f64,
+    strata: BTreeMap<Key, Counts>,
     // A deletion spans several loci, and the same record is shown at each of them; it is counted
     // once, at the first, and only for the loci that were counted at all.
-    let mut seen_deletions: HashSet<(usize, i32)> = HashSet::new();
+    seen_deletions: HashSet<(usize, i32)>,
+}
 
-    for (locus_index, locus) in loci.iter().enumerate() {
-        let reference_base = reference
-            .get((locus.position - reference_start) as usize)
-            .copied()
-            .unwrap_or(b'N');
-        for (observation_index, observation) in locus.records.iter().enumerate() {
-            let thrown = |message: String| Thrown {
-                locus: locus_index,
-                observation: observation_index,
-                message,
-            };
-            if observation.alignment == AlignmentType::Deletion {
-                let already = seen_deletions.contains(&(observation.read, locus.position - 1));
-                seen_deletions.insert((observation.read, locus.position));
-                if already {
-                    continue;
-                }
-            }
-            // Every stratifier is asked, left to right, before any answer of nothing drops the
-            // base: the pairs are built from the left and each asks both of its halves.
-            // `addRecordAndOffset` reads the base quality of anything but a deletion before any
-            // aggregator sees it, which throws for a read stored without qualities.
-            if observation.alignment != AlignmentType::Deletion {
-                element(&reads[observation.read].qualities, observation.offset).map_err(thrown)?;
-            }
-            let mut parts = Some(Vec::new());
-            for &stratifier in stratifiers {
-                let answer = stratify(stratifier, reads, observation, reference_base, options)
-                    .map_err(thrown)?;
-                parts = match (parts, answer) {
-                    (Some(mut so_far), Some(more)) => {
-                        so_far.extend(more);
-                        Some(so_far)
-                    }
-                    _ => None,
-                };
-            }
-            let Some(parts) = parts else { continue };
-            let counts = strata.entry(Key(parts)).or_default();
-            let read = &reads[observation.read];
-            let base = usize::try_from(observation.offset)
-                .ok()
-                .and_then(|i| read.bases.get(i))
+impl Joint {
+    pub fn new(calculator: Calculator, stratifiers: &[Stratifier], options: &Options) -> Joint {
+        Joint {
+            calculator,
+            stratifiers: if stratifiers.is_empty() {
+                vec![Stratifier::All]
+            } else {
+                stratifiers.to_vec()
+            },
+            prior: prior_error(options.prior_q),
+            strata: BTreeMap::new(),
+            seen_deletions: HashSet::new(),
+        }
+    }
+
+    /// The next `loci` of the walk, the first of which is its `first_locus`-th: a throw names its
+    /// place in the whole walk.
+    pub fn add(
+        &mut self,
+        reads: &[Read],
+        reference: &[u8],
+        reference_start: i32,
+        loci: &[Locus],
+        first_locus: usize,
+        options: &Options,
+    ) -> Result<(), Thrown> {
+        let (calculator, stratifiers) = (self.calculator, &self.stratifiers[..]);
+        let (strata, seen_deletions) = (&mut self.strata, &mut self.seen_deletions);
+        for (locus_index, locus) in loci.iter().enumerate() {
+            let mut names: Option<HashMap<&str, Vec<&Observation>>> = None;
+            let reference_base = reference
+                .get((locus.position - reference_start) as usize)
                 .copied()
                 .unwrap_or(b'N');
-            let element = match observation.alignment {
-                AlignmentType::Match => None,
-                _ => indel_element(read, observation),
-            };
+            for (observation_index, observation) in locus.records.iter().enumerate() {
+                let thrown = |message: String| Thrown {
+                    locus: first_locus + locus_index,
+                    observation: observation_index,
+                    message,
+                };
+                if observation.alignment == AlignmentType::Deletion {
+                    let already = seen_deletions.contains(&(observation.read, locus.position - 1));
+                    seen_deletions.insert((observation.read, locus.position));
+                    if already {
+                        continue;
+                    }
+                }
+                // Every stratifier is asked, left to right, before any answer of nothing drops the
+                // base: the pairs are built from the left and each asks both of its halves.
+                // `addRecordAndOffset` reads the base quality of anything but a deletion before any
+                // aggregator sees it, which throws for a read stored without qualities.
+                if observation.alignment != AlignmentType::Deletion {
+                    element(&reads[observation.read].qualities, observation.offset)
+                        .map_err(thrown)?;
+                }
+                let mut parts = Some(Vec::new());
+                for &stratifier in stratifiers {
+                    let answer = stratify(stratifier, reads, observation, reference_base, options)
+                        .map_err(thrown)?;
+                    parts = match (parts, answer) {
+                        (Some(mut so_far), Some(more)) => {
+                            so_far.extend(more);
+                            Some(so_far)
+                        }
+                        _ => None,
+                    };
+                }
+                let Some(parts) = parts else { continue };
+                let counts = strata.entry(Key(parts)).or_default();
+                let read = &reads[observation.read];
+                let base = usize::try_from(observation.offset)
+                    .ok()
+                    .and_then(|i| read.bases.get(i))
+                    .copied()
+                    .unwrap_or(b'N');
+                let element = match observation.alignment {
+                    AlignmentType::Match => None,
+                    _ => indel_element(read, observation),
+                };
 
-            // Every calculator counts its denominator the same way: matched bases that were
-            // called, and the whole length of an insertion.
-            match observation.alignment {
-                AlignmentType::Match => {
-                    if !is_no_call(base) {
-                        counts.bases += 1;
+                // Every calculator counts its denominator the same way: matched bases that were
+                // called, and the whole length of an insertion.
+                match observation.alignment {
+                    AlignmentType::Match => {
+                        if !is_no_call(base) {
+                            counts.bases += 1;
+                        }
                     }
-                }
-                AlignmentType::Insertion => {
-                    if let Some((_, length)) = element {
-                        counts.bases += length as u64;
-                    }
-                }
-                AlignmentType::Deletion => {}
-            }
-
-            match calculator {
-                Calculator::Error => {
-                    if observation.alignment == AlignmentType::Match
-                        && !is_no_call(base)
-                        && !bases_equal(base, reference_base)
-                    {
-                        counts.mismatches += 1;
-                    }
-                }
-                Calculator::IndelError => match observation.alignment {
                     AlignmentType::Insertion => {
-                        counts.insertions += 1;
                         if let Some((_, length)) = element {
-                            counts.inserted_bases += length as u64;
+                            counts.bases += length as u64;
                         }
                     }
-                    AlignmentType::Deletion => {
-                        counts.deletions += 1;
-                        if let Some((_, length)) = element {
-                            counts.deleted_bases += length as u64;
+                    AlignmentType::Deletion => {}
+                }
+
+                match calculator {
+                    Calculator::Error => {
+                        if observation.alignment == AlignmentType::Match
+                            && !is_no_call(base)
+                            && !bases_equal(base, reference_base)
+                        {
+                            counts.mismatches += 1;
                         }
                     }
-                    AlignmentType::Match => {}
-                },
-                Calculator::OverlappingError => {
-                    // The mate is looked for among the bases READ at the locus, not among its
-                    // indels: the tool builds its name sets from `getRecordAndOffsets()`.
-                    let mate = locus.records.iter().find(|other| {
-                        other.alignment == AlignmentType::Match
-                            && other.read != observation.read
-                            && are_mates(read, &reads[other.read])
-                    });
-                    let Some(mate) = mate else { continue };
-                    let mate_base = usize::try_from(mate.offset)
-                        .ok()
-                        .and_then(|i| reads[mate.read].bases.get(i))
-                        .copied()
-                        .unwrap_or(b'N');
-                    if is_no_call(base) || is_no_call(mate_base) {
-                        continue;
-                    }
-                    counts.overlapping_bases += 1;
-                    if bases_equal(base, reference_base) {
-                        continue;
-                    }
-                    if bases_equal(base, mate_base) {
-                        counts.both_disagree += 1;
-                    } else if bases_equal(mate_base, reference_base) {
-                        counts.disagrees_with_ref_and_mate += 1;
-                    } else {
-                        counts.three_ways += 1;
+                    Calculator::IndelError => match observation.alignment {
+                        AlignmentType::Insertion => {
+                            counts.insertions += 1;
+                            if let Some((_, length)) = element {
+                                counts.inserted_bases += length as u64;
+                            }
+                        }
+                        AlignmentType::Deletion => {
+                            counts.deletions += 1;
+                            if let Some((_, length)) = element {
+                                counts.deleted_bases += length as u64;
+                            }
+                        }
+                        AlignmentType::Match => {}
+                    },
+                    Calculator::OverlappingError => {
+                        // The mate is looked for among the bases READ at the locus, not among its
+                        // indels: the tool builds its name sets from `getRecordAndOffsets()`.
+                        // Only a read of the same name can be the mate, so the locus's bases are indexed by
+                        // name once, in their order, for every observation that asks.
+                        let names = names.get_or_insert_with(|| {
+                            let mut names: HashMap<&str, Vec<&Observation>> = HashMap::new();
+                            for other in &locus.records {
+                                if other.alignment == AlignmentType::Match {
+                                    names
+                                        .entry(reads[other.read].name.as_str())
+                                        .or_default()
+                                        .push(other);
+                                }
+                            }
+                            names
+                        });
+                        let mate = names.get(read.name.as_str()).and_then(|candidates| {
+                            candidates.iter().copied().find(|other| {
+                                other.read != observation.read
+                                    && are_mates(read, &reads[other.read])
+                            })
+                        });
+                        let Some(mate) = mate else { continue };
+                        let mate_base = usize::try_from(mate.offset)
+                            .ok()
+                            .and_then(|i| reads[mate.read].bases.get(i))
+                            .copied()
+                            .unwrap_or(b'N');
+                        if is_no_call(base) || is_no_call(mate_base) {
+                            continue;
+                        }
+                        counts.overlapping_bases += 1;
+                        if bases_equal(base, reference_base) {
+                            continue;
+                        }
+                        if bases_equal(base, mate_base) {
+                            counts.both_disagree += 1;
+                        } else if bases_equal(mate_base, reference_base) {
+                            counts.disagrees_with_ref_and_mate += 1;
+                        } else {
+                            counts.three_ways += 1;
+                        }
                     }
                 }
             }
         }
+
+        Ok(())
     }
 
-    Ok(match calculator {
-        Calculator::Error => Table::Base(
-            strata
-                .into_iter()
-                // A stratum with no bases above the base-quality threshold is not a row of a
-                // simple error table, which is why a file of poorly mapped reads writes a table
-                // with no header at all.
-                .filter(|(_, counts)| counts.bases != 0)
-                .map(|(key, counts)| BaseErrorMetric {
-                    covariate: key.text(),
-                    total_bases: counts.bases,
-                    error_bases: counts.mismatches,
-                    q_score: q_score(counts.mismatches, counts.bases, prior),
-                })
-                .collect(),
-        ),
-        Calculator::OverlappingError => Table::Overlapping(
-            strata
-                .into_iter()
-                .map(|(key, counts)| OverlappingErrorMetric {
-                    covariate: key.text(),
-                    total_bases: counts.bases,
-                    bases_with_overlapping_reads: counts.overlapping_bases,
-                    disagrees_with_reference_only: counts.both_disagree,
-                    disagrees_with_reference_only_q: q_score(
-                        counts.both_disagree,
-                        counts.overlapping_bases,
-                        prior,
-                    ),
-                    disagrees_with_ref_and_mate: counts.disagrees_with_ref_and_mate,
-                    disagrees_with_ref_and_mate_q: q_score(
-                        counts.disagrees_with_ref_and_mate,
-                        counts.overlapping_bases,
-                        prior,
-                    ),
-                    three_ways_disagreement: counts.three_ways,
-                    three_ways_disagreement_q: q_score(
-                        counts.three_ways,
-                        counts.overlapping_bases,
-                        prior,
-                    ),
-                })
-                .collect(),
-        ),
-        Calculator::IndelError => Table::Indel(
-            strata
-                .into_iter()
-                .map(|(key, counts)| IndelErrorMetric {
-                    covariate: key.text(),
-                    total_bases: counts.bases,
-                    insertions: counts.insertions,
-                    inserted_bases: counts.inserted_bases,
-                    insertions_q: q_score(counts.insertions, counts.bases, prior),
-                    deletions: counts.deletions,
-                    deleted_bases: counts.deleted_bases,
-                    deletions_q: q_score(counts.deletions, counts.bases, prior),
-                    error_bases: counts.inserted_bases + counts.deleted_bases,
-                    q_score: 0,
-                })
-                .collect(),
-        ),
-    })
+    /// The table the walk has built.
+    pub fn finish(self) -> Table {
+        let (calculator, strata, prior) = (self.calculator, self.strata, self.prior);
+        match calculator {
+            Calculator::Error => Table::Base(
+                strata
+                    .into_iter()
+                    // A stratum with no bases above the base-quality threshold is not a row of a
+                    // simple error table, which is why a file of poorly mapped reads writes a table
+                    // with no header at all.
+                    .filter(|(_, counts)| counts.bases != 0)
+                    .map(|(key, counts)| BaseErrorMetric {
+                        covariate: key.text(),
+                        total_bases: counts.bases,
+                        error_bases: counts.mismatches,
+                        q_score: q_score(counts.mismatches, counts.bases, prior),
+                    })
+                    .collect(),
+            ),
+            Calculator::OverlappingError => Table::Overlapping(
+                strata
+                    .into_iter()
+                    .map(|(key, counts)| OverlappingErrorMetric {
+                        covariate: key.text(),
+                        total_bases: counts.bases,
+                        bases_with_overlapping_reads: counts.overlapping_bases,
+                        disagrees_with_reference_only: counts.both_disagree,
+                        disagrees_with_reference_only_q: q_score(
+                            counts.both_disagree,
+                            counts.overlapping_bases,
+                            prior,
+                        ),
+                        disagrees_with_ref_and_mate: counts.disagrees_with_ref_and_mate,
+                        disagrees_with_ref_and_mate_q: q_score(
+                            counts.disagrees_with_ref_and_mate,
+                            counts.overlapping_bases,
+                            prior,
+                        ),
+                        three_ways_disagreement: counts.three_ways,
+                        three_ways_disagreement_q: q_score(
+                            counts.three_ways,
+                            counts.overlapping_bases,
+                            prior,
+                        ),
+                    })
+                    .collect(),
+            ),
+            Calculator::IndelError => Table::Indel(
+                strata
+                    .into_iter()
+                    .map(|(key, counts)| IndelErrorMetric {
+                        covariate: key.text(),
+                        total_bases: counts.bases,
+                        insertions: counts.insertions,
+                        inserted_bases: counts.inserted_bases,
+                        insertions_q: q_score(counts.insertions, counts.bases, prior),
+                        deletions: counts.deletions,
+                        deleted_bases: counts.deleted_bases,
+                        deletions_q: q_score(counts.deletions, counts.bases, prior),
+                        error_bases: counts.inserted_bases + counts.deleted_bases,
+                        q_score: 0,
+                    })
+                    .collect(),
+            ),
+        }
+    }
 }
 
 /// The table as the metrics file writes it: a header and one line per row, tab separated.
