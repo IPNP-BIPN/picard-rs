@@ -8,18 +8,27 @@
 
 use std::io::Read;
 
-use htsjdk_bam::sam_file::write_sam;
+use htsjdk_bam::header::SamHeader;
+use htsjdk_bam::record::BamRecord;
+use htsjdk_bam::sam_file::read_sam_with;
+use htsjdk_bam::text_parse::ValidationStringency;
 use htsjdk_metrics::file::{Histogram, MetricsFile};
 use picard_analysis::args::arg;
-use picard_analysis::compare_sams::{compare_sams_with_options, CompareOptions};
+use picard_analysis::compare_sams::{compare_parsed, CompareError, CompareOptions};
 
-/// The file as SAM text, whichever form it is stored in.
-fn as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
+/// A file as `CompareSAMs` reads it: a BAM (or a CRAM, decoded as one) as its records decode, a
+/// SAM as text for `compare_sams_with_options` to parse.
+enum Input {
+    Records(SamHeader, Vec<BamRecord>),
+    Text(String),
+}
+
+fn read(path: &str) -> Result<Input, Box<dyn std::error::Error + Send + Sync>> {
     let mut raw = Vec::new();
     std::fs::File::open(path)?.read_to_end(&mut raw)?;
     let raw = picard_analysis::cram_input::uncram(raw);
     if !raw.starts_with(&[0x1f, 0x8b]) {
-        return Ok(String::from_utf8(raw)?);
+        return Ok(Input::Text(String::from_utf8(raw)?));
     }
     let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
     let reader =
@@ -28,7 +37,17 @@ fn as_sam(path: &str) -> Result<String, Box<dyn std::error::Error>> {
     let records: Vec<_> = reader
         .map(|r| r.map_err(|e| format!("{e:?}")))
         .collect::<Result<_, _>>()?;
-    Ok(write_sam(&header, &records).ok_or("records failed to re-encode as SAM")?)
+    Ok(Input::Records(header, records))
+}
+
+/// The records of a SAM read as `compare_sams_with_options` reads them.
+fn parsed(input: Input) -> Result<(SamHeader, Vec<BamRecord>), Box<dyn std::error::Error>> {
+    match input {
+        Input::Records(header, records) => Ok((header, records)),
+        // The same refusal text the parse inside `compare_sams_with_options` gave.
+        Input::Text(text) => Ok(read_sam_with(&text, ValidationStringency::Silent)
+            .map_err(|e| format!("{:?}", CompareError::from(e)))?),
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -63,14 +82,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| path.to_string())
         }
     };
-    let metric = compare_sams_with_options(
-        &as_sam(files[0])?,
-        &as_sam(files[1])?,
+    // The two files are read at once, one on its own thread; the left one's failure is still the
+    // one reported when both fail.
+    let (left, right) = std::thread::scope(|scope| {
+        let right = scope.spawn(|| read(files[1]));
+        (read(files[0]), right.join().expect("the reading thread"))
+    });
+    let unsend = |e: Box<dyn std::error::Error + Send + Sync>| -> Box<dyn std::error::Error> { e };
+    let (left, right) = (left.map_err(unsend)?, right.map_err(unsend)?);
+    let (left, right) = (parsed(left)?, parsed(right)?);
+    let metric = compare_parsed(
+        &left.0,
+        &left.1,
+        &right.0,
+        &right.1,
         &absolute(files[0]),
         &absolute(files[1]),
         &options,
-    )
-    .map_err(|e| format!("{e:?}"))?;
+    );
     if let Some(exception) = &metric.thrown {
         for line in &metric.report {
             println!("{line}");

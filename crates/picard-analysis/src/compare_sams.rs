@@ -282,11 +282,26 @@ pub fn compare_sams_with_options(
 ) -> Result<SamComparisonMetric, CompareError> {
     let (h1, recs1) = read_sam_with(left_sam, ValidationStringency::Silent)?;
     let (h2, recs2) = read_sam_with(right_sam, ValidationStringency::Silent)?;
+    Ok(compare_parsed(
+        &h1, &recs1, &h2, &recs2, left_name, right_name, opts,
+    ))
+}
 
+/// [`compare_sams_with_options`] over two files already read: a BAM's records as they decode,
+/// with no round trip through SAM text.
+pub fn compare_parsed(
+    h1: &SamHeader,
+    recs1: &[BamRecord],
+    h2: &SamHeader,
+    recs2: &[BamRecord],
+    left_name: &str,
+    right_name: &str,
+    opts: &CompareOptions,
+) -> SamComparisonMetric {
     // htsjdk requires both files to share a sort order and dispatches on it: coordinate, queryname,
     // or (any other value) the unsorted path. Mismatched sort orders are deferred.
-    let so1 = sort_order(&h1);
-    let so2 = sort_order(&h2);
+    let so1 = sort_order(h1);
+    let so2 = sort_order(h2);
 
     let mut m = SamComparisonMetric {
         left_file: left_name.to_string(),
@@ -304,7 +319,7 @@ pub fn compare_sams_with_options(
         .collect();
 
     let (headers_equal, dictionaries_differ) =
-        compare_headers(&h1, &h2, opts.lenient_header, &mut m.report);
+        compare_headers(h1, h2, opts.lenient_header, &mut m.report);
     // A coordinate comparison needs one dictionary; with two it compares nothing and fails.
     let alignments_equal = match so1 {
         _ if so1 != so2 => {
@@ -314,7 +329,7 @@ pub fn compare_sams_with_options(
             false
         }
         "queryname" => {
-            compare_queryname(&left, &right, &h1, &h2, opts, &mut m);
+            compare_queryname(&left, &right, h1, h2, opts, &mut m);
             m.all_visited_equal()
         }
         "coordinate" if dictionaries_differ => {
@@ -325,20 +340,20 @@ pub fn compare_sams_with_options(
             false
         }
         "coordinate" => {
-            compare_coordinate(&left, &right, &h1, &h2, opts, &mut m);
+            compare_coordinate(&left, &right, h1, h2, opts, &mut m);
             m.all_visited_equal()
         }
         _ => {
-            compare_unsorted(&left, &right, &h1, &h2, opts, &mut m);
+            compare_unsorted(&left, &right, h1, h2, opts, &mut m);
             m.all_visited_equal()
         }
     };
     if opts.lenient_dup {
         let pairs = std::mem::take(&mut m.differing_duplicates);
-        m.duplicate_markings_differ += lenient_duplicate_differences(&h1, &h2, &pairs);
+        m.duplicate_markings_differ += lenient_duplicate_differences(h1, h2, &pairs);
     }
     m.are_equal = headers_equal && alignments_equal && m.duplicate_markings_differ == 0;
-    Ok(m)
+    m
 }
 
 /// `SAMFileHeader.getSortOrder()`, as the enum prints: `unsorted` when absent, `unknown` when not
