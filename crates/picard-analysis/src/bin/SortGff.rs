@@ -23,10 +23,12 @@
 //! with a flush directive before each one that no earlier feature's family can still reach.
 
 use std::collections::HashMap;
-use std::io::Write;
+use std::fs::File;
+use std::io::{BufRead, BufReader, BufWriter, Seek, SeekFrom, Write};
+use std::os::unix::fs::FileExt;
 
 use picard_analysis::metrics_cli::{absolute, fail, thrown, Args};
-use picard_analysis::sort_gff::{sort, Feature};
+use picard_analysis::sort_gff::contig_ranks;
 use picard_analysis::vcf_io::extract_dictionary;
 
 const GFF3_EXTENSIONS: [&str; 4] = [".gff3", ".gff", ".gff3.gz", ".gff.gz"];
@@ -469,71 +471,122 @@ fn parse_line(line: &str, current_line: i32) -> Result<Gff3Feature, DecodeError>
     Ok(feature)
 }
 
-/// The lines `LongLineBufferedReader.readLine` yields: split on `\n`, `\r` or `\r\n`.
-fn read_lines(text: &str) -> Vec<&str> {
-    let mut lines = Vec::new();
-    let bytes = text.as_bytes();
-    let mut start = 0;
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'\n' => {
-                lines.push(&text[start..i]);
-                i += 1;
-                start = i;
-            }
-            b'\r' => {
-                lines.push(&text[start..i]);
-                i += 1;
-                if i < bytes.len() && bytes[i] == b'\n' {
-                    i += 1;
-                }
-                start = i;
-            }
-            _ => i += 1,
+/// The lines `LongLineBufferedReader.readLine` yields: split on `\n`, `\r` or `\r\n`, each with
+/// the byte offset it starts at. Each is read as `String::from_utf8_lossy` read the whole file:
+/// a line ending cannot sit inside a UTF-8 sequence, so the two replace the same bytes.
+struct Lines<R> {
+    reader: R,
+    offset: u64,
+    line: Vec<u8>,
+}
+
+impl<R: BufRead> Lines<R> {
+    fn new(reader: R) -> Self {
+        Lines {
+            reader,
+            offset: 0,
+            line: Vec::new(),
         }
     }
-    if start < bytes.len() {
-        lines.push(&text[start..]);
+
+    /// The next line's offset and length; its bytes are left in `line`.
+    fn next_line(&mut self) -> Option<(u64, usize)> {
+        self.line.clear();
+        let start = self.offset;
+        loop {
+            let buf = self
+                .reader
+                .fill_buf()
+                .unwrap_or_else(|e| fail(&format!("{e}")));
+            if buf.is_empty() {
+                return (!self.line.is_empty()).then_some((start, self.line.len()));
+            }
+            let end = buf.iter().position(|&b| b == b'\n' || b == b'\r');
+            let taken = end.unwrap_or(buf.len());
+            self.line.extend_from_slice(&buf[..taken]);
+            let carriage_return = end.is_some_and(|i| buf[i] == b'\r');
+            let used = end.map_or(taken, |i| i + 1);
+            self.reader.consume(used);
+            self.offset += used as u64;
+            if end.is_none() {
+                continue;
+            }
+            if carriage_return {
+                let next = self
+                    .reader
+                    .fill_buf()
+                    .unwrap_or_else(|e| fail(&format!("{e}")));
+                if next.first() == Some(&b'\n') {
+                    self.reader.consume(1);
+                    self.offset += 1;
+                }
+            }
+            return Some((start, self.line.len()));
+        }
     }
-    lines
+
+    fn text(&self) -> std::borrow::Cow<'_, str> {
+        String::from_utf8_lossy(&self.line)
+    }
 }
 
-/// The file's text, gunzipped when its name says it is compressed.
-fn read_text(path: &str) -> String {
-    let raw = std::fs::read(path).unwrap_or_else(|e| fail(&format!("{e}")));
-    let raw = if path.ends_with(".gz") || path.ends_with(".bgz") {
-        picard_analysis::bgzf::decompress_owned(raw).unwrap_or_else(|e| fail(&format!("{e:?}")))
-    } else {
-        raw
-    };
-    String::from_utf8_lossy(&raw).into_owned()
+/// The input as a file every line can be read again from: the file itself, or, when its name says
+/// it is compressed, its blocks inflated one at a time into a temporary file, which is unlinked as
+/// soon as it is made so that no exit leaves it behind.
+fn open_store(path: &str) -> File {
+    let file = File::open(path).unwrap_or_else(|e| fail(&format!("{e}")));
+    if !(path.ends_with(".gz") || path.ends_with(".bgz")) {
+        return file;
+    }
+    let temp_path = std::env::temp_dir().join(format!("sort_gff_{}.gff3", std::process::id()));
+    let temp = File::options()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&temp_path)
+        .and_then(|temp| std::fs::remove_file(&temp_path).map(|()| temp))
+        .unwrap_or_else(|e| fail(&format!("{e}")));
+    let mut blocks = htsjdk_bgzf::BgzfReader::new(BufReader::new(file));
+    let mut inflated = BufWriter::new(&temp);
+    while let Some(block) = blocks
+        .next_block()
+        .unwrap_or_else(|e| fail(&format!("{e:?}")))
+    {
+        inflated
+            .write_all(&block.data)
+            .unwrap_or_else(|e| fail(&format!("{e}")));
+    }
+    inflated.flush().unwrap_or_else(|e| fail(&format!("{e}")));
+    drop(inflated);
+    rewind(&temp);
+    temp
 }
 
-/// `Gff3Codec.canDecode`.
-fn can_decode(path: &str) -> bool {
-    if !GFF3_EXTENSIONS.iter().any(|e| path.ends_with(e)) {
-        return false;
-    }
-    let text = read_text(path);
-    let lines = read_lines(&text);
-    let mut iter = lines.into_iter();
-    let Some(mut line) = iter.next() else {
+fn rewind(mut file: &File) {
+    file.seek(SeekFrom::Start(0))
+        .unwrap_or_else(|e| fail(&format!("{e}")));
+}
+
+/// `Gff3Codec.canDecode`, past its extension check, on the input's store.
+fn can_decode(store: &File) -> bool {
+    let mut lines = Lines::new(BufReader::new(store));
+    if lines.next_line().is_none() {
         thrown(
             "java.lang.NullPointerException: Cannot invoke \"java.lang.CharSequence.length()\" \
              because \"this.text\" is null",
         );
-    };
-    if to_directive(line) != Some(Directive::Version) {
+    }
+    if to_directive(&lines.text()) != Some(Directive::Version) {
         return false;
     }
-    while line.starts_with('#') {
-        match iter.next() {
-            Some(next) => line = next,
-            None => return false,
+    while lines.line.first() == Some(&b'#') {
+        if lines.next_line().is_none() {
+            return false;
         }
     }
-    let fields = parsing_utils_split(line, '\t');
+    let line = lines.text();
+    let fields = parsing_utils_split(&line, '\t');
     if fields.len() != 9 {
         return false;
     }
@@ -541,6 +594,14 @@ fn can_decode(path: &str) -> bool {
         return false;
     }
     matches!(fields[6], "+" | "-" | "." | "?")
+}
+
+/// Where a feature's line lies in the store, and what the sort reads of it.
+struct Key {
+    offset: u64,
+    length: usize,
+    contig: u32,
+    start: i32,
 }
 
 /// `Gff3Writer.addFeature`.
@@ -603,7 +664,8 @@ fn main() {
         ));
     }
 
-    if !can_decode(&input) {
+    let store = (GFF3_EXTENSIONS.iter().any(|e| input.ends_with(e))).then(|| open_store(&input));
+    if !store.as_ref().is_some_and(can_decode) {
         thrown(&format!(
             "java.lang.IllegalArgumentException: Input file {input} cannot be read by Gff3Codec"
         ));
@@ -619,14 +681,19 @@ fn main() {
         thrown("java.lang.IllegalArgumentException: maxRecordsInRam must be > 0");
     }
 
-    // The whole-file iterator, and the latest start of every ID's family as it is read.
+    // The whole-file iterator, and the latest start of every ID's family as it is read. Only a
+    // feature's sort key and where its line lies are kept; the line is read again to write it.
     let source = absolute(&input);
-    let text = read_text(&input);
+    let store = store.expect("canDecode read it");
+    rewind(&store);
+    let mut lines = Lines::new(BufReader::new(&store));
     let mut codec = Codec::default();
-    let mut features: Vec<Gff3Feature> = Vec::new();
+    let mut keys: Vec<Key> = Vec::new();
+    let mut contigs: Vec<String> = Vec::new();
+    let mut contig_index: HashMap<String, u32> = HashMap::new();
     let mut latest_start_map: HashMap<String, i32> = HashMap::new();
-    for line in read_lines(&text) {
-        let feature = match codec.decode(line) {
+    while let Some((offset, length)) = lines.next_line() {
+        let feature = match codec.decode(&lines.text()) {
             Ok(Some(feature)) => feature,
             Ok(None) => continue,
             Err(DecodeError::Tribble(message)) => thrown(&format!(
@@ -648,21 +715,31 @@ fn main() {
                 .or_insert(current_latest_start);
             *entry = (*entry).max(current_latest_start);
         }
-        features.push(feature);
+        let contig = match contig_index.get(&feature.contig) {
+            Some(&index) => index,
+            None => {
+                let index = contigs.len() as u32;
+                contig_index.insert(feature.contig.clone(), index);
+                contigs.push(feature.contig);
+                index
+            }
+        };
+        keys.push(Key {
+            offset,
+            length,
+            contig,
+            start: feature.start,
+        });
     }
+    drop(lines);
 
     // `FeatureComparator` over a stable sort, which a spill and its merge leave unchanged.
-    let keys: Vec<Feature> = features
-        .iter()
-        .enumerate()
-        .map(|(index, f)| Feature {
-            contig: f.contig.clone(),
-            start: f.start,
-            end: f.end,
-            index,
-        })
-        .collect();
-    let order = sort(&keys, dictionary.as_deref());
+    let ranks = contig_ranks(&contigs, dictionary.as_deref());
+    keys.sort_by(|a, b| {
+        ranks[a.contig as usize]
+            .cmp(&ranks[b.contig as usize])
+            .then(a.start.cmp(&b.start))
+    });
 
     // `new Gff3Writer(OUTPUT.toPath())`.
     if !GFF3_EXTENSIONS.iter().any(|e| output.ends_with(e)) {
@@ -671,35 +748,68 @@ fn main() {
              with gff3"
         ));
     }
-    let mut out = String::from("##gff-version 3.1.25\n");
+    let written = File::create(&output).and_then(|file| {
+        if output.ends_with(".gz") {
+            let mut writer = picard_analysis::output::bgzf_writer(file);
+            write_sorted(&mut writer, &codec, &keys, &store, &latest_start_map)?;
+            writer.finish()
+        } else {
+            let mut writer = BufWriter::new(file);
+            write_sorted(&mut writer, &codec, &keys, &store, &latest_start_map)?;
+            writer.flush()
+        }
+    });
+    if let Err(e) = written {
+        thrown(&format!(
+            "picard.PicardException: Error opening  {output} to write to: {e}"
+        ));
+    }
+}
+
+/// The writer's version directive, the comments and sequence regions, then every feature in
+/// `keys` order, read again from `store`, with a flush directive before each one that no earlier
+/// feature's family can still reach.
+fn write_sorted(
+    out: &mut impl Write,
+    codec: &Codec,
+    keys: &[Key],
+    store: &File,
+    latest_start_map: &HashMap<String, i32>,
+) -> std::io::Result<()> {
+    let mut text = String::from("##gff-version 3.1.25\n");
     for comment in &codec.comments {
-        out.push('#');
-        out.push_str(comment);
-        out.push('\n');
+        text.push('#');
+        text.push_str(comment);
+        text.push('\n');
     }
     for region in &codec.regions {
-        out.push_str(&format!(
+        text.push_str(&format!(
             "##sequence-region {} {} {}\n",
             url_encode(&region.contig),
             region.start,
             region.end
         ));
     }
+    out.write_all(text.as_bytes())?;
 
+    let mut line = Vec::new();
     let mut latest_start = 0;
-    let mut latest_chrom: Option<String> = None;
-    for (n, key) in order.iter().enumerate() {
-        let feature = &features[key.index];
-        if n > 0
-            && (feature.start > latest_start
-                || latest_chrom.as_deref() != Some(feature.contig.as_str()))
-        {
-            out.push_str("###\n");
+    let mut latest_chrom: Option<u32> = None;
+    for (n, key) in keys.iter().enumerate() {
+        line.resize(key.length, 0);
+        store.read_exact_at(&mut line, key.offset)?;
+        let Ok(feature) = parse_line(&String::from_utf8_lossy(&line), 0) else {
+            unreachable!("the line decoded when it was first read");
+        };
+        text.clear();
+        if n > 0 && (feature.start > latest_start || latest_chrom != Some(key.contig)) {
+            text.push_str("###\n");
         }
-        write_feature(&mut out, feature);
+        write_feature(&mut text, &feature);
+        out.write_all(text.as_bytes())?;
         // `updateLatestStart`.
-        if latest_chrom.as_deref() != Some(feature.contig.as_str()) {
-            latest_chrom = Some(feature.contig.clone());
+        if latest_chrom != Some(key.contig) {
+            latest_chrom = Some(key.contig);
             latest_start = 0;
         }
         if let Some(id) = &feature.id {
@@ -713,19 +823,5 @@ fn main() {
             .unwrap_or(feature.start);
         latest_start = latest_start.max(from_parents);
     }
-
-    let written = if output.ends_with(".gz") {
-        std::fs::File::create(&output).and_then(|file| {
-            let mut writer = picard_analysis::output::bgzf_writer(file);
-            writer.write_all(out.as_bytes())?;
-            writer.finish()
-        })
-    } else {
-        std::fs::write(&output, out.as_bytes())
-    };
-    if let Err(e) = written {
-        thrown(&format!(
-            "picard.PicardException: Error opening  {output} to write to: {e}"
-        ));
-    }
+    Ok(())
 }
