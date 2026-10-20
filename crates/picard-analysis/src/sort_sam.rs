@@ -21,7 +21,8 @@
 //! merges the runs. Measured in the oracle container (3,050 records, coordinate and queryname, SAM
 //! and BAM out): Picard's output with `MAX_RECORDS_IN_RAM=37` is byte-identical to its in-memory
 //! sort, because the sort is stable and the merge breaks ties by run, so where the runs end
-//! changes nothing that is written.
+//! changes nothing that is written. `SortSam` sorts through [`encoded`], the same collection
+//! holding encoded records; the other tools that sort hold decoded ones here.
 
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -207,6 +208,8 @@ pub fn sort_sam_to_bam(input_sam: &str, order: SortOrder) -> Result<Vec<u8>, Par
         .finish()
         .expect("in-memory BAM writer never fails to finish"))
 }
+
+pub mod encoded;
 
 /// `SortingCollection`'s default `maxRecordsInRam`, which is `MAX_RECORDS_IN_RAM`'s.
 pub const DEFAULT_MAX_RECORDS_IN_RAM: usize = 500_000;
