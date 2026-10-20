@@ -9,16 +9,20 @@
 //! The duplication metrics file the parent writes is accepted and written in the plain form the
 //! other duplicate markers' binaries write it in: its content is not what this array compares.
 
+use std::sync::Arc;
+
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::write_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::MetricsFile;
+use picard_analysis::bam_stream::{Input, Records};
 use picard_analysis::mark_duplicates::{
     base_quality_score, Options, Record, ScoringStrategy, Span,
 };
 use picard_analysis::mate_cigar_duplicates::needs_mate_cigar;
 use picard_analysis::metrics_cli::{fail, read_input, thrown, Args};
+use picard_analysis::stream_output::Output;
 use picard_analysis::umi_aware::{run, UmiAwareOptions};
 
 const DUPLICATE_READ: u16 = 0x400;
@@ -106,43 +110,69 @@ fn main() {
             .is_some_and(picard_analysis::args::is_true)
             .then_some("coordinate")
     });
-    let (mut header, records) = picard_analysis::merge_sam_files::open_inputs(
-        inputs.iter().map(|input| read_input(input)).collect(),
-        assumed,
-    )
-    .unwrap_or_else(|message| thrown(&message));
-    // Only an order this tool refuses before reading a record makes reading one throw.
-    let records = records.unwrap_or_default();
+    // Read twice, as MarkDuplicates reads it: once for the marking, which keeps only what it
+    // needs of each record, and once for the writing. One input is streamed, and its first read
+    // checks the whole file, so a damaged one is refused here as reading it whole refused it.
+    // Several are merged in memory by `openInputs`, once per pass.
+    let open = |streamed: Option<bool>| -> (SamHeader, Records, bool) {
+        if let [input] = inputs.as_slice() {
+            let opened = match streamed {
+                None => Input::open(input),
+                Some(streamed) => Input::reopen(input, streamed),
+            }
+            .unwrap_or_else(|e| fail(&e.message()));
+            let streams = opened.streams();
+            let (mut header, records) = opened.into_parts();
+            if let Some(order) = assumed {
+                header.set_sort_order(order);
+            }
+            return (header, records, streams);
+        }
+        let (header, records) = picard_analysis::merge_sam_files::open_inputs(
+            inputs.iter().map(|input| read_input(input)).collect(),
+            assumed,
+        )
+        .unwrap_or_else(|message| thrown(&message));
+        // Only an order this tool refuses before reading a record makes reading one throw.
+        let records = records.unwrap_or_default();
+        (header, Records::Decoded(records.into_iter(), None), false)
+    };
+    let (mut header, records, streamed) = open(None);
     if header.attributes.get("SO") != Some("coordinate") {
         thrown("picard.PicardException: This program requires inputs in coordinate SortOrder");
     }
 
     // The read group's library, which is what a duplicate set is cut by, and the group's index in
-    // the header, which is what `closeEnough` compares.
-    let library_of = |record: &BamRecord, header: &SamHeader| -> (String, i32) {
-        match string_tag(record, b"RG").and_then(|id| {
-            header
-                .read_groups
-                .iter()
-                .position(|group| group.id == id)
-                .map(|position| (position, &header.read_groups[position]))
-        }) {
-            Some((position, group)) => (
-                group
-                    .attributes
-                    .get("LB")
-                    .unwrap_or("Unknown Library")
-                    .to_string(),
-                position as i32,
-            ),
-            None => ("Unknown Library".to_string(), -1),
+    // the header, which is what `closeEnough` compares. One shared string per read group, so the
+    // records of a library hold a pointer each rather than a copy.
+    let unknown_library: Arc<str> = Arc::from("Unknown Library");
+    let libraries: Vec<Arc<str>> = header
+        .read_groups
+        .iter()
+        .map(|group| match group.attributes.get("LB") {
+            Some(library) => Arc::from(library),
+            None => unknown_library.clone(),
+        })
+        .collect();
+    let library_of = |record: &BamRecord| -> (Arc<str>, i32) {
+        let id = match record.tags.get(Tag::new(b"RG")) {
+            Some(TagValue::Str(s)) => Some(s.as_str()),
+            _ => None,
+        };
+        match id.and_then(|id| header.read_groups.iter().position(|group| group.id == id)) {
+            Some(position) => (libraries[position].clone(), position as i32),
+            None => (unknown_library.clone(), -1),
         }
     };
-    let marked_records: Vec<Record> = records
-        .iter()
+    let umi_tag_name: [u8; 2] = {
+        let bytes = umi_tag.as_bytes();
+        [bytes[0], bytes[1]]
+    };
+    // Each record's UMI is kept beside what the marking keeps of it.
+    let (marked_records, umis): (Vec<Record>, Vec<Option<String>>) = records
         .map(|record| {
-            let (library, read_group) = library_of(record, &header);
-            Record {
+            let (library, read_group) = library_of(&record);
+            let marked = Record {
                 name: record.read_name.clone(),
                 flags: record.flags,
                 reference_index: record.reference_index,
@@ -151,10 +181,10 @@ fn main() {
                 read_length: record.read_bases.len() as u32,
                 base_quality_score: base_quality_score(&record.base_qualities),
                 mate_reference_index: record.mate_reference_index,
-                library: library.into(),
+                library,
                 read_group,
                 barcode: None,
-                existing_dt: string_tag(record, b"DT"),
+                existing_dt: string_tag(&record, b"DT"),
                 mate_span: match record.tags.get(Tag::new(b"MC")) {
                     Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text)
                         .ok()
@@ -163,9 +193,10 @@ fn main() {
                     _ => None,
                 },
                 mate_alignment_start: record.mate_alignment_start,
-            }
+            };
+            (marked, string_tag(&record, &umi_tag_name))
         })
-        .collect();
+        .unzip();
 
     let contigs: Vec<String> = header.sequences.iter().map(|s| s.name.clone()).collect();
 
@@ -179,21 +210,18 @@ fn main() {
     for index in examination {
         let record = &marked_records[index];
         if needs_mate_cigar(record) && record.mate_span.is_none() {
+            // The record it names is read again, by its index.
+            let named = open(Some(streamed))
+                .1
+                .nth(index)
+                .expect("the record read the first time");
             thrown(&format!(
                 "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found: {}",
-                picard_analysis::view_sam::sam_string(&header, &records[index])
+                picard_analysis::view_sam::sam_string(&header, &named)
             ));
         }
     }
 
-    let umi_tag_name: [u8; 2] = {
-        let bytes = umi_tag.as_bytes();
-        [bytes[0], bytes[1]]
-    };
-    let umis: Vec<Option<String>> = records
-        .iter()
-        .map(|record| string_tag(record, &umi_tag_name))
-        .collect();
     // `COMMENT.forEach(outputHeader::addComment)`, inherited from SimpleMarkDuplicatesWithMateCigar.
     for comment in std::env::args().filter_map(|a| a.strip_prefix("COMMENT=").map(str::to_string)) {
         header.comments.push(format!("@CO\t{comment}"));
@@ -213,13 +241,11 @@ fn main() {
     let program_group =
         picard_analysis::command_line::ProgramGroup::of("UmiAwareMarkDuplicatesWithMateCigar");
     let molecular_identifier_tag = args.get("MOLECULAR_IDENTIFIER_TAG").map(tag_of);
-    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &header)
-        .unwrap_or_else(|e| fail(&format!("{e:?}")));
-    for (index, record) in records.iter().enumerate() {
+    let mut out = Output::bam(&output, &header, false).unwrap_or_else(|e| fail(&format!("{e:?}")));
+    for (index, mut written) in open(Some(streamed)).1.enumerate() {
         if base.remove_duplicates && result.duplicate[index] {
             continue;
         }
-        let mut written = record.clone();
         written.flags &= !DUPLICATE_READ;
         if result.duplicate[index] {
             written.flags |= DUPLICATE_READ;
@@ -240,13 +266,11 @@ fn main() {
         if program_group.record_id.is_some() {
             written.tags.remove(Tag::new(b"PG"));
         }
-        writer
-            .write(&written)
-            .unwrap_or_else(|e| fail(&format!("{e:?}")));
+        out.write(&written).unwrap_or_else(|e| fail(&e.to_string()));
     }
-    let bytes = writer.finish().unwrap_or_else(|e| fail(&format!("{e:?}")));
-    if let Err(e) = picard_analysis::cram_output::write(&output, bytes) {
-        fail(&format!("{e}"));
+    // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
+    if let Err(e) = out.finish(picard_analysis::cram_output::create_index_argument(), false) {
+        fail(&e.to_string());
     }
 
     // The UMI metrics: one row per library, in the order the reference's map iterates them.
