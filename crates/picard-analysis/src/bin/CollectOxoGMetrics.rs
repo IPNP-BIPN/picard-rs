@@ -17,12 +17,11 @@ use std::collections::BTreeMap;
 
 use htsjdk_bam::alignment_block::alignment_blocks;
 use htsjdk_bam::fasta::read_fasta_file;
-use htsjdk_bam::header::SamHeader;
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use picard_analysis::collect_oxo_g_metrics::{finish, Counts, Metrics};
 use picard_analysis::java_hash_map::JavaHashMap;
 use picard_analysis::metrics_cli::{
-    fail, original_qualities, read_group, read_input, read_interval_list, refuse_validation,
+    fail, open_input, original_qualities, read_group, read_interval_list, refuse_validation,
     sort_order, thrown, Args, DbSnpMask, IntervalMask,
 };
 
@@ -102,6 +101,7 @@ impl MetricBean for Row {
 }
 
 /// One `Calculator`: a library, a context, and what it has counted.
+#[derive(Clone)]
 struct Calculator {
     library: String,
     context: String,
@@ -120,8 +120,8 @@ fn reverse_complement(bases: &[u8]) -> Vec<u8> {
 
 /// The library a record's read group names, or the NullPointerException a record without one
 /// raises in `computeAlleleFraction`.
-fn library_of<'a>(header: &'a SamHeader, record: &htsjdk_bam::record::BamRecord) -> &'a str {
-    match read_group(header, record) {
+fn library_of(group: Option<&htsjdk_bam::header::ReadGroup>) -> &str {
+    match group {
         Some(group) => group.attributes.get("LB").unwrap_or(UNKNOWN_LIBRARY),
         None => thrown(
             "java.lang.NullPointerException: Cannot invoke \
@@ -130,6 +130,18 @@ fn library_of<'a>(header: &'a SamHeader, record: &htsjdk_bam::record::BamRecord)
         ),
     }
 }
+
+/// What `computeAlleleFraction` reads of one aligned base, in place of the record it came from.
+/// A quality or base the record does not have is `None`, and fails only where it is read.
+struct Base {
+    quality: Option<u8>,
+    read_base: Option<u8>,
+    flags: u16,
+    /// The record's read group, as its index in the header, or [`NO_READ_GROUP`].
+    read_group: u16,
+}
+
+const NO_READ_GROUP: u16 = u16::MAX;
 
 fn main() {
     picard_analysis::argument_check::check("CollectOxoGMetrics");
@@ -193,7 +205,9 @@ fn main() {
 
     // doWork.
     let contigs = read_fasta_file(&reference).unwrap_or_else(|e| fail(&format!("{e:?}")));
-    let (header, records) = read_input(&input);
+    let input_file = open_input(&input);
+    let streamed = input_file.streams();
+    let (header, records) = input_file.into_parts();
     if header.read_groups.is_empty() {
         thrown(
             "picard.PicardException: This analysis requires a read group entry in the alignment \
@@ -241,7 +255,7 @@ fn main() {
             .collect();
         calculators.put(context, list);
     }
-    let mut calculators: Vec<(String, Vec<Calculator>)> = {
+    let calculators: Vec<(String, Vec<Calculator>)> = {
         let order: Vec<String> = calculators.iter().map(|(k, _)| k.to_string()).collect();
         order
             .into_iter()
@@ -265,66 +279,35 @@ fn main() {
     let intervals = intervals_path.as_deref().map(read_interval_list);
     let mask = intervals.as_ref().map(IntervalMask::new);
 
-    // The pileups: every covered locus, with the record and read offset of each aligned base.
+    // The pileups: every covered locus, with what is read of each aligned base. A coordinate
+    // sorted input is counted a locus at a time, as soon as no later record can reach it.
     let insert_filter = minimum_insert > 0 || maximum_insert > 0;
-    let mut pileups: BTreeMap<(i32, i32), Vec<(usize, usize)>> = BTreeMap::new();
-    for (index, record) in records.iter().enumerate() {
-        let flags = record.flags;
-        // The tool's filters, which replace the iterator's defaults.
-        if flags & SECONDARY != 0 || flags & DUPLICATE != 0 {
-            continue;
-        }
-        if insert_filter {
-            if flags & PAIRED == 0 {
-                continue;
-            }
-            let ins = i64::from(record.inferred_insert_size.unsigned_abs());
-            if ins < minimum_insert || ins > maximum_insert {
-                continue;
-            }
-        }
-        if record.reference_index == -1 {
-            break;
-        }
-        if flags & UNMAPPED != 0
-            || i64::from(record.mapping_quality) < minimum_mapping_quality
-            || (!include_non_pf && flags & QC_FAIL != 0)
-        {
-            continue;
-        }
-        for block in alignment_blocks(&record.cigar, record.alignment_start) {
-            for i in 0..block.length {
-                let offset = (block.read_start + i - 1) as usize;
-                pileups
-                    .entry((record.reference_index, block.reference_start + i))
-                    .or_default()
-                    .push((index, offset));
-            }
-        }
-    }
-
-    let mut sites = 0i64;
-    for (&(sequence, position), pile) in &pileups {
+    assert!(header.read_groups.len() < usize::from(NO_READ_GROUP));
+    // One locus, counted into `calculators`: whether it was a site.
+    let count = |calculators: &mut Vec<(String, Vec<Calculator>)>,
+                 (sequence, position): (i32, i32),
+                 pile: &[Base]|
+     -> bool {
         if let Some(m) = &mask {
             if !m.get(sequence, position) {
-                continue;
+                return false;
             }
         }
         let contig = &contigs[sequence as usize];
         if let Some(db) = &db_snp {
             if db.is_db_snp_site(&contig.name, position) {
-                continue;
+                return false;
             }
         }
         let bases = &contig.bases;
         let pos = position as usize;
         if pos <= context_size || pos > bases.len() - context_size {
-            continue;
+            return false;
         }
         let index = pos - 1;
         let base = bases[index].to_ascii_uppercase();
         if base != b'C' && base != b'G' {
-            continue;
+            return false;
         }
         let window: Vec<u8> = bases[index - context_size..=index + context_size]
             .iter()
@@ -337,46 +320,41 @@ fn main() {
         };
         let context = String::from_utf8_lossy(&context).to_string();
         let Some((_, list)) = calculators.iter_mut().find(|(c, _)| *c == context) else {
-            continue;
+            return false;
         };
         for calculator in list.iter_mut() {
             // computeAlleleFraction.
             let mut counts = [0i64; 4]; // controlA, oxidatedA, controlC, oxidatedC
             let alternate = if base == b'C' { b'A' } else { b'T' };
-            for &(r, offset) in pile {
-                let record = &records[r];
-                let quality = if use_oq {
-                    original_qualities(record)
-                        .map(|q| q[offset])
-                        .unwrap_or(record.base_qualities[offset])
-                } else {
-                    record.base_qualities[offset]
-                };
+            for read in pile {
+                let quality = read.quality.expect("a quality for every aligned base");
                 if i64::from(quality as i8) < minimum_quality {
                     continue;
                 }
-                if calculator.library != library_of(&header, record) {
+                if calculator.library
+                    != library_of(header.read_groups.get(usize::from(read.read_group)))
+                {
                     continue;
                 }
-                let read_base = record.read_bases[offset];
-                let as_read = if record.flags & REVERSE != 0 {
+                let read_base = read.read_base.expect("a base for every aligned base");
+                let as_read = if read.flags & REVERSE != 0 {
                     htsjdk_bam::sequence::complement(read_base)
                 } else {
                     read_base
                 };
-                let read = if record.flags & PAIRED != 0 && record.flags & SECOND != 0 {
+                let end = if read.flags & PAIRED != 0 && read.flags & SECOND != 0 {
                     2
                 } else {
                     1
                 };
                 if read_base == base {
-                    match (as_read, read) {
+                    match (as_read, end) {
                         (b'G', 1) | (b'C', 2) => counts[3] += 1,
                         (b'G', 2) | (b'C', 1) => counts[2] += 1,
                         _ => {}
                     }
                 } else if read_base == alternate {
-                    match (as_read, read) {
+                    match (as_read, end) {
                         (b'T', 1) | (b'A', 2) => counts[1] += 1,
                         (b'T', 2) | (b'A', 1) => counts[0] += 1,
                         _ => {}
@@ -399,11 +377,118 @@ fn main() {
                 }
             }
         }
-        sites += 1;
-        if sites >= stop_after {
-            break;
+        true
+    };
+    // Every site, in locus order, until STOP_AFTER of them; `None` when a record of a file counted
+    // as it was read reaches back before a locus already counted, which only a whole read answers.
+    let walk = |records: picard_analysis::bam_stream::Records, as_read: bool| {
+        let mut calculators = calculators.clone();
+        let mut sites = 0i64;
+        let mut pileups: BTreeMap<(i32, i32), Vec<Base>> = BTreeMap::new();
+        // Counts the loci before `until`; whether STOP_AFTER was reached.
+        let flush = |pileups: &mut BTreeMap<(i32, i32), Vec<Base>>,
+                     calculators: &mut Vec<(String, Vec<Calculator>)>,
+                     sites: &mut i64,
+                     until: (i32, i32)| {
+            while let Some(entry) = pileups.first_entry() {
+                if *entry.key() >= until {
+                    break;
+                }
+                let (locus, pile) = entry.remove_entry();
+                if count(calculators, locus, &pile) {
+                    *sites += 1;
+                    if *sites >= stop_after {
+                        return true;
+                    }
+                }
+            }
+            false
+        };
+        let mut counted_before = (i32::MIN, i32::MIN);
+        for record in records {
+            let flags = record.flags;
+            // The tool's filters, which replace the iterator's defaults.
+            if flags & SECONDARY != 0 || flags & DUPLICATE != 0 {
+                continue;
+            }
+            if insert_filter {
+                if flags & PAIRED == 0 {
+                    continue;
+                }
+                let ins = i64::from(record.inferred_insert_size.unsigned_abs());
+                if ins < minimum_insert || ins > maximum_insert {
+                    continue;
+                }
+            }
+            if record.reference_index == -1 {
+                break;
+            }
+            if flags & UNMAPPED != 0
+                || i64::from(record.mapping_quality) < minimum_mapping_quality
+                || (!include_non_pf && flags & QC_FAIL != 0)
+            {
+                continue;
+            }
+            if as_read {
+                let start = (record.reference_index, record.alignment_start);
+                if start < counted_before {
+                    return None;
+                }
+                if flush(&mut pileups, &mut calculators, &mut sites, start) {
+                    return Some((calculators, sites));
+                }
+                counted_before = start;
+            }
+            let read_group = read_group(&header, &record).map_or(NO_READ_GROUP, |group| {
+                header
+                    .read_groups
+                    .iter()
+                    .position(|g| std::ptr::eq(g, group))
+                    .expect("a group of this header") as u16
+            });
+            let original = if use_oq {
+                original_qualities(&record)
+            } else {
+                None
+            };
+            for block in alignment_blocks(&record.cigar, record.alignment_start) {
+                for i in 0..block.length {
+                    let offset = (block.read_start + i - 1) as usize;
+                    // `original_qualities(..).map(|q| q[offset]).unwrap_or(base_qualities[offset])`.
+                    let quality =
+                        record
+                            .base_qualities
+                            .get(offset)
+                            .and_then(|&quality| match &original {
+                                Some(original) => original.get(offset).copied(),
+                                None => Some(quality),
+                            });
+                    pileups
+                        .entry((record.reference_index, block.reference_start + i))
+                        .or_default()
+                        .push(Base {
+                            quality,
+                            read_base: record.read_bases.get(offset).copied(),
+                            flags,
+                            read_group,
+                        });
+                }
+            }
         }
-    }
+        flush(
+            &mut pileups,
+            &mut calculators,
+            &mut sites,
+            (i32::MAX, i32::MAX),
+        );
+        Some((calculators, sites))
+    };
+    let coordinate = order == "coordinate";
+    let (mut calculators, _) = walk(records, coordinate).unwrap_or_else(|| {
+        let again = picard_analysis::bam_stream::Input::reopen(&input, streamed)
+            .unwrap_or_else(|e| fail(&e.message()));
+        walk(again.into_iter(), false).expect("a whole read is never out of order")
+    });
 
     let sample_alias = samples
         .iter()
