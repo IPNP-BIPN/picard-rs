@@ -760,16 +760,6 @@
       "t": 2,
       "share": 1.0
     },
-    "IlluminaBasecallsToFastq": {
-      "rows": 30,
-      "accepted": 13,
-      "rejected": 17,
-      "distinct_outputs": 12,
-      "distinct_rejections": 11,
-      "matched": 30,
-      "t": 2,
-      "share": 1.0
-    },
     "IlluminaBasecallsToSam": {
       "rows": 31,
       "accepted": 14,

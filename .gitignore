@@ -133,7 +133,6 @@ tools/coverage/corpus/*
 !tools/coverage/corpus/CollectHiSeqXPfFailMetrics.t2.txt
 !tools/coverage/corpus/CollectIlluminaBasecallingMetrics.t2.txt
 !tools/coverage/corpus/ExtractIlluminaBarcodes.t2.txt
-!tools/coverage/corpus/IlluminaBasecallsToFastq.t2.txt
 !tools/coverage/corpus/IlluminaBasecallsToSam.t2.txt
 # {{END coverage corpora}}
 

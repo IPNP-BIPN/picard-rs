@@ -902,6 +902,7 @@ jobs:
             --log /tmp/IlluminaBasecallsToFastq.log \
             --log /tmp/IlluminaBasecallsToSam.log \
             --pending MergeBamAlignment \
+            --pending IlluminaBasecallsToFastq \
             --out tools/coverage/measured.json \
             --pending-out tools/coverage/pending/measured.json
 
@@ -1033,7 +1034,6 @@ jobs:
             tools/coverage/corpus/CollectHiSeqXPfFailMetrics.t2.txt \
             tools/coverage/corpus/CollectIlluminaBasecallingMetrics.t2.txt \
             tools/coverage/corpus/ExtractIlluminaBarcodes.t2.txt \
-            tools/coverage/corpus/IlluminaBasecallsToFastq.t2.txt \
             tools/coverage/corpus/IlluminaBasecallsToSam.t2.txt)
           if [ -n "$dirty" ]; then
             echo "the measured argument coverage moved:"
