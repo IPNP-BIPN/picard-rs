@@ -6,14 +6,15 @@
 //! answered: a damaged file is refused with the message the whole-file read gave, and before any
 //! record reaches the tool.
 //!
-//! That takes two passes over a BAM. The first inflates and decodes every record and keeps none,
-//! to learn whether the whole-file read would have failed and with which error: a BGZF error
-//! anywhere outranks a header or record error, and a record error is refused before the tool sees
-//! a record. Only a file that passes is read a second time, and its records are handed over as
-//! they are decoded. Both passes inflate on every core with noodles-bgzf, and the first only
-//! trusts noodles under the same conditions [`crate::bgzf::decompress_owned`] does: every block
-//! passes the checks htsjdk's reader makes, and the inflated length is the sum of the declared
-//! ones. Anything else is answered by reading the file whole, exactly as before.
+//! A BAM is inflated once. A first pass walks the compressed blocks without inflating them and
+//! makes the checks htsjdk's reader makes on each, which is where a truncated file or a damaged
+//! block is found: such a file is answered by reading it whole, exactly as before, before any
+//! record reaches the tool. A file whose blocks are sound is then inflated on several cores with
+//! noodles-bgzf and its records handed over as they are decoded. Should that pass meet what the
+//! whole-file read would have answered differently (a block that does not inflate, a record that
+//! does not decode, an inflated length that is not the sum of the declared ones), the whole-file
+//! read gives the answer: its error, raised there, or its records, taken up after the ones
+//! already handed over.
 
 use crate::record_validation::Validator;
 use htsjdk_bam::header::SamHeader;
@@ -49,6 +50,29 @@ pub enum InputError {
     Sam(ParseError),
 }
 
+/// The throwable htsjdk raises for the BGZF errors a damaged BAM meets most, out of a reader that
+/// `SamReaderFactory` opened on a stream with no name.
+fn thrown_message(e: &InputError) -> Option<&'static str> {
+    match e {
+        InputError::Bgzf(BgzfError::PrematureEnd) => {
+            Some("htsjdk.samtools.FileTruncatedException: Premature end of file: data stream")
+        }
+        InputError::Bgzf(BgzfError::InvalidGzipHeader) => {
+            Some("htsjdk.samtools.SAMFormatException: Invalid GZIP header")
+        }
+        _ => None,
+    }
+}
+
+/// A read that failed after records were handed over: the throwable htsjdk raises, or the
+/// message [`crate::metrics_cli::open_input`] gives.
+fn report(e: InputError) -> ! {
+    match thrown_message(&e) {
+        Some(message) => crate::metrics_cli::thrown(message),
+        None => crate::metrics_cli::fail(&e.message()),
+    }
+}
+
 impl From<InputError> for Box<dyn std::error::Error> {
     /// What the tools' own `main` returned: the I/O and UTF-8 errors as they are, the others as
     /// their `Debug` text.
@@ -56,14 +80,9 @@ impl From<InputError> for Box<dyn std::error::Error> {
         match e {
             InputError::Io(e) => e.into(),
             InputError::Utf8(e) => e.into(),
-            // The two a damaged BAM meets most, thrown as htsjdk throws them out of a reader that
-            // `SamReaderFactory` opened on a stream with no name.
-            InputError::Bgzf(BgzfError::PrematureEnd) => crate::metrics_cli::thrown(
-                "htsjdk.samtools.FileTruncatedException: Premature end of file: data stream",
-            ),
-            InputError::Bgzf(BgzfError::InvalidGzipHeader) => crate::metrics_cli::thrown(
-                "htsjdk.samtools.SAMFormatException: Invalid GZIP header",
-            ),
+            e @ InputError::Bgzf(BgzfError::PrematureEnd | BgzfError::InvalidGzipHeader) => {
+                crate::metrics_cli::thrown(thrown_message(&e).unwrap_or_default())
+            }
             InputError::Bgzf(e) => format!("{e:?}").into(),
             InputError::Bam(e) => format!("{e:?}").into(),
             InputError::Sam(e) => format!("{e:?}").into(),
@@ -146,10 +165,10 @@ impl Input {
                 records: Records::Decoded(records.into_iter(), None),
             });
         }
-        match check(path) {
-            Some(Ok(())) => stream(path),
-            Some(Err(e)) => Err(e),
-            None => whole(path),
+        if structure_clean(path) == Some(true) {
+            stream(path)
+        } else {
+            whole(path)
         }
     }
 
@@ -159,7 +178,7 @@ impl Input {
     }
 
     /// The same input again, for a tool that reads it twice, as Picard's do. A file [`Self::open`]
-    /// streamed has passed the first pass and is streamed again without it; anything else is
+    /// streamed has had its blocks checked and is streamed again without that; anything else is
     /// opened as it was the first time.
     pub fn reopen(path: &str, streamed: bool) -> Result<Input, InputError> {
         if streamed {
@@ -194,51 +213,129 @@ impl IntoIterator for Input {
 
 /// The records of an [`Input`], a BAM's validated as they are taken.
 pub enum Records {
-    Stream(
-        RecordStream<MultithreadedInflater<BufReader<File>>>,
-        Option<Validator>,
-    ),
+    Stream(Box<Streaming>, Option<Validator>),
     Decoded(std::vec::IntoIter<BamRecord>, Option<Validator>),
+}
+
+/// The single inflating pass over a BAM whose blocks were checked: the stream, until it ends,
+/// and what is needed to fall back on the whole-file read if it ends otherwise than that read.
+pub struct Streaming {
+    stream: Option<RecordStream<MultithreadedInflater<Blocks<BufReader<File>>>>>,
+    path: String,
+    handed: usize,
+}
+
+impl Streaming {
+    /// The next record, or `Err(())` where the whole-file read would have answered otherwise.
+    fn next(&mut self) -> Result<Option<BamRecord>, ()> {
+        let Some(stream) = self.stream.as_mut() else {
+            return Ok(None);
+        };
+        match stream.record() {
+            Ok(Some(record)) => {
+                self.handed += 1;
+                Ok(Some(record))
+            }
+            Ok(None) if self.ended_clean() => Ok(None),
+            _ => Err(()),
+        }
+    }
+
+    /// Whether the stream ended as the whole-file read would have: every block clean, and as many
+    /// bytes inflated as the blocks declared.
+    fn ended_clean(&mut self) -> bool {
+        let Some(stream) = self.stream.take() else {
+            return true;
+        };
+        let mut inflater = stream.into_inner();
+        if io::copy(&mut inflater, &mut io::sink()).is_err() {
+            return false;
+        }
+        let inflated = inflater.count;
+        let Ok(mut blocks) = inflater.inner.finish() else {
+            return false;
+        };
+        io::copy(&mut blocks, &mut io::sink()).is_ok()
+            && !blocks.damaged
+            && blocks.declared == inflated
+    }
 }
 
 impl Iterator for Records {
     type Item = BamRecord;
 
     fn next(&mut self) -> Option<BamRecord> {
-        let (record, validator) = match self {
-            Records::Decoded(records, validator) => (records.next(), validator.as_mut()),
-            // The first pass decoded every record of this file, so a failure here means the file
-            // changed under the run.
-            Records::Stream(stream, validator) => (
-                stream
-                    .record()
-                    .unwrap_or_else(|e| panic!("the input changed while it was read: {e:?}")),
-                validator.as_mut(),
-            ),
+        self.try_next().unwrap_or_else(|e| report(e))
+    }
+}
+
+impl Records {
+    /// The next record, validated, or the error the whole-file read raised where the single pass
+    /// met what that read answers otherwise; [`Iterator::next`] reports that error and exits.
+    pub fn try_next(&mut self) -> Result<Option<BamRecord>, InputError> {
+        let record = match self {
+            Records::Decoded(records, _) => records.next(),
+            Records::Stream(streaming, validator) => match streaming.next() {
+                Ok(record) => record,
+                // The whole-file read answers: its error, or its records after the ones already
+                // handed over.
+                Err(()) => {
+                    let handed = streaming.handed;
+                    let validator = validator.take();
+                    let mut rest = match whole(&streaming.path)?.records {
+                        Records::Decoded(rest, _) => rest,
+                        Records::Stream(..) => unreachable!("the whole-file read decodes"),
+                    };
+                    if handed > 0 {
+                        rest.nth(handed - 1);
+                    }
+                    *self = Records::Decoded(rest, validator);
+                    return self.try_next();
+                }
+            },
+        };
+        let validator = match self {
+            Records::Stream(_, validator) | Records::Decoded(_, validator) => validator.as_mut(),
         };
         if let (Some(rec), Some(validator)) = (&record, validator) {
             if let Err(message) = validator.check(rec) {
                 crate::metrics_cli::thrown(&message);
             }
         }
-        record
+        Ok(record)
     }
 }
 
 /// The second pass, over a file the first has vouched for.
 fn stream(path: &str) -> Result<Input, InputError> {
-    let mut stream = RecordStream::new(inflater(BufReader::new(
+    let mut stream = RecordStream::new(inflater(Blocks::new(BufReader::new(
         File::open(path).map_err(InputError::Io)?,
-    )));
-    let header = stream
-        .header()
-        .unwrap_or_else(|e| panic!("{path} changed while it was read: {e:?}"));
+    ))));
+    // A header that does not decode is answered by the whole-file read, before any record.
+    let Ok(header) = stream.header() else {
+        return whole(path);
+    };
     // Each pass validates, as each of Picard's readers does.
     let validator = Validator::new(&header, &stream.binary_sequences);
     Ok(Input {
         header,
-        records: Records::Stream(stream, Some(validator)),
+        records: Records::Stream(
+            Box::new(Streaming {
+                stream: Some(stream),
+                path: path.to_string(),
+                handed: 0,
+            }),
+            Some(validator),
+        ),
     })
+}
+
+/// Whether every block of the BAM at `path` passes the checks htsjdk's reader makes, read without
+/// inflating anything; `None` when the file cannot be read.
+fn structure_clean(path: &str) -> Option<bool> {
+    let mut blocks = Blocks::new(BufReader::new(File::open(path).ok()?));
+    io::copy(&mut blocks, &mut io::sink()).ok()?;
+    Some(!blocks.damaged)
 }
 
 /// The whole-file read, for a BAM the first pass could not vouch for.
@@ -259,34 +356,6 @@ fn whole(path: &str) -> Result<Input, InputError> {
         header,
         records: Records::Decoded(records.into_iter(), Some(validator)),
     })
-}
-
-/// The first pass: the answer the whole-file read gives, if noodles' inflating can be trusted for
-/// this file, or `None` when the file has to be read whole for it.
-fn check(path: &str) -> Option<Result<(), InputError>> {
-    let file = File::open(path).ok()?;
-    let mut stream = RecordStream::new(inflater(Blocks::new(BufReader::new(file))));
-    let decoded = (|| {
-        stream.header()?;
-        stream.check_records()
-    })();
-    let decoded = match decoded {
-        Err(Failure::Io(_)) => return None,
-        Err(Failure::Bam(e)) => Err(e),
-        Ok(()) => Ok(()),
-    };
-    // A record error ends the decoding but not the inflating: a BGZF error further on is the
-    // answer the whole-file read gave.
-    let mut inflater = stream.into_inner();
-    io::copy(&mut inflater, &mut io::sink()).ok()?;
-    let inflated = inflater.count;
-    let mut blocks = inflater.inner.finish().ok()?;
-    // noodles may stop short of the end; the blocks it did not ask for are checked all the same.
-    io::copy(&mut blocks, &mut io::sink()).ok()?;
-    if blocks.damaged || blocks.declared != inflated {
-        return None;
-    }
-    Some(decoded.map_err(InputError::Bam))
 }
 
 /// The header of the BAM at `path`, read as [`BamReader::new`] reads it, when the whole file
@@ -659,12 +728,22 @@ mod tests {
         }
     }
 
+    /// Opens and reads to the end, as a tool does, with the error a mid-stream fallback raises
+    /// returned rather than reported.
     fn streamed(path: &str) -> (Result<(SamHeader, Vec<BamRecord>), String>, bool) {
         match Input::open(path) {
             Ok(input) => {
-                let (header, records) = input.into_parts();
+                let (header, mut records) = input.into_parts();
                 let streaming = matches!(records, Records::Stream(..));
-                (Ok((header, records.collect())), streaming)
+                let mut all = Vec::new();
+                loop {
+                    match records.try_next() {
+                        Ok(Some(record)) => all.push(record),
+                        Ok(None) => break,
+                        Err(e) => return (Err(e.message()), streaming),
+                    }
+                }
+                (Ok((header, all)), streaming)
             }
             Err(e) => (Err(e.message()), false),
         }
@@ -736,11 +815,14 @@ mod tests {
         let second = block_end(&clean, 0);
         assert!(block_end(&clean, second) < clean.len(), "several blocks");
 
+        // Whether the single pass streams: every file whose blocks are sound and whose header
+        // decodes. A damaged block, a truncated file, or a header that does not decode is
+        // answered by the whole-file read at open, before any record.
         let mut cases: Vec<(&str, Vec<u8>, bool)> = vec![("clean", clean.clone(), true)];
         cases.push(("truncated", clean[..clean.len() - 30].to_vec(), false));
         let mut corrupt = clean.clone();
         corrupt[second + HEADER + 40] ^= 0xff;
-        cases.push(("corrupt payload", corrupt, false));
+        cases.push(("corrupt payload", corrupt, true));
         let mut lying = clean.clone();
         lying[second - 4] = lying[second - 4].wrapping_add(1);
         cases.push(("lying ISIZE", lying, false));
@@ -752,20 +834,20 @@ mod tests {
         cases.push(("trailing bytes", trailing, false));
         let mut short = plain.clone();
         short.truncate(short.len() - 10);
-        cases.push(("truncated last record", bgzf(&short), false));
+        cases.push(("truncated last record", bgzf(&short), true));
         let mut bad_length = plain.clone();
         let r = record_at(&plain, start, 2);
         bad_length[r..r + 4].copy_from_slice(&5i32.to_le_bytes());
-        cases.push(("bad record length", bgzf(&bad_length), false));
+        cases.push(("bad record length", bgzf(&bad_length), true));
         let mut huge_length = plain.clone();
         huge_length[r..r + 4].copy_from_slice(&i32::MAX.to_le_bytes());
-        cases.push(("record longer than the file", bgzf(&huge_length), false));
+        cases.push(("record longer than the file", bgzf(&huge_length), true));
         let mut bad_cigar = plain.clone();
         let r = record_at(&plain, start, 15_000);
         let cigar = r + 36 + bad_cigar[r + 12] as usize;
         bad_cigar[cigar] |= 0x0f;
         let bad_cigar = bgzf(&bad_cigar);
-        cases.push(("unknown CIGAR operator", bad_cigar.clone(), false));
+        cases.push(("unknown CIGAR operator", bad_cigar.clone(), true));
         cases.push((
             "unknown CIGAR operator, then a truncated file",
             bad_cigar[..bad_cigar.len() - 30].to_vec(),
