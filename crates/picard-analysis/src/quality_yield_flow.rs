@@ -257,10 +257,10 @@ impl FlowCollector {
         }
 
         let group_id = match record.tags.get(Tag::new(b"RG")) {
-            Some(TagValue::Str(id)) => id.clone(),
-            _ => String::new(),
+            Some(TagValue::Str(id)) => id.as_str(),
+            _ => "",
         };
-        if !self.infos.contains_key(&group_id) {
+        if !self.infos.contains_key(group_id) {
             let group = header
                 .read_groups
                 .iter()
@@ -272,9 +272,9 @@ impl FlowCollector {
                         .to_string()
                 })?;
             self.infos
-                .insert(group_id.clone(), FlowReadGroupInfo::new(group)?);
+                .insert(group_id.to_string(), FlowReadGroupInfo::new(group)?);
         }
-        let info = &self.infos[&group_id];
+        let info = &self.infos[group_id];
         if !info.is_flow_platform {
             return Err(format!(
                 "picard.PicardException: {NOT_A_FLOW_PLATFORM_MESSAGE}"
@@ -282,9 +282,9 @@ impl FlowCollector {
         }
         let flow_order = info
             .flow_order
-            .clone()
+            .as_deref()
             .ok_or_else(|| "java.lang.NullPointerException".to_string())?;
-        let read = FlowBasedRead::new(record, &flow_order, info.max_class, &self.arguments)?;
+        let read = FlowBasedRead::new(record, flow_order, info.max_class, &self.arguments)?;
 
         self.metrics.pf_reads += 1;
         self.metrics.pf_flows += read.key().len() as i64;

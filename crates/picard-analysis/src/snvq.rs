@@ -150,8 +150,39 @@ impl MetricBean for SnvqMetrics {
 /// The collector. `INCLUDE_SECONDARY_ALIGNMENTS`/`INCLUDE_SUPPLEMENTAL_ALIGNMENTS` default false,
 /// as in the tool; the default (`ALTERNATE_QUALITY_ATTRIBUTE = null`) quality source is the read's
 /// own base qualities.
+/// How many qualities of each value were seen, `[pf][quality]`: the Q20/Q30/Q40 counters are
+/// derived from it once, in `finish`, rather than counted per base.
+struct QualityCounts([[i64; 256]; 2]);
+
+impl Default for QualityCounts {
+    fn default() -> Self {
+        QualityCounts([[0; 256]; 2])
+    }
+}
+
+impl QualityCounts {
+    /// (all, Q20, Q30, Q40) over the reads that pass the vendor filter or over every read.
+    fn tally(&self, pf_only: bool) -> (i64, i64, i64, i64) {
+        let mut sums = (0, 0, 0, 0);
+        for (pf, counts) in self.0.iter().enumerate() {
+            if pf_only && pf == 0 {
+                continue;
+            }
+            for (q, &n) in counts.iter().enumerate() {
+                sums.0 += n;
+                sums.1 += if q >= 20 { n } else { 0 };
+                sums.2 += if q >= 30 { n } else { 0 };
+                sums.3 += if q >= 40 { n } else { 0 };
+            }
+        }
+        sums
+    }
+}
+
 #[derive(Default)]
 pub struct SnvqCollector {
+    base_counts: QualityCounts,
+    snvq_counts: QualityCounts,
     include_secondary: bool,
     include_supplemental: bool,
     metrics: SnvqMetrics,
@@ -262,8 +293,8 @@ impl SnvqCollector {
             Self::tag_bytes(rec, SNVQ_TAGS[3])?,
         ];
 
-        let m = &mut self.metrics;
         let length = rec.read_length() as i64;
+        let m = &mut self.metrics;
         m.total_reads += 1;
         m.total_bases += length;
 
@@ -273,31 +304,10 @@ impl SnvqCollector {
             m.pf_bases += length;
         }
 
+        let pf = usize::from(is_pf);
         for (read_position, &qb) in quals.iter().enumerate() {
             let qual = qb as i32;
-            // Base-quality yield: Q40 implies Q30 implies Q20.
-            if qual >= 40 {
-                m.q20_bases += 1;
-                m.q30_bases += 1;
-                m.q40_bases += 1;
-            } else if qual >= 30 {
-                m.q20_bases += 1;
-                m.q30_bases += 1;
-            } else if qual >= 20 {
-                m.q20_bases += 1;
-            }
-            if is_pf {
-                if qual >= 40 {
-                    m.pf_q20_bases += 1;
-                    m.pf_q30_bases += 1;
-                    m.pf_q40_bases += 1;
-                } else if qual >= 30 {
-                    m.pf_q20_bases += 1;
-                    m.pf_q30_bases += 1;
-                } else if qual >= 20 {
-                    m.pf_q20_bases += 1;
-                }
-            }
+            self.base_counts.0[pf][qb as usize] += 1;
 
             let base = bases[read_position];
             for i in 0..BASE_ORDER.len() {
@@ -318,32 +328,7 @@ impl SnvqCollector {
                         ));
                     }
                     let q = character as i32 - 33;
-                    m.total_snvq += 1;
-                    if is_pf {
-                        m.pf_snvq += 1;
-                    }
-                    if q >= 40 {
-                        m.q20_snvq += 1;
-                        m.q30_snvq += 1;
-                        m.q40_snvq += 1;
-                        if is_pf {
-                            m.pf_q20_snvq += 1;
-                            m.pf_q30_snvq += 1;
-                            m.pf_q40_snvq += 1;
-                        }
-                    } else if q >= 30 {
-                        m.q20_snvq += 1;
-                        m.q30_snvq += 1;
-                        if is_pf {
-                            m.pf_q20_snvq += 1;
-                            m.pf_q30_snvq += 1;
-                        }
-                    } else if q >= 20 {
-                        m.q20_snvq += 1;
-                        if is_pf {
-                            m.pf_q20_snvq += 1;
-                        }
-                    }
+                    self.snvq_counts.0[pf][q as usize] += 1;
                     if self.include_histogram {
                         *self.snvq_histogram.entry(i64::from(q)).or_insert(0) += 1;
                         while self.read_position_snvq_stats.len() <= read_position {
@@ -399,6 +384,14 @@ impl SnvqCollector {
     /// `calculateDerivedFields`: the ratios and the floored mean read length.
     pub fn finish(mut self) -> SnvqMetrics {
         let m = &mut self.metrics;
+        let (_, q20, q30, q40) = self.base_counts.tally(false);
+        (m.q20_bases, m.q30_bases, m.q40_bases) = (q20, q30, q40);
+        let (_, q20, q30, q40) = self.base_counts.tally(true);
+        (m.pf_q20_bases, m.pf_q30_bases, m.pf_q40_bases) = (q20, q30, q40);
+        let (all, q20, q30, q40) = self.snvq_counts.tally(false);
+        (m.total_snvq, m.q20_snvq, m.q30_snvq, m.q40_snvq) = (all, q20, q30, q40);
+        let (all, q20, q30, q40) = self.snvq_counts.tally(true);
+        (m.pf_snvq, m.pf_q20_snvq, m.pf_q30_snvq, m.pf_q40_snvq) = (all, q20, q30, q40);
         m.read_length = if m.total_reads == 0 {
             0
         } else {
