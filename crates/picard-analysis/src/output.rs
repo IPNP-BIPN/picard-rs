@@ -43,6 +43,7 @@ static SETTING: OnceLock<(u32, Deflater)> = OnceLock::new();
 pub fn install() {
     let args: Vec<String> = crate::args::process().into_iter().skip(1).collect();
     let _ = SETTING.set(setting(&args));
+    crate::bam_stream::budget_threads();
 }
 
 /// The setting a command line asks for, the last value of each argument winning as Barclay's does.

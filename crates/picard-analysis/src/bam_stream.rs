@@ -441,8 +441,34 @@ pub struct MultithreadedInflater<R> {
     count: u64,
 }
 
+/// The cores a run may keep busy at once.
+fn cores() -> usize {
+    std::thread::available_parallelism().map_or(1, NonZeroUsize::get)
+}
+
+/// The inflating workers' share of the cores: half, the other half going to rayon, which deflates
+/// the output and runs the tools' parallel work. Measured on 16 cores against 2, 4 and 8 inflating
+/// workers, half kept the wall time of two full pools and cut their CPU time by 8 to 25%.
+pub fn inflate_workers() -> usize {
+    (cores() / 2).max(1)
+}
+
+/// Sizes rayon's global pool to the cores the inflating workers leave, so that the two pools
+/// together never ask for more threads than there are cores. An explicit `RAYON_NUM_THREADS`
+/// wins, as rayon's own default lets it.
+pub fn budget_threads() {
+    if std::env::var_os("RAYON_NUM_THREADS").is_some() {
+        return;
+    }
+    let rest = cores().saturating_sub(inflate_workers()).max(1);
+    // A pool someone already built keeps its size.
+    let _ = rayon::ThreadPoolBuilder::new()
+        .num_threads(rest)
+        .build_global();
+}
+
 fn inflater<R: Read + Send + 'static>(inner: R) -> MultithreadedInflater<R> {
-    let workers = std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN);
+    let workers = NonZeroUsize::new(inflate_workers()).unwrap_or(NonZeroUsize::MIN);
     MultithreadedInflater {
         inner: noodles_bgzf::io::MultithreadedReader::with_worker_count(workers, inner),
         count: 0,
