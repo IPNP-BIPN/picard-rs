@@ -154,6 +154,51 @@ pub struct Observation {
 pub struct Locus {
     pub position: i32,
     pub records: Vec<Observation>,
+    /// For each record, the record of its mate's base here, once [`Locus::find_mates`] has looked;
+    /// empty before, and then every overlapping-error aggregator looks for itself.
+    pub mates: Vec<Option<u32>>,
+}
+
+impl Locus {
+    /// Looks up every record's mate once, for all the aggregators that ask.
+    pub fn find_mates(&mut self, reads: &[Read]) {
+        self.mates = mates(reads, &self.records);
+    }
+}
+
+/// For each record, its mate's base at the same locus, the first in the locus's order.
+///
+/// The mate is looked for among the bases READ at the locus, not among its indels: the tool builds
+/// its name sets from `getRecordAndOffsets()`. Only a read of the same name can be the mate, so the
+/// bases are indexed by name once, and only when some read here can have a mate at all.
+fn mates(reads: &[Read], records: &[Observation]) -> Vec<Option<u32>> {
+    let pairs = |read: &Read| read.is_paired() && !read.is_unmapped() && !read.is_secondary();
+    let mut mates = vec![None; records.len()];
+    if !records.iter().any(|record| pairs(&reads[record.read])) {
+        return mates;
+    }
+    let mut names: HashMap<&str, Vec<u32>> = HashMap::new();
+    for (index, other) in records.iter().enumerate() {
+        if other.alignment == AlignmentType::Match {
+            names
+                .entry(reads[other.read].name.as_str())
+                .or_default()
+                .push(index as u32);
+        }
+    }
+    for (record, mate) in records.iter().zip(&mut mates) {
+        let read = &reads[record.read];
+        if !pairs(read) {
+            continue;
+        }
+        *mate = names.get(read.name.as_str()).and_then(|candidates| {
+            candidates.iter().copied().find(|&other| {
+                let other = &records[other as usize];
+                other.read != record.read && are_mates(read, &reads[other.read])
+            })
+        });
+    }
+    mates
 }
 
 /// `SequenceUtil.isNoCall`.
@@ -368,7 +413,11 @@ fn flatten((position, pile): (i32, Pile)) -> Locus {
     let mut records = pile.matches;
     records.extend(pile.deletions);
     records.extend(pile.insertions);
-    Locus { position, records }
+    Locus {
+        position,
+        records,
+        mates: Vec::new(),
+    }
 }
 
 /// The loci a run actually counts, in the order the tool's loop takes them.
@@ -629,83 +678,142 @@ pub fn suffixes(directives: &[String]) -> Result<Vec<String>, Refusal> {
     Ok(seen)
 }
 
-/// How the two halves of a pair order two strata, which is how the tool's sorted set does.
-#[derive(Debug, Clone, PartialEq)]
+/// How the two halves of a pair order two strata, which is how the tool's sorted set does, and
+/// what `toString` prints for each.
+#[derive(Debug, Clone)]
 enum Order {
-    /// An `Integer`, a `Byte` or a `Double`.
-    Number(f64),
-    /// An enum, by declaration order.
-    Ordinal(u8),
+    /// An `Integer` or a `Byte`, which sorts as a double does.
+    Integer(i64),
+    /// A `Double`.
+    Double(f64),
+    /// An enum, by declaration order, printed by name.
+    Ordinal(u8, &'static str),
     /// A `String` or a `Character`.
-    Text(String),
+    Text(Text),
+}
+
+/// A `String` or a `Character`, held inline when it is short, which every one is but a long read
+/// group: a base is counted without a single allocation.
+#[derive(Debug, Clone)]
+enum Text {
+    Inline(u8, [u8; 22]),
+    Heap(Box<str>),
+}
+
+impl Text {
+    fn new(text: &str) -> Text {
+        let bytes = text.as_bytes();
+        if bytes.len() <= 22 {
+            let mut inline = [0; 22];
+            inline[..bytes.len()].copy_from_slice(bytes);
+            Text::Inline(bytes.len() as u8, inline)
+        } else {
+            Text::Heap(text.into())
+        }
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        match self {
+            Text::Inline(length, bytes) => &bytes[..*length as usize],
+            Text::Heap(text) => text.as_bytes(),
+        }
+    }
+
+    fn as_str(&self) -> &str {
+        match self {
+            // Only ever copied whole from a `&str`.
+            Text::Inline(length, bytes) => {
+                std::str::from_utf8(&bytes[..*length as usize]).unwrap_or_default()
+            }
+            Text::Heap(text) => text,
+        }
+    }
 }
 
 /// One stratifier's answer for one base: what it sorts by, and what `toString` prints.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Part {
-    order: Order,
-    text: String,
-}
+#[derive(Debug, Clone)]
+pub struct Part(Order);
 
 impl Part {
     fn number(value: i64) -> Part {
-        Part {
-            order: Order::Number(value as f64),
-            text: value.to_string(),
-        }
+        Part(Order::Integer(value))
     }
-    fn text(value: String) -> Part {
-        Part {
-            order: Order::Text(value.clone()),
-            text: value,
+    fn text(value: &str) -> Part {
+        Part(Order::Text(Text::new(value)))
+    }
+}
+
+impl std::fmt::Display for Part {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.0 {
+            Order::Integer(value) => write!(f, "{value}"),
+            Order::Double(value) => f.write_str(&format_double(*value)),
+            Order::Ordinal(_, name) => f.write_str(name),
+            Order::Text(text) => f.write_str(text.as_str()),
         }
     }
 }
 
-fn compare_parts(left: &Part, right: &Part) -> std::cmp::Ordering {
-    match (&left.order, &right.order) {
-        (Order::Number(a), Order::Number(b)) => {
-            a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+impl Ord for Part {
+    fn cmp(&self, other: &Part) -> std::cmp::Ordering {
+        let number = |order: &Order| match *order {
+            Order::Integer(value) => Some(value as f64),
+            Order::Double(value) => Some(value),
+            _ => None,
+        };
+        match (&self.0, &other.0) {
+            (Order::Ordinal(a, _), Order::Ordinal(b, _)) => a.cmp(b),
+            (Order::Text(a), Order::Text(b)) => a.as_bytes().cmp(b.as_bytes()),
+            (a, b) => match (number(a), number(b)) {
+                (Some(a), Some(b)) => a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal),
+                _ => std::cmp::Ordering::Equal,
+            },
         }
-        (Order::Ordinal(a), Order::Ordinal(b)) => a.cmp(b),
-        (Order::Text(a), Order::Text(b)) => a.cmp(b),
-        _ => std::cmp::Ordering::Equal,
     }
 }
 
-/// A stratum: one part per stratifier, which a `Pair` of pairs compares left to right and prints
-/// joined by a comma.
-#[derive(Debug, Clone, PartialEq)]
-struct Key(Vec<Part>);
-
-impl Key {
-    fn text(&self) -> String {
-        self.0
-            .iter()
-            .map(|part| part.text.as_str())
-            .collect::<Vec<_>>()
-            .join(",")
-    }
-}
-
-impl Eq for Key {}
-
-impl Ord for Key {
-    fn cmp(&self, other: &Key) -> std::cmp::Ordering {
-        for (left, right) in self.0.iter().zip(&other.0) {
-            let order = compare_parts(left, right);
-            if order != std::cmp::Ordering::Equal {
-                return order;
-            }
-        }
-        std::cmp::Ordering::Equal
-    }
-}
-
-impl PartialOrd for Key {
-    fn partial_cmp(&self, other: &Key) -> Option<std::cmp::Ordering> {
+impl PartialOrd for Part {
+    fn partial_cmp(&self, other: &Part) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
+}
+
+impl PartialEq for Part {
+    fn eq(&self, other: &Part) -> bool {
+        self.cmp(other) == std::cmp::Ordering::Equal
+    }
+}
+
+impl Eq for Part {}
+
+/// Equal parts hash alike, as far as one stratifier's parts go: they are all of one kind, and
+/// none is NaN.
+impl std::hash::Hash for Part {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let number = |value: f64| if value == 0.0 { 0f64 } else { value }.to_bits();
+        match &self.0 {
+            Order::Integer(value) => number(*value as f64).hash(state),
+            Order::Double(value) => number(*value).hash(state),
+            Order::Ordinal(index, _) => index.hash(state),
+            Order::Text(text) => text.as_bytes().hash(state),
+        }
+    }
+}
+
+impl Part {
+    fn is_nan(&self) -> bool {
+        matches!(self.0, Order::Double(value) if value.is_nan())
+    }
+}
+
+/// A stratum, one part per stratifier, as a `Pair` of pairs compares them left to right (every
+/// stratum of an aggregator has as many) and prints them joined by a comma.
+fn stratum_text(parts: &[Part]) -> String {
+    parts
+        .iter()
+        .map(Part::to_string)
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 /// `SequenceUtil.complement`, which leaves anything but a plain base as it is.
@@ -731,15 +839,23 @@ fn sequence_base(base: u8, reverse: bool) -> char {
 
 /// An enum constant: it sorts by declaration order and prints its name (or, for `ReadDirection`,
 /// its sign).
-fn ordinal(index: u8, text: &str) -> Part {
-    Part {
-        order: Order::Ordinal(index),
-        text: text.to_string(),
-    }
+fn ordinal(index: u8, text: &'static str) -> Part {
+    Part(Order::Ordinal(index, text))
 }
 
 fn character(c: char) -> Part {
-    Part::text(c.to_string())
+    Part::text(c.encode_utf8(&mut [0; 4]))
+}
+
+/// A stratifier's parts, when it answered, added to the stratum being built.
+fn answer<const N: usize>(parts: &mut Vec<Part>, answer: Option<[Part; N]>) -> bool {
+    match answer {
+        Some(answer) => {
+            parts.extend(answer);
+            true
+        }
+        None => false,
+    }
 }
 
 /// `AbstractRecordAndOffset.getReadBase` / `getBaseQuality`: the array read at the offset, which
@@ -756,32 +872,34 @@ fn element(array: &[u8], offset: i64) -> Result<u8, String> {
         })
 }
 
-/// The bin one observation falls in: `Ok(None)` drops it, `Err` is the exception the reference
-/// throws on it. A stratifier built from two others answers both parts, and nothing when either
-/// answers nothing.
+/// The bin one observation falls in, added to `parts`: `Ok(false)` drops it, `Err` is the
+/// exception the reference throws on it. A stratifier built from two others answers both parts,
+/// and nothing when either answers nothing.
 pub fn stratify(
     stratifier: Stratifier,
     reads: &[Read],
     observation: &Observation,
     reference_base: u8,
     options: &Options,
-) -> Result<Option<Vec<Part>>, String> {
+    parts: &mut Vec<Part>,
+) -> Result<bool, String> {
     let read = &reads[observation.read];
     let offset = observation.offset;
     let reverse = read.is_negative_strand();
     // `stratifyReadBase`: the base `delta` cycles away in the read's own direction, or nothing
     // off either end.
-    let read_base = |delta: i64| -> Option<Part> {
+    let read_char = |delta: i64| -> Option<char> {
         let requested = offset + if reverse { -delta } else { delta };
         let base = usize::try_from(requested)
             .ok()
             .and_then(|i| read.bases.get(i).copied())?;
-        Some(character(sequence_base(base, reverse)))
+        Some(sequence_base(base, reverse))
     };
+    let read_base = |delta: i64| read_char(delta).map(character);
     // `stratifyReferenceBase`.
-    let reference = || -> Option<Part> {
-        (!is_no_call(reference_base)).then(|| character(sequence_base(reference_base, reverse)))
-    };
+    let reference_char =
+        || (!is_no_call(reference_base)).then(|| sequence_base(reference_base, reverse));
+    let reference = || reference_char().map(character);
     // `stratifyHomopolymerLength`: the run of bases read before this one that equal the one read
     // just before it.
     let homopolymer_length = || -> Option<i64> {
@@ -812,7 +930,7 @@ pub fn stratify(
             Some(run - offset - 1)
         }
     };
-    let pre_dinuc = || -> Option<Vec<Part>> { Some(vec![read_base(-1)?, reference()?]) };
+    let pre_dinuc = || -> Option<[Part; 2]> { Some([read_base(-1)?, reference()?]) };
     let cigar_bases = |operator: char| -> i64 {
         read.cigar
             .iter()
@@ -820,12 +938,17 @@ pub fn stratify(
             .map(|(length, _)| *length as i64)
             .sum()
     };
-    let one = |part: Part| Ok(Some(vec![part]));
+    macro_rules! one {
+        ($part:expr $(,)?) => {{
+            parts.push($part);
+            Ok(true)
+        }};
+    }
 
     match stratifier {
-        Stratifier::All => one(Part::text("all".to_string())),
-        Stratifier::BaseQuality => one(Part::number(i64::from(element(&read.qualities, offset)?))),
-        Stratifier::Cycle => one(Part::number(cycle(read, offset) as i64)),
+        Stratifier::All => one!(Part::text("all")),
+        Stratifier::BaseQuality => one!(Part::number(i64::from(element(&read.qualities, offset)?))),
+        Stratifier::Cycle => one!(Part::number(cycle(read, offset) as i64)),
         Stratifier::BinnedCycle => {
             let relative = cycle_signed(read, offset) as f64 / read.bases.len() as f64;
             let bin = (0..5u8).find(|&i| {
@@ -834,7 +957,11 @@ pub fn stratify(
                 relative >= lower && relative <= upper
             });
             match bin {
-                Some(i) => one(ordinal(i, &format!("QUINTILE_{}", i + 1))),
+                Some(i) => one!(ordinal(
+                    i,
+                    ["QUINTILE_1", "QUINTILE_2", "QUINTILE_3", "QUINTILE_4", "QUINTILE_5"]
+                        [i as usize]
+                )),
                 None => Err(format!(
                     "java.lang.IllegalArgumentException: Value for CycleBin must be between 0 and 1 \
                      (inclusive), found: {}",
@@ -844,21 +971,18 @@ pub fn stratify(
         }
         Stratifier::GcContent => {
             let value = gc_content(&read.bases);
-            one(Part {
-                order: Order::Number(value),
-                text: format_double(value),
-            })
+            one!(Part(Order::Double(value)))
         }
-        Stratifier::ReadDirection => one(if reverse {
+        Stratifier::ReadDirection => one!(if reverse {
             ordinal(1, "-")
         } else {
             ordinal(0, "+")
         }),
         Stratifier::ReadOrdinality => {
             if !read.is_paired() {
-                return Ok(None);
+                return Ok(false);
             }
-            one(if read.is_first_of_pair() {
+            one!(if read.is_first_of_pair() {
                 ordinal(0, "FIRST")
             } else {
                 ordinal(1, "SECOND")
@@ -867,7 +991,7 @@ pub fn stratify(
         Stratifier::PairOrientation => {
             // `PairOrientation.of`.
             if !read.is_paired() || read.is_unmapped() || read.flags & 0x8 != 0 {
-                return Ok(None);
+                return Ok(false);
             }
             let mate_positive = read.flags & 0x20 == 0;
             let (first_positive, second_positive) = if read.is_first_of_pair() {
@@ -875,7 +999,7 @@ pub fn stratify(
             } else {
                 (mate_positive, !reverse)
             };
-            one(match (first_positive == second_positive, first_positive) {
+            one!(match (first_positive == second_positive, first_positive) {
                 (true, true) => ordinal(3, "R1R2"),
                 (true, false) => ordinal(2, "F1F2"),
                 (false, true) => ordinal(0, "F1R2"),
@@ -888,52 +1012,58 @@ pub fn stratify(
             let mate_unmapped = read.flags & 0x8 != 0;
             let clipped = matches!(read.cigar.first(), Some((_, 'S' | 'H')))
                 || matches!(read.cigar.last(), Some((_, 'S' | 'H')));
-            one(
-                if read.is_paired()
-                    && !mate_unmapped
-                    && !unmapped
-                    && read.mate_reference_index != read.reference_index
-                {
-                    ordinal(3, "DISCORDANT")
-                } else if !unmapped && clipped && read.has_sa {
-                    ordinal(2, "CHIMERIC")
-                } else if unmapped || read.is_paired() && mate_unmapped {
-                    ordinal(4, "UNKNOWN")
-                } else if !read.is_paired() {
-                    // `getProperPairFlag` on a read that is not paired.
-                    return Err(
-                        "java.lang.IllegalStateException: Inappropriate call if not paired read"
-                            .to_string(),
-                    );
-                } else if read.flags & 0x2 == 0 {
-                    ordinal(1, "IMPROPER")
-                } else {
-                    ordinal(0, "PROPER")
-                },
-            )
-        }
-        Stratifier::MappingQuality => one(Part::number(i64::from(read.mapping_quality))),
-        Stratifier::ReadGroup => one(Part::text(read.read_group.clone())),
-        Stratifier::ReadBase => Ok(read_base(0).map(|part| vec![part])),
-        Stratifier::ReferenceBase => Ok(reference().map(|part| vec![part])),
-        Stratifier::PreDinuc => Ok(pre_dinuc()),
-        Stratifier::PostDinuc => Ok((|| Some(vec![reference()?, read_base(1)?]))()),
-        Stratifier::HomopolymerLength => Ok(homopolymer_length().map(|n| vec![Part::number(n)])),
-        Stratifier::Homopolymer => Ok((|| {
-            let mut parts = vec![Part::number(homopolymer_length()?)];
-            parts.extend(pre_dinuc()?);
-            Some(parts)
-        })()),
-        Stratifier::BinnedHomopolymer => Ok((|| {
-            let length = homopolymer_length()?;
-            let mut parts = vec![if length < i64::from(options.long_homopolymer) {
-                ordinal(0, "SHORT_HOMOPOLYMER")
+            one!(if read.is_paired()
+                && !mate_unmapped
+                && !unmapped
+                && read.mate_reference_index != read.reference_index
+            {
+                ordinal(3, "DISCORDANT")
+            } else if !unmapped && clipped && read.has_sa {
+                ordinal(2, "CHIMERIC")
+            } else if unmapped || read.is_paired() && mate_unmapped {
+                ordinal(4, "UNKNOWN")
+            } else if !read.is_paired() {
+                // `getProperPairFlag` on a read that is not paired.
+                return Err(
+                    "java.lang.IllegalStateException: Inappropriate call if not paired read"
+                        .to_string(),
+                );
+            } else if read.flags & 0x2 == 0 {
+                ordinal(1, "IMPROPER")
             } else {
-                ordinal(1, "LONG_HOMOPOLYMER")
-            }];
-            parts.extend(pre_dinuc()?);
-            Some(parts)
-        })()),
+                ordinal(0, "PROPER")
+            },)
+        }
+        Stratifier::MappingQuality => one!(Part::number(i64::from(read.mapping_quality))),
+        Stratifier::ReadGroup => one!(Part::text(&read.read_group)),
+        Stratifier::ReadBase => Ok(answer(parts, read_base(0).map(|part| [part]))),
+        Stratifier::ReferenceBase => Ok(answer(parts, reference().map(|part| [part]))),
+        Stratifier::PreDinuc => Ok(answer(parts, pre_dinuc())),
+        Stratifier::PostDinuc => Ok(answer(parts, (|| Some([reference()?, read_base(1)?]))())),
+        Stratifier::HomopolymerLength => Ok(answer(
+            parts,
+            homopolymer_length().map(|n| [Part::number(n)]),
+        )),
+        Stratifier::Homopolymer => Ok(answer(
+            parts,
+            (|| {
+                let [before, reference] = pre_dinuc()?;
+                Some([Part::number(homopolymer_length()?), before, reference])
+            })(),
+        )),
+        Stratifier::BinnedHomopolymer => Ok(answer(
+            parts,
+            (|| {
+                let length = homopolymer_length()?;
+                let [before, reference] = pre_dinuc()?;
+                let bin = if length < i64::from(options.long_homopolymer) {
+                    ordinal(0, "SHORT_HOMOPOLYMER")
+                } else {
+                    ordinal(1, "LONG_HOMOPOLYMER")
+                };
+                Some([bin, before, reference])
+            })(),
+        )),
         Stratifier::FlowcellTile | Stratifier::FlowcellX | Stratifier::FlowcellY => {
             // A name the default parser cannot read leaves a fresh `PhysicalLocationInt` as it
             // was made: tile, x and y all -1.
@@ -943,31 +1073,29 @@ pub fn stratify(
             } else {
                 (-1, -1, -1)
             };
-            let bin = |coordinate: i32| -> Result<Option<Vec<Part>>, String> {
-                if options.location_bin_size == 0 {
-                    return Err("java.lang.ArithmeticException: / by zero".to_string());
-                }
-                one(Part::number(i64::from(
-                    coordinate.wrapping_div(options.location_bin_size),
-                )))
+            let coordinate = match stratifier {
+                Stratifier::FlowcellTile => return one!(Part::number(i64::from(tile))),
+                Stratifier::FlowcellX => x,
+                _ => y,
             };
-            match stratifier {
-                Stratifier::FlowcellTile => one(Part::number(i64::from(tile))),
-                Stratifier::FlowcellX => bin(x),
-                _ => bin(y),
+            if options.location_bin_size == 0 {
+                return Err("java.lang.ArithmeticException: / by zero".to_string());
             }
+            one!(Part::number(i64::from(
+                coordinate.wrapping_div(options.location_bin_size),
+            )))
         }
-        Stratifier::InsertLength => one(Part::number(i64::from(
+        Stratifier::InsertLength => one!(Part::number(i64::from(
             (read.bases.len() as i32 * 10).min(read.insert_size.wrapping_abs()),
         ))),
-        Stratifier::SoftClips => one(Part::number(cigar_bases('S'))),
+        Stratifier::SoftClips => one!(Part::number(cigar_bases('S'))),
         Stratifier::MismatchesInRead => {
             let Some(mismatches) = read.nm.integer("NM")? else {
-                return Ok(None);
+                return Ok(false);
             };
             // Not counting the base itself, which is compared byte for byte.
             let base = element(&read.bases, offset)?;
-            one(Part::number(i64::from(if base != reference_base {
+            one!(Part::number(i64::from(if base != reference_base {
                 mismatches.wrapping_sub(1)
             } else {
                 mismatches
@@ -985,18 +1113,18 @@ pub fn stratify(
             let mut text = String::new();
             for delta in -pad..=pad {
                 if delta == 0 {
-                    match reference() {
-                        Some(part) => text.push_str(&part.text),
+                    match reference_char() {
+                        Some(base) => text.push(base),
                         None => text.push_str("null"),
                     }
                 } else {
-                    let Some(part) = read_base(delta) else {
-                        return Ok(None);
+                    let Some(base) = read_char(delta) else {
+                        return Ok(false);
                     };
-                    text.push_str(&part.text);
+                    text.push(base);
                 }
             }
-            one(Part::text(text))
+            one!(Part::text(&text))
         }
         Stratifier::Consensus => {
             // `ConsensusStratifier.stratify`.
@@ -1012,7 +1140,7 @@ pub fn stratify(
                 (0, 0)
             };
             let both = read.both_strands_copies.integer("cD")?.unwrap_or(0);
-            one(if both == 1 {
+            one!(if both == 1 {
                 ordinal(0, "SIMPLEX_SINGLETON")
             } else if second == 0 && both > 1 {
                 ordinal(1, "SIMPLEX_CONSENSUS")
@@ -1024,26 +1152,26 @@ pub fn stratify(
                 ordinal(4, "UNKNOWN")
             })
         }
-        Stratifier::NsInRead => one(Part::number(
+        Stratifier::NsInRead => one!(Part::number(
             read.bases.iter().filter(|&&base| is_no_call(base)).count() as i64,
         )),
-        Stratifier::InsertionsInRead => one(Part::number(cigar_bases('I'))),
-        Stratifier::DeletionsInRead => one(Part::number(cigar_bases('D'))),
-        Stratifier::IndelsInRead => one(Part::number(cigar_bases('I') + cigar_bases('D'))),
+        Stratifier::InsertionsInRead => one!(Part::number(cigar_bases('I'))),
+        Stratifier::DeletionsInRead => one!(Part::number(cigar_bases('D'))),
+        Stratifier::IndelsInRead => one!(Part::number(cigar_bases('I') + cigar_bases('D'))),
         Stratifier::IndelLength => {
             // `stratifyIndelLength`.
             let wanted = match observation.alignment {
-                AlignmentType::Match => return one(Part::number(0)),
+                AlignmentType::Match => return one!(Part::number(0)),
                 AlignmentType::Insertion => 'I',
                 AlignmentType::Deletion => 'D',
             };
             match indel_element(read, observation) {
-                None => Ok(None),
+                None => Ok(false),
                 Some((operator, _)) if operator != wanted => Err(
                     "java.lang.IllegalStateException: Wrong CIGAR operator for the given position."
                         .to_string(),
                 ),
-                Some((_, length)) => one(Part::number(length as i64)),
+                Some((_, length)) => one!(Part::number(length as i64)),
             }
         }
     }
@@ -1310,7 +1438,7 @@ pub fn try_collect_joint(
     options: &Options,
 ) -> Result<Table, Thrown> {
     let mut joint = Joint::new(calculator, stratifiers, options);
-    joint.add(reads, reference, reference_start, loci, 0, options)?;
+    joint.add(reads, reference, reference_start, loci, 0, 0, options)?;
     Ok(joint.finish())
 }
 
@@ -1320,7 +1448,14 @@ pub struct Joint {
     calculator: Calculator,
     stratifiers: Vec<Stratifier>,
     prior: f64,
-    strata: BTreeMap<Key, Counts>,
+    // The strata as the tool's sorted map holds them, each the index of its counts.
+    strata: BTreeMap<Vec<Part>, usize>,
+    counts: Vec<Counts>,
+    // The stratum each set of parts already found, so most bases skip the sorted map. Only while
+    // no part is NaN: a NaN is equal to every number, and where the map then finds it depends on
+    // the map's shape, so from then on every base asks the map itself.
+    found: foldhash::HashMap<Vec<Part>, usize>,
+    holds_nan: bool,
     // A deletion spans several loci, and the same record is shown at each of them; it is counted
     // once, at the first, and only for the loci that were counted at all.
     seen_deletions: HashSet<(usize, i32)>,
@@ -1337,12 +1472,17 @@ impl Joint {
             },
             prior: prior_error(options.prior_q),
             strata: BTreeMap::new(),
+            counts: Vec::new(),
+            found: foldhash::HashMap::default(),
+            holds_nan: false,
             seen_deletions: HashSet::new(),
         }
     }
 
     /// The next `loci` of the walk, the first of which is its `first_locus`-th: a throw names its
-    /// place in the whole walk.
+    /// place in the whole walk. `reads[0]` is the walk's `first_read`-th read, which is what lets
+    /// a deletion be followed across batches whose reads are numbered from where each starts.
+    #[allow(clippy::too_many_arguments)]
     pub fn add(
         &mut self,
         reads: &[Read],
@@ -1350,12 +1490,20 @@ impl Joint {
         reference_start: i32,
         loci: &[Locus],
         first_locus: usize,
+        first_read: usize,
         options: &Options,
     ) -> Result<(), Thrown> {
         let (calculator, stratifiers) = (self.calculator, &self.stratifiers[..]);
         let (strata, seen_deletions) = (&mut self.strata, &mut self.seen_deletions);
+        let (all_counts, found, holds_nan) =
+            (&mut self.counts, &mut self.found, &mut self.holds_nan);
+        let mut parts = Vec::new();
+        // Only a deletion seen at the locus before this batch's first can still be met again.
+        if let Some(locus) = loci.first() {
+            seen_deletions.retain(|&(_, position)| position >= locus.position - 1);
+        }
         for (locus_index, locus) in loci.iter().enumerate() {
-            let mut names: Option<HashMap<&str, Vec<&Observation>>> = None;
+            let mut own_mates: Option<Vec<Option<u32>>> = None;
             let reference_base = reference
                 .get((locus.position - reference_start) as usize)
                 .copied()
@@ -1367,8 +1515,9 @@ impl Joint {
                     message,
                 };
                 if observation.alignment == AlignmentType::Deletion {
-                    let already = seen_deletions.contains(&(observation.read, locus.position - 1));
-                    seen_deletions.insert((observation.read, locus.position));
+                    let read = first_read + observation.read;
+                    let already = seen_deletions.contains(&(read, locus.position - 1));
+                    seen_deletions.insert((read, locus.position));
                     if already {
                         continue;
                     }
@@ -1381,20 +1530,44 @@ impl Joint {
                     element(&reads[observation.read].qualities, observation.offset)
                         .map_err(thrown)?;
                 }
-                let mut parts = Some(Vec::new());
+                parts.clear();
+                let mut answered = true;
                 for &stratifier in stratifiers {
-                    let answer = stratify(stratifier, reads, observation, reference_base, options)
-                        .map_err(thrown)?;
-                    parts = match (parts, answer) {
-                        (Some(mut so_far), Some(more)) => {
-                            so_far.extend(more);
-                            Some(so_far)
-                        }
-                        _ => None,
-                    };
+                    answered &= stratify(
+                        stratifier,
+                        reads,
+                        observation,
+                        reference_base,
+                        options,
+                        &mut parts,
+                    )
+                    .map_err(thrown)?;
                 }
-                let Some(parts) = parts else { continue };
-                let counts = strata.entry(Key(parts)).or_default();
+                if !answered {
+                    continue;
+                }
+                let cached = !*holds_nan && !parts.iter().any(Part::is_nan);
+                let known = if cached {
+                    found.get(parts.as_slice()).copied()
+                } else {
+                    None
+                };
+                let index = known.unwrap_or_else(|| {
+                    let index = match strata.get(parts.as_slice()) {
+                        Some(&index) => index,
+                        None => {
+                            strata.insert(parts.clone(), all_counts.len());
+                            all_counts.push(Counts::default());
+                            *holds_nan |= !cached;
+                            all_counts.len() - 1
+                        }
+                    };
+                    if cached && !*holds_nan {
+                        found.insert(parts.clone(), index);
+                    }
+                    index
+                });
+                let counts = &mut all_counts[index];
                 let read = &reads[observation.read];
                 let base = usize::try_from(observation.offset)
                     .ok()
@@ -1447,29 +1620,15 @@ impl Joint {
                         AlignmentType::Match => {}
                     },
                     Calculator::OverlappingError => {
-                        // The mate is looked for among the bases READ at the locus, not among its
-                        // indels: the tool builds its name sets from `getRecordAndOffsets()`.
-                        // Only a read of the same name can be the mate, so the locus's bases are indexed by
-                        // name once, in their order, for every observation that asks.
-                        let names = names.get_or_insert_with(|| {
-                            let mut names: HashMap<&str, Vec<&Observation>> = HashMap::new();
-                            for other in &locus.records {
-                                if other.alignment == AlignmentType::Match {
-                                    names
-                                        .entry(reads[other.read].name.as_str())
-                                        .or_default()
-                                        .push(other);
-                                }
-                            }
-                            names
-                        });
-                        let mate = names.get(read.name.as_str()).and_then(|candidates| {
-                            candidates.iter().copied().find(|other| {
-                                other.read != observation.read
-                                    && are_mates(read, &reads[other.read])
-                            })
-                        });
-                        let Some(mate) = mate else { continue };
+                        let found = if locus.mates.is_empty() {
+                            &own_mates.get_or_insert_with(|| mates(reads, &locus.records))[..]
+                        } else {
+                            &locus.mates[..]
+                        };
+                        let Some(mate) = found[observation_index] else {
+                            continue;
+                        };
+                        let mate = &locus.records[mate as usize];
                         let mate_base = usize::try_from(mate.offset)
                             .ok()
                             .and_then(|i| reads[mate.read].bases.get(i))
@@ -1499,7 +1658,11 @@ impl Joint {
 
     /// The table the walk has built.
     pub fn finish(self) -> Table {
-        let (calculator, strata, prior) = (self.calculator, self.strata, self.prior);
+        let (calculator, prior, counts) = (self.calculator, self.prior, self.counts);
+        let strata = self
+            .strata
+            .into_iter()
+            .map(|(key, index)| (key, counts[index].clone()));
         match calculator {
             Calculator::Error => Table::Base(
                 strata
@@ -1509,7 +1672,7 @@ impl Joint {
                     // with no header at all.
                     .filter(|(_, counts)| counts.bases != 0)
                     .map(|(key, counts)| BaseErrorMetric {
-                        covariate: key.text(),
+                        covariate: stratum_text(&key),
                         total_bases: counts.bases,
                         error_bases: counts.mismatches,
                         q_score: q_score(counts.mismatches, counts.bases, prior),
@@ -1520,7 +1683,7 @@ impl Joint {
                 strata
                     .into_iter()
                     .map(|(key, counts)| OverlappingErrorMetric {
-                        covariate: key.text(),
+                        covariate: stratum_text(&key),
                         total_bases: counts.bases,
                         bases_with_overlapping_reads: counts.overlapping_bases,
                         disagrees_with_reference_only: counts.both_disagree,
@@ -1548,7 +1711,7 @@ impl Joint {
                 strata
                     .into_iter()
                     .map(|(key, counts)| IndelErrorMetric {
-                        covariate: key.text(),
+                        covariate: stratum_text(&key),
                         total_bases: counts.bases,
                         insertions: counts.insertions,
                         inserted_bases: counts.inserted_bases,

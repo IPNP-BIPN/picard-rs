@@ -187,6 +187,17 @@ fn attribute(record: &htsjdk_bam::record::BamRecord, tag: &[u8; 2]) -> Attribute
     }
 }
 
+/// The last reference position a read covers, one before its start when it covers none.
+fn end(read: &Read) -> i32 {
+    read.start - 1
+        + read
+            .cigar
+            .iter()
+            .filter(|(_, operator)| matches!(operator, 'M' | 'D' | 'N' | '=' | 'X'))
+            .map(|&(length, _)| length as i32)
+            .sum::<i32>()
+}
+
 /// The index file `VCFFileReader(path, true)` demands next to a VCF.
 fn has_index(vcf: &str) -> bool {
     let index = if vcf.ends_with(".gz") { ".tbi" } else { ".idx" };
@@ -295,9 +306,10 @@ fn main() {
         directives.iter().map(|d| parse_directive(d)).collect();
 
     // processData: the reader, the reference walker, then the variant source.
-    // Read and checked whole as before, then decoded a record at a time into the reads the walk
-    // keeps, so the BAM's own records are never all held beside them.
-    let (header, records) = open_input(&input).into_parts();
+    // Checked whole as before, then decoded a record at a time as the walk takes them.
+    let opened = open_input(&input);
+    let streamed = opened.streams();
+    let (header, records) = opened.into_parts();
     let contigs = read_fasta_file(&reference).unwrap_or_else(|e| fail(&format!("{e:?}")));
     if let Some(path) = &vcf {
         if !has_index(path) {
@@ -340,51 +352,47 @@ fn main() {
         (index as i32, position - offsets[index])
     };
 
-    let reads: Vec<Read> = records
-        .filter(|record| record.reference_index >= 0)
-        .map(|record| {
-            let record = &record;
-            let group = match record.tags.get(Tag::new(b"RG")) {
-                Some(TagValue::Str(id)) => id.to_string(),
-                _ => String::new(),
-            };
-            let mate_start = if record.mate_reference_index >= 0 {
-                offsets[record.mate_reference_index as usize] + record.mate_alignment_start
-            } else {
-                0
-            };
-            Read {
-                name: record.read_name.clone(),
-                start: offsets[record.reference_index as usize] + record.alignment_start,
-                bases: record.read_bases.clone(),
-                qualities: record.base_qualities.clone(),
-                flags: record.flags,
-                mate_start,
-                cigar: record
-                    .cigar
-                    .elements
-                    .iter()
-                    .map(|e| {
-                        let operator = match e.op {
-                            Op::Eq => '=',
-                            op => char::from(op.to_char()),
-                        };
-                        (e.length as usize, operator)
-                    })
-                    .collect(),
-                mapping_quality: record.mapping_quality,
-                read_group: group,
-                insert_size: record.inferred_insert_size,
-                reference_index: record.reference_index,
-                mate_reference_index: record.mate_reference_index,
-                nm: attribute(record, b"NM"),
-                has_sa: record.tags.get(Tag::new(b"SA")).is_some(),
-                first_strand_copies: attribute(record, b"aD"),
-                second_strand_copies: attribute(record, b"bD"),
-                both_strands_copies: attribute(record, b"cD"),
-            }
-        })
-        .collect();
+    let to_read = |record: &htsjdk_bam::record::BamRecord| -> Read {
+        let group = match record.tags.get(Tag::new(b"RG")) {
+            Some(TagValue::Str(id)) => id.to_string(),
+            _ => String::new(),
+        };
+        let mate_start = if record.mate_reference_index >= 0 {
+            offsets[record.mate_reference_index as usize] + record.mate_alignment_start
+        } else {
+            0
+        };
+        Read {
+            name: record.read_name.clone(),
+            start: offsets[record.reference_index as usize] + record.alignment_start,
+            bases: record.read_bases.clone(),
+            qualities: record.base_qualities.clone(),
+            flags: record.flags,
+            mate_start,
+            cigar: record
+                .cigar
+                .elements
+                .iter()
+                .map(|e| {
+                    let operator = match e.op {
+                        Op::Eq => '=',
+                        op => char::from(op.to_char()),
+                    };
+                    (e.length as usize, operator)
+                })
+                .collect(),
+            mapping_quality: record.mapping_quality,
+            read_group: group,
+            insert_size: record.inferred_insert_size,
+            reference_index: record.reference_index,
+            mate_reference_index: record.mate_reference_index,
+            nm: attribute(record, b"NM"),
+            has_sa: record.tags.get(Tag::new(b"SA")).is_some(),
+            first_strand_copies: attribute(record, b"aD"),
+            second_strand_copies: attribute(record, b"bD"),
+            both_strands_copies: attribute(record, b"cD"),
+        }
+    };
 
     // The sites the VCF takes out: every unfiltered record's whole span.
     let mut known_sites: Vec<i32> = Vec::new();
@@ -419,80 +427,129 @@ fn main() {
         location_bin_size: location_bin_size as i32,
     };
     // The loci are walked as htsjdk's locus iterator hands them out, a batch at a time: a locus is
-    // complete once a read starts past it, so only the loci a read can still reach are held. Every
-    // aggregator takes each batch, on every core, and keeps its table across them; the masks, the
-    // draw from Random(42), the known sites and MAX_LOCI take the loci in order, as before. A file
-    // whose reads are not in order is piled up whole, as it always was.
-    const BATCH: usize = 1 << 16;
-    let in_order = reads
-        .windows(2)
-        .all(|pair| pair[0].start <= pair[1].start || pair[1].is_unmapped());
-    let mut builder = PileupBuilder::new(&options);
-    let mut joints: Vec<Joint> = aggregators
+    // complete once a read starts past it, so only the loci a read can still reach are held, and
+    // only the reads those loci can still show. Every aggregator takes each batch, on every core,
+    // and keeps its table across them; the masks, the draw from Random(42), the known sites and
+    // MAX_LOCI take the loci in order, as before. A file whose reads are not in order is piled up
+    // whole, as it always was: a walk that meets one after it has handed on a batch starts again.
+    // INTERVAL_ITERATOR without a VCF, which throws at the first counted locus, is piled up whole
+    // too, so it throws once the whole file is read, as it did.
+    //
+    // Loci per batch: enough to keep every core busy, few enough that the observations they hold
+    // stay in tens of megabytes at a depth of a few hundred.
+    const BATCH: usize = 1 << 12;
+    let overlapping = aggregators
         .iter()
-        .map(|(calculator, stratifiers)| Joint::new(*calculator, stratifiers, &options))
-        .collect();
-    let mut draw = picard_analysis::theoretical_sensitivity::JavaRandom::new(42);
-    let mut interval_draw = picard_analysis::theoretical_sensitivity::JavaRandom::new(42);
-    let (mut walked, mut done) = (0usize, false);
-    let mut first: Option<(usize, usize, usize, String)> = None;
-    let mut walk = |loci: Vec<Locus>, first: &mut Option<(usize, usize, usize, String)>| {
-        if done || first.is_some() {
-            return;
-        }
-        let mut batch = Vec::with_capacity(loci.len());
-        for locus in loci {
-            let (index, position) = contig_of(locus.position);
-            if !masks.iter().all(|mask| mask.get(index, position)) {
-                continue;
-            }
-            // `checkLocus` reads the reader the run never opened, at the first locus that
-            // survives the draw.
-            if interval_iterator && vcf.is_none() && interval_draw.next_double() <= probability {
-                thrown(
-                    "java.lang.NullPointerException: Cannot invoke \
-                     \"htsjdk.variant.vcf.VCFFileReader.query(htsjdk.samtools.util.Locatable)\" \
-                     because \"vcfFileReader\" is null",
-                );
-            }
-            // `processed_loci`: the draw, then the known sites, then the cap.
-            if draw.next_double() > options.probability
-                || options.known_sites.contains(&locus.position)
-            {
-                continue;
-            }
-            batch.push(locus);
-            if options.max_loci != 0 && (walked + batch.len()) as u64 >= options.max_loci {
-                done = true;
-                break;
-            }
-        }
-        use rayon::prelude::*;
-        let results: Vec<_> = joints
-            .par_iter_mut()
-            .map(|joint| joint.add(&reads, &joined, 1, &batch, walked, &options))
+        .any(|(calculator, _)| *calculator == Calculator::OverlappingError);
+    type Place = (usize, usize, usize, String);
+    let run = |records: picard_analysis::bam_stream::Records,
+               stream: bool|
+     -> Option<(Vec<Table>, Option<Place>)> {
+        let mut builder = PileupBuilder::new(&options);
+        let mut joints: Vec<Joint> = aggregators
+            .iter()
+            .map(|(calculator, stratifiers)| Joint::new(*calculator, stratifiers, &options))
             .collect();
-        for (aggregator, result) in results.into_iter().enumerate() {
-            if let Err(at) = result {
-                let place = (at.locus, at.observation, aggregator, at.message);
-                if first
-                    .as_ref()
-                    .is_none_or(|known| (place.0, place.1, place.2) < (known.0, known.1, known.2))
+        let mut draw = picard_analysis::theoretical_sensitivity::JavaRandom::new(42);
+        let mut interval_draw = picard_analysis::theoretical_sensitivity::JavaRandom::new(42);
+        let (mut walked, mut done) = (0usize, false);
+        let mut first: Option<Place> = None;
+        let mut walk = |loci: Vec<Locus>, reads: &[Read], first_read: usize| {
+            if done || first.is_some() {
+                return;
+            }
+            let mut batch = Vec::with_capacity(loci.len());
+            for mut locus in loci {
+                let (index, position) = contig_of(locus.position);
+                if !masks.iter().all(|mask| mask.get(index, position)) {
+                    continue;
+                }
+                // `checkLocus` reads the reader the run never opened, at the first locus that
+                // survives the draw.
+                if interval_iterator && vcf.is_none() && interval_draw.next_double() <= probability
                 {
-                    *first = Some(place);
+                    thrown(
+                        "java.lang.NullPointerException: Cannot invoke \
+                         \"htsjdk.variant.vcf.VCFFileReader.query(htsjdk.samtools.util.Locatable)\" \
+                         because \"vcfFileReader\" is null",
+                    );
+                }
+                // `processed_loci`: the draw, then the known sites, then the cap.
+                if draw.next_double() > options.probability
+                    || options.known_sites.contains(&locus.position)
+                {
+                    continue;
+                }
+                for observation in &mut locus.records {
+                    observation.read -= first_read;
+                }
+                batch.push(locus);
+                if options.max_loci != 0 && (walked + batch.len()) as u64 >= options.max_loci {
+                    done = true;
+                    break;
                 }
             }
+            use rayon::prelude::*;
+            if overlapping {
+                batch
+                    .par_iter_mut()
+                    .for_each(|locus| locus.find_mates(reads));
+            }
+            let results: Vec<_> = joints
+                .par_iter_mut()
+                .map(|joint| joint.add(reads, &joined, 1, &batch, walked, first_read, &options))
+                .collect();
+            for (aggregator, result) in results.into_iter().enumerate() {
+                if let Err(at) = result {
+                    let place = (at.locus, at.observation, aggregator, at.message);
+                    if first.as_ref().is_none_or(|known| {
+                        (place.0, place.1, place.2) < (known.0, known.1, known.2)
+                    }) {
+                        first = Some(place);
+                    }
+                }
+            }
+            walked += batch.len();
+        };
+        // The reads still held, the first of them the walk's `first_read`-th.
+        let mut reads: std::collections::VecDeque<Read> = std::collections::VecDeque::new();
+        let mut first_read = 0usize;
+        let (mut in_order, mut handed_on, mut previous) = (stream, false, None);
+        for record in records.filter(|record| record.reference_index >= 0) {
+            let read = to_read(&record);
+            if previous.is_some_and(|start| start > read.start) && !read.is_unmapped() {
+                if handed_on {
+                    return None;
+                }
+                in_order = false;
+            }
+            previous = Some(read.start);
+            if in_order && builder.held() >= BATCH && !read.is_unmapped() {
+                let before = read.start - 1;
+                walk(
+                    builder.take_before(before),
+                    reads.make_contiguous(),
+                    first_read,
+                );
+                handed_on = true;
+                // A read that ends before every locus still held is shown at none of them.
+                while reads.front().is_some_and(|held| end(held) < before) {
+                    reads.pop_front();
+                    first_read += 1;
+                }
+            }
+            builder.add(first_read + reads.len(), &read);
+            reads.push_back(read);
         }
-        walked += batch.len();
+        walk(builder.finish(), reads.make_contiguous(), first_read);
+        Some((joints.into_iter().map(Joint::finish).collect(), first))
     };
-    for (index, read) in reads.iter().enumerate() {
-        if in_order && builder.held() >= BATCH && !read.is_unmapped() {
-            walk(builder.take_before(read.start - 1), &mut first);
-        }
-        builder.add(index, read);
-    }
-    walk(builder.finish(), &mut first);
-    let tables: Vec<_> = joints.into_iter().map(Joint::finish).collect();
+    let stream = !(interval_iterator && vcf.is_none());
+    let (tables, first) = run(records, stream).unwrap_or_else(|| {
+        let again = picard_analysis::bam_stream::Input::reopen(&input, streamed)
+            .unwrap_or_else(|e| fail(&e.message()));
+        run(again.into_parts().1, false).expect("a walk that does not stream never starts again")
+    });
     if let Some((_, _, _, message)) = first {
         thrown(&message);
     }
