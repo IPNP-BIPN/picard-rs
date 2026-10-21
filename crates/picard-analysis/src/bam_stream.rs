@@ -399,6 +399,42 @@ pub fn clean_header(path: &str) -> Option<SamHeader> {
     (!blocks.damaged && blocks.declared == inflated).then_some(header)
 }
 
+/// A BAM decoded in one pass, for a tool that can throw away what it made of the records: the
+/// header to `on_header`, then each record, validated, to `on_record`. `true` when the whole-file
+/// read would have handed over the same records and raised nothing; `false` at the first sign
+/// otherwise, for the caller to read the file whole for the answer it gave.
+pub fn one_pass(
+    path: &str,
+    on_header: impl FnOnce(&SamHeader),
+    mut on_record: impl FnMut(BamRecord),
+) -> bool {
+    let Ok(file) = File::open(path) else {
+        return false;
+    };
+    let mut stream = RecordStream::new(inflater(Blocks::new(BufReader::new(file))));
+    let Ok(header) = stream.header() else {
+        return false;
+    };
+    let mut validator = Validator::new(&header, &stream.binary_sequences);
+    on_header(&header);
+    loop {
+        match stream.record() {
+            Ok(Some(record)) if validator.check(&record).is_ok() => on_record(record),
+            Ok(None) => break,
+            _ => return false,
+        }
+    }
+    let mut inflater = stream.into_inner();
+    if io::copy(&mut inflater, &mut io::sink()).is_err() {
+        return false;
+    }
+    let inflated = inflater.count;
+    let Ok(mut blocks) = inflater.inner.finish() else {
+        return false;
+    };
+    io::copy(&mut blocks, &mut io::sink()).is_ok() && !blocks.damaged && blocks.declared == inflated
+}
+
 /// noodles' multithreaded reader, counting what it inflates.
 pub struct MultithreadedInflater<R> {
     inner: noodles_bgzf::io::MultithreadedReader<R>,
