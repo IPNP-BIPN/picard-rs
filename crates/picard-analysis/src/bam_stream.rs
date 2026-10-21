@@ -289,6 +289,22 @@ fn check(path: &str) -> Option<Result<(), InputError>> {
     Some(decoded.map_err(InputError::Bam))
 }
 
+/// The header of the BAM at `path`, read as [`BamReader::new`] reads it, when the whole file
+/// inflates as cleanly as [`crate::bgzf::decompress_owned`] would have inflated it; `None` for
+/// anything else, which the caller answers by reading the file whole, as before. Holds no more
+/// than the header and a few blocks, for a tool that only needs the header and copies the blocks.
+pub fn header_if_clean(path: &str) -> Option<SamHeader> {
+    let file = File::open(path).ok()?;
+    let mut stream = RecordStream::new(inflater(Blocks::new(BufReader::new(file))));
+    let header = stream.header().ok()?;
+    let mut inflater = stream.into_inner();
+    io::copy(&mut inflater, &mut io::sink()).ok()?;
+    let inflated = inflater.count;
+    let mut blocks = inflater.inner.finish().ok()?;
+    io::copy(&mut blocks, &mut io::sink()).ok()?;
+    (!blocks.damaged && blocks.declared == inflated).then_some(header)
+}
+
 /// What noodles reads: the compressed bytes, a block at a time, refusing to go on past the first
 /// block that `BgzfReader::next_block` would not have read as a clean one, and adding up the
 /// inflated lengths the blocks declare.

@@ -8,8 +8,12 @@
 //! The reheader asserts its INPUT is writable, so a corpus mounted read-only, as the oracle
 //! contract mounts it, refuses every BAM row; the SAM rows are refused first, by name.
 
-use picard_analysis::add_comments_to_bam::{add_comments_to_bam, AddCommentsError};
+use htsjdk_bam::reheader::ReheaderError;
+use picard_analysis::add_comments_to_bam::{
+    add_comments_to_bam, add_comments_to_bam_file, AddCommentsError,
+};
 use picard_analysis::args::arg;
+use std::io::Read;
 
 fn refuse(message: &str) -> ! {
     eprintln!("Exception in thread \"main\" picard.PicardException: {message}");
@@ -36,7 +40,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     // `INPUT.getAbsolutePath().endsWith(".sam")`, after the readability check.
-    let bam = std::fs::read(&input)?;
+    let mut head = Vec::new();
+    std::fs::File::open(&input).and_then(|f| f.take(4).read_to_end(&mut head))?;
     if input.ends_with(".sam") {
         refuse("SAM files are not supported");
     }
@@ -63,7 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     // `reheaderBamFile` copies BGZF blocks, and a CRAM has none: the termination check refuses it,
     // naming the input by its URI.
-    if picard_analysis::cram_input::is_cram(&bam) {
+    if picard_analysis::cram_input::is_cram(&head) {
         eprintln!(
             "Exception in thread \"main\" htsjdk.samtools.SAMException: \
              {} does not have a valid GZIP block at the end of the file.",
@@ -72,11 +77,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
     let borrowed: Vec<&str> = comments.iter().map(String::as_str).collect();
-    let out = match add_comments_to_bam(&bam, &borrowed) {
-        Ok(out) => out,
-        Err(AddCommentsError::NewlineInComment) => refuse("Comments can not contain a new line"),
-        Err(other) => return Err(format!("{other:?}").into()),
+    let copied = match add_comments_to_bam_file(&input, &output, &borrowed) {
+        Some(copied) => copied,
+        // A file that does not inflate cleanly is read whole, for the error that read gave.
+        None => add_comments_to_bam(&std::fs::read(&input)?, &borrowed).and_then(|out| {
+            std::fs::write(&output, out).map_err(|e| ReheaderError::Write(e).into())
+        }),
     };
-    std::fs::write(&output, out)?;
-    Ok(())
+    match copied {
+        Ok(()) => Ok(()),
+        Err(AddCommentsError::NewlineInComment) => refuse("Comments can not contain a new line"),
+        Err(AddCommentsError::Reheader(ReheaderError::Write(e))) => Err(e.into()),
+        Err(other) => Err(format!("{other:?}").into()),
+    }
 }

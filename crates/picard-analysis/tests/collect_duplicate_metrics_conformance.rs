@@ -141,7 +141,7 @@ const CASES: &[&str] = &[
 ];
 
 fn ours(text: &str, case: &str) -> Vec<Vec<String>> {
-    collect(&libraries(case), &records(text, case))
+    collect(&libraries(case), records(text, case))
         .iter()
         .map(as_written)
         .collect()
@@ -162,7 +162,7 @@ fn the_counters_are_a_chain() {
     let text = corpus();
     let rows = collect(
         &libraries("unmapped-duplicate"),
-        &records(&text, "unmapped-duplicate"),
+        records(&text, "unmapped-duplicate"),
     );
     assert_eq!(rows[0].unmapped_reads, 1);
     assert_eq!(rows[0].unpaired_read_duplicates, 0);
@@ -170,7 +170,7 @@ fn the_counters_are_a_chain() {
     // And a secondary or supplementary read reaches only its own counter.
     let rows = collect(
         &libraries("secondary-and-supplementary"),
-        &records(&text, "secondary-and-supplementary"),
+        records(&text, "secondary-and-supplementary"),
     );
     assert_eq!(rows[0].secondary_or_supplementary_reads, 2);
     assert_eq!(rows[0].read_pair_duplicates, 0);
@@ -180,10 +180,7 @@ fn the_counters_are_a_chain() {
 #[test]
 fn a_half_mapped_pair_splits_between_two_counters() {
     let text = corpus();
-    let rows = collect(
-        &libraries("mate-unmapped"),
-        &records(&text, "mate-unmapped"),
-    );
+    let rows = collect(&libraries("mate-unmapped"), records(&text, "mate-unmapped"));
     assert_eq!(rows[0].unpaired_reads_examined, 1);
     assert_eq!(rows[0].unmapped_reads, 1);
     assert_eq!(rows[0].read_pairs_examined, 0);
@@ -196,7 +193,7 @@ fn the_halving_is_an_integer_division() {
     let text = corpus();
     let one = collect(
         &libraries("secondary-and-supplementary"),
-        &records(&text, "secondary-and-supplementary"),
+        records(&text, "secondary-and-supplementary"),
     );
     assert_eq!(one[0].read_pairs_examined, 0);
     let four = table(&text, "two-pairs-one-duplicate");
@@ -216,7 +213,7 @@ fn the_optical_count_is_always_zero() {
     }
     let rows = collect(
         &libraries("two-pairs-one-duplicate"),
-        &records(&text, "two-pairs-one-duplicate"),
+        records(&text, "two-pairs-one-duplicate"),
     );
     assert_eq!(rows[0].read_pair_optical_duplicates, 0);
     assert_eq!(rows[0].estimated_library_size(), Some(1));
@@ -228,17 +225,14 @@ fn the_percentage_weights_the_pairs_by_two() {
     let text = corpus();
     let pairs = collect(
         &libraries("two-pairs-one-duplicate"),
-        &records(&text, "two-pairs-one-duplicate"),
+        records(&text, "two-pairs-one-duplicate"),
     );
     // One duplicate pair of two pairs: (0 + 1*2) / (0 + 2*2).
     assert_eq!(pairs[0].percent_duplication(), 0.5);
-    let unpaired = collect(&libraries("unpaired"), &records(&text, "unpaired"));
+    let unpaired = collect(&libraries("unpaired"), records(&text, "unpaired"));
     // One duplicate read of two: (1 + 0) / (2 + 0), which is the same number by another route.
     assert_eq!(unpaired[0].percent_duplication(), 0.5);
-    let none = collect(
-        &libraries("only-unmapped"),
-        &records(&text, "only-unmapped"),
-    );
+    let none = collect(&libraries("only-unmapped"), records(&text, "only-unmapped"));
     assert_eq!(none[0].percent_duplication(), 0.0);
 }
 
@@ -278,20 +272,20 @@ fn the_histogram_needs_one_library_and_a_size() {
     assert!(histogram("two-libraries").is_empty());
     // One library and no estimated size: none either.
     assert!(histogram("unpaired").is_empty());
-    let unpaired = collect(&libraries("unpaired"), &records(&text, "unpaired"));
+    let unpaired = collect(&libraries("unpaired"), records(&text, "unpaired"));
     assert_eq!(unpaired[0].estimated_library_size(), None);
     assert!(!writes_a_histogram(&unpaired));
     // One library with a size: written.
     let pairs = collect(
         &libraries("two-pairs-one-duplicate"),
-        &records(&text, "two-pairs-one-duplicate"),
+        records(&text, "two-pairs-one-duplicate"),
     );
     assert!(writes_a_histogram(&pairs));
     assert!(histogram("two-pairs-one-duplicate").contains("BIN\tCoverageMult"));
     // A size of zero: written, and every bin is NaN.
     let all = collect(
         &libraries("all-duplicates"),
-        &records(&text, "all-duplicates"),
+        records(&text, "all-duplicates"),
     );
     assert_eq!(all[0].estimated_library_size(), Some(0));
     assert!(writes_a_histogram(&all));

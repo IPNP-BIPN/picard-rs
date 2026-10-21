@@ -21,7 +21,8 @@
 //! merges the runs. Measured in the oracle container (3,050 records, coordinate and queryname, SAM
 //! and BAM out): Picard's output with `MAX_RECORDS_IN_RAM=37` is byte-identical to its in-memory
 //! sort, because the sort is stable and the merge breaks ties by run, so where the runs end
-//! changes nothing that is written.
+//! changes nothing that is written. `SortSam` sorts through [`encoded`], the same collection
+//! holding encoded records; the other tools that sort hold decoded ones here.
 
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -208,6 +209,8 @@ pub fn sort_sam_to_bam(input_sam: &str, order: SortOrder) -> Result<Vec<u8>, Par
         .expect("in-memory BAM writer never fails to finish"))
 }
 
+pub mod encoded;
+
 /// `SortingCollection`'s default `maxRecordsInRam`, which is `MAX_RECORDS_IN_RAM`'s.
 pub const DEFAULT_MAX_RECORDS_IN_RAM: usize = 500_000;
 
@@ -236,6 +239,22 @@ impl SortingCollection {
             ram: Vec::new(),
             runs: Vec::new(),
         }
+    }
+
+    /// [`Self::new`] at the `MAX_RECORDS_IN_RAM` and `TMP_DIR` a tool's arguments name, for a
+    /// writer that sorts what it is handed (`presorted=false`).
+    pub fn from_args(compare: Compare, args: &[String]) -> Result<Self, String> {
+        let max_records_in_ram = match crate::args::arg(args, "MAX_RECORDS_IN_RAM=") {
+            Some(value) => value
+                .parse()
+                .map_err(|_| format!("MAX_RECORDS_IN_RAM is not an integer: {value}"))?,
+            None => DEFAULT_MAX_RECORDS_IN_RAM,
+        };
+        // shortcut: the first TMP_DIR only, where htsjdk picks the one with the most free space.
+        let tmp_dir = crate::args::arg(args, "TMP_DIR=")
+            .map(PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir);
+        Ok(SortingCollection::new(compare, max_records_in_ram, tmp_dir))
     }
 
     /// `add`: spill first when the buffer is already full, as htsjdk does.

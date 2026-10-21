@@ -8,10 +8,7 @@
 //! One row per library named by the HEADER, whether a read ever used it or not, plus a row for any
 //! library only the reads name.
 
-use std::io::Read;
-
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::args::arg;
@@ -47,22 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let (header, records) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records: Vec<BamRecord> = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
+    let (header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
 
     // `makeItSo` stops once `STOP_AFTER` records have been handed over, and asks the reference
     // walker for each one first, so the first `STOP_AFTER` records are the whole run.
@@ -70,10 +52,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|v| v.parse())
         .transpose()?
         .unwrap_or(0);
-    let records: Vec<BamRecord> = match usize::try_from(stop_after) {
-        Ok(n) if n > 0 => records.into_iter().take(n).collect(),
-        _ => records,
-    };
+    let records = records.take(match usize::try_from(stop_after) {
+        Ok(n) if n > 0 => n,
+        _ => usize::MAX,
+    });
 
     let refuse = |rejection: Rejection| -> ! {
         eprintln!(
@@ -100,17 +82,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // here rather than removing it.
     let with_reference = arg(&args, "REFERENCE_SEQUENCE=").is_some() || arg(&args, "R=").is_some();
     let mut current: Option<i32> = None;
-    if with_reference {
-        for record in &records {
-            if record.reference_index == -1 {
-                continue;
-            }
-            match walk_reference(current, record.reference_index) {
-                Ok(index) => current = Some(index),
-                Err(rejection) => refuse(rejection),
-            }
-        }
-    }
 
     // `LibraryIdGenerator`: the libraries the header names, in header order.
     let header_libraries: Vec<String> = header
@@ -138,23 +109,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let tallied: Vec<Record> = records
-        .iter()
-        .map(|record| Record {
-            library: library_of(record),
+    // Each record is walked and tallied as it is read: the walk's refusal ends the run before
+    // anything is written, and the tally cannot fail, so the order of the two does not show.
+    let tallied = records.map(|record| {
+        if with_reference && record.reference_index != -1 {
+            match walk_reference(current, record.reference_index) {
+                Ok(index) => current = Some(index),
+                Err(rejection) => refuse(rejection),
+            }
+        }
+        Record {
+            library: library_of(&record),
             duplicate: record.flags & DUPLICATE != 0,
             secondary_or_supplementary: record.flags & (SECONDARY | SUPPLEMENTARY) != 0,
             unmapped: record.flags & READ_UNMAPPED != 0,
             paired: record.flags & READ_PAIRED != 0,
             mate_unmapped: record.flags & MATE_UNMAPPED != 0,
-        })
-        .collect();
+        }
+    });
 
     let mut file = MetricsFile::new();
     for header in picard_analysis::command_line::default_headers("CollectDuplicateMetrics") {
         file.add_header(&header);
     }
-    for row in collect(&header_libraries, &tallied) {
+    let rows = collect(&header_libraries, tallied);
+    for row in rows {
         file.add_metric(&row);
     }
     std::fs::write(&metrics_file, file.write())?;

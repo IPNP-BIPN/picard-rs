@@ -12,12 +12,11 @@
 //! comparator part of the answer: the order it sorts into decides which record of a name the
 //! others are compared against.
 
-use std::io::{Read, Write};
+use std::io::Write;
 
-use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::query_name;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
+use htsjdk_bam::tag::{Tag, TagValue};
 use picard_analysis::args::arg;
 use picard_analysis::check_duplicate_marking::{check, Mode, Record};
 
@@ -27,6 +26,9 @@ const READ_UNMAPPED_FLAG: u16 = 0x4;
 const DUPLICATE_FLAG: u16 = 0x400;
 const SECONDARY_FLAG: u16 = 0x100;
 const SUPPLEMENTARY_FLAG: u16 = 0x800;
+fn hi() -> Tag {
+    Tag::new(b"HI")
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CheckDuplicateMarking");
@@ -55,22 +57,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let (header, mut records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
+    let (header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
+    // What the walk and the comparator read of each record, and nothing else: the flags, and the
+    // HI tag the comparator breaks its last tie on.
+    let mut walked: Vec<(Record, u16, Option<TagValue>)> = records
+        .map(|record| {
+            let hit_index = record.tags.get(hi()).cloned();
+            let flags = record.flags;
+            let walked = Record {
+                name: record.read_name,
+                duplicate: flags & DUPLICATE_FLAG != 0,
+                secondary_or_supplementary: flags & (SECONDARY_FLAG | SUPPLEMENTARY_FLAG) != 0,
+                unmapped: flags & READ_UNMAPPED_FLAG != 0,
+                // `getProperPairFlag()` throws on a read that is not paired, so an unpaired record
+                // reaching `PRIMARY_PROPER_PAIR_ONLY` is an exception rather than a skip. Every
+                // record of this corpus is paired; the flag is read as false for an unpaired one
+                // here, which is the value the mode would skip on anyway.
+                proper_pair: flags & READ_PAIRED_FLAG != 0 && flags & PROPER_PAIR_FLAG != 0,
+            };
+            (walked, flags, hit_index)
+        })
+        .collect();
 
     // `getSortedRecordsFromReader`: a query-name sorted file is walked as it lies, and anything
     // else goes through a `SortingCollection` with `SAMRecordQueryNameComparator` -- the full
@@ -78,24 +85,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // an order the flags decide. Both sorts are stable, so records the comparator calls equal keep
     // the order the file had.
     if header.attributes.get("SO") != Some("queryname") {
-        records.sort_by(query_name::compare);
+        // The comparator's tie-breaks, on records carrying only what they read.
+        let stub = |flags: u16, hit_index: &Option<TagValue>| {
+            let mut record = BamRecord {
+                flags,
+                ..Default::default()
+            };
+            if let Some(value) = hit_index {
+                record.tags.insert(hi(), value.clone());
+            }
+            record
+        };
+        walked.sort_by(|(a, a_flags, a_hi), (b, b_flags, b_hi)| {
+            query_name::compare_read_names(&a.name, &b.name)
+                .then_with(|| query_name::compare(&stub(*a_flags, a_hi), &stub(*b_flags, b_hi)))
+        });
     }
-
-    let walked: Vec<Record> = records
-        .iter()
-        .map(|record| Record {
-            name: record.read_name.clone(),
-            duplicate: record.flags & DUPLICATE_FLAG != 0,
-            secondary_or_supplementary: record.flags & (SECONDARY_FLAG | SUPPLEMENTARY_FLAG) != 0,
-            unmapped: record.flags & READ_UNMAPPED_FLAG != 0,
-            // `getProperPairFlag()` throws on a read that is not paired, so an unpaired record
-            // reaching `PRIMARY_PROPER_PAIR_ONLY` is an exception rather than a skip. Every record
-            // of this corpus is paired; the flag is read as false for an unpaired one here, which
-            // is the value the mode would skip on anyway.
-            proper_pair: record.flags & READ_PAIRED_FLAG != 0
-                && record.flags & PROPER_PAIR_FLAG != 0,
-        })
-        .collect();
+    let walked: Vec<Record> = walked.into_iter().map(|(record, ..)| record).collect();
 
     let verdict = check(&walked, mode);
 

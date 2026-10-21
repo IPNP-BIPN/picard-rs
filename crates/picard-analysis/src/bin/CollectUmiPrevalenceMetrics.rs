@@ -12,10 +12,8 @@
 //! drops more reads rather than fewer.
 
 use std::collections::HashSet;
-use std::io::Read as _;
 
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{Histogram, MetricsFile};
 use picard_analysis::args::arg;
@@ -72,22 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let (header, records) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records: Vec<BamRecord> = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
+    let (header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
 
     let library_of = |record: &BamRecord| -> (String, i32) {
         let id = string_tag(record, "RG");
@@ -110,9 +93,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // `FilteringSamIterator` around the aggregate filter, which runs before the sets are cut.
-    let kept: Vec<&BamRecord> = records
-        .iter()
+    // `FilteringSamIterator` around the aggregate filter, which runs before the sets are cut. Each
+    // kept record leaves what the sets are cut on and its barcode, and nothing else.
+    let (set_records, barcodes): (Vec<SetRecord>, Vec<Option<String>>) = records
         .filter(|record| {
             let read = Read {
                 unmapped: record.flags & 0x4 != 0,
@@ -125,13 +108,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             !filters_out(&read, &arguments)
         })
-        .collect();
-
-    let set_records: Vec<SetRecord> = kept
-        .iter()
         .map(|record| {
-            let (library, read_group) = library_of(record);
-            SetRecord {
+            let (library, read_group) = library_of(&record);
+            let set_record = SetRecord {
                 name: record.read_name.clone(),
                 flags: record.flags,
                 reference_index: record.reference_index,
@@ -152,18 +131,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => None,
                 },
                 mate_alignment_start: record.mate_alignment_start,
-            }
+            };
+            (set_record, string_tag(&record, &barcode_tag))
         })
-        .collect();
+        .unzip();
 
     let options = Options::default();
     let mut bins: std::collections::BTreeMap<usize, f64> = std::collections::BTreeMap::new();
     for set in duplicate_sets(&set_records, &options) {
         // Every read in a set is already a survivor, so the count is the set's distinct barcodes.
-        let barcodes: HashSet<Option<String>> = set
-            .iter()
-            .map(|index| string_tag(kept[*index], &barcode_tag))
-            .collect();
+        let barcodes: HashSet<Option<String>> =
+            set.iter().map(|index| barcodes[*index].clone()).collect();
         *bins.entry(barcodes.len()).or_insert(0.0) += 1.0;
     }
 

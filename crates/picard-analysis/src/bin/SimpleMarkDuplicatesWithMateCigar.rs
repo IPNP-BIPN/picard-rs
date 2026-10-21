@@ -6,15 +6,20 @@
 //! `MarkDuplicates` does and unlike `MarkDuplicatesWithMateCigar`, because it inherits
 //! `MarkDuplicates`'s scoring call.
 
+use std::sync::Arc;
+
+use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
 use picard_analysis::args::arg;
+use picard_analysis::bam_stream::{Input, Records};
 use picard_analysis::mark_duplicates::{
     base_quality_score, Options, Record, ScoringStrategy, Span, TaggingPolicy,
 };
 use picard_analysis::mate_cigar_duplicates::{
     simple_mark_with_mate_cigar, SortOrder as MateSortOrder,
 };
+use picard_analysis::stream_output::Output;
 
 const DUPLICATE_READ: u16 = 0x400;
 
@@ -104,14 +109,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .is_some_and(|v| picard_analysis::args::is_true(&v))
                 .then(|| "coordinate".to_string())
         });
-    let read = |input: &String| picard_analysis::metrics_cli::read_input(input);
-    let (header, records) = picard_analysis::merge_sam_files::open_inputs(
-        inputs.iter().map(read).collect(),
-        assumed.as_deref(),
-    )
-    .unwrap_or_else(|thrown| picard_analysis::metrics_cli::thrown(&thrown));
-    // Only an order this tool refuses before reading a record makes reading one throw.
-    let records = records.unwrap_or_default();
+    // Read twice, as MarkDuplicates reads it: once for the marking, which keeps only what it
+    // needs of each record, and once for the writing. One input is streamed, and its first read
+    // checks the whole file, so a damaged one is refused here as reading it whole refused it.
+    // Several are merged in memory by `openInputs`, once per pass.
+    let open =
+        |streamed: Option<bool>| -> Result<(SamHeader, Records, bool), Box<dyn std::error::Error>> {
+            if let [input] = inputs.as_slice() {
+                let opened = match streamed {
+                    None => Input::open(input)?,
+                    Some(streamed) => Input::reopen(input, streamed)?,
+                };
+                let streams = opened.streams();
+                let (mut header, records) = opened.into_parts();
+                if let Some(order) = assumed.as_deref() {
+                    header.set_sort_order(order);
+                }
+                return Ok((header, records, streams));
+            }
+            let read = |input: &String| picard_analysis::metrics_cli::read_input(input);
+            let (header, records) = picard_analysis::merge_sam_files::open_inputs(
+                inputs.iter().map(read).collect(),
+                assumed.as_deref(),
+            )
+            .unwrap_or_else(|thrown| picard_analysis::metrics_cli::thrown(&thrown));
+            // Only an order this tool refuses before reading a record makes reading one throw.
+            let records = records.unwrap_or_default();
+            Ok((header, Records::Decoded(records.into_iter(), None), false))
+        };
+    let (header, records, streamed) = open(None)?;
     let header_order = header
         .attributes
         .get("SO")
@@ -124,31 +150,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // The read group's library, which is what a duplicate set is cut by, and the group's index in
-    // the header, which is what `closeEnough` compares.
-    let library_of = |record: &BamRecord| -> (String, i32) {
-        let id = string_tag(record, b"RG");
-        match id.and_then(|id| {
-            header
-                .read_groups
-                .iter()
-                .position(|group| group.id == id)
-                .map(|position| (position, &header.read_groups[position]))
-        }) {
-            Some((position, group)) => (
-                group
-                    .attributes
-                    .get("LB")
-                    .unwrap_or("Unknown Library")
-                    .to_string(),
-                position as i32,
-            ),
-            None => ("Unknown Library".to_string(), -1),
+    // the header, which is what `closeEnough` compares. One shared string per read group, so the
+    // records of a library hold a pointer each rather than a copy.
+    let unknown_library: Arc<str> = Arc::from("Unknown Library");
+    let libraries: Vec<Arc<str>> = header
+        .read_groups
+        .iter()
+        .map(|group| match group.attributes.get("LB") {
+            Some(library) => Arc::from(library),
+            None => unknown_library.clone(),
+        })
+        .collect();
+    let library_of = |record: &BamRecord| -> (Arc<str>, i32) {
+        let id = match record.tags.get(Tag::new(b"RG")) {
+            Some(TagValue::Str(s)) => Some(s.as_str()),
+            _ => None,
+        };
+        match id.and_then(|id| header.read_groups.iter().position(|group| group.id == id)) {
+            Some(position) => (libraries[position].clone(), position as i32),
+            None => (unknown_library.clone(), -1),
         }
     };
 
     let marked_records: Vec<Record> = records
-        .iter()
         .map(|record| {
+            let record = &record;
             let (library, read_group) = library_of(record);
             Record {
                 name: record.read_name.clone(),
@@ -159,7 +185,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 read_length: record.read_bases.len() as u32,
                 base_quality_score: base_quality_score(&record.base_qualities),
                 mate_reference_index: record.mate_reference_index,
-                library: library.into(),
+                library,
                 read_group,
                 barcode: options.barcode_tag.as_ref().and_then(|tag| {
                     match record
@@ -187,8 +213,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let marking = match simple_mark_with_mate_cigar(&marked_records, order, &options, &contigs) {
         Ok(marking) => marking,
         Err(refusal) => {
-            let refusal = refusal
-                .naming_line(|i| picard_analysis::view_sam::sam_string(&header, &records[i]));
+            // The record it names is read again, by its index.
+            let refusal = refusal.naming_line(|i| {
+                let record = open(Some(streamed))
+                    .ok()
+                    .and_then(|(_, mut records, _)| records.nth(i))
+                    .expect("the record read the first time");
+                picard_analysis::view_sam::sam_string(&header, &record)
+            });
+            // `makeWriter` opened the output before the first record was read, and the throw
+            // leaves it as it is, empty.
+            let _ = std::fs::File::create(&output);
             eprintln!(
                 "Exception in thread \"main\" {}: {}",
                 refusal.exception(),
@@ -209,18 +244,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let program_group =
         picard_analysis::command_line::ProgramGroup::of("SimpleMarkDuplicatesWithMateCigar");
-    let mut writer = picard_analysis::output::bam_writer(Vec::new(), &out_header)
-        .map_err(|e| format!("{e:?}"))?;
-    for (index, record) in records.iter().enumerate() {
+    // Opened before the first record, as `makeWriter` is, so a throw leaves it empty.
+    let mut out = Output::bam(&output, &out_header, true)?;
+    for (index, mut written) in open(Some(streamed))?.1.enumerate() {
         if !marking.written[index] {
             continue;
         }
-        let mut written = record.clone();
         written.flags &= !DUPLICATE_READ;
         if marking.duplicate[index] {
             written.flags |= DUPLICATE_READ;
         }
-        let existing = string_tag(record, b"DT");
+        let existing = string_tag(&written, b"DT");
         if marking.duplicate_type[index] != existing {
             written.tags.remove(Tag::new(b"DT"));
         }
@@ -239,9 +273,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if program_group.record_id.is_some() {
             written.tags.remove(Tag::new(b"PG"));
         }
-        writer.write(&written).map_err(|e| format!("{e:?}"))?;
+        out.write(&written)?;
     }
-    picard_analysis::cram_output::write(&output, writer.finish().map_err(|e| format!("{e:?}"))?)?;
+    // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
+    out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
 
     // `finalizeAndWriteMetrics`, shared with `MarkDuplicates`.
     if let Some(path) = metrics_file {

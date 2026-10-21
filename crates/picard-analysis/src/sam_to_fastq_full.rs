@@ -18,6 +18,9 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sequence::reverse_complement;
 use htsjdk_bam::tag::{Tag, TagValue};
+use htsjdk_bgzf::BgzfWriter;
+use std::fs::File;
+use std::io::{self, BufWriter, Write};
 
 const READ_PAIRED: u16 = 0x1;
 const READ_NEGATIVE_STRAND: u16 = 0x10;
@@ -142,16 +145,94 @@ impl Options {
     }
 }
 
-/// The files a run leaves, in the order their writers were built, each with what was written.
-#[derive(Debug, Default)]
+/// The files a run leaves, in the order their writers were built, each written as the run goes.
+/// A file that could not be created or written keeps its error for [`Outputs::finish`].
+#[derive(Default)]
 pub struct Outputs {
-    pub files: Vec<(String, String)>,
+    files: Vec<(String, Sink)>,
+}
+
+enum Sink {
+    Text(BufWriter<File>),
+    Gzip(BgzfWriter<BufWriter<File>>),
+    Failed(io::Error),
 }
 
 impl Outputs {
     fn open(&mut self, path: String) -> usize {
-        self.files.push((path, String::new()));
+        let sink = match File::create(&path) {
+            Ok(file) => {
+                crate::stream_output::track(&path);
+                let file = BufWriter::new(file);
+                if path.ends_with(".gz") {
+                    Sink::Gzip(crate::output::bgzf_writer(file))
+                } else {
+                    Sink::Text(file)
+                }
+            }
+            Err(e) => Sink::Failed(e),
+        };
+        self.files.push((path, sink));
         self.files.len() - 1
+    }
+
+    fn write(&mut self, index: usize, text: &str) {
+        let sink = &mut self.files[index].1;
+        let written = match sink {
+            Sink::Text(out) => out.write_all(text.as_bytes()),
+            Sink::Gzip(out) => out.write_all(text.as_bytes()),
+            Sink::Failed(_) => Ok(()),
+        };
+        if let Err(e) = written {
+            *sink = Sink::Failed(e);
+        }
+    }
+
+    /// Leaves every file as the reference's unclosed writers leave it when the tool throws: a
+    /// text FASTQ holds only the whole buffers its `BufferedOutputStream` flushed.
+    /// shortcut: a gzip FASTQ is closed as it is; cut it at its deflater's flushes once a
+    /// compressed output that throws matters.
+    pub fn abandon_unclosed(self) {
+        for (path, sink) in self.files {
+            crate::stream_output::untrack(&path);
+            if let Sink::Text(out) = sink {
+                if let Ok(file) = out.into_inner() {
+                    if let Ok(len) = file.metadata().map(|m| m.len()) {
+                        let buffer = crate::java_writer::BUFFER_SIZE as u64;
+                        let _ = file.set_len(len / buffer * buffer);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Closes every file in the order they were built. The whole-file writer wrote them in that
+    /// order and stopped at the first that failed, so that one is the error and the files after
+    /// it are not left.
+    pub fn finish(self) -> Result<(), String> {
+        let mut failed = None;
+        for (path, sink) in self.files {
+            crate::stream_output::untrack(&path);
+            if failed.is_some() {
+                if !matches!(sink, Sink::Failed(_)) {
+                    drop(sink);
+                    let _ = std::fs::remove_file(&path);
+                }
+                continue;
+            }
+            let closed = match sink {
+                Sink::Text(out) => out.into_inner().map_err(|e| e.into_error()).map(drop),
+                Sink::Gzip(out) => out
+                    .into_inner()
+                    .and_then(|out| out.into_inner().map_err(|e| e.into_error()))
+                    .map(drop),
+                Sink::Failed(e) => Err(e),
+            };
+            if let Err(e) = closed {
+                failed = Some(format!("{path}: {e}"));
+            }
+        }
+        failed.map_or(Ok(()), Err)
     }
 }
 
@@ -400,7 +481,7 @@ fn tag_blocks(rec: &BamRecord, mate: Option<u32>, tags: &TagGroups) -> Result<Ve
 /// a mate into a failure, and only once everything has been written.
 pub fn run(
     header: &SamHeader,
-    records: &[BamRecord],
+    records: impl IntoIterator<Item = BamRecord>,
     opts: &Options,
     strict: bool,
 ) -> (Outputs, Result<(), String>) {
@@ -411,7 +492,7 @@ pub fn run(
 
 fn run_into(
     header: &SamHeader,
-    records: &[BamRecord],
+    records: impl IntoIterator<Item = BamRecord>,
     opts: &Options,
     strict: bool,
     out: &mut Outputs,
@@ -541,7 +622,9 @@ fn run_into(
         ));
     }
 
-    let mut first_seen: std::collections::HashMap<&str, &BamRecord> =
+    // The paired reads still waiting for their mate, the only records held, encoded unless the
+    // record cannot be.
+    let mut first_seen: std::collections::HashMap<String, Result<Box<[u8]>, BamRecord>> =
         std::collections::HashMap::new();
     for rec in records {
         if rec.flags & (SECONDARY_ALIGNMENT | SUPPLEMENTARY_ALIGNMENT) != 0
@@ -552,80 +635,99 @@ fn run_into(
         if rec.flags & READ_FAILS_VENDOR_QUALITY != 0 && !opts.include_non_pf_reads {
             continue;
         }
-        let group = read_group_of(header, rec);
+        let group = read_group_of(header, &rec);
         let slot = writers.iter().position(|(g, _)| *g == group);
-        let (mut read1, mut read2) = (None, None);
+        let mut mate = None;
         if rec.flags & READ_PAIRED != 0 {
             match first_seen.remove(rec.read_name.as_str()) {
+                // Nothing is written for a read until its mate arrives, tags included.
                 None => {
-                    first_seen.insert(rec.read_name.as_str(), rec);
+                    let held = rec
+                        .encode()
+                        .map(Vec::into_boxed_slice)
+                        .map_err(|_| rec.clone());
+                    first_seen.insert(rec.read_name.clone(), held);
+                    continue;
                 }
                 Some(first) => {
-                    let mates = (first.flags & FIRST_OF_PAIR != 0
-                        && rec.flags & SECOND_OF_PAIR != 0)
-                        || (rec.flags & FIRST_OF_PAIR != 0 && first.flags & SECOND_OF_PAIR != 0);
-                    if !mates {
-                        return Err(format!(
-                            "picard.PicardException: Illegal mate state: {}",
-                            first.read_name
-                        ));
-                    }
-                    let (r1, r2) = if rec.flags & FIRST_OF_PAIR != 0 {
-                        (rec, first)
-                    } else {
-                        (first, rec)
-                    };
-                    let Some(slot) = slot else {
-                        return Err("java.lang.NullPointerException: Cannot invoke \"picard.sam.SamToFastq$FastqWriters.getFirstOfPair()\" because \"fq\" is null".to_string());
-                    };
-                    let set = writers[slot].1;
-                    let block = fastq_block(
-                        r1,
-                        Some(1),
-                        opts,
-                        opts.read1_trim,
-                        opts.read1_max_bases_to_write,
-                    )?;
-                    out.files[set.first].1.push_str(&block);
-                    let second = match set.second {
-                        None => {
-                            return Err("picard.PicardException: Input contains paired reads but no SECOND_END_FASTQ specified.".to_string())
+                    mate = Some(match first {
+                        Ok(encoded) => {
+                            BamRecord::decode(&encoded)
+                                .ok()
+                                .flatten()
+                                .expect("a record decodes from its own encoding")
+                                .0
                         }
-                        Some(Some(index)) => index,
-                        Some(None) => {
-                            let index = out.open(rg_file(group.expect("per-group writers"), "_2")?);
-                            for entry in writers.iter_mut() {
-                                if entry.0 == group {
-                                    entry.1.second = Some(Some(index));
-                                }
-                            }
-                            index
-                        }
-                    };
-                    let block = fastq_block(
-                        r2,
-                        Some(2),
-                        opts,
-                        opts.read2_trim,
-                        opts.read2_max_bases_to_write,
-                    )?;
-                    out.files[second].1.push_str(&block);
-                    read1 = Some(r1);
-                    read2 = Some(r2);
+                        Err(record) => record,
+                    })
                 }
             }
+        }
+        let (mut read1, mut read2) = (None, None);
+        if let Some(first) = &mate {
+            let rec = &rec;
+            let mates = (first.flags & FIRST_OF_PAIR != 0 && rec.flags & SECOND_OF_PAIR != 0)
+                || (rec.flags & FIRST_OF_PAIR != 0 && first.flags & SECOND_OF_PAIR != 0);
+            if !mates {
+                return Err(format!(
+                    "picard.PicardException: Illegal mate state: {}",
+                    first.read_name
+                ));
+            }
+            let (r1, r2) = if rec.flags & FIRST_OF_PAIR != 0 {
+                (rec, first)
+            } else {
+                (first, rec)
+            };
+            let Some(slot) = slot else {
+                return Err("java.lang.NullPointerException: Cannot invoke \"picard.sam.SamToFastq$FastqWriters.getFirstOfPair()\" because \"fq\" is null".to_string());
+            };
+            let set = writers[slot].1;
+            let block = fastq_block(
+                r1,
+                Some(1),
+                opts,
+                opts.read1_trim,
+                opts.read1_max_bases_to_write,
+            )?;
+            out.write(set.first, &block);
+            let second = match set.second {
+                None => {
+                    return Err("picard.PicardException: Input contains paired reads but no SECOND_END_FASTQ specified.".to_string())
+                }
+                Some(Some(index)) => index,
+                Some(None) => {
+                    let index = out.open(rg_file(group.expect("per-group writers"), "_2")?);
+                    for entry in writers.iter_mut() {
+                        if entry.0 == group {
+                            entry.1.second = Some(Some(index));
+                        }
+                    }
+                    index
+                }
+            };
+            let block = fastq_block(
+                r2,
+                Some(2),
+                opts,
+                opts.read2_trim,
+                opts.read2_max_bases_to_write,
+            )?;
+            out.write(second, &block);
+            read1 = Some(r1);
+            read2 = Some(r2);
         } else {
             let Some(slot) = slot else {
                 return Err("java.lang.NullPointerException: Cannot invoke \"picard.sam.SamToFastq$FastqWriters.getUnpaired()\" because \"fq\" is null".to_string());
             };
             let block = fastq_block(
-                rec,
+                &rec,
                 None,
                 opts,
                 opts.read1_trim,
                 opts.read1_max_bases_to_write,
             )?;
-            out.files[writers[slot].1.unpaired].1.push_str(&block);
+            out.write(writers[slot].1.unpaired, &block);
         }
         // `handleAdditionalRecords`.
         if let Some(tags) = &opts.tags {
@@ -655,14 +757,14 @@ fn run_into(
             } else if tags.sequence.is_empty() {
                 Vec::new()
             } else {
-                tag_blocks(rec, None, tags)?
+                tag_blocks(&rec, None, tags)?
                     .into_iter()
                     .enumerate()
                     .map(|(i, b)| (files[i], b))
                     .collect()
             };
             for (file, block) in blocks {
-                out.files[file].1.push_str(&block);
+                out.write(file, &block);
             }
         }
     }
@@ -749,43 +851,23 @@ pub fn main_with(with_tags: bool) -> ! {
         std::process::exit(1);
     }
 
-    let read = || -> Result<(SamHeader, Vec<BamRecord>), String> {
-        let raw = std::fs::read(&input).map_err(|e| e.to_string())?;
-        let raw = crate::cram_input::uncram(raw);
-        if raw.starts_with(&[0x1f, 0x8b]) {
-            let plain = crate::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-            let reader = crate::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-            let header = reader.header.text.clone();
-            let records = reader
-                .map(|r| r.map_err(|e| format!("{e:?}")))
-                .collect::<Result<_, _>>()?;
-            Ok((header, records))
-        } else {
-            let text = String::from_utf8(raw).map_err(|e| e.to_string())?;
-            htsjdk_bam::sam_file::read_sam(&text).map_err(|e| format!("{e:?}"))
-        }
-    };
-    let (header, records) = match read() {
-        Ok(read) => read,
+    let (header, records) = match crate::bam_stream::Input::open(&input) {
+        Ok(input) => input.into_parts(),
         Err(e) => {
-            eprintln!("{e}");
+            eprintln!("{}", e.message());
             std::process::exit(1);
         }
     };
-    let (outputs, result) = run(&header, &records, &opts, stringency == "STRICT");
-    for (path, text) in &outputs.files {
-        let written = if path.ends_with(".gz") {
-            let mut writer = crate::output::bgzf_writer(Vec::new());
-            std::io::Write::write_all(&mut writer, text.as_bytes())
-                .and_then(|()| writer.into_inner())
-                .and_then(|bytes| std::fs::write(path, bytes))
-        } else {
-            std::fs::write(path, text)
-        };
-        if let Err(e) = written {
-            eprintln!("{path}: {e}");
-            std::process::exit(1);
-        }
+    let (outputs, result) = run(&header, records, &opts, stringency == "STRICT");
+    // The reference throws out of writers it never closes.
+    if let Err(thrown) = &result {
+        outputs.abandon_unclosed();
+        eprintln!("Exception in thread \"main\" {thrown}");
+        std::process::exit(1);
+    }
+    if let Err(failed) = outputs.finish() {
+        eprintln!("{failed}");
+        std::process::exit(1);
     }
     if let Err(thrown) = result {
         eprintln!("Exception in thread \"main\" {thrown}");

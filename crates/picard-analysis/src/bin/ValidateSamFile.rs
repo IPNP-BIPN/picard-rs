@@ -9,12 +9,6 @@
 //! which ends the whole validation -- not just the printing -- and the catch prints one last line.
 //! The corpus raises 421 errors and warnings, so every verbose row ends there.
 
-use std::io::Read;
-
-use htsjdk_bam::header::SamHeader;
-use htsjdk_bam::reader::BamReader;
-use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use picard_analysis::args::arg;
 use picard_analysis::validate_sam_file::{validate_records, Options};
 
@@ -77,21 +71,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let (header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader = BamReader::new(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
+    // The tool validates the records itself, so they are read as `BamReader` hands them over.
+    let (header, records) = picard_analysis::bam_stream::Input::open(&input)?
+        .unvalidated()
+        .into_parts();
 
     // The reference is read only for the NM VALUE check; without an `NM` tag on a record there is
     // nothing to compare, which is the case for every read in this corpus.
@@ -100,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(std::fs::read)
         .transpose()?;
 
-    let validation = validate_records(&header, &records, reference.as_deref(), &options)
+    let validation = validate_records(&header, records, reference.as_deref(), &options)
         .map_err(|e| format!("{e:?}"))?;
 
     match &output {

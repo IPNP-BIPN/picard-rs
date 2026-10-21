@@ -12,19 +12,23 @@
 //!   `_001` and one of five extensions so that the next file in the series can be found. The
 //!   corpus's `reads_1.fastq` does not, and the refusal quotes the whole list it expected.
 
+use htsjdk_bam::query_name;
+use htsjdk_bam::record::BamRecord;
 use picard_analysis::add_or_replace_read_groups::iso8601;
 use picard_analysis::args::arg;
-use picard_analysis::fastq_to_sam::{fastq_to_bam_full, FullOptions};
+use picard_analysis::fastq_to_sam::{fastq_records, full_header, FullOptions};
+use picard_analysis::sort_sam::SortingCollection;
+use picard_analysis::stream_output::Output;
 
 /// `FastqQualityFormat`'s range check, as `QualityEncodingDetector` applies it: a Standard file
 /// read as Illumina or Solexa has quality bytes below those encodings' floor.
-fn quality_out_of_range(text: &str, format: &str) -> bool {
+fn quality_out_of_range<'a>(lines: impl Iterator<Item = &'a str>, format: &str) -> bool {
     // Standard is 33-based, Illumina and Solexa 64-based, so any character below `;` (59) proves
     // the file is not in a 64-based encoding.
     if format == "Standard" {
         return false;
     }
-    text.lines()
+    lines
         .skip(3)
         .step_by(4)
         .flat_map(str::bytes)
@@ -88,8 +92,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         std::process::exit(1);
     }
-    let both = format!("{text}{}", second_text.as_deref().unwrap_or(""));
-    if !empty && quality_out_of_range(&both, &format) {
+    // The two files' lines, as the check read them from the one text the two made together.
+    let second_lines = second_text.as_deref().unwrap_or("").lines();
+    let out_of_range = if text.is_empty() || text.ends_with('\n') {
+        quality_out_of_range(text.lines().chain(second_lines), &format)
+    } else {
+        let both = format!("{text}{}", second_text.as_deref().unwrap_or(""));
+        quality_out_of_range(both.lines(), &format)
+    };
+    if !empty && out_of_range {
         eprintln!(
             "Exception in thread \"main\" htsjdk.samtools.SAMException: The quality values do not \
              fall in the range appropriate for the expected quality of {format}."
@@ -162,12 +173,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         quality_format: format,
         allow_and_ignore_empty_lines: flag("ALLOW_AND_IGNORE_EMPTY_LINES=", false),
     };
-    match fastq_to_bam_full(&text, second_text.as_deref(), &options) {
-        Ok(bam) => picard_analysis::cram_output::write(&output, bam)?,
-        Err(thrown) => {
-            eprintln!("Exception in thread \"main\" {thrown}");
-            std::process::exit(1);
+    let refuse = |thrown: String| -> ! {
+        eprintln!("Exception in thread \"main\" {thrown}");
+        std::process::exit(1);
+    };
+    let records = fastq_records(&text, second_text.as_deref(), &options)
+        .unwrap_or_else(|thrown| refuse(thrown));
+    // A queryname output is sorted through a SortingCollection, and any other is written in the
+    // FASTQ's order; either way a refused record leaves no output.
+    let sorted: Box<dyn Iterator<Item = Result<BamRecord, String>>> =
+        if options.sort_order == "queryname" {
+            let mut sorting = SortingCollection::from_args(query_name::compare, &args)?;
+            for record in records {
+                sorting.add(record.unwrap_or_else(|thrown| refuse(thrown)))?;
+            }
+            Box::new(sorting.into_sorted()?.map(|r| r.map_err(|e| e.to_string())))
+        } else {
+            Box::new(records)
+        };
+    let mut out = Output::bam(&output, &full_header(&options), false)?;
+    for record in sorted {
+        match record {
+            Ok(record) => out.write(&record)?,
+            Err(thrown) => {
+                drop(out);
+                refuse(thrown);
+            }
         }
     }
+    // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
+    out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
     Ok(())
 }

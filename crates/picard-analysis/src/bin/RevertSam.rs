@@ -9,23 +9,17 @@
 //! the usage block rather than throwing; the other two are `PicardException`s thrown from
 //! `doWork`, one before any record is read and one after the whole file has been written.
 
-use std::io::Read;
-
-use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::sam_file::read_sam;
 use picard_analysis::args::arg;
-use picard_analysis::revert_sam::{revert_with, Options, RevertError, SortOrder};
+use picard_analysis::revert_sam::{
+    revert_header, revert_primary, sort_before_writing, Options, RevertError, Sanitizer, SortOrder,
+};
+use picard_analysis::sort_sam::SortingCollection;
+use picard_analysis::stream_output::Output;
+use rayon::prelude::*;
 
-fn write_bam(path: &str, header: &SamHeader, records: &[BamRecord]) -> Result<(), String> {
-    let mut writer =
-        picard_analysis::output::bam_writer(Vec::new(), header).map_err(|e| format!("{e:?}"))?;
-    for record in records {
-        writer.write(record).map_err(|e| format!("{e:?}"))?;
-    }
-    let bytes = writer.finish().map_err(|e| format!("{e:?}"))?;
-    picard_analysis::cram_output::write(path, bytes).map_err(|e| format!("{e:?}"))
-}
+/// How many records are reverted in parallel at a time.
+const CHUNK: usize = 16 * 1024;
 
 /// A collection argument as Barclay builds it: the default, each value appended, `null` emptying it.
 fn collection(args: &[String], keys: &[&str], default: Vec<String>, set: bool) -> Vec<String> {
@@ -107,17 +101,6 @@ fn thrown(message: &str) -> ! {
     std::process::exit(1);
 }
 
-/// The file the writer factory makes for a path: SAM text for `.sam`, CRAM for `.cram`, a BAM
-/// otherwise.
-fn write_records(path: &str, header: &SamHeader, records: &[BamRecord]) -> Result<(), String> {
-    if path.ends_with(".sam") {
-        let text = htsjdk_bam::sam_file::write_sam(header, records)
-            .ok_or("records failed to re-encode as SAM")?;
-        return std::fs::write(path, text).map_err(|e| format!("{e:?}"));
-    }
-    write_bam(path, header, records)
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("RevertSam");
     picard_analysis::output::install();
@@ -193,22 +176,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut raw = Vec::new();
-    std::fs::File::open(&input)?.read_to_end(&mut raw)?;
-    let raw = picard_analysis::cram_input::uncram(raw);
-    let (mut header, records): (SamHeader, Vec<BamRecord>) = if raw.starts_with(&[0x1f, 0x8b]) {
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Result<_, _>>()?;
-        (header, records)
-    } else {
-        let text = String::from_utf8(raw)?;
-        read_sam(&text).map_err(|e| format!("{e:?}"))?
-    };
+    let (mut header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
 
     // `validateHeaderOverrides`: an override needs every read group to agree on the field.
     let sample_alias = arg(&args, "SAMPLE_ALIAS=").or_else(|| arg(&args, "ALIAS="));
@@ -288,31 +256,81 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The discard-fraction refusal happens after `out.close()`, so the output exists and then the
     // tool throws. Writing before the exit is not tidiness: a row that stopped short of the write
     // would differ from the reference on the file as well as on the message.
-    let reverted = revert_with(&header, records, &options);
+    // Reverted a chunk at a time, in parallel, in input order.
+    let mut records = records.peekable();
+    let reverted = std::iter::from_fn(|| {
+        records.peek()?;
+        let chunk: Vec<BamRecord> = records.by_ref().take(CHUNK).collect();
+        Some(
+            chunk
+                .into_par_iter()
+                .filter_map(|record| revert_primary(record, &options))
+                .collect::<Vec<_>>(),
+        )
+    })
+    .flatten();
+    let out_header = revert_header(&header, &options);
+    // The writer sorts what it is not handed presorted, through a SortingCollection, and every
+    // record is read before the output is created.
+    let sorted: Box<dyn Iterator<Item = std::io::Result<BamRecord>>> =
+        match sort_before_writing(&header, &options) {
+            Some(compare) => {
+                let mut sorting = SortingCollection::from_args(compare, &args)?;
+                for record in reverted {
+                    sorting.add(record)?;
+                }
+                Box::new(sorting.into_sorted()?)
+            }
+            None => Box::new(reverted.map(Ok)),
+        };
+
+    // `OUTPUT_BY_READGROUP`: a writer per read group, each with the single header's fields and its
+    // own read group only (`createHeaderMap`), taking the records that name it.
+    let mut outs: Vec<(Option<String>, Output)> = Vec::new();
     if by_read_group {
         for (id, path) in &outputs {
-            // `createHeaderMap`: the single header's fields, with this one read group.
-            let mut one = reverted.header.clone();
+            let mut one = out_header.clone();
             one.read_groups.retain(|group| &group.id == id);
-            let mine: Vec<BamRecord> = reverted
-                .records
-                .iter()
-                .filter(|record| {
-                    matches!(record.tags.get(htsjdk_bam::tag::Tag::new(b"RG")),
-                        Some(htsjdk_bam::tag::TagValue::Str(rg)) if rg == id)
-                })
-                .cloned()
-                .collect();
-            write_records(path, &one, &mine)?;
+            outs.push((Some(id.clone()), Output::create(path, &one, false)?));
         }
     } else {
-        write_records(
-            output.as_deref().unwrap_or_default(),
-            &reverted.header,
-            &reverted.records,
-        )?;
+        let path = output.as_deref().unwrap_or_default();
+        outs.push((None, Output::create(path, &out_header, false)?));
     }
-    if let Some(error) = reverted.error {
+    let mut emit = |record: BamRecord| -> Result<(), Box<dyn std::error::Error>> {
+        for (id, out) in &mut outs {
+            let wanted = match id {
+                None => true,
+                Some(id) => matches!(record.tags.get(htsjdk_bam::tag::Tag::new(b"RG")),
+                    Some(htsjdk_bam::tag::TagValue::Str(rg)) if rg == id),
+            };
+            if wanted {
+                out.write(&record)?;
+            }
+        }
+        Ok(())
+    };
+    // The discard-fraction refusal happens after `out.close()`, so the output exists and then the
+    // tool throws. Writing before the exit is not tidiness: a row that stopped short of the write
+    // would differ from the reference on the file as well as on the message.
+    let error = if options.sanitize {
+        let mut sanitizer = Sanitizer::new(options.keep_first_duplicate);
+        for record in sorted {
+            sanitizer.push(record?, &mut emit)?;
+        }
+        sanitizer.finish(&mut emit, options.max_discard_fraction)?
+    } else {
+        for record in sorted {
+            emit(record?)?;
+        }
+        None
+    };
+    // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
+    let create_index = picard_analysis::cram_output::create_index_argument();
+    for (_, out) in outs {
+        out.finish(create_index, false)?;
+    }
+    if let Some(error) = error {
         eprintln!(
             "Exception in thread \"main\" {}: {}",
             error.java_class(),

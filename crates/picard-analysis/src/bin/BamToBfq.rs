@@ -31,7 +31,7 @@ use htsjdk_bam::tag::{Tag, TagValue};
 use picard_analysis::bam_to_bfq::{
     encode_base_and_quality, gzip_writer, MAX_SEED_REGION_NOCALL_FIXES,
 };
-use picard_analysis::metrics_cli::{absolute, read_input, refuse_validation, sort_order, thrown};
+use picard_analysis::metrics_cli::{absolute, open_input, refuse_validation, sort_order, thrown};
 
 const SEED_REGION_LENGTH: usize = 28;
 
@@ -343,12 +343,13 @@ impl BfqWriter {
         }
     }
 
-    fn write_single_end(&mut self, records: &[BamRecord]) {
+    fn write_single_end(&mut self, records: impl IntoIterator<Item = BamRecord>) {
         let mut file_index = 0;
         self.next_files(file_index);
         file_index += 1;
         let mut count: i32 = 0;
         for record in records {
+            let record = &record;
             if is_noise(record)
                 || whole_read_clipped(record)
                 || (!self.include_non_pf && fails_vendor_quality(record))
@@ -364,19 +365,21 @@ impl BfqWriter {
         }
     }
 
-    fn write_paired_end(&mut self, records: &[BamRecord]) {
+    fn write_paired_end(&mut self, records: impl IntoIterator<Item = BamRecord>) {
         let mut file_index = 0;
         self.next_files(file_index);
         file_index += 1;
         let mut count: i32 = 0;
-        let mut iter = records.iter();
+        let mut iter = records.into_iter();
         while let Some(first) = iter.next() {
+            let first = &first;
             let Some(second) = iter.next() else {
                 thrown(&format!(
                     "picard.PicardException: Mismatched number of records in {}",
                     absolute(&self.input)
                 ));
             };
+            let second = &second;
             if second.read_name != first.read_name || first_of_pair(first) == first_of_pair(second)
             {
                 thrown(&format!(
@@ -412,7 +415,7 @@ impl BfqWriter {
 fn count_writable_records(
     input: &str,
     header: &htsjdk_bam::header::SamHeader,
-    records: &[BamRecord],
+    records: impl IntoIterator<Item = BamRecord>,
     paired: bool,
     include_non_pf: bool,
 ) -> i32 {
@@ -425,17 +428,19 @@ fn count_writable_records(
     let mut count = 0;
     if !paired {
         for record in records {
+            let record = &record;
             if is_noise(record) || (!include_non_pf && fails_vendor_quality(record)) {
                 continue;
             }
             count += 1;
         }
     } else {
-        let mut iter = records.iter();
+        let mut iter = records.into_iter();
         while let Some(first) = iter.next() {
             let Some(second) = iter.next() else {
                 thrown("java.util.NoSuchElementException");
             };
+            let (first, second) = (&first, &second);
             if has_tag(first, b"XN") && has_tag(second, b"XN") {
                 continue;
             }
@@ -513,13 +518,20 @@ fn main() {
             absolute(&input)
         ));
     }
-    let (header, records) = read_input(&input);
+    let opened = open_input(&input);
+    let streamed = opened.streams();
+    let (header, mut records) = opened.into_parts();
 
     let mut increment = 1;
     if let Some(total) = reads_to_align {
         // The constructor counts BEFORE it assigns `includeNonPfReads`, so the count always
-        // sees the field's initial `false`, whatever was asked for.
-        let writable = count_writable_records(&input, &header, &records, paired, false);
+        // sees the field's initial `false`, whatever was asked for. The count reads the input
+        // through once, and the records are read again for the writing.
+        let writable = count_writable_records(&input, &header, records, paired, false);
+        records = picard_analysis::bam_stream::Input::reopen(&input, streamed)
+            .unwrap_or_else(|e| picard_analysis::metrics_cli::fail(&e.message()))
+            .into_parts()
+            .1;
         increment = java_floor_to_int(f64::from(writable) / f64::from(total));
         if increment == 0 {
             increment = 1;
@@ -541,9 +553,9 @@ fn main() {
         codec2: None,
     };
     if paired {
-        writer.write_paired_end(&records);
+        writer.write_paired_end(records);
     } else {
-        writer.write_single_end(&records);
+        writer.write_single_end(records);
     }
     if let Some(codec) = writer.codec1.take() {
         codec.close();

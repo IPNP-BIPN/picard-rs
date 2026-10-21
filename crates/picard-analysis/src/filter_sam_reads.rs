@@ -88,75 +88,87 @@ pub fn alignment_pairwise_indices(
     records: &[BamRecord],
     filter: AlignedFilter,
 ) -> (Vec<usize>, Option<(usize, String)>) {
+    let mut kept = Vec::new();
+    let mut index = 0;
+    while index < records.len() {
+        let at = index;
+        index += 1;
+        match aligned_pairwise_step(header, &records[at], records.get(index), filter) {
+            Err(message) => return (kept, Some((at, message))),
+            Ok(Step::Keep) => kept.push(at),
+            Ok(Step::Drop) => {}
+            Ok(Step::DropWithMate) => index += 1,
+        }
+    }
+    (kept, None)
+}
+
+/// What [`aligned_pairwise_step`] decides for a record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Step {
+    Keep,
+    Drop,
+    /// A first-of-pair dropped with its mate, the record after it, which is not looked at again.
+    DropWithMate,
+}
+
+/// [`alignment_pairwise_indices`] for one record, given the record after it: a first-of-pair is
+/// judged with that record as its mate.
+pub fn aligned_pairwise_step(
+    header: &htsjdk_bam::header::SamHeader,
+    record: &BamRecord,
+    next: Option<&BamRecord>,
+    filter: AlignedFilter,
+) -> Result<Step, String> {
     const PAIRED: u16 = 0x1;
     const FIRST: u16 = 0x40;
     const SECOND: u16 = 0x80;
     let include = matches!(filter, AlignedFilter::IncludeAligned);
     let unmapped = |rec: &BamRecord| !is_aligned(rec);
-    let mut kept = Vec::new();
-    let mut index = 0;
-    while index < records.len() {
-        let at = index;
-        let record = &records[index];
-        index += 1;
-        let paired = record.flags & PAIRED != 0;
-        if paired && record.flags & FIRST != 0 && index < records.len() {
-            let mate = &records[index];
+    let paired = record.flags & PAIRED != 0;
+    if paired && record.flags & FIRST != 0 {
+        if let Some(mate) = next {
             if mate.flags & PAIRED == 0 {
-                return (
-                    kept,
-                    Some((
-                        at,
-                        format!(
+                return Err(format!(
                     "htsjdk.samtools.SAMException: Second record is not marked as paired: {}",
                     sam_line(header, mate)
-                ),
-                    )),
-                );
+                ));
             }
             if mate.flags & SECOND == 0 {
-                return (
-                    kept,
-                    Some((
-                        at,
-                        format!(
+                return Err(format!(
                     "htsjdk.samtools.SAMException: Second record is not marked as second of \
                      pair: {}",
                     sam_line(header, mate)
-                ),
-                    )),
-                );
+                ));
             }
             if mate.read_name != record.read_name {
-                return (
-                    kept,
-                    Some((
-                        at,
-                        format!(
+                return Err(format!(
                     "htsjdk.samtools.SAMException: First [{}] and Second [{}] readnames do not \
                      match!",
                     record.read_name, mate.read_name
-                ),
-                    )),
-                );
+                ));
             }
             let filtered_out = if include {
                 unmapped(record) || unmapped(mate)
             } else {
                 !(unmapped(record) || unmapped(mate))
             };
-            if filtered_out {
-                index += 1;
+            return Ok(if filtered_out {
+                Step::DropWithMate
             } else {
-                kept.push(at);
-            }
-        } else if (paired && record.flags & SECOND != 0) || unmapped(record) != include {
-            // A second-of-pair passes on the assumption that its first did; anything else is
-            // judged alone.
-            kept.push(at);
+                Step::Keep
+            });
         }
     }
-    (kept, None)
+    // A second-of-pair passes on the assumption that its first did; anything else is judged
+    // alone.
+    Ok(
+        if (paired && record.flags & SECOND != 0) || unmapped(record) != include {
+            Step::Keep
+        } else {
+            Step::Drop
+        },
+    )
 }
 
 /// `IntervalList.fromFile(...).getIntervals()` as `IntervalKeepPairFilter` holds them: the
@@ -327,47 +339,57 @@ pub fn paired_interval_indices(
     records: &[BamRecord],
     intervals: &PairedIntervals,
 ) -> (Vec<usize>, Option<(usize, String)>) {
-    let sequence_names: Vec<&str> = header.sequences.iter().map(|s| s.name.as_str()).collect();
-    const PAIRED: u16 = 0x1;
-    const MATE_UNMAPPED: u16 = 0x8;
-    const SECONDARY_OR_SUPPLEMENTARY: u16 = 0x100 | 0x800;
-    let name = |index: i32| {
-        usize::try_from(index)
-            .ok()
-            .and_then(|i| sequence_names.get(i).copied())
-            .unwrap_or("*")
-    };
     let mut kept = Vec::new();
     for (at, record) in records.iter().enumerate() {
+        match intervals.keeps(header, record) {
+            Ok(true) => kept.push(at),
+            Ok(false) => {}
+            Err(message) => return (kept, Some((at, message))),
+        }
+    }
+    (kept, None)
+}
+
+impl PairedIntervals {
+    /// [`paired_interval_indices`] for one record: whether it is kept, or the exception it throws.
+    pub fn keeps(
+        &self,
+        header: &htsjdk_bam::header::SamHeader,
+        record: &BamRecord,
+    ) -> Result<bool, String> {
+        const PAIRED: u16 = 0x1;
+        const MATE_UNMAPPED: u16 = 0x8;
+        const SECONDARY_OR_SUPPLEMENTARY: u16 = 0x100 | 0x800;
+        let name = |index: i32| {
+            usize::try_from(index)
+                .ok()
+                .and_then(|i| header.sequences.get(i))
+                .map_or("*", |s| s.name.as_str())
+        };
         if record.flags & SECONDARY_OR_SUPPLEMENTARY != 0 || record.flags & PAIRED == 0 {
-            continue;
+            return Ok(false);
         }
         let read_overlaps = is_aligned(record)
-            && intervals.overlaps(
+            && self.overlaps(
                 name(record.reference_index),
                 record.alignment_start,
                 record.alignment_end(),
             );
-        let keep = read_overlaps
-            || (record.flags & MATE_UNMAPPED == 0 && {
-                let Some(length) = crate::insert_size::mate_cigar_reference_length(record) else {
-                    let message = format!(
-                        "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found:{}",
-                        sam_line(header, record)
-                    );
-                    return (kept, Some((at, message)));
-                };
-                intervals.overlaps(
-                    name(record.mate_reference_index),
-                    record.mate_alignment_start,
-                    record.mate_alignment_start + length - 1,
-                )
-            });
-        if keep {
-            kept.push(at);
+        if read_overlaps || record.flags & MATE_UNMAPPED != 0 {
+            return Ok(read_overlaps);
         }
+        let Some(length) = crate::insert_size::mate_cigar_reference_length(record) else {
+            return Err(format!(
+                "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found:{}",
+                sam_line(header, record)
+            ));
+        };
+        Ok(self.overlaps(
+            name(record.mate_reference_index),
+            record.mate_alignment_start,
+            record.mate_alignment_start + length - 1,
+        ))
     }
-    (kept, None)
 }
 
 /// `SAMRecord.toString()` in htsjdk 5.0.0: the record's SAM line, without its newline.

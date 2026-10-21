@@ -109,7 +109,7 @@ pub enum SortOrder {
 }
 
 impl SortOrder {
-    fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
             SortOrder::Coordinate => "coordinate",
             SortOrder::Queryname => "queryname",
@@ -130,7 +130,7 @@ fn is_primary(rec: &BamRecord) -> bool {
 }
 
 /// `SamPairUtil.SetMateInfoIterator`: over queryname-sorted records, fix each template's mate info.
-fn fix_templates(
+pub fn fix_templates(
     records: &mut [BamRecord],
     set_mate_cigar: bool,
     ignore_missing_mates: bool,
@@ -289,6 +289,35 @@ pub fn fix_mate_information_with(
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
 }
 
+/// The output order, which defaults to the input header's sort order, or the refusal of
+/// `CREATE_INDEX` for any order but coordinate: `if (CREATE_INDEX && header.getSortOrder() !=
+/// coordinate) throw`, and the header's order at that point is the OUTPUT order.
+pub fn output_order(
+    header: &htsjdk_bam::header::SamHeader,
+    options: &Options,
+) -> Result<SortOrder, FixMateError> {
+    let output_order = options.sort_order.unwrap_or_else(|| {
+        header
+            .attributes
+            .get("SO")
+            .and_then(SortOrder::from_str)
+            .unwrap_or(SortOrder::Coordinate)
+    });
+    if options.create_index && output_order != SortOrder::Coordinate {
+        return Err(FixMateError::IndexWithoutCoordinate);
+    }
+    Ok(output_order)
+}
+
+/// Whether the records are sorted by query name before the templates are fixed. `if
+/// (ASSUME_SORTED || allQueryNameSorted)` the input is taken as already grouped and the re-sort is
+/// skipped. On a coordinate-sorted file that changes the answer rather than only the speed:
+/// templates are not adjacent, so a pair whose ends sit apart is never fixed together.
+pub fn needs_grouping(header: &htsjdk_bam::header::SamHeader, options: &Options) -> bool {
+    let already_queryname = header.attributes.get("SO") == Some("queryname");
+    !(options.assume_sorted || already_queryname)
+}
+
 /// `FixMateInformation.doWork` up to the write: the header (with its final sort order) and the
 /// mate-fixed, re-sorted records.
 fn fix_mates_with(
@@ -298,26 +327,8 @@ fn fix_mates_with(
     let (mut header, mut records) = read_sam_with(input_sam, ValidationStringency::Lenient)
         .map_err(|error| FixMateError::Parse(format!("{error:?}")))?;
 
-    // The output order defaults to the input header's sort order.
-    let output_order = options.sort_order.unwrap_or_else(|| {
-        header
-            .attributes
-            .get("SO")
-            .and_then(SortOrder::from_str)
-            .unwrap_or(SortOrder::Coordinate)
-    });
-
-    // `if (CREATE_INDEX && header.getSortOrder() != coordinate) throw`, and the header's order at
-    // that point is the OUTPUT order rather than the input's.
-    if options.create_index && output_order != SortOrder::Coordinate {
-        return Err(FixMateError::IndexWithoutCoordinate);
-    }
-
-    // `if (ASSUME_SORTED || allQueryNameSorted)` the input is taken as already grouped and the
-    // re-sort is skipped. On a coordinate-sorted file that changes the answer rather than only the
-    // speed: templates are not adjacent, so a pair whose ends sit apart is never fixed together.
-    let already_queryname = header.attributes.get("SO") == Some("queryname");
-    if !(options.assume_sorted || already_queryname) {
+    let output_order = output_order(&header, options)?;
+    if needs_grouping(&header, options) {
         records.sort_by(query_name::compare);
     }
     fix_templates(
