@@ -20,7 +20,7 @@ Download the archive for your platform from the
 platform (Linux x86-64, Linux arm64, macOS arm64), each with a `.sha256` file beside it.
 
 ```bash
-VERSION=v0.1.0
+VERSION=v0.2.0
 TARGET=x86_64-unknown-linux-gnu   # or aarch64-unknown-linux-gnu, aarch64-apple-darwin
 curl -LO https://github.com/IPNP-BIPN/picard-rs/releases/download/$VERSION/picard-rs-$VERSION-$TARGET.tar.gz
 tar -xzf picard-rs-$VERSION-$TARGET.tar.gz
