@@ -72,6 +72,8 @@
 //! Both guards are reproduced anyway, because the collector is public and `IndividualCollector`
 //! can be driven directly, but the comment is not repeated as though it described behaviour.
 
+use std::collections::BTreeMap;
+
 use htsjdk_bam::alignment_block::alignment_blocks;
 use htsjdk_bam::cigar::Op;
 use htsjdk_bam::record::BamRecord;
@@ -896,6 +898,203 @@ impl GroupCollector {
             out.push(self.unpaired.metrics.clone());
         }
         out
+    }
+}
+
+/// One accumulation level's unit: what the row is attributed to.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Unit {
+    sample: Option<String>,
+    library: Option<String>,
+    read_group: Option<String>,
+}
+
+/// The read group a record belongs to, from its `RG` tag.
+fn read_group_of(record: &BamRecord) -> Option<String> {
+    record
+        .tags
+        .get(Tag::new(b"RG"))
+        .and_then(|value| match value {
+            TagValue::Str(text) => Some(text.to_string()),
+            _ => None,
+        })
+}
+
+/// The tool's accumulation levels: one [`GroupCollector`] per unit, all reads first, then the
+/// units of each level asked for, keyed off the header's read groups.
+///
+/// The levels are APPENDED to the default rather than replacing it, the way Picard's parser
+/// treats a collection argument, so a row asking for LIBRARY asks for all reads as well.
+pub struct LevelCollectors {
+    units: Vec<Unit>,
+    collectors: Vec<GroupCollector>,
+    sample_of: BTreeMap<String, String>,
+    library_of: BTreeMap<String, String>,
+    // The name a READ_GROUP row carries is the group's PLATFORM UNIT, not its id: the metrics
+    // file's READ_GROUP column is `getPlatformUnit()`, so a group called `rg1` on a unit called
+    // `unit-rg1` is reported as the latter.
+    unit_of: BTreeMap<String, String>,
+}
+
+impl LevelCollectors {
+    pub fn new(
+        options: &Options,
+        levels: &[String],
+        header: &htsjdk_bam::header::SamHeader,
+    ) -> Self {
+        // What each read group belongs to, in the order the header declares them, which is the
+        // order the units come out in.
+        let mut sample_of: BTreeMap<String, String> = BTreeMap::new();
+        let mut library_of: BTreeMap<String, String> = BTreeMap::new();
+        let mut unit_of: BTreeMap<String, String> = BTreeMap::new();
+        let mut group_order: Vec<String> = Vec::new();
+        for group in &header.read_groups {
+            group_order.push(group.id.clone());
+            if let Some(sample) = group.attributes.get("SM") {
+                sample_of.insert(group.id.clone(), sample.to_string());
+            }
+            if let Some(library) = group.attributes.get("LB") {
+                library_of.insert(group.id.clone(), library.to_string());
+            }
+            unit_of.insert(
+                group.id.clone(),
+                group
+                    .attributes
+                    .get("PU")
+                    .unwrap_or(group.id.as_str())
+                    .to_string(),
+            );
+        }
+
+        let mut units: Vec<Unit> = vec![Unit {
+            sample: None,
+            library: None,
+            read_group: None,
+        }];
+        let push = |unit: Unit, units: &mut Vec<Unit>| {
+            if !units.contains(&unit) {
+                units.push(unit);
+            }
+        };
+        if levels.iter().any(|level| level == "SAMPLE") {
+            for group in &group_order {
+                push(
+                    Unit {
+                        sample: sample_of.get(group).cloned(),
+                        library: None,
+                        read_group: None,
+                    },
+                    &mut units,
+                );
+            }
+        }
+        if levels.iter().any(|level| level == "LIBRARY") {
+            for group in &group_order {
+                push(
+                    Unit {
+                        sample: sample_of.get(group).cloned(),
+                        library: library_of.get(group).cloned(),
+                        read_group: None,
+                    },
+                    &mut units,
+                );
+            }
+        }
+        if levels.iter().any(|level| level == "READ_GROUP") {
+            for group in &group_order {
+                push(
+                    Unit {
+                        sample: sample_of.get(group).cloned(),
+                        library: library_of.get(group).cloned(),
+                        read_group: Some(group.clone()),
+                    },
+                    &mut units,
+                );
+            }
+        }
+        let collectors = units
+            .iter()
+            .map(|_| GroupCollector::new(options.clone()))
+            .collect();
+        LevelCollectors {
+            units,
+            collectors,
+            sample_of,
+            library_of,
+            unit_of,
+        }
+    }
+
+    /// Hands the record, and its own contig's bases when the reference was read, to every unit
+    /// it belongs to.
+    pub fn accept(&mut self, rec: &BamRecord, bases: Option<&[u8]>) {
+        let group = read_group_of(rec);
+        let sample = group.as_ref().and_then(|id| self.sample_of.get(id));
+        let library = group.as_ref().and_then(|id| self.library_of.get(id));
+        for (unit, collector) in self.units.iter().zip(self.collectors.iter_mut()) {
+            let mine = match unit {
+                Unit {
+                    sample: None,
+                    library: None,
+                    read_group: None,
+                } => true,
+                Unit {
+                    read_group: Some(id),
+                    ..
+                } => group.as_ref() == Some(id),
+                Unit {
+                    library: Some(name),
+                    ..
+                } => library == Some(name),
+                Unit {
+                    sample: Some(name), ..
+                } => sample == Some(name),
+            };
+            if mine {
+                collector.accept(rec, bases);
+            }
+        }
+    }
+
+    /// `finish`, then the metrics file under `headers`: every unit's rows, and the unattributed
+    /// collector's read-length histograms.
+    pub fn metrics_file(
+        mut self,
+        headers: &[String],
+    ) -> Result<htsjdk_metrics::file::MetricsFile, &'static str> {
+        for collector in self.collectors.iter_mut() {
+            collector.finish()?;
+        }
+        let mut file = htsjdk_metrics::file::MetricsFile::new();
+        for header in headers {
+            file.add_header(header);
+        }
+        for (unit, collector) in self.units.iter().zip(self.collectors.iter_mut()) {
+            for mut row in collector.rows() {
+                row.sample = unit.sample.clone();
+                row.library = unit.library.clone();
+                // What the row SAYS its read group is: the platform unit, not the routing id.
+                row.read_group = unit
+                    .read_group
+                    .as_ref()
+                    .map(|id| self.unit_of.get(id).cloned().unwrap_or_else(|| id.clone()));
+                file.add_metric(&row);
+            }
+        }
+        // The histograms are the unattributed collector's: a run asking for libraries still
+        // writes one read-length table, not one per library.
+        for (label, histogram) in self.collectors[0].read_length_histograms() {
+            file.histograms.push(htsjdk_metrics::file::Histogram {
+                bin_label: "READ_LENGTH".to_string(),
+                value_label: label.to_string(),
+                key_class: "java.lang.Integer".to_string(),
+                bins: histogram
+                    .bins()
+                    .map(|(id, count)| (format!("{}", id as i64), count))
+                    .collect(),
+            });
+        }
+        Ok(file)
     }
 }
 

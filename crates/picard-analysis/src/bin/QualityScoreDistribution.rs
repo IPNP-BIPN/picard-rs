@@ -11,7 +11,6 @@
 
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_metrics::file::{Histogram as OutHistogram, MetricsFile};
 use picard_analysis::args::arg;
 use picard_analysis::quality_score_distribution::{Options, QualityScoreDistribution};
 use picard_analysis::single_pass_rejections::{
@@ -115,23 +114,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    let mut file = MetricsFile::new();
-    for header in picard_analysis::command_line::default_headers("QualityScoreDistribution") {
-        file.add_header(&header);
-    }
-    let (q_bins, oq_bins) = collector.finish();
-    let histogram = |label: &str, bins: &[(u8, f64)]| OutHistogram {
-        bin_label: "QUALITY".to_string(),
-        value_label: label.to_string(),
-        key_class: "java.lang.Byte".to_string(),
-        bins: bins.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
-    };
-    file.histograms.push(histogram("COUNT_OF_Q", &q_bins));
-    // `if (!oqHisto.isEmpty())`: the second histogram appears only when the input carried `OQ`,
-    // and its absence is a different output shape rather than an empty column.
-    if !oq_bins.is_empty() {
-        file.histograms.push(histogram("COUNT_OF_OQ", &oq_bins));
-    }
+    let file = collector.metrics_file(&picard_analysis::command_line::default_headers(
+        "QualityScoreDistribution",
+    ));
     std::fs::write(&output, file.write())?;
     Ok(())
 }
