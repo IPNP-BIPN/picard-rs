@@ -19,8 +19,8 @@
 //!
 //! The charts are R's and are not drawn. `EXTRA_ARGUMENT` hands a program arguments of its own.
 
-use std::path::PathBuf;
-use std::process::Command;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
 
 use picard_analysis::metrics_cli::{
     check_coordinate_sorted, fail, open_input, refuse_validation, thrown, Args, ReferenceWalker,
@@ -422,6 +422,7 @@ fn main() {
         include_unpaired,
         stop_after,
     };
+    let mut runs = Vec::new();
     for program in &programs {
         let binary = program.port();
         let (mut program_args, outputs) = instance(*program, &shared);
@@ -455,16 +456,46 @@ fn main() {
             given.append(&mut program_args);
             program_args = given;
         }
-        // The reference the shared pass would have read the input with, whichever program this is.
-        let result = Command::new(here.join(binary))
-            .args(&program_args)
-            .env(
-                picard_analysis::cram_input::READER_REFERENCE_ENV,
-                reference.as_deref().unwrap_or(""),
-            )
-            .output()
-            .unwrap_or_else(|e| fail(&format!("cannot run {binary}: {e}")));
+        runs.push((binary, program_args, outputs));
+    }
+    // The reference makes one pass for every program; here each program is its own process over
+    // the input, so they run side by side and their results are taken in program order. A file a
+    // later program created is removed when an earlier one fails, as if it had never run.
+    let existed: Vec<Vec<bool>> = runs
+        .iter()
+        .map(|(_, _, outputs)| outputs.iter().map(|p| Path::new(p).exists()).collect())
+        .collect();
+    let results: Vec<std::io::Result<Output>> = std::thread::scope(|scope| {
+        let handles: Vec<_> = runs
+            .iter()
+            .map(|(binary, program_args, _)| {
+                let command = here.join(binary);
+                let reference = reference.as_deref().unwrap_or("");
+                scope.spawn(move || {
+                    // The reference the shared pass would have read the input with, whichever
+                    // program this is.
+                    Command::new(command)
+                        .args(program_args)
+                        .env(picard_analysis::cram_input::READER_REFERENCE_ENV, reference)
+                        .output()
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().expect("program thread"))
+            .collect()
+    });
+    for (k, ((binary, _, outputs), result)) in runs.iter().zip(results).enumerate() {
+        let result = result.unwrap_or_else(|e| fail(&format!("cannot run {binary}: {e}")));
         if !result.status.success() {
+            for ((_, _, later), existed) in runs.iter().zip(&existed).skip(k + 1) {
+                for (path, existed) in later.iter().zip(existed) {
+                    if !existed {
+                        let _ = std::fs::remove_file(path);
+                    }
+                }
+            }
             eprint!("{}", String::from_utf8_lossy(&result.stderr));
             std::process::exit(result.status.code().unwrap_or(1));
         }
@@ -474,7 +505,7 @@ fn main() {
         // `port` is the tool name the program writes into its own headers.
         let own = format!("# {binary} ");
         for path in outputs {
-            if let Ok(text) = std::fs::read_to_string(&path) {
+            if let Ok(text) = std::fs::read_to_string(path) {
                 let mut replaced_command = false;
                 let mut replaced_start = false;
                 let lines: Vec<String> = text
@@ -491,7 +522,7 @@ fn main() {
                         }
                     })
                     .collect();
-                let _ = std::fs::write(&path, lines.join("\n"));
+                let _ = std::fs::write(path, lines.join("\n"));
             }
         }
     }
