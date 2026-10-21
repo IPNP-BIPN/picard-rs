@@ -1143,76 +1143,73 @@ jobs:
             suites: "sortsam addreplacerg cleansam fixmate addoatag"
           - group: oracle-backed
             index: "3/24"
-            suites: "reordersam replacesamheader revertsam revertorigmatecigar viewsam"
+            suites: "reordersam replacesamheader replacesamheader-damaged revertsam revertorigmatecigar"
           - group: oracle-backed
             index: "4/24"
-            suites: "rgchecksum downsamplesam filtersamreads createdict samformatconverter"
+            suites: "viewsam rgchecksum downsamplesam filtersamreads createdict"
           - group: oracle-backed
             index: "5/24"
-            suites: "sortsam-bam sortsam-spill setnmmduq addoatag-bam validatesam"
+            suites: "samformatconverter sortsam-bam sortsam-spill setnmmduq addoatag-bam"
           - group: oracle-backed
             index: "6/24"
-            suites: "comparesams split bamindexstats merge rejections"
+            suites: "validatesam comparesams split bamindexstats merge"
           - group: oracle-backed
             index: "7/24"
-            suites: "commandline-declarations commandline qualityscoredistribution gcbias accumulatequalityyield"
+            suites: "rejections commandline-declarations commandline qualityscoredistribution gcbias"
           - group: oracle-backed
             index: "8/24"
-            suites: "bedtointervallist intervallisttobed intervallisttools intervallisttoolspadbreak liftoverintervallist"
+            suites: "accumulatequalityyield bedtointervallist intervallisttobed intervallisttools intervallisttoolspadbreak"
           - group: oracle-backed
             index: "9/24"
-            suites: "extractsequences scatterintervalsbyns nonnfastasize normalizefasta samtofastqwithtags"
+            suites: "liftoverintervallist extractsequences scatterintervalsbyns nonnfastasize normalizefasta"
           - group: oracle-backed
             index: "10/24"
-            suites: "mergebamalignment mergebamalignment-full mergebamalignment-header mergebamalignment-pair mergebamalignment-clip"
+            suites: "samtofastqwithtags mergebamalignment mergebamalignment-full mergebamalignment-header mergebamalignment-pair"
           - group: oracle-backed
             index: "11/24"
-            suites: "mergebamalignment-hits jumpinglibrary comparemetrics sortgff checkdupmarking"
+            suites: "mergebamalignment-clip mergebamalignment-hits jumpinglibrary comparemetrics sortgff"
           - group: oracle-backed
             index: "12/24"
-            suites: "qualityyieldflow vcfsamplenamemap haplotypedbtovcf liftoverhaplotypemap positiondownsample"
+            suites: "checkdupmarking qualityyieldflow vcfsamplenamemap haplotypedbtovcf liftoverhaplotypemap"
           - group: oracle-backed
             index: "13/24"
-            suites: "duplicatemetrics verifyidintensity bafregress wgsmetrics rawwgsmetrics"
+            suites: "positiondownsample duplicatemetrics verifyidintensity bafregress wgsmetrics"
           - group: oracle-backed
             index: "14/24"
-            suites: "umiprevalence artifacttooxog clustercrosscheck extractfingerprint identifycontaminant"
+            suites: "rawwgsmetrics umiprevalence artifacttooxog clustercrosscheck extractfingerprint"
           - group: oracle-backed
             index: "15/24"
-            suites: "mergepedintovcf accumulatevcm variantcallingmetrics variantcallingmetrics-edge nonzerowgs"
+            suites: "identifycontaminant mergepedintovcf accumulatevcm variantcallingmetrics variantcallingmetrics-edge"
           - group: oracle-backed
             index: "16/24"
-            suites: "oxog artifactmetrics hsmetrics pcrmetrics libcomplexity"
+            suites: "nonzerowgs oxog artifactmetrics hsmetrics pcrmetrics"
           - group: oracle-backed
             index: "17/24"
-            suites: "genotypeconcordance multiplemetrics rrbsmetrics replicatemetrics arraysmetrics"
+            suites: "libcomplexity genotypeconcordance multiplemetrics rrbsmetrics replicatemetrics"
           - group: oracle-backed
             index: "18/24"
-            suites: "combinearrays bamtobfq vcftoadpc markadapters checkfingerprint"
+            suites: "arraysmetrics combinearrays bamtobfq vcftoadpc markadapters"
           - group: oracle-backed
             index: "19/24"
-            suites: "markduplicates matecigarduplicates umiduplicates umiduplicates-noreadgroup crosscheckfingerprints"
+            suites: "checkfingerprint markduplicates matecigarduplicates umiduplicates umiduplicates-noreadgroup"
           - group: oracle-backed
             index: "20/24"
-            suites: "fingerprintmetrics samerrormetrics checkilluminadirectory illuminalanemetrics extractilluminabarcodes"
+            suites: "crosscheckfingerprints fingerprintmetrics samerrormetrics checkilluminadirectory illuminalanemetrics"
           - group: oracle-backed
             index: "21/24"
-            suites: "basecallstofastq basecallingmetrics basecallstosam pffailmetrics fifobuffer"
+            suites: "extractilluminabarcodes basecallstofastq basecallingmetrics basecallstosam pffailmetrics"
           - group: oracle-backed
             index: "22/24"
-            suites: "liftovervcf vcfgz mendelianviolations baitdesigner bpmtocsv"
+            suites: "fifobuffer liftovervcf vcfgz mendelianviolations baitdesigner"
           - group: oracle-backed
             index: "23/24"
-            suites: "comparegtc gtctovcf createextendedmanifest headerlines bcf"
+            suites: "bpmtocsv comparegtc gtctovcf createextendedmanifest headerlines"
           - group: oracle-backed
             index: "24/24"
-            suites: "bcf-partial inputshapes nonbamshapes"
+            suites: "bcf bcf-partial inputshapes nonbamshapes"
           - group: golden-pending
-            index: "1/2"
-            suites: "replacesamheader-damaged markduplicates-noreadgroup cram-io strict-validation filterandmerge"
-          - group: golden-pending
-            index: "2/2"
-            suites: "rawrecords"
+            index: "1/1"
+            suites: "markduplicates-noreadgroup cram-io strict-validation filterandmerge rawrecords"
     steps:
       - uses: actions/checkout@v7
 
