@@ -31,6 +31,7 @@
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sequence::is_no_call;
 use htsjdk_bam::tag::{Tag, TagValue};
+use htsjdk_metrics::file::Histogram as OutHistogram;
 
 const READ_UNMAPPED: u16 = 0x4;
 const SECONDARY: u16 = 0x100;
@@ -117,6 +118,28 @@ impl QualityScoreDistribution {
                 .collect()
         };
         (collect(&self.q_counts), collect(&self.oq_counts))
+    }
+
+    /// The tool's metrics file under `headers`: the two histograms of [`Self::finish`].
+    pub fn metrics_file(&self, headers: &[String]) -> htsjdk_metrics::file::MetricsFile {
+        let mut file = htsjdk_metrics::file::MetricsFile::new();
+        for header in headers {
+            file.add_header(header);
+        }
+        let (q_bins, oq_bins) = self.finish();
+        let histogram = |label: &str, bins: &[(u8, f64)]| OutHistogram {
+            bin_label: "QUALITY".to_string(),
+            value_label: label.to_string(),
+            key_class: "java.lang.Byte".to_string(),
+            bins: bins.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+        };
+        file.histograms.push(histogram("COUNT_OF_Q", &q_bins));
+        // `if (!oqHisto.isEmpty())`: the second histogram appears only when the input carried `OQ`,
+        // and its absence is a different output shape rather than an empty column.
+        if !oq_bins.is_empty() {
+            file.histograms.push(histogram("COUNT_OF_OQ", &oq_bins));
+        }
+        file
     }
 }
 

@@ -241,6 +241,11 @@ pub struct ReferenceWalker {
 }
 
 impl ReferenceWalker {
+    /// Whether [`Self::get`] would refuse `index`.
+    pub fn rewinds(&self, index: i32) -> bool {
+        self.current.is_some_and(|current| index < current)
+    }
+
     pub fn get(&mut self, index: i32) {
         if let Some(current) = self.current {
             if index < current {

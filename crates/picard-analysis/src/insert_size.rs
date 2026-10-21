@@ -447,6 +447,159 @@ fn width_to_trim_to(m: &InsertSizeMetrics, options: &Options) -> i32 {
     }
 }
 
+/// `MultiLevelCollector`'s distributors, in output order: all reads, then one collector per
+/// sample, library and platform unit the header names, in header order, plus an `unknown` one
+/// made the first time a read has no read group or the group lacks the field.
+pub struct Distributors {
+    options: Options,
+    levels: Vec<(&'static str, Vec<(String, InsertSizeMetricsCollector)>)>,
+}
+
+impl Distributors {
+    pub fn new(
+        levels: &[String],
+        header: &htsjdk_bam::header::SamHeader,
+        options: Options,
+    ) -> Self {
+        let mut out = Vec::new();
+        for level in ["ALL_READS", "SAMPLE", "LIBRARY", "READ_GROUP"] {
+            if !levels.iter().any(|l| l == level) {
+                continue;
+            }
+            let mut collectors: Vec<(String, InsertSizeMetricsCollector)> = Vec::new();
+            if level == "ALL_READS" {
+                collectors.push((String::new(), InsertSizeMetricsCollector::new(options)));
+            } else {
+                for group in &header.read_groups {
+                    let get = |tag: &str| group.attributes.get(tag).map(str::to_string);
+                    let (key, unit) = match level {
+                        "SAMPLE" => (get("SM"), (get("SM"), None, None)),
+                        "LIBRARY" => (get("LB"), (get("SM"), get("LB"), None)),
+                        _ => (get("PU"), (get("SM"), get("LB"), get("PU"))),
+                    };
+                    // A `LinkedHashMap` keyed by the field: a null key is a key too.
+                    let key = key.unwrap_or_else(|| "\u{0}null".to_string());
+                    if !collectors.iter().any(|(k, _)| *k == key) {
+                        collectors.push((
+                            key,
+                            InsertSizeMetricsCollector::for_unit(options, unit.0, unit.1, unit.2),
+                        ));
+                    }
+                }
+            }
+            out.push((level, collectors));
+        }
+        Distributors {
+            options,
+            levels: out,
+        }
+    }
+
+    pub fn accept(
+        &mut self,
+        header: &htsjdk_bam::header::SamHeader,
+        record: &BamRecord,
+    ) -> Result<(), String> {
+        let group = match record.tags.get(htsjdk_bam::tag::Tag::new(b"RG")) {
+            Some(htsjdk_bam::tag::TagValue::Str(id)) => {
+                header.read_groups.iter().find(|g| g.id == *id)
+            }
+            _ => None,
+        };
+        for (level, collectors) in self.levels.iter_mut() {
+            if *level == "ALL_READS" {
+                collectors[0].1.accept(record);
+                continue;
+            }
+            let tag = match *level {
+                "SAMPLE" => "SM",
+                "LIBRARY" => "LB",
+                _ => "PU",
+            };
+            let key = group
+                .and_then(|g| g.attributes.get(tag))
+                .map_or("unknown".to_string(), str::to_string);
+            let position = match collectors.iter().position(|(k, _)| *k == key) {
+                Some(position) => position,
+                None if key == "unknown" => {
+                    let unknown = Some("unknown".to_string());
+                    let unit = match *level {
+                        "SAMPLE" => (unknown, None, None),
+                        "LIBRARY" => (unknown.clone(), unknown, None),
+                        _ => (unknown.clone(), unknown.clone(), unknown),
+                    };
+                    collectors.push((
+                        key,
+                        InsertSizeMetricsCollector::for_unit(self.options, unit.0, unit.1, unit.2),
+                    ));
+                    collectors.len() - 1
+                }
+                None => {
+                    return Err(format!(
+                        "picard.PicardException: Could not find collector for {key}"
+                    ))
+                }
+            };
+            collectors[position].1.accept(record);
+        }
+        Ok(())
+    }
+
+    pub fn finish(self) -> Vec<(InsertSizeMetrics, OutHistogram)> {
+        self.levels
+            .into_iter()
+            .flat_map(|(_, collectors)| collectors.into_iter().flat_map(|(_, c)| c.finish()))
+            .collect()
+    }
+
+    /// Writes the metrics file under `headers`, none when no unit produced a row, and returns
+    /// what the tool prints before failing after the write: the chart's own failures.
+    pub fn write(
+        self,
+        output: &str,
+        headers: &[String],
+        histogram_width: Option<i32>,
+        min_histogram_width: Option<i32>,
+    ) -> std::io::Result<Option<String>> {
+        let results = self.finish();
+        if results.is_empty() {
+            return Ok(None);
+        }
+        let mut file = htsjdk_metrics::file::MetricsFile::new();
+        for header in headers {
+            file.add_header(header);
+        }
+        for (metric, histogram) in results {
+            file.add_metric(&metric);
+            file.histograms.push(histogram);
+        }
+        std::fs::write(output, file.write())?;
+        // With no `HISTOGRAM_WIDTH` but a `MIN_HISTOGRAM_WIDTH`, the chart's width is the largest
+        // bin over every histogram, and `Histogram.getMax` on one with no bins left throws.
+        if histogram_width.is_none()
+            && min_histogram_width.is_some()
+            && file.histograms.iter().any(|histogram| histogram.is_empty())
+        {
+            return Ok(Some(
+                "Exception in thread \"main\" java.lang.NullPointerException: Cannot invoke \"java.util.Map$Entry.getValue()\" because the return value of \"java.util.NavigableMap.lastEntry()\" is null\n".to_string(),
+            ));
+        }
+        // The chart reads the histogram section back, and a width that trimmed every histogram to
+        // nothing leaves the file without one: R stops, and the tool fails after writing its
+        // metrics.
+        if file.histograms.iter().all(|histogram| histogram.is_empty()) {
+            return Ok(Some(
+                "ERROR\tProcessExecutor\tError in read.table(metricsFile, header = TRUE, sep = \"\\t\", skip = secondBlankLine,  : \n\
+                 ERROR\tProcessExecutor\t  no lines available in input\n\
+                 ERROR\tProcessExecutor\tExecution halted\n\
+                 Exception in thread \"main\" picard.PicardException: R script picard/analysis/insertSizeHistogram.R failed with return code 1\n"
+                    .to_string(),
+            ));
+        }
+        Ok(None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
