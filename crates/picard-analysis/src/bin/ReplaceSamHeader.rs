@@ -128,6 +128,19 @@ fn header_only(path: &str) -> Result<SamHeader, picard_analysis::bam_stream::Fai
     picard_analysis::bam_stream::RecordStream::new(htsjdk_bgzf::BgzfReader::new(file)).header()
 }
 
+/// HEADER's header, as `SamReaderFactory.getFileHeader` reads it: a BAM no further than its header,
+/// so a large or damaged file past the header costs nothing and refuses nothing. A header that does
+/// not read is read whole, which throws what htsjdk throws.
+fn replacement_header(path: &str) -> Result<SamHeader, Box<dyn std::error::Error>> {
+    if is_bam(path)? {
+        if let Ok(header) = header_only(path) {
+            return Ok(header);
+        }
+        return Ok(Input::open_with(path, ValidationStringency::Silent)?.header);
+    }
+    Ok(read_any(path)?.0.header)
+}
+
 /// The block copy: the new header's blocks, then the input's record blocks as they are.
 fn block_copy(
     input: &str,
@@ -177,7 +190,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // shortcut: CREATE_INDEX=true still re-encodes, to index as it writes; index the copy instead
     // once there is a streaming indexer.
     if is_bam(&input)? {
-        let replacement = read_any(&header_path)?.0.header;
+        let replacement = replacement_header(&header_path)?;
         check_writable(&input);
         if htsjdk_bgzf::check_termination(&tail(&input)?) == htsjdk_bgzf::FileTermination::Defective
         {
@@ -198,8 +211,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (input_file, input_is_bam) = read_any(&input)?;
     let (input_header, records) = input_file.into_parts();
-    // HEADER is read as INPUT is, whole, so it fails as it did; only its header is kept.
-    let replacement = read_any(&header_path)?.0.header;
+    let replacement = replacement_header(&header_path)?;
 
     if input_is_bam {
         check_writable(&input);

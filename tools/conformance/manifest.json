@@ -1167,6 +1167,30 @@
       ]
     },
     {
+      "id": "replacesamheader-damaged",
+      "title": "ReplaceSamHeader's block copy on damaged BAMs: a HEADER read no further than its header, an INPUT refused only for its last block and otherwise copied as it is",
+      "status": "oracle-backed",
+      "harness": "tools/replacesamheader-damaged-conformance",
+      "tools": [
+        "ReplaceSamHeader"
+      ],
+      "compare": {
+        "mode": "keyed"
+      },
+      "cases": [
+        {
+          "dump": "ReplaceHeaderDamagedDump",
+          "golden": "crates/picard-analysis/tests/data/replace_sam_header_damaged.txt.gz",
+          "why": "From the pinned container on a real x86-64 runner, published as candidate-goldens-golden-pending-24 by run 39581959856 on PR 429, and identical to the local smoke run: ten damaged HEADER and INPUT BAMs through the block copy, with each exit or exception and output."
+        }
+      ],
+      "expect_rows": 40,
+      "expect_contains": [
+        "Premature end of file",
+        "does not have a valid GZIP block at the end of the file"
+      ]
+    },
+    {
       "id": "revertsam",
       "tools": [
         "RevertSam"
