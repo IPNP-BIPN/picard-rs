@@ -129,12 +129,19 @@ pub struct FlowBasedRead {
     key: Vec<i32>,
     max_hmer: i32,
     per_hmer_min_error_probability: f64,
-    /// `[hmer length][flow]`.
-    flow_matrix: Vec<Vec<f64>>,
+    /// `[hmer length][flow]`, stored flow by flow: cell `flow * (max_hmer + 1) + hmer`.
+    flow_matrix: Vec<f64>,
 }
 
 fn pow10(exponent: f64) -> f64 {
     jmath::strict_math::pow(10.0, exponent)
+}
+
+/// `pow10(-q / 10.0)` for every integer quality a byte can hold, computed once: the matrix asks
+/// for it twice per base, and `StrictMath.pow` is the cost of the whole tool otherwise.
+fn phred_error(q: u8) -> f64 {
+    static TABLE: std::sync::OnceLock<[f64; 256]> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| std::array::from_fn(|q| pow10(-(q as f64) / 10.0)))[q as usize]
 }
 
 impl FlowBasedRead {
@@ -153,7 +160,7 @@ impl FlowBasedRead {
             Some(TagValue::ByteArray {
                 values,
                 unsigned: false,
-            }) => values.clone(),
+            }) => values,
             Some(_) => {
                 return Err(
                     "java.lang.IllegalArgumentException: tp is not a signed byte array".into(),
@@ -166,7 +173,7 @@ impl FlowBasedRead {
             per_hmer_min_error_probability: 0.0,
             flow_matrix: Vec::new(),
         };
-        read.read_flow_matrix(record, flow_order, &tp, arguments)?;
+        read.read_flow_matrix(record, flow_order, tp, arguments)?;
 
         let cigar = &record.cigar;
         let unmapped = record.flags & 0x4 != 0;
@@ -203,11 +210,11 @@ impl FlowBasedRead {
         let number_to_fill = self.max_hmer - call + 1;
         let mut total = 0.0;
         for i in call..=self.max_hmer {
-            total += self.flow_matrix[i as usize][flow];
+            total += *self.cell(flow, i as usize);
         }
         let fill_prob = (total / number_to_fill as f64).max(self.per_hmer_min_error_probability);
         for i in call..=self.max_hmer {
-            self.flow_matrix[i as usize][flow] = fill_prob;
+            *self.cell(flow, i as usize) = fill_prob;
         }
         Ok(())
     }
@@ -230,10 +237,10 @@ impl FlowBasedRead {
         self.key = base_array_to_key(&record.read_bases, flow_order)?;
         let max_hmer = self.max_hmer as usize;
         self.flow_matrix =
-            vec![vec![self.per_hmer_min_error_probability; self.key.len()]; max_hmer + 1];
+            vec![self.per_hmer_min_error_probability; self.key.len() * (max_hmer + 1)];
 
         // `SAMUtils.fastqToPhred(getStringAttribute("t0"))`: null when the tag is absent.
-        let t0: Option<Vec<i32>> = match record.tags.get(Tag::new(b"t0")) {
+        let t0: Option<Vec<u8>> = match record.tags.get(Tag::new(b"t0")) {
             Some(TagValue::Str(text)) => {
                 let mut scores = Vec::with_capacity(text.len());
                 for c in text.chars() {
@@ -243,7 +250,7 @@ impl FlowBasedRead {
                             "java.lang.IllegalArgumentException: Invalid fastq character: {c}"
                         ));
                     }
-                    scores.push((code - 33) as i32);
+                    scores.push((code - 33) as u8);
                 }
                 Some(scores)
             }
@@ -259,10 +266,9 @@ impl FlowBasedRead {
         let mut probs = vec![0.0f64; qualities.len()];
         let mut t0probs = vec![0.0f64; qualities.len()];
         for i in 0..qualities.len() {
-            probs[i] = pow10(-(qualities[i] as f64) / 10.0);
+            probs[i] = phred_error(qualities[i]);
             if special_treatment_for_zero_calls {
-                let qq = t0.as_ref().map(|t| t[i]).unwrap_or(0) as f64;
-                t0probs[i] = pow10(-qq / 10.0);
+                t0probs[i] = phred_error(t0.as_ref().map(|t| t[i]).unwrap_or(0));
             }
         }
 
@@ -277,10 +283,10 @@ impl FlowBasedRead {
             }
             let mut total_error_prob = 0.0;
             for k in 0..max_hmer {
-                total_error_prob += self.flow_matrix[k][i];
+                total_error_prob += *self.cell(i, k);
             }
             let call_prob = MINIMAL_CALL_PROB.max(1.0 - total_error_prob);
-            self.flow_matrix[(run.min(self.max_hmer)) as usize][i] = call_prob;
+            *self.cell(i, run.min(self.max_hmer) as usize) = call_prob;
             qual_ofs += run as usize;
         }
         self.clip_probs();
@@ -309,10 +315,10 @@ impl FlowBasedRead {
             })?;
             if shift != 0 {
                 let loc = (flow_call + shift as i32).min(self.max_hmer).max(0) as usize;
-                if self.flow_matrix[loc][flow_idx] == self.per_hmer_min_error_probability {
-                    self.flow_matrix[loc][flow_idx] = probability;
+                if *self.cell(flow_idx, loc) == self.per_hmer_min_error_probability {
+                    *self.cell(flow_idx, loc) = probability;
                 } else {
-                    self.flow_matrix[loc][flow_idx] += probability;
+                    *self.cell(flow_idx, loc) += probability;
                 }
             }
         }
@@ -331,23 +337,30 @@ impl FlowBasedRead {
         }
         let neighbours = probs[qual_ofs - 1].min(probs[qual_ofs]);
         if neighbours <= total_min_error_probability {
-            self.flow_matrix[1][flow_idx] =
-                self.flow_matrix[1][flow_idx].max(self.per_hmer_min_error_probability);
+            let floor = self.per_hmer_min_error_probability;
+            let cell = self.cell(flow_idx, 1);
+            *cell = cell.max(floor);
         } else {
-            self.flow_matrix[1][flow_idx] = self.flow_matrix[1][flow_idx].max(neighbours);
+            let cell = self.cell(flow_idx, 1);
+            *cell = cell.max(neighbours);
         }
     }
 
     fn clip_probs(&mut self) {
         for i in 0..self.max_hmer as usize {
             for j in 0..self.key.len() {
-                if self.flow_matrix[i][j] <= self.per_hmer_min_error_probability
+                if *self.cell(j, i) <= self.per_hmer_min_error_probability
                     && self.key[j] != i as i32
                 {
-                    self.flow_matrix[i][j] = self.per_hmer_min_error_probability;
+                    *self.cell(j, i) = self.per_hmer_min_error_probability;
                 }
             }
         }
+    }
+
+    /// The cell of length `hmer` at `flow`.
+    fn cell(&mut self, flow: usize, hmer: usize) -> &mut f64 {
+        &mut self.flow_matrix[flow * (self.max_hmer as usize + 1) + hmer]
     }
 
     pub fn max_hmer(&self) -> i32 {
@@ -365,7 +378,7 @@ impl FlowBasedRead {
         } else {
             self.max_hmer
         };
-        let prob = self.flow_matrix[row as usize][flow];
+        let prob = self.flow_matrix[flow * (self.max_hmer as usize + 1) + row as usize];
         if prob <= 1.0 {
             prob
         } else {
@@ -377,16 +390,10 @@ impl FlowBasedRead {
 /// `estimateFillingValue`: the error probability of the read's best base quality, or of 40 when
 /// no base has one.
 fn estimate_filling_value(qualities: &[u8]) -> f64 {
-    let mut max_qual = 0.0f64;
-    for &q in qualities {
-        if q as f64 > max_qual {
-            max_qual = q as f64;
-        }
+    match qualities.iter().max() {
+        None | Some(0) => phred_error(40),
+        Some(&q) => phred_error(q),
     }
-    if max_qual == 0.0 {
-        max_qual = 40.0;
-    }
-    pow10(-max_qual / 10.0)
 }
 
 fn first_non_zero(array: &[i32]) -> i64 {
