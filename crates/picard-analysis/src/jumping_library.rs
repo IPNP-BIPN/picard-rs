@@ -84,6 +84,17 @@ pub fn orientation(reverse: bool, mate_reverse: bool, mate_is_to_the_right: bool
     }
 }
 
+/// Whether this read's mate lies to its right, in the sense [`orientation`] takes: htsjdk 5.0.0's
+/// `SamPairUtil.getPairOrientation`, which reads the mate's 5' end from its `MC` tag when there is
+/// one and calls a tie `FR`. For a forward read that is `FR`, for a reverse one `RF`.
+pub fn mate_is_to_the_right(rec: &htsjdk_bam::record::BamRecord) -> bool {
+    use crate::insert_size::{pair_orientation, PairOrientation};
+    matches!(
+        (pair_orientation(rec), rec.flags & 0x10 != 0),
+        (PairOrientation::Fr, false) | (PairOrientation::Rf, true)
+    )
+}
+
 /// The arguments that decide which bucket a pair lands in.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Arguments {

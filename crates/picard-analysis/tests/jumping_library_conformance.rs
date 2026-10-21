@@ -19,9 +19,9 @@ use std::io::Read;
 
 use picard_analysis::jumping_library::{
     chimera_threshold, classify, collect, collect_files, estimate_library_size, histogram_mean,
-    mode, orientation, outward_mode, passes_quality, trim_by_tail_limit, unsorted_message,
-    Arguments, Bucket, JumpingLibraryMetrics, Orientation, Pair, COLUMNS, DEFAULT_CHIMERA_KB_MIN,
-    DEFAULT_TAIL_LIMIT,
+    mate_is_to_the_right, mode, orientation, outward_mode, passes_quality, trim_by_tail_limit,
+    unsorted_message, Arguments, Bucket, JumpingLibraryMetrics, Orientation, Pair, COLUMNS,
+    DEFAULT_CHIMERA_KB_MIN, DEFAULT_TAIL_LIMIT,
 };
 
 fn corpus() -> String {
@@ -599,4 +599,36 @@ fn a_files_unmapped_tail_ends_only_that_file() {
     assert_eq!(collect_files(&[&first, &second], &arguments).jump_pairs, 2);
     let joined: Vec<(Pair, bool)> = first.iter().chain(&second).cloned().collect();
     assert_eq!(collect(&joined, &arguments).jump_pairs, 1);
+}
+
+/// One read of a pair, from its SAM line, on a one-contig header.
+fn read(line: &str) -> htsjdk_bam::record::BamRecord {
+    let text = format!("@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:10000\n{line}\n");
+    let (_, records) = htsjdk_bam::sam_file::read_sam(&text).unwrap();
+    records.into_iter().next().unwrap()
+}
+
+/// htsjdk 5.0.0 locates a forward read's reverse mate by its `MC` tag when the tag is there, and
+/// by TLEN only without it; a mate starting at a reverse read's own end is a tie, called `FR`.
+/// Before, the port took TLEN always and called that tie `RF`, which moved 8,319 of 125,909 jump
+/// pairs on a BAM of real pairs.
+#[test]
+fn the_mate_end_comes_from_its_cigar_and_a_tie_is_inward() {
+    let seq = "A".repeat(50);
+    let qual = "I".repeat(50);
+    // Forward at 400, reverse mate at 300 ending at 349 by its MC: the mate's 5' end is left of
+    // this read's, so the pair is RF and the mate is not to the right. TLEN alone says otherwise.
+    let with_mc = read(&format!(
+        "r1\t99\tchr1\t400\t60\t50M\t=\t300\t150\t{seq}\t{qual}\tMC:Z:50M"
+    ));
+    assert!(!mate_is_to_the_right(&with_mc));
+    let without_mc = read(&format!(
+        "r1\t99\tchr1\t400\t60\t50M\t=\t300\t150\t{seq}\t{qual}"
+    ));
+    assert!(mate_is_to_the_right(&without_mc));
+    // Reverse read at 100..149, forward mate starting at 149: a tie, FR, so not to the right.
+    let tie = read(&format!(
+        "r2\t81\tchr1\t100\t60\t50M\t=\t149\t-50\t{seq}\t{qual}"
+    ));
+    assert!(!mate_is_to_the_right(&tie));
 }
