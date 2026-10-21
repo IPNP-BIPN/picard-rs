@@ -869,7 +869,7 @@
         "tool": "IlluminaBasecallsToFastq",
         "port": "IlluminaBasecallsToFastq",
         "t": 2,
-        "status": "measured",
+        "status": "pending",
         "output_name": "@all"
       },
       {

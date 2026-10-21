@@ -6230,6 +6230,16 @@
         "IlluminaBasecallsToFastq"
       ],
       "forbid": {
+        "--MAX_READS_IN_RAM_PER_TILE": "2",
+        "--NUM_PROCESSORS": "2"
+      },
+      "why": "The reference hangs on this pair, intermittently and forever. MAX_RECORDS_IN_RAM becomes 2 x 2, so a single-sample run gets a FASTQ writer queue of 2 with a drain threshold of 1, and htsjdk's AsyncWriterPool.PooledWriter.write can then spin on offer() against a full queue whose drain task has finished but was never cleared; the writer pump never returns and the JVM never exits. Row 6 hung CI at the 300 s bound (run 39559647433); locally 5 of 300 runs of a row holding only this pair (two lanes, no barcode files) hung, against 0 of 300 for row 6 without it. With one processor the threshold is 0 and the reference refuses it every time, which the array keeps."
+    },
+    {
+      "tools": [
+        "IlluminaBasecallsToFastq"
+      ],
+      "forbid": {
         "--READ_STRUCTURE": "4T",
         "--MULTIPLEX_PARAMS": "/work/fixtures/ill_multiplex_partial.txt"
       },
