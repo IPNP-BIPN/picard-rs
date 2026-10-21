@@ -12,20 +12,20 @@ repository = "https://github.com/IPNP-BIPN/picard-rs"
 # here (decision 0013). A floating dependency would let the I/O layer change under a
 # byte-identity claim without anything failing.
 [workspace.dependencies]
-htsjdk-bam = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "f73642bf6797897b5a6bc788b7770e8ead116083" }
+htsjdk-bam = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "7ac56f0dbba283b69c809cc4e5ddf8f3b9093f8a" }
 # `gkl-igzip` because Picard's default deflater is Intel's GKL, which routes COMPRESSION_LEVEL 1
 # and 2 through ISA-L igzip rather than zlib. Without the feature those levels refuse rather than
 # answer with zlib's bytes.
-htsjdk-bgzf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "f73642bf6797897b5a6bc788b7770e8ead116083", features = ["gkl-igzip"] }
+htsjdk-bgzf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "7ac56f0dbba283b69c809cc4e5ddf8f3b9093f8a", features = ["gkl-igzip"] }
 # CRAM, read and written as htsjdk 5.0.0 does: Picard 3.5.0 writes CRAM 3.1.
-htsjdk-cram = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "f73642bf6797897b5a6bc788b7770e8ead116083" }
-htsjdk-metrics = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "f73642bf6797897b5a6bc788b7770e8ead116083" }
-htsjdk-vcf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "f73642bf6797897b5a6bc788b7770e8ead116083" }
+htsjdk-cram = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "7ac56f0dbba283b69c809cc4e5ddf8f3b9093f8a" }
+htsjdk-metrics = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "7ac56f0dbba283b69c809cc4e5ddf8f3b9093f8a" }
+htsjdk-vcf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "7ac56f0dbba283b69c809cc4e5ddf8f3b9093f8a" }
 # The `.idx` a VCF writer indexing on the fly puts beside its output.
-htsjdk-tribble = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "f73642bf6797897b5a6bc788b7770e8ead116083" }
+htsjdk-tribble = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "7ac56f0dbba283b69c809cc4e5ddf8f3b9093f8a" }
 # jmath, for the Math.log10 that QualityUtil.getPhredScoreFromObsAndErrors runs through, and for
 # Math.round, which is not floor(x + 0.5): see htsjdk-rs PR 50.
-jmath = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "f73642bf6797897b5a6bc788b7770e8ead116083" }
+jmath = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "7ac56f0dbba283b69c809cc4e5ddf8f3b9093f8a" }
 
 # The published binaries: whole-program optimisation, because the hot paths cross from the tools
 # into htsjdk-rs on every record and only fat LTO with one codegen unit lets those calls inline.
