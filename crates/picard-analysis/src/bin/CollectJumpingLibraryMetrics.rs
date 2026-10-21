@@ -12,6 +12,7 @@
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::args::arg;
+use picard_analysis::jumping_library;
 use picard_analysis::jumping_library::{
     collect_files, main_pass_reaches, outward_pass_reaches, unsorted_message, Arguments, Pair,
 };
@@ -143,23 +144,7 @@ fn pairs_of(input: &str) -> Result<FileReads, Box<dyn std::error::Error>> {
                 unmapped: rec.flags & READ_UNMAPPED != 0,
                 mate_unmapped: rec.flags & MATE_UNMAPPED != 0,
             };
-            // `SamPairUtil.getPairOrientation` does not ask which START is further right: it
-            // compares the two 5' ENDS, and which coordinate stands for which end depends on the
-            // strand this read is on. Reading it as "the mate starts later" put three pairs in the
-            // wrong bucket on this corpus.
-            //
-            //   read forward:  positive 5' is this read's start, negative 5' is the mate's start
-            //                  plus the insert size;
-            //   read reverse:  positive 5' is the mate's start, negative 5' is this read's END.
-            //
-            // `FR` is "positive before negative", and the library asks the question the other way
-            // round -- whether the mate lies to the right -- so the two cases invert.
-            let alignment_end = rec.alignment_start + rec.cigar.reference_length() as i32 - 1;
-            let mate_is_to_the_right = if rec.flags & READ_REVERSE == 0 {
-                rec.alignment_start < rec.mate_alignment_start + rec.inferred_insert_size
-            } else {
-                rec.mate_alignment_start >= alignment_end
-            };
+            let mate_is_to_the_right = jumping_library::mate_is_to_the_right(&rec);
             (pair, mate_is_to_the_right)
         })
         .collect();
