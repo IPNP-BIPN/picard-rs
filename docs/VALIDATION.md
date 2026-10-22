@@ -252,6 +252,7 @@ first two sessions found a numeric divergence the conformance corpus cannot cont
 | [0011](decisions/0011-the-sixteen-unchecked-goldens-came-back-green.md) | The sixteen unchecked goldens came back green |
 | [0012](decisions/0012-what-the-move-to-3.5.0-costs-the-ported-surface.md) | What the move to Picard 3.5.0 costs the ported surface |
 | [0013](decisions/0013-picard-rs-moves-to-3.5.0-on-its-own.md) | picard-rs moves to Picard 3.5.0 on its own |
+| [0014](decisions/0014-sortsam-reads-and-sorts-on-every-core.md) | SortSam reads and sorts on every core, and the deflater is the floor |
 
 ## Relationship to `fulcrumgenomics/riker`
 

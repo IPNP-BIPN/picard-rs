@@ -166,6 +166,23 @@ impl Validator {
         Ok(())
     }
 
+    /// Whether [`Self::check`] passes `rec` in silence: nothing thrown and nothing printed.
+    pub fn passes(&self, rec: &BamRecord) -> bool {
+        if [rec.reference_index, rec.mate_reference_index]
+            .into_iter()
+            .any(|index| index != -1 && self.sequence(index).is_none())
+        {
+            return false;
+        }
+        if self.stringency == Stringency::Silent {
+            return true;
+        }
+        matches!(self.is_valid(rec, self.stringency == Stringency::Strict), Ok(errors) if errors.is_empty())
+            && !(rec.read_bases.is_empty()
+                && !CIGAR_NEVER_DECODED.load(Ordering::Relaxed)
+                && !self.validate_cigar(rec).is_empty())
+    }
+
     /// `SAMUtils.processValidationErrors`.
     fn process(&self, mut errors: Vec<ValidationError>, record_number: i64) -> Result<(), String> {
         if errors.is_empty() {

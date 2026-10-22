@@ -15,10 +15,11 @@ use std::path::{Path, PathBuf};
 use htsjdk_bam::bin;
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::index::{BamIndexer, Chunk};
-use htsjdk_bam::record::BamRecord;
+use htsjdk_bam::record::{BamRecord, EncodeError};
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::WriteError;
 use htsjdk_bgzf::BgzfWriter;
+use rayon::prelude::*;
 
 use super::{SortOrder, MAX_OPEN_RUNS};
 
@@ -145,11 +146,81 @@ impl SortOrder {
     }
 }
 
-/// Where one record of the batch in RAM starts in the arena, with what its bytes do not carry.
+/// Where one record of the batch in RAM starts, in which of its arenas, with what its bytes do not
+/// carry.
 struct Entry {
+    arena: u32,
     offset: usize,
     hit: Option<i64>,
     end: i32,
+}
+
+/// Appends `record` to `arena` as `BamWriter::write` encodes it, with a bin of 0 where `bin_zero`
+/// says its reference is too long for one; on an error `arena` is as it was.
+fn push_encoded(
+    record: &BamRecord,
+    bin_zero: bool,
+    arena: &mut Vec<u8>,
+) -> Result<Entry, EncodeError> {
+    let offset = arena.len();
+    let encoded = if bin_zero {
+        record.encode_with_bin_into(0, arena)
+    } else {
+        record.encode_into(arena)
+    };
+    if let Err(error) = encoded {
+        arena.truncate(offset);
+        return Err(error);
+    }
+    let hit = match record.tags.get(Tag::new(b"HI")) {
+        Some(TagValue::Int(v)) => Some(*v),
+        _ => None,
+    };
+    Ok(Entry {
+        arena: 0,
+        offset,
+        hit,
+        end: record.alignment_end(),
+    })
+}
+
+/// Records encoded as [`SortingCollection::add`] encodes them, on any thread, for
+/// [`SortingCollection::add_batch`] to add in order.
+#[derive(Default)]
+pub struct EncodedBatch {
+    bytes: Vec<u8>,
+    entries: Vec<Entry>,
+}
+
+impl EncodedBatch {
+    /// A batch with room for `bytes` of records: about what the bytes they were decoded from take.
+    pub fn with_capacity(bytes: usize) -> Self {
+        EncodedBatch {
+            bytes: Vec::with_capacity(bytes),
+            entries: Vec::new(),
+        }
+    }
+
+    pub fn push(&mut self, record: &BamRecord, bin_zero: bool) -> Result<(), EncodeError> {
+        let entry = push_encoded(record, bin_zero, &mut self.bytes)?;
+        self.entries.push(entry);
+        Ok(())
+    }
+
+    /// The records from the `at`th on, moved to a batch of their own.
+    fn split_off(&mut self, at: usize) -> EncodedBatch {
+        let from = self.entries[at].offset;
+        let entries = self.entries.split_off(at).into_iter();
+        EncodedBatch {
+            bytes: self.bytes.split_off(from),
+            entries: entries
+                .map(|entry| Entry {
+                    offset: entry.offset - from,
+                    ..entry
+                })
+                .collect(),
+        }
+    }
 }
 
 /// htsjdk's `SortingCollection` of records, holding each as `BAMRecordCodec` encodes it rather
@@ -157,22 +228,33 @@ struct Entry {
 /// encoded once.
 pub struct SortingCollection {
     compare: Compare,
+    /// Whether the batch in RAM may be sorted on every core.
+    parallel: bool,
     max_records_in_ram: usize,
     tmp_dir: PathBuf,
-    arena: Vec<u8>,
+    /// The bytes of the batch in RAM: one arena that [`Self::add`] appends to, or one per
+    /// [`EncodedBatch`] added.
+    arenas: Vec<Vec<u8>>,
     entries: Vec<Entry>,
     runs: Vec<File>,
+    /// The last batch spilled, still being written on its own thread while the next one fills.
+    writing: Option<std::thread::JoinHandle<io::Result<File>>>,
 }
 
 impl SortingCollection {
     pub fn new(order: SortOrder, max_records_in_ram: usize, tmp_dir: PathBuf) -> Self {
         SortingCollection {
             compare: order.encoded_comparator(),
+            // The coordinate comparator is a total preorder, so every stable sort orders as the
+            // serial one does; the queryname one is not transitive (see the tests), and keeps the
+            // serial sort's answer.
+            parallel: order == SortOrder::Coordinate,
             max_records_in_ram: max_records_in_ram.max(1),
             tmp_dir,
-            arena: Vec::new(),
+            arenas: Vec::new(),
             entries: Vec::new(),
             runs: Vec::new(),
+            writing: None,
         }
     }
 
@@ -183,54 +265,87 @@ impl SortingCollection {
         if self.entries.len() == self.max_records_in_ram {
             self.spill().map_err(WriteError::Io)?;
         }
-        let offset = self.arena.len();
-        let encoded = if bin_zero {
-            record.encode_with_bin_into(0, &mut self.arena)
-        } else {
-            record.encode_into(&mut self.arena)
-        };
-        if let Err(error) = encoded {
-            self.arena.truncate(offset);
-            return Err(WriteError::Encode(error));
+        if self.arenas.is_empty() {
+            self.arenas.push(Vec::new());
         }
-        let hit = match record.tags.get(Tag::new(b"HI")) {
-            Some(TagValue::Int(v)) => Some(*v),
-            _ => None,
-        };
-        let end = record.alignment_end();
-        self.entries.push(Entry { offset, hit, end });
+        let arena = self.arenas.len() - 1;
+        let entry =
+            push_encoded(record, bin_zero, &mut self.arenas[arena]).map_err(WriteError::Encode)?;
+        self.entries.push(Entry {
+            arena: arena as u32,
+            ..entry
+        });
+        Ok(())
+    }
+
+    /// [`Self::add`] for each record of `batch`, in its order, its bytes kept where they are
+    /// unless a spill falls inside it.
+    pub fn add_batch(&mut self, mut batch: EncodedBatch) -> io::Result<()> {
+        while !batch.entries.is_empty() {
+            if self.entries.len() == self.max_records_in_ram {
+                self.spill()?;
+            }
+            let room = self.max_records_in_ram - self.entries.len();
+            let rest = (batch.entries.len() > room).then(|| batch.split_off(room));
+            let arena = self.arenas.len() as u32;
+            self.arenas.push(batch.bytes);
+            self.entries.extend(
+                batch
+                    .entries
+                    .into_iter()
+                    .map(|entry| Entry { arena, ..entry }),
+            );
+            batch = rest.unwrap_or_default();
+        }
         Ok(())
     }
 
     /// How many runs have gone to disk.
     pub fn spills(&self) -> usize {
-        self.runs.len()
+        self.runs.len() + self.writing.is_some() as usize
     }
 
-    /// The batch in RAM, sorted. Stable, so equal records keep input order (decision 0021).
+    /// The batch in RAM, sorted.
     fn sort(&mut self) {
-        let (arena, compare) = (&self.arena, self.compare);
-        self.entries
-            .sort_by(|a, b| compare(&view(arena, a), &view(arena, b)));
+        sort_entries(&mut self.entries, &self.arenas, self.compare, self.parallel);
     }
 
+    /// Sorts the batch in RAM and writes it to a run, both on a thread of its own while the next
+    /// batch fills.
     fn spill(&mut self) -> io::Result<()> {
-        self.sort();
+        self.wait_for_run()?;
         let mut run = RunWriter::create(&self.tmp_dir)?;
-        for entry in &self.entries {
-            run.push(view(&self.arena, entry))?;
-        }
-        let run = run.finish()?;
-        self.arena.clear();
-        self.entries.clear();
-        self.runs.push(run);
-        if self.runs.len() == MAX_OPEN_RUNS {
-            let mut merged = Merge::new(self.compare, std::mem::take(&mut self.runs))?;
+        // shortcut: an error writing this run is answered at the next spill or at the end, after
+        // more records are read; the serial write answered it before reading on.
+        let arenas = std::mem::take(&mut self.arenas);
+        let records = self.entries.len();
+        let mut entries = std::mem::replace(&mut self.entries, Vec::with_capacity(records));
+        let (compare, parallel) = (self.compare, self.parallel);
+        self.writing = Some(std::thread::spawn(move || {
+            sort_entries(&mut entries, &arenas, compare, parallel);
+            for entry in &entries {
+                run.push(view(&arenas, entry))?;
+            }
+            run.finish()
+        }));
+        if self.runs.len() + 1 == MAX_OPEN_RUNS {
+            self.wait_for_run()?;
+            let runs = std::mem::take(&mut self.runs).into_iter().map(Run::file);
+            let mut merged = Merge::new(self.compare, runs.collect())?;
             let mut run = RunWriter::create(&self.tmp_dir)?;
             while let Some(record) = merged.next_owned() {
                 run.push(record?.view())?;
             }
             self.runs.push(run.finish()?);
+        }
+        Ok(())
+    }
+
+    /// Adds the run being written to the runs, once it is written.
+    fn wait_for_run(&mut self) -> io::Result<()> {
+        if let Some(writing) = self.writing.take() {
+            let run = writing.join().expect("the run writer does not panic")?;
+            self.runs.push(run);
         }
         Ok(())
     }
@@ -241,17 +356,24 @@ impl SortingCollection {
         mut self,
         mut emit: impl FnMut(Encoded) -> Result<(), E>,
     ) -> Result<(), E> {
-        if self.runs.is_empty() {
+        if self.spills() == 0 {
             self.sort();
             for entry in &self.entries {
-                emit(view(&self.arena, entry))?;
+                emit(view(&self.arenas, entry))?;
             }
             return Ok(());
         }
+        // The last batch is merged from RAM, as the run it would have been spilled to: the last.
+        self.sort();
+        self.wait_for_run()?;
+        let mut runs: Vec<Run> = self.runs.into_iter().map(Run::file).collect();
         if !self.entries.is_empty() {
-            self.spill()?;
+            runs.push(Run::Ram {
+                arenas: self.arenas,
+                entries: self.entries.into_iter(),
+            });
         }
-        let mut merge = Merge::new(self.compare, self.runs)?;
+        let mut merge = Merge::new(self.compare, runs)?;
         while let Some(head) = merge.next_owned() {
             emit(head?.view())?;
         }
@@ -259,7 +381,18 @@ impl SortingCollection {
     }
 }
 
-fn view<'a>(arena: &'a [u8], entry: &Entry) -> Encoded<'a> {
+/// Sorts a batch's entries. Stable, so equal records keep input order (decision 0021).
+fn sort_entries(entries: &mut [Entry], arenas: &[Vec<u8>], compare: Compare, parallel: bool) {
+    let by = |a: &Entry, b: &Entry| compare(&view(arenas, a), &view(arenas, b));
+    if parallel {
+        entries.par_sort_by(by);
+    } else {
+        entries.sort_by(by);
+    }
+}
+
+fn view<'a>(arenas: &'a [Vec<u8>], entry: &Entry) -> Encoded<'a> {
+    let arena = &arenas[entry.arena as usize];
     let size = i32::from_le_bytes(arena[entry.offset..entry.offset + 4].try_into().unwrap());
     Encoded {
         bytes: &arena[entry.offset..entry.offset + 4 + size as usize],
@@ -267,6 +400,10 @@ fn view<'a>(arena: &'a [u8], entry: &Entry) -> Encoded<'a> {
         end: entry.end,
     }
 }
+
+/// How much of a run is written or read at a time: a run is a whole batch, and the default 8 KiB
+/// made a spill wait on its own system calls.
+const RUN_BUFFER: usize = 1 << 20;
 
 /// A fresh file in `dir`, unlinked at once so nothing is left behind, that records are written to
 /// each as its `HI` (a presence byte and eight bytes), its end, and its bytes.
@@ -292,7 +429,7 @@ impl RunWriter {
         // shortcut: unlinking an open file keeps it readable on Unix only; Windows is not a target.
         std::fs::remove_file(&path)?;
         Ok(RunWriter {
-            out: BufWriter::new(file),
+            out: BufWriter::with_capacity(RUN_BUFFER, file),
         })
     }
 
@@ -328,28 +465,49 @@ impl Owned {
     }
 }
 
-/// One spilled run, read back record by record.
-struct Run {
-    reader: BufReader<File>,
+/// One sorted run, read back record by record.
+enum Run {
+    File(BufReader<File>),
+    /// The last batch, sorted in RAM and never spilled.
+    Ram {
+        arenas: Vec<Vec<u8>>,
+        entries: std::vec::IntoIter<Entry>,
+    },
 }
 
 impl Run {
+    fn file(file: File) -> Run {
+        Run::File(BufReader::with_capacity(RUN_BUFFER, file))
+    }
+
     fn next(&mut self) -> Option<io::Result<Owned>> {
-        match self.reader.fill_buf() {
+        let reader = match self {
+            Run::File(reader) => reader,
+            Run::Ram { arenas, entries } => {
+                return entries.next().map(|entry| {
+                    Ok(Owned {
+                        bytes: view(arenas, &entry).bytes.to_vec(),
+                        hit: entry.hit,
+                        end: entry.end,
+                    })
+                })
+            }
+        };
+        match reader.fill_buf() {
             Ok([]) => return None,
             Ok(_) => {}
             Err(e) => return Some(Err(e)),
         }
         let read = (|| {
             let mut fixed = [0u8; 17];
-            self.reader.read_exact(&mut fixed)?;
+            reader.read_exact(&mut fixed)?;
             let hit = (fixed[0] != 0).then(|| i64::from_le_bytes(fixed[1..9].try_into().unwrap()));
             let end = i32::from_le_bytes(fixed[9..13].try_into().unwrap());
             let size = i32::from_le_bytes(fixed[13..17].try_into().unwrap()) as usize;
             let mut bytes = Vec::with_capacity(4 + size);
             bytes.extend_from_slice(&fixed[13..17]);
             bytes.resize(4 + size, 0);
-            self.reader.read_exact(&mut bytes[4..])?;
+            reader.read_exact(&mut bytes[4..])?;
             Ok(Owned { bytes, hit, end })
         })();
         Some(read)
@@ -392,15 +550,10 @@ struct Merge {
 }
 
 impl Merge {
-    fn new(compare: Compare, files: Vec<File>) -> io::Result<Merge> {
+    fn new(compare: Compare, runs: Vec<Run>) -> io::Result<Merge> {
         let mut merge = Merge {
             compare,
-            runs: files
-                .into_iter()
-                .map(|file| Run {
-                    reader: BufReader::new(file),
-                })
-                .collect(),
+            runs,
             heap: BinaryHeap::new(),
         };
         for run in 0..merge.runs.len() {
@@ -424,6 +577,64 @@ impl Merge {
         let head = self.heap.pop()?;
         Some(self.refill(head.run).map(|()| head.record))
     }
+}
+
+/// The header of the clean BAM at `input`, sort order set, and its records in a collection,
+/// decoded, checked and encoded on every core a batch at a time and added in file order: what
+/// adding them one by one as [`crate::bam_stream::Input`] hands them over makes. `None` where
+/// any record is one that read answers for: a stream that does not end cleanly, or a record that
+/// does not decode, does not encode, or does not pass validation in silence.
+pub fn read_in_parallel(
+    input: &str,
+    sort_order: SortOrder,
+    max_records_in_ram: usize,
+    tmp_dir: &Path,
+) -> io::Result<Option<(SamHeader, SortingCollection)>> {
+    let Some((mut header, validator, mut batches)) = crate::bam_stream::batches(input) else {
+        return Ok(None);
+    };
+    let lengths: Vec<i32> = header.sequences.iter().map(|s| s.length).collect();
+    let encode = |raw: &Vec<u8>| {
+        let mut batch = EncodedBatch::with_capacity(raw.len());
+        let mut at = 0;
+        while let Ok(Some((record, used))) = BamRecord::decode(&raw[at..]) {
+            at += used;
+            if !validator.passes(&record) {
+                return None;
+            }
+            batch
+                .push(&record, bin_zero(&lengths, record.reference_index))
+                .ok()?;
+        }
+        // A batch holds whole records only, so anything left did not decode.
+        (at == raw.len()).then_some(batch)
+    };
+    let mut sorting = SortingCollection::new(sort_order, max_records_in_ram, tmp_dir.into());
+    let threads = rayon::current_num_threads();
+    // The stream is cut on a thread of its own, a round or two ahead of the decoding: cutting is
+    // the one serial step, so it never waits for the cores.
+    let (rounds, received) = std::sync::mpsc::sync_channel(2);
+    std::thread::spawn(move || loop {
+        // Four batches a thread, so the cores that finish first take the rest.
+        let round = batches.next_round(threads * 4);
+        let last = !matches!(&round, Some(raw) if !raw.is_empty());
+        if rounds.send(round).is_err() || last {
+            break;
+        }
+    });
+    while let Ok(Some(raw)) = received.recv() {
+        if raw.is_empty() {
+            header.set_sort_order(sort_order.name());
+            return Ok(Some((header, sorting)));
+        }
+        let Some(encoded) = raw.par_iter().map(encode).collect::<Option<Vec<_>>>() else {
+            return Ok(None);
+        };
+        for batch in encoded {
+            sorting.add_batch(batch)?;
+        }
+    }
+    Ok(None)
 }
 
 /// `BAMFileWriter` for records a [`SortingCollection`] encoded: the header is what
@@ -608,6 +819,98 @@ mod tests {
         // decides; the coordinate one is a total preorder, and spilling changes nothing.
         let spilled = sorted_names(&sam, SortOrder::Coordinate, 13).0;
         assert_eq!(spilled, sorted_decoded(&sam, SortOrder::Coordinate));
+    }
+
+    /// A BAM of `n` valid records, many of them equal under both comparators, written to a file
+    /// of its own in the temporary directory.
+    fn bam_of(n: usize, name: &str) -> std::path::PathBuf {
+        let mut sam = String::from("@HD\tVN:1.6\tSO:unsorted\n@SQ\tSN:chr1\tLN:100000\n");
+        let bases: String = (0..100)
+            .map(|k| ['A', 'C', 'G', 'T'][(k * 7 + k / 3) % 4])
+            .collect();
+        let quals = "I".repeat(100);
+        for i in 0..n {
+            let name = format!("q{}", (i * 7919) % 97);
+            let pos = 1 + (i * 104_729) % 5000;
+            let hi = if i % 5 == 0 {
+                format!("\tHI:i:{}", i % 3)
+            } else {
+                String::new()
+            };
+            let line = match i % 6 {
+                0 => format!("{name}\t99\tchr1\t{pos}\t60\t100M\t=\t{}\t250", pos + 150),
+                1 => format!("{name}\t147\tchr1\t{pos}\t60\t100M\t=\t{}\t-250", pos + 150),
+                2 => format!("{name}\t16\tchr1\t{pos}\t{}\t100M\t*\t0\t0", i % 61),
+                3 => format!("{name}\t4\t*\t0\t0\t*\t*\t0\t0"),
+                4 => format!("{name}\t4\tchr1\t{pos}\t0\t*\t*\t0\t0"),
+                _ => format!("{name}\t0\tchr1\t{pos}\t37\t60M40S\t*\t0\t0"),
+            };
+            sam.push_str(&format!("{line}\t{bases}\t{quals}\tXI:i:{i}{hi}\n"));
+        }
+        let (header, records) = read_sam(&sam).unwrap();
+        let mut writer = crate::output::bam_writer(Vec::new(), &header).unwrap();
+        for record in &records {
+            writer.write(record).unwrap();
+        }
+        let path = std::env::temp_dir().join(format!("{name}.{}.bam", std::process::id()));
+        std::fs::write(&path, writer.finish().unwrap()).unwrap();
+        path
+    }
+
+    /// Every record's bytes, in the order the collection hands them over.
+    fn emitted(sorting: SortingCollection) -> Vec<Vec<u8>> {
+        let mut out = Vec::new();
+        sorting
+            .for_each_sorted(|r| {
+                out.push(r.bytes.to_vec());
+                Ok::<(), io::Error>(())
+            })
+            .unwrap();
+        out
+    }
+
+    #[test]
+    fn the_parallel_read_collects_what_adding_each_record_collects() {
+        // Enough records for many batches, and so for spills that fall inside one.
+        let path = bam_of(20_000, "parallel_read");
+        let input = path.to_str().unwrap();
+        for order in [SortOrder::Coordinate, SortOrder::Queryname] {
+            for max in [DEFAULT_MAX_RECORDS_IN_RAM, 4096, 777] {
+                let tmp = std::env::temp_dir();
+                let read = crate::bam_stream::Input::open(input).unwrap();
+                let (mut header, records) = read.into_parts();
+                let lengths: Vec<i32> = header.sequences.iter().map(|s| s.length).collect();
+                let mut serial = SortingCollection::new(order, max, tmp.clone());
+                for record in records {
+                    serial
+                        .add(&record, bin_zero(&lengths, record.reference_index))
+                        .unwrap();
+                }
+                header.set_sort_order(order.name());
+                let (parallel_header, parallel) = read_in_parallel(input, order, max, &tmp)
+                    .unwrap()
+                    .expect("a clean BAM is read in parallel");
+                assert_eq!(parallel_header, header);
+                assert_eq!(parallel.spills(), serial.spills(), "{order:?} {max}");
+                assert_eq!(emitted(parallel), emitted(serial), "{order:?} {max}");
+            }
+        }
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn a_damaged_bam_is_left_to_the_serial_read() {
+        let path = bam_of(5_000, "damaged_read");
+        let mut bytes = std::fs::read(&path).unwrap();
+        // Inside the terminator block, then inside a block of records.
+        for cut in [bytes.len() - 10, bytes.len() / 2] {
+            bytes.truncate(cut);
+            std::fs::write(&path, &bytes).unwrap();
+            let tmp = std::env::temp_dir();
+            let read = read_in_parallel(path.to_str().unwrap(), SortOrder::Coordinate, 1000, &tmp);
+            assert!(read.unwrap().is_none(), "cut at {cut}");
+        }
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]

@@ -24,7 +24,9 @@ use htsjdk_bam::writer::WriteError;
 use htsjdk_bgzf::read::BgzfReader;
 use picard_analysis::args::arg;
 use picard_analysis::record_validation::Validator;
-use picard_analysis::sort_sam::encoded::{bin_zero, Encoded, EncodedBamWriter, SortingCollection};
+use picard_analysis::sort_sam::encoded::{
+    bin_zero, read_in_parallel, Encoded, EncodedBamWriter, SortingCollection,
+};
 use picard_analysis::sort_sam::{
     mate_cigar_refusal, MateCigarCheck, RequestedOrder, DEFAULT_MAX_RECORDS_IN_RAM,
 };
@@ -134,12 +136,92 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::File::open(&input)?
         .take(4)
         .read_to_end(&mut head)?;
+    // Nothing is written until every record is read, so neither the read nor the write shares
+    // the cores with the other: each runs on all of them, or on as many as `RAYON_NUM_THREADS`
+    // says, which rayon's builder reads.
+    let pool = rayon::ThreadPoolBuilder::new().build()?;
+    let parallel = match order.sort_order() {
+        Some(sort_order) if head.starts_with(&[0x1f, 0x8b]) => {
+            pool.install(|| read_in_parallel(&input, sort_order, max_records_in_ram, &tmp_dir))?
+        }
+        _ => None,
+    };
+    let (header, sorting) = match parallel {
+        Some(read) => read,
+        None => read_serially(&input, &head, order, max_records_in_ram, tmp_dir)?,
+    };
+
+    if output.ends_with(".sam") {
+        let name_of = |index: i32| -> &str {
+            usize::try_from(index)
+                .ok()
+                .and_then(|i| header.sequences.get(i))
+                .map_or("*", |s| s.name.as_str())
+        };
+        let mut out = BufWriter::new(std::fs::File::create(&output)?);
+        out.write_all(header.encode().as_bytes())?;
+        sorting.for_each_sorted(|encoded| -> Result<(), Box<dyn std::error::Error>> {
+            let Ok(Some((record, _))) = BamRecord::decode(encoded.bytes) else {
+                unreachable!("the collection decodes what it encoded");
+            };
+            let line = write_alignment(
+                &record,
+                name_of(record.reference_index),
+                name_of(record.mate_reference_index),
+            )
+            .ok_or("records failed to re-encode as SAM")?;
+            out.write_all(line.as_bytes())?;
+            out.write_all(b"\n")?;
+            Ok(())
+        })?;
+        out.flush()?;
+        return Ok(());
+    }
+
+    if picard_analysis::cram_output::is_cram(&output) {
+        let mut writer = EncodedBamWriter::new(Vec::new(), &header, false)?;
+        sorting.for_each_sorted(|encoded| write(&mut writer, encoded))?;
+        let (bam, _) = writer.finish()?;
+        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
+        return Ok(());
+    }
+
+    let index = pool
+        .install(|| -> Result<_, Box<dyn std::error::Error + Send + Sync>> {
+            let out = BufWriter::new(std::fs::File::create(&output)?);
+            let mut writer = EncodedBamWriter::new(out, &header, create_index)?;
+            sorting.for_each_sorted(|encoded| {
+                writer
+                    .write(encoded)
+                    .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                        format!("{:?}", WriteError::Io(e)).into()
+                    })
+            })?;
+            let (out, index) = writer.finish()?;
+            out.into_inner().map_err(|e| e.into_error())?;
+            Ok(index)
+        })
+        .map_err(|e| -> Box<dyn std::error::Error> { e })?;
+    if let Some(index) = index {
+        std::fs::write(index_path(&output), index)?;
+    }
+    Ok(())
+}
+
+/// The input's header, sort order set, and its records in a collection, read a record at a time.
+fn read_serially(
+    input: &str,
+    head: &[u8],
+    order: RequestedOrder,
+    max_records_in_ram: usize,
+    tmp_dir: PathBuf,
+) -> Result<(SamHeader, SortingCollection), Box<dyn std::error::Error>> {
     let (mut header, records): (
         SamHeader,
         Box<dyn Iterator<Item = Result<BamRecord, String>>>,
-    ) = if picard_analysis::cram_input::is_cram(&head) {
+    ) = if picard_analysis::cram_input::is_cram(head) {
         // shortcut: a CRAM is decoded whole, then validated as the BAM it decodes to.
-        let raw = picard_analysis::cram_input::uncram(std::fs::read(&input)?);
+        let raw = picard_analysis::cram_input::uncram(std::fs::read(input)?);
         let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader =
             picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
@@ -152,19 +234,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // A clean BAM streams through the shared reader, inflating on every core. Its first pass
         // lets a BGZF error outrank a record that fails validation earlier, which this stream does
         // not, so a file it refuses is answered by this stream instead.
-        match picard_analysis::bam_stream::Input::open(&input) {
+        match picard_analysis::bam_stream::Input::open(input) {
             Ok(clean) => {
                 let (header, records) = clean.into_parts();
                 (header, Box::new(records.map(Ok)))
             }
             Err(_) => {
-                let (header, stream) = BamStream::open(&input)?;
+                let (header, stream) = BamStream::open(input)?;
                 (header, Box::new(stream))
             }
         }
     } else {
         // shortcut: a SAM input is read whole; stream it if a SAM larger than RAM turns up.
-        let text = String::from_utf8(std::fs::read(&input)?)?;
+        let text = String::from_utf8(std::fs::read(input)?)?;
         let (header, records) = read_sam(&text).map_err(|e| format!("{e:?}"))?;
         (header, Box::new(records.into_iter().map(Ok)))
     };
@@ -229,51 +311,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             })?;
     }
-
-    if output.ends_with(".sam") {
-        let name_of = |index: i32| -> &str {
-            usize::try_from(index)
-                .ok()
-                .and_then(|i| header.sequences.get(i))
-                .map_or("*", |s| s.name.as_str())
-        };
-        let mut out = BufWriter::new(std::fs::File::create(&output)?);
-        out.write_all(header.encode().as_bytes())?;
-        sorting.for_each_sorted(|encoded| -> Result<(), Box<dyn std::error::Error>> {
-            let Ok(Some((record, _))) = BamRecord::decode(encoded.bytes) else {
-                unreachable!("the collection decodes what it encoded");
-            };
-            let line = write_alignment(
-                &record,
-                name_of(record.reference_index),
-                name_of(record.mate_reference_index),
-            )
-            .ok_or("records failed to re-encode as SAM")?;
-            out.write_all(line.as_bytes())?;
-            out.write_all(b"\n")?;
-            Ok(())
-        })?;
-        out.flush()?;
-        return Ok(());
-    }
-
-    if picard_analysis::cram_output::is_cram(&output) {
-        let mut writer = EncodedBamWriter::new(Vec::new(), &header, false)?;
-        sorting.for_each_sorted(|encoded| write(&mut writer, encoded))?;
-        let (bam, _) = writer.finish()?;
-        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
-        return Ok(());
-    }
-
-    let out = BufWriter::new(std::fs::File::create(&output)?);
-    let mut writer = EncodedBamWriter::new(out, &header, create_index)?;
-    sorting.for_each_sorted(|encoded| write(&mut writer, encoded))?;
-    let (out, index) = writer.finish()?;
-    out.into_inner().map_err(|e| e.into_error())?;
-    if let Some(index) = index {
-        std::fs::write(index_path(&output), index)?;
-    }
-    Ok(())
+    Ok((header, sorting))
 }
 
 /// A BAM inflated block by block, answering as inflating it whole and then decoding did: a BGZF
