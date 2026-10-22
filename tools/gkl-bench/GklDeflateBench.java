@@ -21,9 +21,14 @@ public class GklDeflateBench {
     System.out.println("deflater " + deflater.getClass().getName());
     // The path Picard's writers take: htsjdk's BGZF stream, with GKL's factory as Picard installs it.
     File bgzf = new File(args[2]);
-    try (BlockCompressedOutputStream stream =
-        new BlockCompressedOutputStream(bgzf, 5, new IntelDeflaterFactory())) {
-      stream.write(data);
+    for (int rep = 0; rep <= reps; rep++) {
+      long start = System.nanoTime();
+      try (BlockCompressedOutputStream stream =
+          new BlockCompressedOutputStream(bgzf, 5, new IntelDeflaterFactory())) {
+        stream.write(data);
+      }
+      double seconds = (System.nanoTime() - start) / 1e9;
+      if (rep > 0) System.out.printf(Locale.ROOT, "htsjdk_bgzf_rate %.1f MB/s%n", data.length / 1e6 / seconds);
     }
     MessageDigest whole = MessageDigest.getInstance("SHA-256");
     StringBuilder wholeHex = new StringBuilder();

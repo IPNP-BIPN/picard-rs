@@ -7,10 +7,18 @@ fn main() {
     let data = std::fs::read(args.next().expect("payload")).expect("payload");
     let reps: usize = args.next().expect("reps").parse().expect("reps");
     // The port's BGZF writer with the GKL deflater, serial, as htsjdk's stream writes it.
-    let mut writer =
-        htsjdk_bgzf::BgzfWriter::with_deflater(Vec::new(), 5, htsjdk_bgzf::Deflater::Gkl).parallel(false);
-    std::io::Write::write_all(&mut writer, &data).expect("in memory");
-    let bgzf = writer.into_inner().expect("in memory");
+    let mut bgzf = Vec::new();
+    for rep in 0..=reps {
+        let start = Instant::now();
+        let mut writer = htsjdk_bgzf::BgzfWriter::with_deflater(Vec::new(), 5, htsjdk_bgzf::Deflater::Gkl)
+            .parallel(false);
+        std::io::Write::write_all(&mut writer, &data).expect("in memory");
+        bgzf = writer.into_inner().expect("in memory");
+        let seconds = start.elapsed().as_secs_f64();
+        if rep > 0 {
+            println!("port_bgzf_rate {:.1} MB/s", data.len() as f64 / 1e6 / seconds);
+        }
+    }
     let hex: String = Sha256::digest(&bgzf).iter().map(|b| format!("{b:02x}")).collect();
     println!("port_bgzf sha256 {hex}");
     for rep in 0..=reps {

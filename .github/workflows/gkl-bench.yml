@@ -39,7 +39,7 @@ jobs:
       - name: Same bytes
         run: |
           a=$(awk '/^gkl_c/{print $NF}' target/benchmark/gkl.txt | sort -u)
-          b=$(awk '/^port/{print $NF}' target/benchmark/port.txt | sort -u)
+          b=$(awk '/^port /{print $NF}' target/benchmark/port.txt | sort -u)
           echo "gkl $a"; echo "port $b"
           c=$(awk '/^htsjdk_bgzf/{print $NF}' target/benchmark/gkl.txt)
           d=$(awk '/^port_bgzf/{print $NF}' target/benchmark/port.txt)
