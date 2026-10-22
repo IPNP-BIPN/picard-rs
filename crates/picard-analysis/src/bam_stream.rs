@@ -26,6 +26,7 @@ use htsjdk_bgzf::BgzfError;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::num::NonZeroUsize;
+use std::sync::mpsc;
 
 const HEADER: usize = 18;
 const FOOTER: usize = 8;
@@ -217,48 +218,147 @@ pub enum Records {
     Decoded(std::vec::IntoIter<BamRecord>, Option<Validator>),
 }
 
-/// The single inflating pass over a BAM whose blocks were checked: the stream, until it ends,
-/// and what is needed to fall back on the whole-file read if it ends otherwise than that read.
+/// The inflated stream of a BAM file, as every pass over one reads it.
+type FileStream = RecordStream<MultithreadedInflater<Blocks<BufReader<File>>>>;
+
+/// What the decoding thread hands a [`Streaming`], in the stream's order.
+enum Piece {
+    /// The next records, each with whether it passes validation in silence.
+    Records(Vec<(BamRecord, bool)>),
+    /// The stream ended there, as the whole-file read would have (`true`) or otherwise.
+    End(bool),
+}
+
+/// How many decoded rounds the decoding thread may hold ahead of the tool reading them.
+const ROUNDS_AHEAD: usize = 1;
+
+/// The single inflating pass over a BAM whose blocks were checked: its records, decoded on every
+/// core a little ahead of the tool, and what is needed to fall back on the whole-file read if the
+/// stream ends otherwise than that read.
 pub struct Streaming {
-    stream: Option<RecordStream<MultithreadedInflater<Blocks<BufReader<File>>>>>,
+    pieces: Option<mpsc::Receiver<Piece>>,
+    current: std::vec::IntoIter<(BamRecord, bool)>,
     path: String,
     handed: usize,
 }
 
 impl Streaming {
-    /// The next record, or `Err(())` where the whole-file read would have answered otherwise.
-    fn next(&mut self) -> Result<Option<BamRecord>, ()> {
-        let Some(stream) = self.stream.as_mut() else {
-            return Ok(None);
-        };
-        match stream.record() {
-            Ok(Some(record)) => {
-                self.handed += 1;
-                Ok(Some(record))
-            }
-            Ok(None) if self.ended_clean() => Ok(None),
-            _ => Err(()),
+    fn new(stream: FileStream, validator: Validator, path: &str) -> Streaming {
+        let (send, pieces) = mpsc::sync_channel(ROUNDS_AHEAD * 4 * rayon::current_num_threads());
+        std::thread::spawn(move || decode_ahead(stream, validator, send));
+        Streaming {
+            pieces: Some(pieces),
+            current: Vec::new().into_iter(),
+            path: path.to_string(),
+            handed: 0,
         }
     }
 
-    /// Whether the stream ended as the whole-file read would have: every block clean, and as many
-    /// bytes inflated as the blocks declared.
-    fn ended_clean(&mut self) -> bool {
-        let Some(stream) = self.stream.take() else {
-            return true;
-        };
-        let mut inflater = stream.into_inner();
-        if io::copy(&mut inflater, &mut io::sink()).is_err() {
-            return false;
+    /// The next record and whether it passes validation in silence, or `Err(())` where the
+    /// whole-file read would have answered otherwise.
+    fn next(&mut self) -> Result<Option<(BamRecord, bool)>, ()> {
+        loop {
+            if let Some(record) = self.current.next() {
+                self.handed += 1;
+                return Ok(Some(record));
+            }
+            let Some(pieces) = &self.pieces else {
+                return Ok(None);
+            };
+            let piece = pieces.recv();
+            match piece {
+                Ok(Piece::Records(records)) => self.current = records.into_iter(),
+                Ok(Piece::End(clean)) => {
+                    self.pieces = None;
+                    return if clean { Ok(None) } else { Err(()) };
+                }
+                Err(_) => {
+                    self.pieces = None;
+                    return Err(());
+                }
+            }
         }
-        let inflated = inflater.count;
-        let Ok(mut blocks) = inflater.inner.finish() else {
-            return false;
-        };
-        io::copy(&mut blocks, &mut io::sink()).is_ok()
-            && !blocks.damaged
-            && blocks.declared == inflated
     }
+}
+
+/// Decodes `stream` for a [`Streaming`]: rounds of whole-record batches, each round decoded and
+/// asked [`Validator::passes`] on rayon's pool while the next is cut, every batch sent in order. A
+/// record that does not decode ends the pieces after the ones before it, as
+/// [`RecordStream::record`] would have stopped there; what the cut leaves at the tail is decoded
+/// record by record, as before.
+fn decode_ahead(mut stream: FileStream, validator: Validator, send: mpsc::SyncSender<Piece>) {
+    use rayon::prelude::*;
+    let count = 4 * rayon::current_num_threads();
+    let decode = |raw: &Vec<u8>| {
+        let mut records = Vec::new();
+        let mut at = 0;
+        while let Ok(Some((record, used))) = BamRecord::decode(&raw[at..]) {
+            let passes = validator.passes(&record);
+            records.push((record, passes));
+            at += used;
+        }
+        // A batch holds whole records only, so anything left did not decode.
+        (records, at == raw.len())
+    };
+    let mut round = stream.cut(count);
+    loop {
+        let Ok((batches, tail)) = round else {
+            let _ = send.send(Piece::End(false));
+            return;
+        };
+        let (decoded, next) = if tail {
+            (batches.par_iter().map(decode).collect::<Vec<_>>(), None)
+        } else {
+            let (decoded, next) = rayon::join(
+                || batches.par_iter().map(decode).collect::<Vec<_>>(),
+                || stream.cut(count),
+            );
+            (decoded, Some(next))
+        };
+        for (records, whole) in decoded {
+            if send.send(Piece::Records(records)).is_err() {
+                return;
+            }
+            if !whole {
+                let _ = send.send(Piece::End(false));
+                return;
+            }
+        }
+        match next {
+            Some(next) => round = next,
+            None => break,
+        }
+    }
+    loop {
+        match stream.record() {
+            Ok(Some(record)) => {
+                let passes = validator.passes(&record);
+                if send.send(Piece::Records(vec![(record, passes)])).is_err() {
+                    return;
+                }
+            }
+            Ok(None) => break,
+            Err(_) => {
+                let _ = send.send(Piece::End(false));
+                return;
+            }
+        }
+    }
+    let _ = send.send(Piece::End(ended_clean(stream)));
+}
+
+/// Whether a stream that has handed over its last record ended as the whole-file read would have:
+/// every block clean, and as many bytes inflated as the blocks declared.
+fn ended_clean(stream: FileStream) -> bool {
+    let mut inflater = stream.into_inner();
+    if io::copy(&mut inflater, &mut io::sink()).is_err() {
+        return false;
+    }
+    let inflated = inflater.count;
+    let Ok(mut blocks) = inflater.inner.finish() else {
+        return false;
+    };
+    io::copy(&mut blocks, &mut io::sink()).is_ok() && !blocks.damaged && blocks.declared == inflated
 }
 
 impl Iterator for Records {
@@ -273,10 +373,13 @@ impl Records {
     /// The next record, validated, or the error the whole-file read raised where the single pass
     /// met what that read answers otherwise; [`Iterator::next`] reports that error and exits.
     pub fn try_next(&mut self) -> Result<Option<BamRecord>, InputError> {
-        let record = match self {
-            Records::Decoded(records, _) => records.next(),
+        // A streamed record the decoding thread found valid is only counted: its checks would
+        // throw nothing and print nothing.
+        let (record, passed) = match self {
+            Records::Decoded(records, _) => (records.next(), false),
             Records::Stream(streaming, validator) => match streaming.next() {
-                Ok(record) => record,
+                Ok(Some((record, passed))) => (Some(record), passed),
+                Ok(None) => (None, false),
                 // The whole-file read answers: its error, or its records after the ones already
                 // handed over.
                 Err(()) => {
@@ -298,7 +401,9 @@ impl Records {
             Records::Stream(_, validator) | Records::Decoded(_, validator) => validator.as_mut(),
         };
         if let (Some(rec), Some(validator)) = (&record, validator) {
-            if let Err(message) = validator.check(rec) {
+            if passed {
+                validator.skip();
+            } else if let Err(message) = validator.check(rec) {
                 crate::metrics_cli::thrown(&message);
             }
         }
@@ -317,14 +422,11 @@ fn stream(path: &str) -> Result<Input, InputError> {
     };
     // Each pass validates, as each of Picard's readers does.
     let validator = Validator::new(&header, &stream.binary_sequences);
+    let ahead = Validator::new(&header, &stream.binary_sequences);
     Ok(Input {
         header,
         records: Records::Stream(
-            Box::new(Streaming {
-                stream: Some(stream),
-                path: path.to_string(),
-                handed: 0,
-            }),
+            Box::new(Streaming::new(stream, ahead, path)),
             Some(validator),
         ),
     })
@@ -333,7 +435,7 @@ fn stream(path: &str) -> Result<Input, InputError> {
 /// A clean BAM's records as batches of their bytes, cut at the lengths they declare, for a tool
 /// that decodes them on every core: the single pass [`Input::open`] streams, without decoding.
 pub struct Batches {
-    streaming: Streaming,
+    stream: Option<FileStream>,
     tail: bool,
     /// Whether every block passes htsjdk's checks, found on a thread of its own while the stream
     /// is read: nothing is answered from the batches before the end, so it need not come first.
@@ -349,13 +451,8 @@ pub fn batches(path: &str) -> Option<(SamHeader, Validator, Batches)> {
     let mut stream = RecordStream::new(inflater(Blocks::new(BufReader::new(file))));
     let header = stream.header().ok()?;
     let validator = Validator::new(&header, &stream.binary_sequences);
-    let streaming = Streaming {
-        stream: Some(stream),
-        path: path.to_string(),
-        handed: 0,
-    };
     let batches = Batches {
-        streaming,
+        stream: Some(stream),
         tail: false,
         structure,
     };
@@ -368,12 +465,13 @@ impl Batches {
     pub fn next_round(&mut self, count: usize) -> Option<Vec<Vec<u8>>> {
         if self.tail {
             let clean = self.structure.take().and_then(|s| s.join().ok().flatten());
-            return match self.streaming.next() {
-                Ok(None) if clean == Some(true) => Some(Vec::new()),
+            let mut stream = self.stream.take()?;
+            return match stream.record() {
+                Ok(None) if clean == Some(true) && ended_clean(stream) => Some(Vec::new()),
                 _ => None,
             };
         }
-        let stream = self.streaming.stream.as_mut()?;
+        let stream = self.stream.as_mut()?;
         let (batches, tail) = stream.cut(count.max(1)).ok()?;
         self.tail = tail;
         if batches.is_empty() {
