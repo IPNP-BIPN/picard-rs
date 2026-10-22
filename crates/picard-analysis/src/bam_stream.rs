@@ -330,6 +330,59 @@ fn stream(path: &str) -> Result<Input, InputError> {
     })
 }
 
+/// A clean BAM's records as batches of their bytes, cut at the lengths they declare, for a tool
+/// that decodes them on every core: the single pass [`Input::open`] streams, without decoding.
+pub struct Batches {
+    streaming: Streaming,
+    tail: bool,
+    /// Whether every block passes htsjdk's checks, found on a thread of its own while the stream
+    /// is read: nothing is answered from the batches before the end, so it need not come first.
+    structure: Option<std::thread::JoinHandle<Option<bool>>>,
+}
+
+/// The header, the checks [`Records`] would run on each record, and the record batches of the BAM
+/// at `path`; or `None` where its blocks or its header are what [`Input::open`] answers for.
+pub fn batches(path: &str) -> Option<(SamHeader, Validator, Batches)> {
+    let file = File::open(path).ok()?;
+    let checked = path.to_string();
+    let structure = Some(std::thread::spawn(move || structure_clean(&checked)));
+    let mut stream = RecordStream::new(inflater(Blocks::new(BufReader::new(file))));
+    let header = stream.header().ok()?;
+    let validator = Validator::new(&header, &stream.binary_sequences);
+    let streaming = Streaming {
+        stream: Some(stream),
+        path: path.to_string(),
+        handed: 0,
+    };
+    let batches = Batches {
+        streaming,
+        tail: false,
+        structure,
+    };
+    Some((header, validator, batches))
+}
+
+impl Batches {
+    /// The next batches, `count` at most, and none once the stream has ended as the whole-file
+    /// read would have. `None` where it ends otherwise, which [`Input::open`] answers for.
+    pub fn next_round(&mut self, count: usize) -> Option<Vec<Vec<u8>>> {
+        if self.tail {
+            let clean = self.structure.take().and_then(|s| s.join().ok().flatten());
+            return match self.streaming.next() {
+                Ok(None) if clean == Some(true) => Some(Vec::new()),
+                _ => None,
+            };
+        }
+        let stream = self.streaming.stream.as_mut()?;
+        let (batches, tail) = stream.cut(count.max(1)).ok()?;
+        self.tail = tail;
+        if batches.is_empty() {
+            return self.next_round(count);
+        }
+        Some(batches)
+    }
+}
+
 /// Whether every block of the BAM at `path` passes the checks htsjdk's reader makes, read without
 /// inflating anything; `None` when the file cannot be read.
 fn structure_clean(path: &str) -> Option<bool> {
@@ -659,6 +712,63 @@ impl<R: Read> RecordStream<R> {
         }
     }
 
+    /// Up to `count` batches of whole records, each about [`BATCH`] bytes, cut at the lengths
+    /// they declare; and whether the cut stopped at the stream's tail: its end, or a record whose
+    /// length runs past it or cannot be a length, which is left to [`Self::record`].
+    fn cut(&mut self, count: usize) -> Result<(Vec<Vec<u8>>, bool), Failure> {
+        let mut batches: Vec<Vec<u8>> = Vec::with_capacity(count);
+        let mut tail = false;
+        while batches.len() < count && !tail {
+            // What is held starts the batch, and the stream is read straight into it after that.
+            let mut batch = Vec::with_capacity(BATCH + CHUNK);
+            batch.extend_from_slice(&self.buf[self.start..]);
+            self.buf.clear();
+            self.start = 0;
+            // How many bytes of whole records the batch begins with.
+            let mut whole = 0;
+            loop {
+                while batch.len() - whole >= 4 {
+                    let length = i32::from_le_bytes(batch[whole..whole + 4].try_into().unwrap());
+                    if length < 0 {
+                        tail = true;
+                        break;
+                    }
+                    let total = 4 + length as usize;
+                    if batch.len() - whole < total {
+                        break;
+                    }
+                    whole += total;
+                }
+                if tail || whole >= BATCH {
+                    break;
+                }
+                if self.end_of_stream {
+                    tail = true;
+                    break;
+                }
+                let len = batch.len();
+                batch.resize(len + CHUNK, 0);
+                let got = loop {
+                    match self.inner.read(&mut batch[len..]) {
+                        Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                        other => break other,
+                    }
+                };
+                batch.truncate(len + *got.as_ref().unwrap_or(&0));
+                if got? == 0 {
+                    self.end_of_stream = true;
+                }
+            }
+            // The bytes past the whole records are held, for the next batch or for `record`.
+            self.buf.extend_from_slice(&batch[whole..]);
+            batch.truncate(whole);
+            if !batch.is_empty() {
+                batches.push(batch);
+            }
+        }
+        Ok((batches, tail))
+    }
+
     /// Decodes every remaining record and keeps none, answering with the first error
     /// [`Self::record`] would have met. The records are cut at the lengths they declare and
     /// decoded on every core, a batch at a time; a record whose length runs past the end of the
@@ -666,38 +776,7 @@ impl<R: Read> RecordStream<R> {
     pub fn check_records(&mut self) -> Result<(), Failure> {
         let threads = rayon::current_num_threads().max(1);
         loop {
-            let mut batches: Vec<Vec<u8>> = Vec::with_capacity(threads);
-            let mut tail = false;
-            'round: while batches.len() < threads {
-                let mut batch = Vec::with_capacity(BATCH + CHUNK);
-                while batch.len() < BATCH {
-                    self.fill(4)?;
-                    let held = &self.buf[self.start..];
-                    if held.len() < 4 {
-                        tail = true;
-                        break;
-                    }
-                    let length = i32::from_le_bytes(held[..4].try_into().unwrap());
-                    if length < 0 {
-                        tail = true;
-                        break;
-                    }
-                    let total = 4 + length as usize;
-                    self.fill(total)?;
-                    if self.buf.len() - self.start < total {
-                        tail = true;
-                        break;
-                    }
-                    batch.extend_from_slice(&self.buf[self.start..self.start + total]);
-                    self.start += total;
-                }
-                if !batch.is_empty() {
-                    batches.push(batch);
-                }
-                if tail {
-                    break 'round;
-                }
-            }
+            let (batches, tail) = self.cut(threads)?;
             use rayon::prelude::*;
             let first_error = batches
                 .par_iter()
