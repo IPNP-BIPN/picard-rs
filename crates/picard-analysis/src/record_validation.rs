@@ -166,6 +166,11 @@ impl Validator {
         Ok(())
     }
 
+    /// [`Self::check`] on a record [`Self::passes`] passed: it is counted, and nothing else.
+    pub fn skip(&mut self) {
+        self.record_number += 1;
+    }
+
     /// Whether [`Self::check`] passes `rec` in silence: nothing thrown and nothing printed.
     pub fn passes(&self, rec: &BamRecord) -> bool {
         if [rec.reference_index, rec.mate_reference_index]
