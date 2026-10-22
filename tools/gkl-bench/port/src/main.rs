@@ -6,6 +6,13 @@ fn main() {
     let mut args = std::env::args().skip(1);
     let data = std::fs::read(args.next().expect("payload")).expect("payload");
     let reps: usize = args.next().expect("reps").parse().expect("reps");
+    // The port's BGZF writer with the GKL deflater, serial, as htsjdk's stream writes it.
+    let mut writer =
+        htsjdk_bgzf::BgzfWriter::with_deflater(Vec::new(), 5, htsjdk_bgzf::Deflater::Gkl).parallel(false);
+    std::io::Write::write_all(&mut writer, &data).expect("in memory");
+    let bgzf = writer.into_inner().expect("in memory");
+    let hex: String = Sha256::digest(&bgzf).iter().map(|b| format!("{b:02x}")).collect();
+    println!("port_bgzf sha256 {hex}");
     for rep in 0..=reps {
         let mut digest = Sha256::new();
         let mut compressed = 0usize;

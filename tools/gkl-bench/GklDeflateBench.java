@@ -1,4 +1,6 @@
 import com.intel.gkl.compression.IntelDeflaterFactory;
+import htsjdk.samtools.util.BlockCompressedOutputStream;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
@@ -17,6 +19,16 @@ public class GklDeflateBench {
     int block = 65498;
     Deflater deflater = new IntelDeflaterFactory().makeDeflater(5, true);
     System.out.println("deflater " + deflater.getClass().getName());
+    // The path Picard's writers take: htsjdk's BGZF stream, with GKL's factory as Picard installs it.
+    File bgzf = new File(args[2]);
+    try (BlockCompressedOutputStream stream =
+        new BlockCompressedOutputStream(bgzf, 5, new IntelDeflaterFactory())) {
+      stream.write(data);
+    }
+    MessageDigest whole = MessageDigest.getInstance("SHA-256");
+    StringBuilder wholeHex = new StringBuilder();
+    for (byte b : whole.digest(Files.readAllBytes(bgzf.toPath()))) wholeHex.append(String.format("%02x", b));
+    System.out.println("htsjdk_bgzf sha256 " + wholeHex);
     byte[] out = new byte[block + 1024];
     for (int rep = 0; rep <= reps; rep++) {
       MessageDigest digest = MessageDigest.getInstance("SHA-256");

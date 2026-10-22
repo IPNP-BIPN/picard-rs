@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Host
-        run: grep -m1 'model name' /proc/cpuinfo; grep -m1 flags /proc/cpuinfo | grep -o -w -E 'sse4_2|avx2|avx512f|pclmulqdq' | sort -u | tr '\n' ' '; echo; nproc
+        run: lscpu | grep -E 'Model name|Vendor ID'; grep -m1 flags /proc/cpuinfo | grep -o -w -E 'sse4_2|avx2|avx512f|pclmulqdq' | sort -u | tr '\n' ' '; echo; nproc
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.97.1"
@@ -31,7 +31,7 @@ jobs:
           docker run --rm -v "$PWD/tools/gkl-bench":/harness:ro -v "$PWD/target/benchmark":/out \
             -w /work picard-rs-oracle:3.5.0 \
             'cp /harness/GklDeflateBench.java . && javac -cp $PICARD_JAR -d . GklDeflateBench.java \
-             && java -cp .:$PICARD_JAR GklDeflateBench /out/raw.bin 3' | tee target/benchmark/gkl.txt
+             && java -cp .:$PICARD_JAR GklDeflateBench /out/raw.bin 3 /out/htsjdk.bgzf' | tee target/benchmark/gkl.txt
       - name: The port, on the runner
         run: |
           cargo build --release --manifest-path tools/gkl-bench/port/Cargo.toml 2>&1 | tail -1
@@ -41,4 +41,9 @@ jobs:
           a=$(awk '/^gkl_c/{print $NF}' target/benchmark/gkl.txt | sort -u)
           b=$(awk '/^port/{print $NF}' target/benchmark/port.txt | sort -u)
           echo "gkl $a"; echo "port $b"
-          test -n "$a" && test "$a" = "$b"
+          c=$(awk '/^htsjdk_bgzf/{print $NF}' target/benchmark/gkl.txt)
+          d=$(awk '/^port_bgzf/{print $NF}' target/benchmark/port.txt)
+          echo "htsjdk BGZF stream $c"; echo "port BGZF stream   $d"
+          [ -n "$a" ] && [ "$a" = "$b" ] && echo "the raw blocks are the same bytes" || echo "the raw blocks differ"
+          [ -n "$c" ] && [ "$c" = "$d" ] && echo "the BGZF streams are the same bytes" || echo "the BGZF streams differ"
+          [ -n "$c" ] && [ "$c" = "$d" ]

@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 gkl-deflate = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "2116a3326fc8f5b2000c0a54e5a818a30a02fd64", default-features = false }
+htsjdk-bgzf = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "2116a3326fc8f5b2000c0a54e5a818a30a02fd64" }
 sha2 = "0.11"
 
 [profile.release]
