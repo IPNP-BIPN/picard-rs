@@ -1,0 +1,14 @@
+[package]
+name = "gkl-port-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+gkl-deflate = { git = "https://github.com/IPNP-BIPN/htsjdk-rs", rev = "2116a3326fc8f5b2000c0a54e5a818a30a02fd64", default-features = false }
+sha2 = "0.11"
+
+[profile.release]
+codegen-units = 1
