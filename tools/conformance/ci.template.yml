@@ -334,7 +334,7 @@ jobs:
           ls -la target/benchmark/bench.bam
 
       - name: Build the port
-        run: cargo build --release --bin CollectAlignmentSummaryMetrics --bin AddOATag
+        run: cargo build --release --bin CollectAlignmentSummaryMetrics --bin AddOATag --bin SortSam
 
       - name: Time both, on the same hardware, neither emulated
         # The runner is real x86-64, so this is the authoritative figure; the numbers in
@@ -420,4 +420,46 @@ jobs:
                       break
               print(f"lines: picard={len(pl)} rust={len(rl)}")
               sys.exit(1)
+          PY
+
+      - name: "Sort: time SortSam on a name-grouped BAM, single thread vs all cores vs Picard"
+        # An aligner hands over reads grouped by name, so the input is the benchmark BAM in
+        # Picard's queryname order, made outside the timing. Sorting it by coordinate reads,
+        # validates, sorts, spills (MAX_RECORDS_IN_RAM's default of 500,000 makes three runs) and
+        # deflates every record; rust_1t pins RAYON_NUM_THREADS=1, rust_nt leaves rayon on every
+        # core of the runner (decision 0014).
+        run: |
+          cp target/release/SortSam target/benchmark/
+          cat > target/benchmark/sortbench.sh <<'INNER'
+          cd /out
+          TIMEFORMAT='%3R'
+          java -jar $PICARD_JAR SortSam I=bench.bam O=/out/queryname.bam SORT_ORDER=queryname >/dev/null 2>&1
+          echo "cores $(nproc)"
+          echo "picard_sortsam_s"
+          for i in 1 2 3; do { time java -jar $PICARD_JAR SortSam I=queryname.bam O=/out/picard_sorted.bam SORT_ORDER=coordinate >/dev/null 2>&1 ; } 2>&1; done
+          echo "rust_sortsam_1t_s"
+          for i in 1 2 3; do { time env RAYON_NUM_THREADS=1 /out/SortSam I=queryname.bam O=/out/rust_sorted_1t.bam SORT_ORDER=coordinate >/dev/null 2>&1 ; } 2>&1; done
+          echo "rust_sortsam_nt_s"
+          for i in 1 2 3; do { time /out/SortSam I=queryname.bam O=/out/rust_sorted.bam SORT_ORDER=coordinate >/dev/null 2>&1 ; } 2>&1; done
+          INNER
+          docker run --rm -v "$PWD/target/benchmark":/out -w /out picard-rs-oracle:3.5.0 'bash /out/sortbench.sh'
+
+      - name: The SortSam output is byte-identical to Picard, on one core and on all of them
+        # SortSam adds no @PG and no timestamp, so the whole BAM is compared raw: the BGZF framing,
+        # the deflated bytes and the order of the records equal under the comparator.
+        run: |
+          python3 - <<'PY'
+          import sys
+          picard = open('target/benchmark/picard_sorted.bam', 'rb').read()
+          ok = True
+          for name in ('rust_sorted_1t.bam', 'rust_sorted.bam'):
+              rust = open(f'target/benchmark/{name}', 'rb').read()
+              same = picard == rust
+              print(f"SortSam {name} byte-identical over 2,000,000 reads:", same)
+              if not same:
+                  ok = False
+                  at = next((i for i, (a, b) in enumerate(zip(picard, rust)) if a != b),
+                            min(len(picard), len(rust)))
+                  print(f"  first difference at byte {at}; sizes picard={len(picard)} rust={len(rust)}")
+          sys.exit(0 if ok else 1)
           PY
