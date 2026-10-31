@@ -24,7 +24,7 @@
 //! `FastWgsMetricsCollector`, `CounterManager`, `WgsMetricsProcessorImpl` and the `Counting*Filter`s.
 
 use std::cell::Cell;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::ops::Index;
 
 use htsjdk_bam::alignment_block::alignment_blocks;
@@ -915,7 +915,7 @@ struct Collector<'a> {
     // fast-only state
     previous_sequence: i32,
     counters: CounterManager,
-    read_names: Option<HashMap<String, Vec<Entry>>>,
+    read_names: Option<foldhash::HashMap<String, Vec<Entry>>>,
 }
 
 impl<'a> Collector<'a> {
@@ -960,7 +960,9 @@ impl<'a> Collector<'a> {
             }
         }
         let cap = self.options.coverage_cap;
-        let mut names: HashSet<&str> = HashSet::with_capacity(locus.entries.len());
+        // Looked up at every base of every read, so the fast hash; never iterated.
+        let mut names: foldhash::HashSet<&str> =
+            HashSet::with_capacity_and_hasher(locus.entries.len(), Default::default());
         let mut pileup = 0i32;
         let mut unfiltered = 0i32;
         for entry in &locus.entries {
@@ -1003,7 +1005,7 @@ impl<'a> Collector<'a> {
         records: &Window,
     ) -> Result<(), Thrown> {
         if self.read_names.is_none() {
-            self.read_names = Some(HashMap::new());
+            self.read_names = Some(foldhash::HashMap::default());
         }
         if self.previous_sequence != locus.sequence {
             let names = self.read_names.as_mut().expect("set");

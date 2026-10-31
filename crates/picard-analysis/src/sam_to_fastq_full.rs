@@ -624,8 +624,8 @@ fn run_into(
 
     // The paired reads still waiting for their mate, the only records held, encoded unless the
     // record cannot be.
-    let mut first_seen: std::collections::HashMap<String, Result<Box<[u8]>, BamRecord>> =
-        std::collections::HashMap::new();
+    let mut first_seen: foldhash::HashMap<String, Result<Box<[u8]>, BamRecord>> =
+        foldhash::HashMap::default();
     for rec in records {
         if rec.flags & (SECONDARY_ALIGNMENT | SUPPLEMENTARY_ALIGNMENT) != 0
             && !opts.include_non_primary_alignments
