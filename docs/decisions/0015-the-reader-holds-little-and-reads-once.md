@@ -36,7 +36,8 @@ previous build, tool by tool.
 * **SortSam's merge reuses each run's record buffer**, and a run spends 5 bytes per record on what
   it adds rather than 13. An in-place sift replaces the pop and push under the coordinate order only:
   the queryname comparator is not transitive (decision 0014), so the walk of the heap can change its
-  answer.
+  answer. A run also leaves out the part of each read name the record before it has, which is 12% of
+  the temporary disk on Illumina names and 4% on `read123`, for a compare and a copy per record.
 * **CollectAlignmentSummaryMetrics counts its small ids in tables** added to the tree histograms at
   the end, where a bin's value is the same sum of ones. **CollectQualityYieldMetrics** no longer
   allocates per read. The read-name maps of CollectWgsMetrics' slow collector, SamToFastq and
