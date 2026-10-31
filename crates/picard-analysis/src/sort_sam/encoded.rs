@@ -7,6 +7,7 @@
 //! output. The other tools that sort keep that collection, with its comparators on decoded records.
 
 use std::cmp::Ordering;
+use std::collections::binary_heap::PeekMut;
 use std::collections::BinaryHeap;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
@@ -331,11 +332,9 @@ impl SortingCollection {
         if self.runs.len() + 1 == MAX_OPEN_RUNS {
             self.wait_for_run()?;
             let runs = std::mem::take(&mut self.runs).into_iter().map(Run::file);
-            let mut merged = Merge::new(self.compare, runs.collect())?;
+            let mut merged = Merge::new(self.compare, self.parallel, runs.collect())?;
             let mut run = RunWriter::create(&self.tmp_dir)?;
-            while let Some(record) = merged.next_owned() {
-                run.push(record?.view())?;
-            }
+            merged.for_each(|record| run.push(record))?;
             self.runs.push(run.finish()?);
         }
         Ok(())
@@ -373,11 +372,7 @@ impl SortingCollection {
                 entries: self.entries.into_iter(),
             });
         }
-        let mut merge = Merge::new(self.compare, runs)?;
-        while let Some(head) = merge.next_owned() {
-            emit(head?.view())?;
-        }
-        Ok(())
+        Merge::new(self.compare, self.parallel, runs)?.for_each(emit)
     }
 }
 
@@ -406,7 +401,8 @@ fn view<'a>(arenas: &'a [Vec<u8>], entry: &Entry) -> Encoded<'a> {
 const RUN_BUFFER: usize = 1 << 20;
 
 /// A fresh file in `dir`, unlinked at once so nothing is left behind, that records are written to
-/// each as its `HI` (a presence byte and eight bytes), its end, and its bytes.
+/// each as whether it has an `HI`, its end, the `HI` if it has one, and its bytes. Records are not
+/// compressed: LZ4 took a third off a run for 7% more CPU over a whole sort.
 struct RunWriter {
     out: BufWriter<File>,
 }
@@ -435,8 +431,10 @@ impl RunWriter {
 
     fn push(&mut self, record: Encoded) -> io::Result<()> {
         self.out.write_all(&[record.hit.is_some() as u8])?;
-        self.out.write_all(&record.hit.unwrap_or(0).to_le_bytes())?;
         self.out.write_all(&record.end.to_le_bytes())?;
+        if let Some(hit) = record.hit {
+            self.out.write_all(&hit.to_le_bytes())?;
+        }
         self.out.write_all(record.bytes)
     }
 
@@ -449,6 +447,7 @@ impl RunWriter {
 }
 
 /// A record read back from a run.
+#[derive(Default)]
 struct Owned {
     bytes: Vec<u8>,
     hit: Option<i64>,
@@ -480,37 +479,42 @@ impl Run {
         Run::File(BufReader::with_capacity(RUN_BUFFER, file))
     }
 
-    fn next(&mut self) -> Option<io::Result<Owned>> {
+    /// Reads the next record over `record`; `false` when the run has ended.
+    fn next_into(&mut self, record: &mut Owned) -> io::Result<bool> {
         let reader = match self {
             Run::File(reader) => reader,
             Run::Ram { arenas, entries } => {
-                return entries.next().map(|entry| {
-                    Ok(Owned {
-                        bytes: view(arenas, &entry).bytes.to_vec(),
-                        hit: entry.hit,
-                        end: entry.end,
-                    })
-                })
+                let Some(entry) = entries.next() else {
+                    return Ok(false);
+                };
+                record.bytes.clear();
+                record.bytes.extend_from_slice(view(arenas, &entry).bytes);
+                record.hit = entry.hit;
+                record.end = entry.end;
+                return Ok(true);
             }
         };
-        match reader.fill_buf() {
-            Ok([]) => return None,
-            Ok(_) => {}
-            Err(e) => return Some(Err(e)),
+        if reader.fill_buf()?.is_empty() {
+            return Ok(false);
         }
-        let read = (|| {
-            let mut fixed = [0u8; 17];
-            reader.read_exact(&mut fixed)?;
-            let hit = (fixed[0] != 0).then(|| i64::from_le_bytes(fixed[1..9].try_into().unwrap()));
-            let end = i32::from_le_bytes(fixed[9..13].try_into().unwrap());
-            let size = i32::from_le_bytes(fixed[13..17].try_into().unwrap()) as usize;
-            let mut bytes = Vec::with_capacity(4 + size);
-            bytes.extend_from_slice(&fixed[13..17]);
-            bytes.resize(4 + size, 0);
-            reader.read_exact(&mut bytes[4..])?;
-            Ok(Owned { bytes, hit, end })
-        })();
-        Some(read)
+        let mut fixed = [0u8; 5];
+        reader.read_exact(&mut fixed)?;
+        record.end = i32::from_le_bytes(fixed[1..5].try_into().unwrap());
+        record.hit = if fixed[0] != 0 {
+            let mut hit = [0u8; 8];
+            reader.read_exact(&mut hit)?;
+            Some(i64::from_le_bytes(hit))
+        } else {
+            None
+        };
+        let mut length = [0u8; 4];
+        reader.read_exact(&mut length)?;
+        let size = i32::from_le_bytes(length) as usize;
+        record.bytes.clear();
+        record.bytes.extend_from_slice(&length);
+        record.bytes.resize(4 + size, 0);
+        reader.read_exact(&mut record.bytes[4..])?;
+        Ok(true)
     }
 }
 
@@ -545,14 +549,16 @@ impl Eq for Head {}
 /// A k-way merge of sorted runs.
 struct Merge {
     compare: Compare,
+    total_preorder: bool,
     runs: Vec<Run>,
     heap: BinaryHeap<Head>,
 }
 
 impl Merge {
-    fn new(compare: Compare, runs: Vec<Run>) -> io::Result<Merge> {
+    fn new(compare: Compare, total_preorder: bool, runs: Vec<Run>) -> io::Result<Merge> {
         let mut merge = Merge {
             compare,
+            total_preorder,
             runs,
             heap: BinaryHeap::new(),
         };
@@ -563,9 +569,10 @@ impl Merge {
     }
 
     fn refill(&mut self, run: usize) -> io::Result<()> {
-        if let Some(record) = self.runs[run].next() {
+        let mut record = Owned::default();
+        if self.runs[run].next_into(&mut record)? {
             self.heap.push(Head {
-                record: record?,
+                record,
                 run,
                 compare: self.compare,
             });
@@ -573,9 +580,31 @@ impl Merge {
         Ok(())
     }
 
-    fn next_owned(&mut self) -> Option<io::Result<Owned>> {
-        let head = self.heap.pop()?;
-        Some(self.refill(head.run).map(|()| head.record))
+    /// Hands `emit` every record in order, reading each run's next record over the buffer of the
+    /// one it replaces.
+    fn for_each<E: From<io::Error>>(
+        &mut self,
+        mut emit: impl FnMut(Encoded) -> Result<(), E>,
+    ) -> Result<(), E> {
+        if self.total_preorder {
+            // Sifted down once, half the comparisons of a pop and a push. Only a total preorder
+            // gives the same order whichever way the heap is walked.
+            while let Some(mut head) = self.heap.peek_mut() {
+                emit(head.record.view())?;
+                let run = head.run;
+                if !self.runs[run].next_into(&mut head.record)? {
+                    PeekMut::pop(head);
+                }
+            }
+        } else {
+            while let Some(mut head) = self.heap.pop() {
+                emit(head.record.view())?;
+                if self.runs[head.run].next_into(&mut head.record)? {
+                    self.heap.push(head);
+                }
+            }
+        }
+        Ok(())
     }
 }
 

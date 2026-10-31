@@ -26,7 +26,9 @@ use htsjdk_bgzf::BgzfError;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::num::NonZeroUsize;
-use std::sync::mpsc;
+use std::os::unix::fs::FileExt;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{mpsc, Arc, Mutex, OnceLock};
 
 const HEADER: usize = 18;
 const FOOTER: usize = 8;
@@ -221,34 +223,51 @@ pub enum Records {
 /// The inflated stream of a BAM file, as every pass over one reads it.
 type FileStream = RecordStream<MultithreadedInflater<Blocks<BufReader<File>>>>;
 
-/// What the decoding thread hands a [`Streaming`], in the stream's order.
+/// A batch's records, each with whether it passes validation in silence, and whether the batch
+/// decoded whole.
+type Decoded = (Vec<(BamRecord, bool)>, bool);
+
+/// What the cutting thread hands a [`Streaming`], in the stream's order.
 enum Piece {
+    /// A batch a decoding thread is working on, or has finished.
+    Batch(mpsc::Receiver<Decoded>),
     /// The next records, each with whether it passes validation in silence.
     Records(Vec<(BamRecord, bool)>),
     /// The stream ended there, as the whole-file read would have (`true`) or otherwise.
     End(bool),
 }
 
-/// How many decoded rounds the decoding thread may hold ahead of the tool reading them.
-const ROUNDS_AHEAD: usize = 1;
+/// How many batches may be cut ahead of the tool reading them, and how many inflated bytes each
+/// holds. Not a multiple of the cores: the tool takes the records on one thread, so more only holds
+/// more. See decision 0015 for the measurements behind both.
+const BATCHES_AHEAD: usize = 4;
+const STREAMED_BATCH: usize = 1 << 20;
+
+/// The threads that decode those batches at most. Their own and not rayon's: a batch a tool waits
+/// for at the pace of its own work has them asleep on a channel, where rayon's idle workers spin
+/// through their yields before each sleep, a few percent of the whole run's CPU time at this rate.
+const DECODING_THREADS: usize = 3;
 
 /// The single inflating pass over a BAM whose blocks were checked: its records, decoded on every
 /// core a little ahead of the tool, and what is needed to fall back on the whole-file read if the
 /// stream ends otherwise than that read.
 pub struct Streaming {
+    unstarted: Option<(FileStream, Validator)>,
     pieces: Option<mpsc::Receiver<Piece>>,
     current: std::vec::IntoIter<(BamRecord, bool)>,
+    /// Whether the batch `current` holds decoded whole; if not, the stream ends after it.
+    whole: bool,
     path: String,
     handed: usize,
 }
 
 impl Streaming {
     fn new(stream: FileStream, validator: Validator, path: &str) -> Streaming {
-        let (send, pieces) = mpsc::sync_channel(ROUNDS_AHEAD * 4 * rayon::current_num_threads());
-        std::thread::spawn(move || decode_ahead(stream, validator, send));
         Streaming {
-            pieces: Some(pieces),
+            unstarted: Some((stream, validator)),
+            pieces: None,
             current: Vec::new().into_iter(),
+            whole: true,
             path: path.to_string(),
             handed: 0,
         }
@@ -257,16 +276,34 @@ impl Streaming {
     /// The next record and whether it passes validation in silence, or `Err(())` where the
     /// whole-file read would have answered otherwise.
     fn next(&mut self) -> Result<Option<(BamRecord, bool)>, ()> {
+        // Started at the first record: a tool that opens an input for its header and opens it again
+        // to read it would otherwise inflate and decode the first batches for nothing.
+        if let Some((stream, validator)) = self.unstarted.take() {
+            let (send, pieces) = mpsc::sync_channel(BATCHES_AHEAD);
+            std::thread::spawn(move || decode_ahead(stream, validator, send));
+            self.pieces = Some(pieces);
+        }
         loop {
             if let Some(record) = self.current.next() {
                 self.handed += 1;
                 return Ok(Some(record));
+            }
+            if !self.whole {
+                self.pieces = None;
+                return Err(());
             }
             let Some(pieces) = &self.pieces else {
                 return Ok(None);
             };
             let piece = pieces.recv();
             match piece {
+                Ok(Piece::Batch(batch)) => match batch.recv() {
+                    Ok((records, whole)) => {
+                        self.current = records.into_iter();
+                        self.whole = whole;
+                    }
+                    Err(_) => self.whole = false,
+                },
                 Ok(Piece::Records(records)) => self.current = records.into_iter(),
                 Ok(Piece::End(clean)) => {
                     self.pieces = None;
@@ -281,52 +318,72 @@ impl Streaming {
     }
 }
 
-/// Decodes `stream` for a [`Streaming`]: rounds of whole-record batches, each round decoded and
-/// asked [`Validator::passes`] on rayon's pool while the next is cut, every batch sent in order. A
-/// record that does not decode ends the pieces after the ones before it, as
-/// [`RecordStream::record`] would have stopped there; what the cut leaves at the tail is decoded
-/// record by record, as before.
-fn decode_ahead(mut stream: FileStream, validator: Validator, send: mpsc::SyncSender<Piece>) {
-    use rayon::prelude::*;
-    let count = 4 * rayon::current_num_threads();
-    let decode = |raw: &Vec<u8>| {
-        let mut records = Vec::new();
-        let mut at = 0;
-        while let Ok(Some((record, used))) = BamRecord::decode(&raw[at..]) {
-            let passes = validator.passes(&record);
-            records.push((record, passes));
-            at += used;
+/// A batch for a decoding thread: its bytes, the checks to ask of each record, and where to answer.
+type DecodeJob = (Vec<u8>, Arc<Validator>, mpsc::SyncSender<Decoded>);
+
+/// Where to send a batch to be decoded. The threads are the process's and not an input's: a tool
+/// that reads several inputs otherwise holds more threads than cores, and pays in context switches.
+fn decoders() -> &'static mpsc::Sender<DecodeJob> {
+    static DECODERS: OnceLock<mpsc::Sender<DecodeJob>> = OnceLock::new();
+    DECODERS.get_or_init(|| {
+        let (jobs, queue) = mpsc::channel::<DecodeJob>();
+        let queue = Arc::new(Mutex::new(queue));
+        for _ in 0..DECODING_THREADS.min(rayon::current_num_threads()) {
+            let queue = queue.clone();
+            std::thread::spawn(move || loop {
+                // The lock is held for the wait: the others wait for it instead, just as asleep.
+                let job = queue.lock().ok().and_then(|queue| queue.recv().ok());
+                let Some((raw, validator, answer)) = job else {
+                    return;
+                };
+                // The batch is cut at the lengths its records declare, so it can say how many it
+                // holds.
+                let mut records = Vec::with_capacity(records_in(&raw));
+                let mut at = 0;
+                while let Ok(Some((record, used))) = BamRecord::decode(&raw[at..]) {
+                    let passes = validator.passes(&record);
+                    records.push((record, passes));
+                    at += used;
+                }
+                // A batch holds whole records only, so anything left did not decode.
+                let _ = answer.send((records, at == raw.len()));
+            });
         }
-        // A batch holds whole records only, so anything left did not decode.
-        (records, at == raw.len())
-    };
-    let mut round = stream.cut(count);
+        jobs
+    })
+}
+
+/// Cuts `stream` for a [`Streaming`] into batches of whole records, and sends each in order as the
+/// channel a decoding thread will answer on, the thread deciding [`Validator::passes`] as well. A
+/// record that does not decode ends the pieces after the ones before it, as [`RecordStream::record`]
+/// would have stopped there; what the cut leaves at the tail is decoded record by record, as before.
+fn decode_ahead(mut stream: FileStream, validator: Validator, send: mpsc::SyncSender<Piece>) {
+    let validator = Arc::new(validator);
+    // Each input read at once makes the batches bigger: the threads wake as often as for one input.
+    static READING: AtomicUsize = AtomicUsize::new(0);
+    struct Reading;
+    impl Drop for Reading {
+        fn drop(&mut self) {
+            READING.fetch_sub(1, Ordering::Relaxed);
+        }
+    }
+    READING.fetch_add(1, Ordering::Relaxed);
+    let _reading = Reading;
     loop {
-        let Ok((batches, tail)) = round else {
+        let Ok((batches, tail)) = stream.cut(1, STREAMED_BATCH * READING.load(Ordering::Relaxed))
+        else {
             let _ = send.send(Piece::End(false));
             return;
         };
-        let (decoded, next) = if tail {
-            (batches.par_iter().map(decode).collect::<Vec<_>>(), None)
-        } else {
-            let (decoded, next) = rayon::join(
-                || batches.par_iter().map(decode).collect::<Vec<_>>(),
-                || stream.cut(count),
-            );
-            (decoded, Some(next))
-        };
-        for (records, whole) in decoded {
-            if send.send(Piece::Records(records)).is_err() {
-                return;
-            }
-            if !whole {
-                let _ = send.send(Piece::End(false));
+        for raw in batches {
+            let (answer, batch) = mpsc::sync_channel(1);
+            let job = (raw, validator.clone(), answer);
+            if decoders().send(job).is_err() || send.send(Piece::Batch(batch)).is_err() {
                 return;
             }
         }
-        match next {
-            Some(next) => round = next,
-            None => break,
+        if tail {
+            break;
         }
     }
     loop {
@@ -345,6 +402,16 @@ fn decode_ahead(mut stream: FileStream, validator: Validator, send: mpsc::SyncSe
         }
     }
     let _ = send.send(Piece::End(ended_clean(stream)));
+}
+
+/// How many records the lengths at the head of each in `batch` declare.
+fn records_in(batch: &[u8]) -> usize {
+    let (mut at, mut count) = (0, 0);
+    while let Some(length) = batch.get(at..at + 4) {
+        at += 4 + i32::from_le_bytes(length.try_into().unwrap()).max(0) as usize;
+        count += 1;
+    }
+    count
 }
 
 /// Whether a stream that has handed over its last record ended as the whole-file read would have:
@@ -448,7 +515,11 @@ pub fn batches(path: &str) -> Option<(SamHeader, Validator, Batches)> {
     let file = File::open(path).ok()?;
     let checked = path.to_string();
     let structure = Some(std::thread::spawn(move || structure_clean(&checked)));
-    let mut stream = RecordStream::new(inflater(Blocks::new(BufReader::new(file))));
+    // The batches go to every core, so the stream they are cut from is what limits the read.
+    let mut stream = RecordStream::new(inflater_of(
+        inflate_workers(),
+        Blocks::new(BufReader::new(file)),
+    ));
     let header = stream.header().ok()?;
     let validator = Validator::new(&header, &stream.binary_sequences);
     let batches = Batches {
@@ -472,7 +543,7 @@ impl Batches {
             };
         }
         let stream = self.stream.as_mut()?;
-        let (batches, tail) = stream.cut(count.max(1)).ok()?;
+        let (batches, tail) = stream.cut(count.max(1), BATCH).ok()?;
         self.tail = tail;
         if batches.is_empty() {
             return self.next_round(count);
@@ -484,9 +555,46 @@ impl Batches {
 /// Whether every block of the BAM at `path` passes the checks htsjdk's reader makes, read without
 /// inflating anything; `None` when the file cannot be read.
 fn structure_clean(path: &str) -> Option<bool> {
-    let mut blocks = Blocks::new(BufReader::new(File::open(path).ok()?));
-    io::copy(&mut blocks, &mut io::sink()).ok()?;
-    Some(!blocks.damaged)
+    let file = File::open(path).ok()?;
+    let metadata = file.metadata().ok()?;
+    if !metadata.is_file() {
+        // A pipe has no positions to skip to.
+        let mut blocks = Blocks::new(BufReader::new(file));
+        io::copy(&mut blocks, &mut io::sink()).ok()?;
+        return Some(!blocks.damaged);
+    }
+    // Those checks read the block headers only, so the blocks' bodies stay on the disk, to be read
+    // once, by the pass that inflates them.
+    let length = metadata.len();
+    let mut at = 0;
+    let mut head = [0u8; HEADER];
+    while at < length {
+        if length - at < HEADER as u64 {
+            return Some(false);
+        }
+        file.read_exact_at(&mut head, at).ok()?;
+        let Some(block_length) = block_length(&head) else {
+            return Some(false);
+        };
+        if length - at < block_length as u64 {
+            return Some(false);
+        }
+        at += block_length as u64;
+    }
+    Some(true)
+}
+
+/// The length a BGZF block's header declares, when it passes the checks
+/// `BgzfReader::next_block` makes, and no others.
+fn block_length(h: &[u8]) -> Option<usize> {
+    let block_length = u16::from_le_bytes([h[16], h[17]]) as usize + 1;
+    (h[0] == 0x1f
+        && h[1] == 0x8b
+        && h[2] == 8
+        && h[3] == 4
+        && u16::from_le_bytes([h[10], h[11]]) == 6
+        && (HEADER + FOOTER..=MAX_BLOCK).contains(&block_length))
+    .then_some(block_length)
 }
 
 /// The whole-file read, for a BAM the first pass could not vouch for.
@@ -562,19 +670,10 @@ impl<R: Read> Blocks<R> {
             self.damaged = true;
             return Ok(false);
         }
-        let h = &self.block[..];
-        // The checks `BgzfReader::next_block` makes, and no others.
-        let block_length = u16::from_le_bytes([h[16], h[17]]) as usize + 1;
-        if h[0] != 0x1f
-            || h[1] != 0x8b
-            || h[2] != 8
-            || h[3] != 4
-            || u16::from_le_bytes([h[10], h[11]]) != 6
-            || !(HEADER + FOOTER..=MAX_BLOCK).contains(&block_length)
-        {
+        let Some(block_length) = block_length(&self.block) else {
             self.damaged = true;
             return Ok(false);
-        }
+        };
         let rest = block_length - HEADER;
         if read_up_to(&mut self.inner, &mut self.block, rest)? < rest {
             self.damaged = true;
@@ -687,8 +786,15 @@ pub fn budget_threads() {
         .build_global();
 }
 
+/// How many workers inflate an input a tool takes record by record: a quarter of the cores. That
+/// keeps up with the tool, and the idle workers of a larger crew cost context switches, more so with
+/// several inputs. See decision 0015.
 fn inflater<R: Read + Send + 'static>(inner: R) -> MultithreadedInflater<R> {
-    let workers = NonZeroUsize::new(inflate_workers()).unwrap_or(NonZeroUsize::MIN);
+    inflater_of((cores() / 4).max(1), inner)
+}
+
+fn inflater_of<R: Read + Send + 'static>(workers: usize, inner: R) -> MultithreadedInflater<R> {
+    let workers = NonZeroUsize::new(workers).unwrap_or(NonZeroUsize::MIN);
     MultithreadedInflater {
         inner: noodles_bgzf::io::MultithreadedReader::with_worker_count(workers, inner),
         count: 0,
@@ -810,53 +916,58 @@ impl<R: Read> RecordStream<R> {
         }
     }
 
-    /// Up to `count` batches of whole records, each about [`BATCH`] bytes, cut at the lengths
+    /// Up to `count` batches of whole records, each about `size` bytes, cut at the lengths
     /// they declare; and whether the cut stopped at the stream's tail: its end, or a record whose
     /// length runs past it or cannot be a length, which is left to [`Self::record`].
-    fn cut(&mut self, count: usize) -> Result<(Vec<Vec<u8>>, bool), Failure> {
+    fn cut(&mut self, count: usize, size: usize) -> Result<(Vec<Vec<u8>>, bool), Failure> {
         let mut batches: Vec<Vec<u8>> = Vec::with_capacity(count);
         let mut tail = false;
         while batches.len() < count && !tail {
             // What is held starts the batch, and the stream is read straight into it after that.
-            let mut batch = Vec::with_capacity(BATCH + CHUNK);
+            let mut batch = Vec::with_capacity(size + CHUNK);
             batch.extend_from_slice(&self.buf[self.start..]);
             self.buf.clear();
             self.start = 0;
             // How many bytes of whole records the batch begins with.
             let mut whole = 0;
+            // How many bytes it holds; past them it is zeroed room to read into, which a read that
+            // takes a block at a time would otherwise zero again for every block.
+            let mut held = batch.len();
             loop {
-                while batch.len() - whole >= 4 {
+                while held - whole >= 4 {
                     let length = i32::from_le_bytes(batch[whole..whole + 4].try_into().unwrap());
                     if length < 0 {
                         tail = true;
                         break;
                     }
                     let total = 4 + length as usize;
-                    if batch.len() - whole < total {
+                    if held - whole < total {
                         break;
                     }
                     whole += total;
                 }
-                if tail || whole >= BATCH {
+                if tail || whole >= size {
                     break;
                 }
                 if self.end_of_stream {
                     tail = true;
                     break;
                 }
-                let len = batch.len();
-                batch.resize(len + CHUNK, 0);
+                if held == batch.len() {
+                    batch.resize(held + CHUNK, 0);
+                }
                 let got = loop {
-                    match self.inner.read(&mut batch[len..]) {
+                    match self.inner.read(&mut batch[held..]) {
                         Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
                         other => break other,
                     }
                 };
-                batch.truncate(len + *got.as_ref().unwrap_or(&0));
+                held += *got.as_ref().unwrap_or(&0);
                 if got? == 0 {
                     self.end_of_stream = true;
                 }
             }
+            batch.truncate(held);
             // The bytes past the whole records are held, for the next batch or for `record`.
             self.buf.extend_from_slice(&batch[whole..]);
             batch.truncate(whole);
@@ -874,7 +985,7 @@ impl<R: Read> RecordStream<R> {
     pub fn check_records(&mut self) -> Result<(), Failure> {
         let threads = rayon::current_num_threads().max(1);
         loop {
-            let (batches, tail) = self.cut(threads)?;
+            let (batches, tail) = self.cut(threads, BATCH)?;
             use rayon::prelude::*;
             let first_error = batches
                 .par_iter()
@@ -913,6 +1024,41 @@ impl<R: Read> RecordStream<R> {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    /// The check that skips the blocks' bodies answers as the walk through all of them does.
+    #[test]
+    fn the_structure_check_answers_as_reading_every_block_does() {
+        let eof: &[u8] = &[
+            0x1f, 0x8b, 8, 4, 0, 0, 0, 0, 0, 0xff, 6, 0, 0x42, 0x43, 2, 0, 0x1b, 0, 3, 0, 0, 0, 0,
+            0, 0, 0, 0, 0,
+        ];
+        let two = [eof, eof].concat();
+        let mut bad_magic = two.clone();
+        bad_magic[28] = 0;
+        let mut bad_length = two.clone();
+        bad_length[28 + 16] = 0;
+        let cases: [&[u8]; 7] = [
+            b"",
+            eof,
+            &two,
+            &two[..two.len() - 1],
+            &two[..28 + 10],
+            &bad_magic,
+            &bad_length,
+        ];
+        let path = std::env::temp_dir().join(format!("structure.{}.bam", std::process::id()));
+        for (i, case) in cases.iter().enumerate() {
+            std::fs::write(&path, case).unwrap();
+            let mut blocks = Blocks::new(*case);
+            io::copy(&mut blocks, &mut io::sink()).unwrap();
+            assert_eq!(
+                structure_clean(path.to_str().unwrap()),
+                Some(!blocks.damaged),
+                "case {i}"
+            );
+        }
+        std::fs::remove_file(&path).unwrap();
+    }
 
     /// What the tools did before: the whole file, inflated, every record decoded.
     fn whole_file(path: &str) -> Result<(SamHeader, Vec<BamRecord>), String> {

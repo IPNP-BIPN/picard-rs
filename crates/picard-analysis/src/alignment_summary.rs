@@ -421,6 +421,38 @@ fn get_cycle(is_negative_strand: bool, read_length: usize, read_base_index: usiz
     }
 }
 
+/// Counts for a [`Histogram`] of small whole ids, added to it once at the end: a bin's value is the
+/// same sum of ones, and these go up for every read and every bad base, where the tree's lookup is
+/// the most expensive thing the collector does.
+#[derive(Default)]
+struct Tally(Vec<u64>);
+
+impl Tally {
+    /// Past this, an id goes to the histogram straight away rather than growing the table.
+    const LARGEST: usize = 1 << 16;
+
+    fn increment(&mut self, histogram: &mut Histogram, id: i64) {
+        match usize::try_from(id) {
+            Ok(id) if id < Self::LARGEST => {
+                if id >= self.0.len() {
+                    self.0.resize(id + 1, 0);
+                }
+                self.0[id] += 1;
+            }
+            _ => histogram.increment(id as f64),
+        }
+    }
+
+    fn add_to(&mut self, histogram: &mut Histogram) {
+        for (id, &count) in self.0.iter().enumerate() {
+            if count > 0 {
+                histogram.increment_by(id as f64, count as f64);
+            }
+        }
+        self.0.clear();
+    }
+}
+
 /// `IndividualAlignmentSummaryMetricsCollector`.
 pub struct IndividualCollector {
     metrics: AlignmentSummaryMetrics,
@@ -440,6 +472,11 @@ pub struct IndividualCollector {
     mismatch_histogram: Histogram,
     hq_mismatch_histogram: Histogram,
     bad_cycle_histogram: Histogram,
+    read_length_tally: Tally,
+    aligned_read_length_tally: Tally,
+    mismatch_tally: Tally,
+    hq_mismatch_tally: Tally,
+    bad_cycle_tally: Tally,
 }
 
 impl IndividualCollector {
@@ -462,6 +499,11 @@ impl IndividualCollector {
             mismatch_histogram: Histogram::default(),
             hq_mismatch_histogram: Histogram::default(),
             bad_cycle_histogram: Histogram::default(),
+            read_length_tally: Tally::default(),
+            aligned_read_length_tally: Tally::default(),
+            mismatch_tally: Tally::default(),
+            hq_mismatch_tally: Tally::default(),
+            bad_cycle_tally: Tally::default(),
         }
     }
 
@@ -515,10 +557,12 @@ impl IndividualCollector {
             self.metrics.pf_noise_reads += 1;
         }
 
-        self.read_length_histogram
-            .increment(rec.read_bases.len() as f64);
-        self.aligned_read_length_histogram
-            .increment(unclipped_base_count(rec) as f64);
+        self.read_length_tally
+            .increment(&mut self.read_length_histogram, rec.read_bases.len() as i64);
+        self.aligned_read_length_tally.increment(
+            &mut self.aligned_read_length_histogram,
+            unclipped_base_count(rec),
+        );
 
         if adapters.is_adapter(rec) {
             self.adapter_reads += 1;
@@ -589,11 +633,10 @@ impl IndividualCollector {
             // The unaligned path passes a genuine read index to getCycle.
             for (i, &base) in read_bases.iter().enumerate() {
                 if is_no_call(base) {
-                    self.bad_cycle_histogram.increment(get_cycle(
-                        negative_strand,
-                        read_bases.len(),
-                        i,
-                    ) as f64);
+                    self.bad_cycle_tally.increment(
+                        &mut self.bad_cycle_histogram,
+                        get_cycle(negative_strand, read_bases.len(), i) as i64,
+                    );
                 }
             }
             return;
@@ -663,18 +706,18 @@ impl IndividualCollector {
                 if mismatch || is_no_call(read_bases[read_base_index]) {
                     // `i` is the offset within the block, not the read. See the module note:
                     // this is the divergence, measured in the oracle and reproduced here.
-                    self.bad_cycle_histogram.increment(get_cycle(
-                        negative_strand,
-                        read_bases.len(),
-                        i,
-                    ) as f64);
+                    self.bad_cycle_tally.increment(
+                        &mut self.bad_cycle_histogram,
+                        get_cycle(negative_strand, read_bases.len(), i) as i64,
+                    );
                 }
             }
         }
 
-        self.mismatch_histogram.increment(mismatch_count as f64);
-        self.hq_mismatch_histogram
-            .increment(hq_mismatch_count as f64);
+        self.mismatch_tally
+            .increment(&mut self.mismatch_histogram, mismatch_count);
+        self.hq_mismatch_tally
+            .increment(&mut self.hq_mismatch_histogram, hq_mismatch_count);
 
         for e in &rec.cigar.elements {
             if matches!(e.op, Op::I | Op::D) {
@@ -687,6 +730,14 @@ impl IndividualCollector {
     ///
     /// Returns an error in the one case Picard throws: reads present but none of them PF.
     pub fn finish(&mut self, opts: &Options) -> Result<(), &'static str> {
+        self.read_length_tally
+            .add_to(&mut self.read_length_histogram);
+        self.aligned_read_length_tally
+            .add_to(&mut self.aligned_read_length_histogram);
+        self.mismatch_tally.add_to(&mut self.mismatch_histogram);
+        self.hq_mismatch_tally
+            .add_to(&mut self.hq_mismatch_histogram);
+        self.bad_cycle_tally.add_to(&mut self.bad_cycle_histogram);
         if self.metrics.pf_reads == 0 {
             return if self.metrics.total_reads > 0 {
                 Err("Input file contains no PF_READS.")
@@ -1102,6 +1153,23 @@ impl LevelCollectors {
 mod tests {
     use super::*;
     use htsjdk_bam::cigar::{Cigar, CigarElement};
+
+    /// A tally ends in the same bins as incrementing the histogram, whatever the id.
+    #[test]
+    fn a_tally_adds_what_incrementing_adds() {
+        let ids = [0i64, 3, 3, 7, -1, Tally::LARGEST as i64, 3];
+        let (mut direct, mut tallied, mut tally) =
+            (Histogram::default(), Histogram::default(), Tally::default());
+        for id in ids {
+            direct.increment(id as f64);
+            tally.increment(&mut tallied, id);
+        }
+        tally.add_to(&mut tallied);
+        assert_eq!(
+            direct.bins().collect::<Vec<_>>(),
+            tallied.bins().collect::<Vec<_>>()
+        );
+    }
 
     fn rec(cigar: &[(u32, Op)], bases: &[u8], flags: u16) -> BamRecord {
         BamRecord {
