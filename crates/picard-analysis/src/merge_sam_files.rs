@@ -52,6 +52,8 @@ use crate::sort_sam::SortOrder;
 #[derive(Debug)]
 pub enum MergeError {
     Parse(ParseError),
+    /// The sort threw, as `TimSort` does on records the comparator does not order.
+    Sort(crate::java_sort::ContractViolated),
     /// One input declares two `@RG` records with the same ID. `mergeReadGroups` throws
     /// `contains more than one RG with the same id`.
     DuplicateReadGroupId(String),
@@ -475,7 +477,8 @@ pub fn merge_parsed(
     // A stable sort so wholly-identical records keep input order (decision 0021). Skipped
     // entirely when the writer was presorted, because then nothing reordered the merge.
     if let Some(order) = sort_with {
-        records.sort_by(order.comparator());
+        crate::sort_sam::sort_records(&mut records, order.comparator())
+            .map_err(MergeError::Sort)?;
     }
     Ok((header, records))
 }

@@ -23,6 +23,7 @@ use htsjdk_bgzf::BgzfWriter;
 use rayon::prelude::*;
 
 use super::{SortOrder, MAX_OPEN_RUNS};
+use crate::java_sort;
 
 const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
@@ -247,8 +248,7 @@ impl SortingCollection {
         SortingCollection {
             compare: order.encoded_comparator(),
             // The coordinate comparator is a total preorder, so every stable sort orders as the
-            // serial one does; the queryname one is not transitive (see the tests), and keeps the
-            // serial sort's answer.
+            // serial one does; the queryname one need not be (`java_sort`).
             parallel: order == SortOrder::Coordinate,
             max_records_in_ram: max_records_in_ram.max(1),
             tmp_dir,
@@ -307,8 +307,8 @@ impl SortingCollection {
     }
 
     /// The batch in RAM, sorted.
-    fn sort(&mut self) {
-        sort_entries(&mut self.entries, &self.arenas, self.compare, self.parallel);
+    fn sort(&mut self) -> io::Result<()> {
+        sort_entries(&mut self.entries, &self.arenas, self.compare, self.parallel)
     }
 
     /// Sorts the batch in RAM and writes it to a run, both on a thread of its own while the next
@@ -323,7 +323,7 @@ impl SortingCollection {
         let mut entries = std::mem::replace(&mut self.entries, Vec::with_capacity(records));
         let (compare, parallel) = (self.compare, self.parallel);
         self.writing = Some(std::thread::spawn(move || {
-            sort_entries(&mut entries, &arenas, compare, parallel);
+            sort_entries(&mut entries, &arenas, compare, parallel)?;
             for entry in &entries {
                 run.push(view(&arenas, entry))?;
             }
@@ -356,14 +356,14 @@ impl SortingCollection {
         mut emit: impl FnMut(Encoded) -> Result<(), E>,
     ) -> Result<(), E> {
         if self.spills() == 0 {
-            self.sort();
+            self.sort()?;
             for entry in &self.entries {
                 emit(view(&self.arenas, entry))?;
             }
             return Ok(());
         }
         // The last batch is merged from RAM, as the run it would have been spilled to: the last.
-        self.sort();
+        self.sort()?;
         self.wait_for_run()?;
         let mut runs: Vec<Run> = self.runs.into_iter().map(Run::file).collect();
         if !self.entries.is_empty() {
@@ -377,13 +377,24 @@ impl SortingCollection {
 }
 
 /// Sorts a batch's entries. Stable, so equal records keep input order (decision 0021).
-fn sort_entries(entries: &mut [Entry], arenas: &[Vec<u8>], compare: Compare, parallel: bool) {
+fn sort_entries(
+    entries: &mut Vec<Entry>,
+    arenas: &[Vec<u8>],
+    compare: Compare,
+    parallel: bool,
+) -> io::Result<()> {
     let by = |a: &Entry, b: &Entry| compare(&view(arenas, a), &view(arenas, b));
     if parallel {
         entries.par_sort_by(by);
+    } else if entries
+        .iter()
+        .any(|entry| java_sort::orders_loosely(view(arenas, entry).flags()))
+    {
+        java_sort::sort(entries, by)?;
     } else {
         entries.sort_by(by);
     }
+    Ok(())
 }
 
 fn view<'a>(arenas: &'a [Vec<u8>], entry: &Entry) -> Encoded<'a> {
@@ -807,7 +818,7 @@ mod tests {
     /// The records sorted decoded, by htsjdk's comparator, as the collection used to hold them.
     fn sorted_decoded(sam: &str, order: SortOrder) -> Vec<Vec<u8>> {
         let (_, mut records) = read_sam(sam).unwrap();
-        records.sort_by(order.comparator());
+        crate::sort_sam::sort_records(&mut records, order.comparator()).unwrap();
         records.iter().map(|r| r.encode().unwrap()).collect()
     }
 
@@ -892,7 +903,43 @@ mod tests {
 
     #[test]
     fn the_encoded_comparators_order_as_htsjdks_do() {
-        // Every field either comparator reads, varied so that each of them decides some pairs.
+        let sam = every_field_varied(600);
+        for order in [SortOrder::Coordinate, SortOrder::Queryname] {
+            let whole = sorted_names(&sam, order, DEFAULT_MAX_RECORDS_IN_RAM).0;
+            assert_eq!(whole, sorted_decoded(&sam, order), "{order:?}");
+        }
+        // The queryname comparator is not transitive over these flags (a record flagged both first
+        // and second of pair is less and greater than its mate), so merged runs order as the merge
+        // decides; the coordinate one is a total preorder, and spilling changes nothing.
+        let spilled = sorted_names(&sam, SortOrder::Coordinate, 13).0;
+        assert_eq!(spilled, sorted_decoded(&sam, SortOrder::Coordinate));
+    }
+
+    /// FNV-1a over the records' `XI`s, in the order the queryname sort left them.
+    fn queryname_order_of(n: usize) -> Result<u64, crate::java_sort::ContractViolated> {
+        let (_, mut records) = read_sam(&every_field_varied(n)).unwrap();
+        crate::sort_sam::sort_records(&mut records, SortOrder::Queryname.comparator())?;
+        Ok(records.iter().fold(0xcbf29ce484222325, |hash, record| {
+            match record.tags.find(Tag::new(b"XI")).as_deref() {
+                Some(TagValue::Int(xi)) => (hash ^ *xi as u64).wrapping_mul(0x100000001b3),
+                _ => panic!("every record has an XI"),
+            }
+        }))
+    }
+
+    #[test]
+    fn records_the_queryname_comparator_cannot_order_sort_as_picard_sorts_them() {
+        // From `SortSam SORT_ORDER=queryname` in the Picard 3.5.0 oracle container, on these inputs.
+        assert_eq!(queryname_order_of(600), Ok(0x86a4751ccb9c398d));
+        assert_eq!(queryname_order_of(5000), Ok(0xedd22057bbe5cac1));
+        assert_eq!(
+            queryname_order_of(8000),
+            Err(crate::java_sort::ContractViolated)
+        );
+    }
+
+    /// `n` records with every field either comparator reads varied, so that each decides some pairs.
+    fn every_field_varied(n: usize) -> String {
         let mut sam = String::from(
             "@HD\tVN:1.6\tSO:unsorted\n@SQ\tSN:chr1\tLN:1000\n@SQ\tSN:chr2\tLN:1000\n",
         );
@@ -911,7 +958,7 @@ mod tests {
             113,
             177,
         ];
-        for i in 0..600usize {
+        for i in 0..n {
             let name = ["q", "p", "q2", "p"][i % 4];
             let flag = flags[i % flags.len()];
             let (rname, pos) = match i % 5 {
@@ -940,15 +987,7 @@ mod tests {
                 "{name}\t{flag}\t{rname}\t{pos}\t{mq}\t{cigar}\t{mref}\t{mpos}\t{tlen}\tACGT\tIIII\tXI:i:{i}{hi}\n"
             ));
         }
-        for order in [SortOrder::Coordinate, SortOrder::Queryname] {
-            let whole = sorted_names(&sam, order, DEFAULT_MAX_RECORDS_IN_RAM).0;
-            assert_eq!(whole, sorted_decoded(&sam, order), "{order:?}");
-        }
-        // The queryname comparator is not transitive over these flags (a record flagged both first
-        // and second of pair is less and greater than its mate), so merged runs order as the merge
-        // decides; the coordinate one is a total preorder, and spilling changes nothing.
-        let spilled = sorted_names(&sam, SortOrder::Coordinate, 13).0;
-        assert_eq!(spilled, sorted_decoded(&sam, SortOrder::Coordinate));
+        sam
     }
 
     /// A BAM of `n` valid records, many of them equal under both comparators, written to a file
