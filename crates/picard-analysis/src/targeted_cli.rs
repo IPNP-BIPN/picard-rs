@@ -7,7 +7,7 @@
 use htsjdk_bam::fasta::read_fasta_file;
 use htsjdk_bam::interval::IntervalList;
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::tag::{Tag, TagValue};
+use htsjdk_bam::tag::Tag;
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
 use htsjdk_metrics::format::format_double;
 
@@ -515,11 +515,9 @@ pub fn main_for(tool: Tool) {
         })
         .collect();
     let group_of = |record: &BamRecord| -> Option<usize> {
-        let id = match record.tags.find(Tag::new(b"RG")).as_deref() {
-            Some(TagValue::Str(s)) => s.to_string(),
-            _ => return None,
-        };
-        groups.iter().position(|g| g.id == id)
+        record.tags.with_str(Tag::new(b"RG"), |id| {
+            id.and_then(|id| groups.iter().position(|g| g.id == id))
+        })
     };
     let outcome =
         collect(records, group_of, &groups, &panel, &options).unwrap_or_else(|e| thrown(&e));

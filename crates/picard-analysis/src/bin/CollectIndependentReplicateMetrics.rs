@@ -600,7 +600,7 @@ fn main() {
             let r = &kept[at];
             r.flags & PAIRED != 0
                 && r.flags & (UNMAPPED | MATE_UNMAPPED) == 0
-                && r.tags.find(Tag::new(b"MC")).is_none()
+                && !r.tags.contains(Tag::new(b"MC"))
         }) {
             thrown(&format!(
                 "htsjdk.samtools.SAMException: Mate CIGAR (Tag MC) not found: {}",

@@ -17,7 +17,7 @@ use htsjdk_bam::cigar::{Cigar, Op};
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::{BamReader, ReadError};
 use htsjdk_bam::record::BamRecord;
-use htsjdk_bam::tag::{Tag, TagValue};
+use htsjdk_bam::tag::Tag;
 
 /// htsjdk's `ValidationStringency`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -359,14 +359,12 @@ impl Validator {
                 }
             }
         }
-        if let Some(TagValue::Str(id)) = rec.tags.find(Tag::new(b"RG")).as_deref() {
-            if !self.read_groups.iter().any(|rg| rg == id)
-                && add(
-                    &mut ret,
-                    "READ_GROUP_NOT_FOUND",
-                    format!("RG ID on SAMRecord not found in header: {id}"),
-                )
-            {
+        let unknown = rec.tags.with_str(Tag::new(b"RG"), |id| {
+            id.filter(|id| !self.read_groups.iter().any(|rg| rg == id))
+                .map(|id| format!("RG ID on SAMRecord not found in header: {id}"))
+        });
+        if let Some(message) = unknown {
+            if add(&mut ret, "READ_GROUP_NOT_FOUND", message) {
                 return Ok(ret);
             }
         }

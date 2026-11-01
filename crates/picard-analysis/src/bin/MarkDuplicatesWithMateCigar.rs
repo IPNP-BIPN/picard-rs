@@ -42,7 +42,7 @@ fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
 /// read that is not canonical is written back canonical. Any other record is written the same with
 /// or without the call, and a list for it costs more than looking.
 fn remove_tag(record: &mut BamRecord, tag: Tag) {
-    if record.tags.holds_raw() || record.tags.find(tag).is_some() {
+    if record.tags.holds_raw() || record.tags.contains(tag) {
         record.tags.remove(tag);
     }
 }

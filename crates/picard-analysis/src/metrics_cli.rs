@@ -263,12 +263,9 @@ pub fn read_group<'h>(
     header: &'h SamHeader,
     record: &BamRecord,
 ) -> Option<&'h htsjdk_bam::header::ReadGroup> {
-    let group = record.tags.find(Tag::new(b"RG"));
-    let id = match group.as_deref() {
-        Some(TagValue::Str(id)) => id,
-        _ => return None,
-    };
-    header.read_groups.iter().find(|g| g.id == *id)
+    record.tags.with_str(Tag::new(b"RG"), |id| {
+        id.and_then(|id| header.read_groups.iter().find(|g| g.id == id))
+    })
 }
 
 /// `SAMRecord.getOriginalBaseQualities()`: the `OQ` string, FASTQ-decoded.

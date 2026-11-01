@@ -154,7 +154,7 @@ fn int_tag(record: &BamRecord, tag: &[u8; 2]) -> Option<i64> {
 }
 
 fn has_tag(record: &BamRecord, tag: &[u8; 2]) -> bool {
-    record.tags.find(Tag::new(tag)).is_some()
+    record.tags.contains(Tag::new(tag))
 }
 
 /// `TagFilter(XN, 1)`.

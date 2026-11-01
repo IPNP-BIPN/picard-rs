@@ -350,14 +350,18 @@ impl Default for Options {
 /// The `SA` tag is consulted inside `matchesExpectedOrientations`, so a read whose orientation is
 /// expected but which carries an `SA` tag is still chimeric. That makes the tag a second, hidden
 /// term of the orientation test rather than a separate condition.
-fn is_chimeric(rec: &BamRecord, max_insert_size: i32, expected: &[PairOrientation]) -> bool {
+fn is_chimeric(
+    rec: &BamRecord,
+    has_sa: bool,
+    max_insert_size: i32,
+    expected: &[PairOrientation],
+) -> bool {
     let mapped_pair = rec.flags & READ_PAIRED != 0
         && rec.flags & READ_UNMAPPED == 0
         && rec.flags & MATE_UNMAPPED == 0;
     if !mapped_pair {
         return false;
     }
-    let has_sa = rec.tags.find(Tag::new(b"SA")).is_some();
     let orientation_ok = expected.contains(&pair_orientation(rec)) && !has_sa;
     rec.inferred_insert_size.abs() > max_insert_size
         || rec.reference_index != rec.mate_reference_index
@@ -529,12 +533,24 @@ impl IndividualCollector {
         opts: &Options,
         adapters: &AdapterUtility,
     ) {
+        self.accept_read(rec, ReadTags::of(rec), reference, opts, adapters);
+    }
+
+    /// [`Self::accept`], for a caller handing one record to two collectors.
+    fn accept_read(
+        &mut self,
+        rec: &BamRecord,
+        tags: ReadTags,
+        reference: Option<&[u8]>,
+        opts: &Options,
+        adapters: &AdapterUtility,
+    ) {
         // Secondary alignments are skipped here as well as at the outer collector, so a
         // secondary record is filtered twice and a supplementary one only once.
         if rec.flags & SECONDARY != 0 {
             return;
         }
-        self.collect_read_data(rec, opts, adapters);
+        self.collect_read_data(rec, tags, opts, adapters);
         self.collect_quality_data(rec, reference, opts);
     }
 
@@ -543,7 +559,13 @@ impl IndividualCollector {
     /// The supplementary guard is unreachable through `GroupCollector`, which drops those
     /// records first. See the module note: Picard's comment here claims an asymmetry between
     /// read counts and base counts that the class hierarchy prevents.
-    fn collect_read_data(&mut self, rec: &BamRecord, opts: &Options, adapters: &AdapterUtility) {
+    fn collect_read_data(
+        &mut self,
+        rec: &BamRecord,
+        tags: ReadTags,
+        opts: &Options,
+        adapters: &AdapterUtility,
+    ) {
         if rec.flags & SUPPLEMENTARY != 0 {
             return;
         }
@@ -553,7 +575,7 @@ impl IndividualCollector {
         }
 
         self.metrics.pf_reads += 1;
-        if is_noise_read(rec) {
+        if tags.noise {
             self.metrics.pf_noise_reads += 1;
         }
 
@@ -599,8 +621,7 @@ impl IndividualCollector {
             // condition is `mateMq == null || mateMq >= T && mapq >= T`, and Java binds && more
             // tightly than ||. So a record with no MQ tag passes regardless of its own mapping
             // quality, and only a record that *has* the tag is tested on both ends.
-            let mate_mq = rec.tags.find(Tag::new(b"MQ")).as_deref().and_then(as_int);
-            let passes = match mate_mq {
+            let passes = match tags.mate_mq {
                 None => true,
                 Some(mq) => {
                     mq >= MAPPING_QUALITY_THRESHOLD as i64
@@ -609,14 +630,19 @@ impl IndividualCollector {
             };
             if passes {
                 self.chimeras_denominator += 1;
-                if is_chimeric(rec, opts.max_insert_size, &opts.expected_orientations) {
+                if is_chimeric(
+                    rec,
+                    tags.has_sa,
+                    opts.max_insert_size,
+                    &opts.expected_orientations,
+                ) {
                     self.chimeras += 1;
                 }
             }
         } else if rec.mapping_quality >= MAPPING_QUALITY_THRESHOLD {
             // Fragments and half-mapped pairs: chimerism is read off the SA tag alone.
             self.chimeras_denominator += 1;
-            if rec.tags.find(Tag::new(b"SA")).is_some() {
+            if tags.has_sa {
                 self.chimeras += 1;
             }
         }
@@ -835,9 +861,23 @@ fn as_int(v: &TagValue) -> Option<i64> {
     }
 }
 
-/// `isNoiseRead`: the reserved `XN` tag equal to 1.
-fn is_noise_read(rec: &BamRecord) -> bool {
-    rec.tags.find(Tag::new(b"XN")).as_deref().and_then(as_int) == Some(1)
+/// The tags the read counts look at, read once: a paired record goes to two collectors.
+#[derive(Clone, Copy)]
+struct ReadTags {
+    /// `isNoiseRead`: the reserved `XN` tag equal to 1.
+    noise: bool,
+    mate_mq: Option<i64>,
+    has_sa: bool,
+}
+
+impl ReadTags {
+    fn of(rec: &BamRecord) -> Self {
+        Self {
+            noise: rec.tags.find(Tag::new(b"XN")).as_deref().and_then(as_int) == Some(1),
+            mate_mq: rec.tags.find(Tag::new(b"MQ")).as_deref().and_then(as_int),
+            has_sa: rec.tags.contains(Tag::new(b"SA")),
+        }
+    }
 }
 
 /// `GroupAlignmentSummaryMetricsPerUnitMetricCollector`: the four pairing categories.
@@ -878,18 +918,20 @@ impl GroupCollector {
         if rec.flags & SECONDARY != 0 || rec.flags & SUPPLEMENTARY != 0 {
             return;
         }
+        let tags = ReadTags::of(rec);
         if rec.flags & READ_PAIRED != 0 {
             if rec.flags & FIRST_OF_PAIR != 0 {
                 self.first_of_pair
-                    .accept(rec, reference, &self.opts, &self.adapters);
+                    .accept_read(rec, tags, reference, &self.opts, &self.adapters);
             } else {
                 self.second_of_pair
-                    .accept(rec, reference, &self.opts, &self.adapters);
+                    .accept_read(rec, tags, reference, &self.opts, &self.adapters);
             }
-            self.pair.accept(rec, reference, &self.opts, &self.adapters);
+            self.pair
+                .accept_read(rec, tags, reference, &self.opts, &self.adapters);
         } else {
             self.unpaired
-                .accept(rec, reference, &self.opts, &self.adapters);
+                .accept_read(rec, tags, reference, &self.opts, &self.adapters);
         }
     }
 
@@ -964,11 +1006,7 @@ struct Unit {
 fn read_group_of(record: &BamRecord) -> Option<String> {
     record
         .tags
-        .get(Tag::new(b"RG"))
-        .and_then(|value| match value {
-            TagValue::Str(text) => Some(text.to_string()),
-            _ => None,
-        })
+        .with_str(Tag::new(b"RG"), |text| text.map(str::to_string))
 }
 
 /// The tool's accumulation levels: one [`GroupCollector`] per unit, all reads first, then the

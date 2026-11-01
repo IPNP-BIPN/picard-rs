@@ -387,7 +387,7 @@ fn main() {
             reference_index: record.reference_index,
             mate_reference_index: record.mate_reference_index,
             nm: attribute(record, b"NM"),
-            has_sa: record.tags.find(Tag::new(b"SA")).is_some(),
+            has_sa: record.tags.contains(Tag::new(b"SA")),
             first_strand_copies: attribute(record, b"aD"),
             second_strand_copies: attribute(record, b"bD"),
             both_strands_copies: attribute(record, b"cD"),
