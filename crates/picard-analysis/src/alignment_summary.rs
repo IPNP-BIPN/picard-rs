@@ -357,7 +357,7 @@ fn is_chimeric(rec: &BamRecord, max_insert_size: i32, expected: &[PairOrientatio
     if !mapped_pair {
         return false;
     }
-    let has_sa = rec.tags.get(Tag::new(b"SA")).is_some();
+    let has_sa = rec.tags.find(Tag::new(b"SA")).is_some();
     let orientation_ok = expected.contains(&pair_orientation(rec)) && !has_sa;
     rec.inferred_insert_size.abs() > max_insert_size
         || rec.reference_index != rec.mate_reference_index
@@ -599,7 +599,7 @@ impl IndividualCollector {
             // condition is `mateMq == null || mateMq >= T && mapq >= T`, and Java binds && more
             // tightly than ||. So a record with no MQ tag passes regardless of its own mapping
             // quality, and only a record that *has* the tag is tested on both ends.
-            let mate_mq = rec.tags.get(Tag::new(b"MQ")).and_then(as_int);
+            let mate_mq = rec.tags.find(Tag::new(b"MQ")).as_deref().and_then(as_int);
             let passes = match mate_mq {
                 None => true,
                 Some(mq) => {
@@ -616,7 +616,7 @@ impl IndividualCollector {
         } else if rec.mapping_quality >= MAPPING_QUALITY_THRESHOLD {
             // Fragments and half-mapped pairs: chimerism is read off the SA tag alone.
             self.chimeras_denominator += 1;
-            if rec.tags.get(Tag::new(b"SA")).is_some() {
+            if rec.tags.find(Tag::new(b"SA")).is_some() {
                 self.chimeras += 1;
             }
         }
@@ -837,7 +837,7 @@ fn as_int(v: &TagValue) -> Option<i64> {
 
 /// `isNoiseRead`: the reserved `XN` tag equal to 1.
 fn is_noise_read(rec: &BamRecord) -> bool {
-    rec.tags.get(Tag::new(b"XN")).and_then(as_int) == Some(1)
+    rec.tags.find(Tag::new(b"XN")).as_deref().and_then(as_int) == Some(1)
 }
 
 /// `GroupAlignmentSummaryMetricsPerUnitMetricCollector`: the four pairing categories.

@@ -1805,7 +1805,7 @@ pub fn fingerprint_sam_input(
         }
         if shown {
             // The header's read group, by its place, which is its place among `groups` too.
-            let read_group = match r.tags.get(Tag::new(b"RG")) {
+            let read_group = match r.tags.find(Tag::new(b"RG")).as_deref() {
                 Some(TagValue::Str(id)) => header.read_groups.iter().position(|g| g.id == *id),
                 _ => None,
             };

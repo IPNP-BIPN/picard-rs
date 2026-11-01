@@ -359,7 +359,7 @@ impl Validator {
                 }
             }
         }
-        if let Some(TagValue::Str(id)) = rec.tags.get(Tag::new(b"RG")) {
+        if let Some(TagValue::Str(id)) = rec.tags.find(Tag::new(b"RG")).as_deref() {
             if !self.read_groups.iter().any(|rg| rg == id)
                 && add(
                     &mut ret,

@@ -174,7 +174,7 @@ fn push_encoded(
         arena.truncate(offset);
         return Err(error);
     }
-    let hit = match record.tags.get(Tag::new(b"HI")) {
+    let hit = match record.tags.find(Tag::new(b"HI")).as_deref() {
         Some(TagValue::Int(v)) => Some(*v),
         _ => None,
     };

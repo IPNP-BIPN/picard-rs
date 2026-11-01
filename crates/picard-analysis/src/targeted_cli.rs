@@ -515,7 +515,7 @@ pub fn main_for(tool: Tool) {
         })
         .collect();
     let group_of = |record: &BamRecord| -> Option<usize> {
-        let id = match record.tags.get(Tag::new(b"RG")) {
+        let id = match record.tags.find(Tag::new(b"RG")).as_deref() {
             Some(TagValue::Str(s)) => s.to_string(),
             _ => return None,
         };
