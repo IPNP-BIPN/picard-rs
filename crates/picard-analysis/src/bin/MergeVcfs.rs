@@ -103,8 +103,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut comparator: Option<VariantContextComparator> = None;
     let mut sample_list: Vec<String> = Vec::new();
     for path in &paths {
-        let vcf =
-            VcfReader::open(path).unwrap_or_else(|exception| fail_all(&mut files, &exception));
+        let vcf = VcfReader::open_deferred(path)
+            .unwrap_or_else(|exception| fail_all(&mut files, &exception));
         files.push(vcf);
         let first = files.len() == 1;
         let header = &mut files.last_mut().expect("just pushed").file.header;

@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     samples.sort_by(|a, b| java_compare(a, b));
     samples.dedup();
 
-    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open_deferred(&input).unwrap_or_else(|exception| die(&exception));
     let dictionary = header_dictionary(&vcf.file.header);
     if create_index && dictionary.is_none() {
         vcf.fail(
@@ -83,6 +83,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // otherwise each named sample the record has, looked up by name.
         record.decode();
         let genotypes = std::mem::take(&mut record.variant.genotypes);
+        if !samples.is_empty() {
+            genotypes.try_get().map_err(|refused| refused.to_string())?;
+        }
         record.variant.genotypes = samples
             .iter()
             .filter_map(|sample| genotypes.iter().find(|g| &g.sample_name == sample))

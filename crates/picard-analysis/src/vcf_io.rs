@@ -36,8 +36,9 @@
 //! decoded record is re-encoded whatever the sample order was.
 
 use htsjdk_vcf::encoder::{EncodeError, MissingFields, VcfEncoder};
+use htsjdk_vcf::genotype_parse::VcfGenotypeSource;
 use htsjdk_vcf::header::{HeaderLine, VcfHeader};
-use htsjdk_vcf::reader::{read_vcf, ReadFailure, VcfFile};
+use htsjdk_vcf::reader::{read_vcf, GenotypeParsing, ReadFailure, VcfFile};
 use htsjdk_vcf::record_parse::{split_condensed, NUM_STANDARD_FIELDS};
 use htsjdk_vcf::variant::VariantContext;
 
@@ -203,7 +204,7 @@ impl Encoders {
         match &record.lazy_genotypes {
             Some(block) => {
                 let mut site = record.variant.clone();
-                site.genotypes.clear();
+                site.genotypes = Default::default();
                 VcfEncoder::new(&self.sites_header)
                     .with_missing_fields(self.missing)
                     .encode_into(&site, out)?;
@@ -611,6 +612,15 @@ impl VcfWriter {
 
     /// `IndexingVariantContextWriter.add`: the indexer, then the writer.
     pub fn add(&mut self, record: &Record) -> Result<(), WriteError> {
+        // Anything but a copied block encodes the genotypes, which is when a deferred one is
+        // refused, before the record reaches the index or the file.
+        if record.lazy_genotypes.is_none() || matches!(self.sink, Sink::Bcf { .. }) {
+            record
+                .variant
+                .genotypes
+                .try_peek()
+                .map_err(|refused| WriteError::Exception(refused.to_string()))?;
+        }
         let at = self.position()?;
         self.index(record, at)?;
         self.write(record)
@@ -992,6 +1002,9 @@ struct TextSource {
     sorted: bool,
     /// Whether [`read_lazy`] keeps the genotype block.
     lazy: bool,
+    /// The codec a block is parsed by on first access, for a reader opened to defer them. A file
+    /// whose samples are not sorted has none: `parseVCFLine` decodes each of its records.
+    genotypes: Option<std::sync::Arc<VcfGenotypeSource>>,
     line: Vec<u8>,
     /// Set once a failure was reported: nothing further is read.
     done: bool,
@@ -1115,18 +1128,20 @@ fn without_terminator(line: &str) -> &str {
 
 /// [`TextSource::decode`] for a line whose counter is `line_number`: free of the source, so the
 /// lines read ahead decode on every core.
+#[allow(clippy::too_many_arguments)]
 fn decode_at(
     file: &VcfFile,
     samples: &std::sync::Arc<[String]>,
     sorted: bool,
     lazy: bool,
+    deferred: Option<&std::sync::Arc<VcfGenotypeSource>>,
     line_number: usize,
     buffer: &[u8],
     offset: u64,
 ) -> Result<Option<Record>, Failure> {
-    use htsjdk_vcf::genotype_parse::{parse_genotypes, GenotypeContext};
+    use htsjdk_vcf::genotype_parse::{parse_genotypes, DeferredVcfGenotypes, GenotypeContext};
     use htsjdk_vcf::genotypes_context::GenotypesContext;
-    use htsjdk_vcf::record_parse::{decode_line, split_condensed_borrowed};
+    use htsjdk_vcf::record_parse::decode_line;
 
     let text = utf8_at(buffer, offset).map_err(Failure::Utf8)?;
     let line = without_terminator(&text);
@@ -1140,6 +1155,16 @@ fn decode_at(
     let line_number = line_number + 1;
     let mut variant = decoded.variant;
     if let Some(block) = decoded.genotype_block {
+        if let Some(source) = deferred {
+            let parser = DeferredVcfGenotypes::new(
+                source,
+                variant.alleles.clone(),
+                &variant.contig,
+                variant.start,
+            );
+            variant.genotypes = GenotypesContext::deferred_vcf(block, samples.clone(), parser);
+            return Ok(Some(finish_record(variant, lazy, line)));
+        }
         let context = GenotypeContext {
             line,
             header: &file.header,
@@ -1155,6 +1180,12 @@ fn decode_at(
             variant.genotypes.decode();
         }
     }
+    Ok(Some(finish_record(variant, lazy, line)))
+}
+
+/// A decoded line's record, with the copy of its block [`read_lazy`] keeps.
+fn finish_record(variant: VariantContext, lazy: bool, line: &str) -> Record {
+    use htsjdk_vcf::record_parse::split_condensed_borrowed;
     let lazy_genotypes = lazy
         .then(|| {
             split_condensed_borrowed(line, '\t', NUM_STANDARD_FIELDS + 1, true)
@@ -1163,11 +1194,11 @@ fn decode_at(
                 .map(str::to_string)
         })
         .flatten();
-    Ok(Some(Record {
+    Record {
         variant,
         lazy_genotypes,
         fully_decoded: false,
-    }))
+    }
 }
 
 impl TextSource {
@@ -1216,6 +1247,7 @@ impl TextSource {
             &self.samples,
             self.sorted,
             self.lazy,
+            self.genotypes.as_ref(),
             self.line_number,
             buffer,
             offset,
@@ -1260,11 +1292,12 @@ impl TextSource {
             lines.push((buffer, offset, at));
         }
         let (samples, sorted, lazy) = (&self.samples, self.sorted, self.lazy);
+        let deferred = self.genotypes.as_ref();
         let decoded: Vec<Ahead> = lines
             .into_par_iter()
             .with_min_len(256)
             .map(|(line, offset, at)| {
-                let decoded = decode_at(file, samples, sorted, lazy, at, &line, offset);
+                let decoded = decode_at(file, samples, sorted, lazy, deferred, at, &line, offset);
                 Ahead {
                     line,
                     offset,
@@ -1300,6 +1333,12 @@ impl TextSource {
             match ahead.decoded {
                 Ok(Some(record)) => {
                     self.line_number += 1;
+                    // What a parse on first access sees: the codec stands on the line it read
+                    // last, which is the one after the record handed out.
+                    if let Some(source) = &self.genotypes {
+                        let text = String::from_utf8_lossy(&self.line);
+                        source.advance(self.line_number, without_terminator(&text));
+                    }
                     return Some(Ok(record));
                 }
                 Ok(None) => continue,
@@ -1313,6 +1352,18 @@ impl VcfReader {
     /// `VCFFileReader(file, false)` up to its header: the file opened and the header read, or the
     /// exception the whole-file read gave.
     pub fn open(path: &str) -> Result<VcfReader, String> {
+        Self::open_with(path, GenotypeParsing::Eager)
+    }
+
+    /// [`VcfReader::open`] for a tool that does not look at the genotypes, or looks through
+    /// `try_get`: a block is parsed on first access, as `LazyGenotypesContext` does, so a malformed
+    /// one is refused only if something looks and a copy passes it through. A BCF input has its
+    /// own reader and is unchanged.
+    pub fn open_deferred(path: &str) -> Result<VcfReader, String> {
+        Self::open_with(path, GenotypeParsing::Deferred)
+    }
+
+    fn open_with(path: &str, parsing: GenotypeParsing) -> Result<VcfReader, String> {
         use std::io::BufRead;
 
         if is_bcf(path) {
@@ -1349,6 +1400,7 @@ impl VcfReader {
             samples: std::sync::Arc::from(Vec::new()),
             sorted: true,
             lazy: false,
+            genotypes: None,
             line: Vec::new(),
             done: false,
             pending: std::collections::VecDeque::new(),
@@ -1396,6 +1448,8 @@ impl VcfReader {
                 != std::cmp::Ordering::Greater
         });
         source.lazy = is_sorted(samples) && !samples.is_empty();
+        source.genotypes = (parsing == GenotypeParsing::Deferred && source.sorted)
+            .then(|| VcfGenotypeSource::new(file.header.clone(), file.codec_version));
         Ok(VcfReader {
             file,
             source: Source::Text(Box::new(source)),

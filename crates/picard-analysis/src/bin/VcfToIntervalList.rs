@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open_deferred(&input).unwrap_or_else(|exception| die(&exception));
     let Some(dictionary) = header_dictionary(&vcf.file.header) else {
         vcf.fail(
             "java.lang.NullPointerException: Cannot invoke \

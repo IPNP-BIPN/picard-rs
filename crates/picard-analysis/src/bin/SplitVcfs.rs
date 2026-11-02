@@ -80,7 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("only .vcf, .vcf.gz and .bcf outputs are ported".into());
     }
 
-    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open_deferred(&input).unwrap_or_else(|exception| die(&exception));
     // Read through `SamReaderFactory`, as a SAM header: a `.dict`'s `@SQ` lines.
     let dictionary = match &sequence_dictionary {
         Some(path) => Some(parse_sam_dictionary(&std::fs::read_to_string(path)?)),

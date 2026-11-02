@@ -48,7 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // `collectFileReadersAndHeaders`.
-    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open_deferred(&input).unwrap_or_else(|exception| die(&exception));
     match header_dictionary(&vcf.file.header) {
         None => match &dictionary {
             None => {
