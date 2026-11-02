@@ -154,7 +154,7 @@ pub struct Outputs {
 
 enum Sink {
     Text(BufWriter<File>),
-    Gzip(BgzfWriter<BufWriter<File>>),
+    Gzip(Box<BgzfWriter<BufWriter<File>>>),
     Failed(io::Error),
 }
 
@@ -165,7 +165,7 @@ impl Outputs {
                 crate::stream_output::track(&path);
                 let file = BufWriter::new(file);
                 if path.ends_with(".gz") {
-                    Sink::Gzip(crate::output::bgzf_writer(file))
+                    Sink::Gzip(Box::new(crate::output::bgzf_writer(file)))
                 } else {
                     Sink::Text(file)
                 }

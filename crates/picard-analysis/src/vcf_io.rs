@@ -515,7 +515,7 @@ enum Sink {
     /// The byte count, which is a text line's position.
     Text { out: JavaBuffered, at: u64 },
     /// `VCFWriter` over a `BlockCompressedOutputStream` at the installed level and deflater.
-    Bgzf(htsjdk_bgzf::BgzfWriter<std::io::BufWriter<std::fs::File>>),
+    Bgzf(Box<htsjdk_bgzf::BgzfWriter<std::io::BufWriter<std::fs::File>>>),
     Bcf {
         out: JavaBuffered,
         writer: Box<htsjdk_vcf::bcf2::writer::Bcf2Writer>,
@@ -589,7 +589,7 @@ impl VcfWriter {
             let mut bgzf =
                 crate::output::bgzf_writer(std::io::BufWriter::with_capacity(BUFFER_SIZE, file));
             std::io::Write::write_all(&mut bgzf, &latin1(&header.write()))?;
-            Sink::Bgzf(bgzf)
+            Sink::Bgzf(Box::new(bgzf))
         } else {
             let text = header.write();
             let bytes = latin1(&text);
