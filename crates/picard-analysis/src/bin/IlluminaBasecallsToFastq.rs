@@ -88,7 +88,7 @@ struct FastqWriter {
 /// A FASTQ file, plain or BGZF (`BlockCompressedOutputStream`, which ends with its empty block).
 enum Out {
     Plain(std::io::BufWriter<std::fs::File>),
-    Bgzf(htsjdk_bgzf::BgzfWriter<std::fs::File>),
+    Bgzf(Box<htsjdk_bgzf::BgzfWriter<std::fs::File>>),
 }
 
 impl Out {
@@ -115,7 +115,7 @@ fn open(path: &std::path::Path, compress: bool) -> Out {
         ))
     });
     if compress {
-        Out::Bgzf(picard_analysis::output::bgzf_writer(file))
+        Out::Bgzf(Box::new(picard_analysis::output::bgzf_writer(file)))
     } else {
         Out::Plain(std::io::BufWriter::new(file))
     }
