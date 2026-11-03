@@ -360,17 +360,20 @@ fn url_decode(text: &str) -> Result<String, DecodeError> {
 
 /// `Gff3Writer.encodeString`: `URLEncoder.encode(s, "UTF-8")` with its `+` turned back into the
 /// space it stood for.
-fn url_encode(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
+fn url_encode(out: &mut String, text: &str) {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
     for byte in text.bytes() {
         match byte {
             b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'.' | b'-' | b'*' | b'_' | b' ' => {
                 out.push(byte as char)
             }
-            other => out.push_str(&format!("%{other:02X}")),
+            other => {
+                out.push('%');
+                out.push(HEX[(other >> 4) as usize] as char);
+                out.push(HEX[(other & 15) as usize] as char);
+            }
         }
     }
-    out
 }
 
 /// `Gff3Codec.extractSingleAttribute`.
@@ -606,40 +609,42 @@ struct Key {
 
 /// `Gff3Writer.addFeature`.
 fn write_feature(out: &mut String, feature: &Gff3Feature) {
-    let score = if feature.score < 0.0 {
-        ".".to_string()
+    use std::fmt::Write as _;
+    url_encode(out, &feature.contig);
+    out.push('\t');
+    url_encode(out, &feature.source);
+    out.push('\t');
+    url_encode(out, &feature.kind);
+    let _ = write!(out, "\t{}\t{}\t", feature.start, feature.end);
+    if feature.score < 0.0 {
+        out.push('.');
     } else {
-        java_double_to_string(feature.score)
-    };
-    let phase = if feature.phase < 0 {
-        ".".to_string()
+        out.push_str(&java_double_to_string(feature.score));
+    }
+    let _ = write!(out, "\t{}\t", feature.strand);
+    if feature.phase < 0 {
+        out.push('.');
     } else {
-        feature.phase.to_string()
-    };
-    out.push_str(&format!(
-        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t",
-        url_encode(&feature.contig),
-        url_encode(&feature.source),
-        url_encode(&feature.kind),
-        feature.start,
-        feature.end,
-        score,
-        feature.strand,
-        phase
-    ));
+        let _ = write!(out, "{}", feature.phase);
+    }
+    out.push('\t');
     if feature.attributes.is_empty() {
         out.push('.');
     }
-    let attributes: Vec<String> = feature
-        .attributes
-        .iter()
-        .map(|(key, values)| {
-            // The key is written as it is; only the values are escaped.
-            let values: Vec<String> = values.iter().map(|v| url_encode(v)).collect();
-            format!("{key}={}", values.join(","))
-        })
-        .collect();
-    out.push_str(&attributes.join(";"));
+    for (at, (key, values)) in feature.attributes.iter().enumerate() {
+        if at > 0 {
+            out.push(';');
+        }
+        // The key is written as it is; only the values are escaped.
+        out.push_str(key);
+        out.push('=');
+        for (at, value) in values.iter().enumerate() {
+            if at > 0 {
+                out.push(',');
+            }
+            url_encode(out, value);
+        }
+    }
     out.push('\n');
 }
 
@@ -804,12 +809,9 @@ fn write_sorted(
         text.push('\n');
     }
     for region in &codec.regions {
-        text.push_str(&format!(
-            "##sequence-region {} {} {}\n",
-            url_encode(&region.contig),
-            region.start,
-            region.end
-        ));
+        text.push_str("##sequence-region ");
+        url_encode(&mut text, &region.contig);
+        text.push_str(&format!(" {} {}\n", region.start, region.end));
     }
     out.write_all(text.as_bytes())?;
 

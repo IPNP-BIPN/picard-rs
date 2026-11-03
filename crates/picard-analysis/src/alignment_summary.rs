@@ -682,6 +682,44 @@ impl IndividualCollector {
             let read_index = (block.read_start - 1) as usize;
             let ref_index = (block.reference_start - 1) as usize;
 
+            // The usual block: no bisulfite question, and every index below in range. This is the
+            // hottest loop of the tool, and the counters need not be touched once per base.
+            let in_reference = (block.length as usize).min(ref_length.saturating_sub(ref_index));
+            let read_end = read_index + in_reference;
+            if !opts.is_bisulfite_sequenced
+                && read_end <= read_bases.len()
+                && (!high_quality_mapping || read_end <= qualities.len())
+            {
+                let bases = &read_bases[read_index..read_end];
+                let mut block_mismatches = 0i64;
+                for (i, &base) in bases.iter().enumerate() {
+                    let mismatch = reference.is_some_and(|r| !bases_equal(base, r[ref_index + i]));
+                    if mismatch {
+                        block_mismatches += 1;
+                    }
+                    // `i` is the offset within the block: see the note in the loop below.
+                    if mismatch || is_no_call(base) {
+                        self.bad_cycle_tally.increment(
+                            &mut self.bad_cycle_histogram,
+                            get_cycle(negative_strand, read_bases.len(), i) as i64,
+                        );
+                    }
+                }
+                mismatch_count += block_mismatches;
+                self.metrics.pf_aligned_bases += in_reference as i64;
+                self.non_bisulfite_aligned_bases += in_reference as i64;
+                if high_quality_mapping {
+                    self.metrics.pf_hq_aligned_bases += in_reference as i64;
+                    self.hq_non_bisulfite_aligned_bases += in_reference as i64;
+                    self.metrics.pf_hq_aligned_q20_bases += qualities[read_index..read_end]
+                        .iter()
+                        .filter(|&&q| q >= BASE_QUALITY_THRESHOLD)
+                        .count() as i64;
+                    hq_mismatch_count += block_mismatches;
+                }
+                continue;
+            }
+
             for i in 0..block.length as usize {
                 if ref_index + i >= ref_length {
                     break;
