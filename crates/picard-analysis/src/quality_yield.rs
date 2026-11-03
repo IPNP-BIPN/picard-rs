@@ -144,7 +144,7 @@ impl QualityYieldMetricsCollector {
         // `getOriginalBaseQualities()` returns null when OQ is absent or empty, and the
         // collector then falls back to the primary qualities.
         let original: Option<Vec<i8>> = if self.options.use_original_qualities {
-            match rec.tags.get(Tag::new(b"OQ")) {
+            match rec.tags.find(Tag::new(b"OQ")).as_deref() {
                 Some(TagValue::Str(s)) if !s.is_empty() => Some(fastq_to_phred(s)),
                 _ => None,
             }

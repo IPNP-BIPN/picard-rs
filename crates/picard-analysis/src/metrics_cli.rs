@@ -263,16 +263,14 @@ pub fn read_group<'h>(
     header: &'h SamHeader,
     record: &BamRecord,
 ) -> Option<&'h htsjdk_bam::header::ReadGroup> {
-    let id = match record.tags.get(Tag::new(b"RG")) {
-        Some(TagValue::Str(id)) => id,
-        _ => return None,
-    };
-    header.read_groups.iter().find(|g| g.id == *id)
+    record.tags.with_str(Tag::new(b"RG"), |id| {
+        id.and_then(|id| header.read_groups.iter().find(|g| g.id == id))
+    })
 }
 
 /// `SAMRecord.getOriginalBaseQualities()`: the `OQ` string, FASTQ-decoded.
 pub fn original_qualities(record: &BamRecord) -> Option<Vec<u8>> {
-    match record.tags.get(Tag::new(b"OQ")) {
+    match record.tags.find(Tag::new(b"OQ")).as_deref() {
         Some(TagValue::Str(text)) => Some(text.bytes().map(|b| b.wrapping_sub(33)).collect()),
         _ => None,
     }

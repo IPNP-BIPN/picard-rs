@@ -32,9 +32,18 @@ use picard_analysis::stream_output::Output;
 const DUPLICATE_READ: u16 = 0x400;
 
 fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
-    match record.tags.get(Tag::new(name)) {
+    match record.tags.find(Tag::new(name)).as_deref() {
         Some(TagValue::Str(s)) => Some(s.clone()),
         _ => None,
+    }
+}
+
+/// `setAttribute(tag, null)`, which makes a record stale whether or not it holds the tag: a block
+/// read that is not canonical is written back canonical. Any other record is written the same with
+/// or without the call, and a list for it costs more than looking.
+fn remove_tag(record: &mut BamRecord, tag: Tag) {
+    if record.tags.holds_raw() || record.tags.contains(tag) {
+        record.tags.remove(tag);
     }
 }
 
@@ -174,7 +183,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
     let library_of = |record: &BamRecord| -> (Arc<str>, i32) {
-        let id = match record.tags.get(Tag::new(b"RG")) {
+        let group = record.tags.find(Tag::new(b"RG"));
+        let id = match group.as_deref() {
             Some(TagValue::Str(s)) => Some(s.as_str()),
             _ => None,
         };
@@ -203,14 +213,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 barcode: options.barcode_tag.as_ref().and_then(|tag| {
                     match record
                         .tags
-                        .get(Tag::new(tag.as_bytes().try_into().unwrap_or(b"RX")))
+                        .find(Tag::new(tag.as_bytes().try_into().unwrap_or(b"RX")))
+                        .as_deref()
                     {
                         Some(TagValue::Str(value)) => Some(value.clone()),
                         _ => None,
                     }
                 }),
                 existing_dt: string_tag(record, b"DT"),
-                mate_span: match record.tags.get(Tag::new(b"MC")) {
+                mate_span: match record.tags.find(Tag::new(b"MC")).as_deref() {
                     Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text)
                         .ok()
                         .as_ref()
@@ -281,7 +292,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if marking.duplicate[index] {
             written.flags |= DUPLICATE_READ;
         }
-        written.tags.remove(Tag::new(b"DT"));
+        remove_tag(&mut written, Tag::new(b"DT"));
         if let Some(code) = &marking.duplicate_type[index] {
             written
                 .tags

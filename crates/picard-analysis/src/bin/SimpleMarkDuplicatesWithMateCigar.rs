@@ -24,7 +24,7 @@ use picard_analysis::stream_output::Output;
 const DUPLICATE_READ: u16 = 0x400;
 
 fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
-    match record.tags.get(Tag::new(name)) {
+    match record.tags.find(Tag::new(name)).as_deref() {
         Some(TagValue::Str(s)) => Some(s.clone()),
         _ => None,
     }
@@ -162,7 +162,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect();
     let library_of = |record: &BamRecord| -> (Arc<str>, i32) {
-        let id = match record.tags.get(Tag::new(b"RG")) {
+        let group = record.tags.find(Tag::new(b"RG"));
+        let id = match group.as_deref() {
             Some(TagValue::Str(s)) => Some(s.as_str()),
             _ => None,
         };
@@ -197,7 +198,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }),
                 existing_dt: string_tag(record, b"DT"),
-                mate_span: match record.tags.get(Tag::new(b"MC")) {
+                mate_span: match record.tags.find(Tag::new(b"MC")).as_deref() {
                     Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text)
                         .ok()
                         .as_ref()
