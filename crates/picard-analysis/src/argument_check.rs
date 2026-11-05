@@ -273,7 +273,6 @@ pub fn answer(tool: &str, args: &[String]) -> Option<Answer> {
 /// option's `option` row.
 struct Checked {
     collection: bool,
-    optional: bool,
     /// The class `constructFromString` builds the value with.
     class: &'static str,
     /// An enum's constants, comma-separated; empty for any other class.
@@ -286,7 +285,6 @@ fn checked(tool: &str, full: &str) -> Option<Checked> {
         let f: Vec<&'static str> = line.split('\t').collect();
         (f.len() == 7 && f[0] == "option" && f[1] == tool && f[2] == full).then(|| Checked {
             collection: f[3] == "true",
-            optional: f[4] == "true",
             class: f[5],
             constants: f[6],
         })
@@ -301,9 +299,10 @@ fn refusal(key: &str, value: &str, option: &Checked, set: bool) -> Option<String
             "ERROR: Option '{key}' cannot be specified more than once."
         ));
     }
+    // `null` for a required option is refused by the legacy parser but not by Barclay's, which
+    // the covering arrays run the reference with, so it is left to the tool.
     if value == "null" {
-        return (!option.optional)
-            .then(|| format!("ERROR: non-null value must be provided for '{key}'."));
+        return None;
     }
     let simple = option
         .class

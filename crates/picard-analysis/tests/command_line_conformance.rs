@@ -188,11 +188,6 @@ fn a_value_the_legacy_parser_refuses_is_refused_with_its_message() {
         ),
         (
             "CollectQualityYieldMetrics",
-            "I=in.sam O=null",
-            "ERROR: non-null value must be provided for 'O'.",
-        ),
-        (
-            "CollectQualityYieldMetrics",
             "I=in.sam O=m1.txt VALIDATION_STRINGENCY=strict",
             "ERROR: 'strict' is not a valid value for ValidationStringency.",
         ),
