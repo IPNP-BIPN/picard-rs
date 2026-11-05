@@ -132,6 +132,97 @@ fn locs(path: &std::path::Path) -> Result<Vec<(f32, f32)>, String> {
     Ok(out)
 }
 
+/// `ClocsFileReader`: a byte, a bin count, then per 25-pixel bin a cluster count and a byte pair
+/// per cluster, tenths of a pixel from the bin's corner. 82 bins make a row of the 2048-wide image.
+fn clocs(path: &std::path::Path) -> Result<Vec<(f32, f32)>, String> {
+    const BLOCK: f32 = 25.0;
+    const BINS_IN_ROW: u64 = 82;
+    let bytes = read(path)?;
+    if bytes.len() < 5 {
+        return elements(&bytes, 5, 1, 0, path).map(|_| Vec::new());
+    }
+    let bins = u64::from(u32_at(&bytes, 1));
+    let mut rest = bytes[5..].iter().copied();
+    let mut next = || {
+        rest.next()
+            .ok_or("java.util.NoSuchElementException".to_string())
+    };
+    let (mut x_offset, mut y_offset) = (0f32, 0f32);
+    let mut bin = 0u64;
+    let mut in_bin = next()?;
+    let mut current = 0u8;
+    let mut out = Vec::new();
+    loop {
+        // `checkAndAdvanceBin`, a loop so empty bins are skipped.
+        while current >= in_bin && bin < bins {
+            if (bin + 1).is_multiple_of(BINS_IN_ROW) {
+                x_offset = 0.0;
+                y_offset += BLOCK;
+            } else {
+                x_offset += BLOCK;
+            }
+            bin += 1;
+            if bin < bins {
+                in_bin = next()?;
+                current = 0;
+            }
+        }
+        // `hasNext`.
+        if current >= in_bin && (bin as i64) >= bins as i64 - 1 {
+            break;
+        }
+        let x = f32::from(next()?) / 10.0 + x_offset;
+        let y = f32::from(next()?) / 10.0 + y_offset;
+        out.push((x, y));
+        current = current.saturating_add(1);
+    }
+    let at = bytes.len() - rest.len();
+    if at < bytes.len() {
+        return Err(format!(
+            "picard.PicardException: Read the number of expected bins( {bins}) but still had more elements in file( {}) ",
+            absolute(path)
+        ));
+    }
+    Ok(out)
+}
+
+/// `PosFileReader`: a whitespace-separated x and y per line, neither negative.
+fn pos(path: &std::path::Path) -> Result<Vec<(f32, f32)>, String> {
+    let text = String::from_utf8_lossy(&read(path)?).into_owned();
+    let mut out = Vec::new();
+    for (number, line) in text.lines().enumerate() {
+        let values: Vec<&str> = line.split_whitespace().collect();
+        if values.is_empty() {
+            continue;
+        }
+        let at = || {
+            format!(
+                "pos file( {} ) on line number( {} ) with current line = {line}",
+                path.display(),
+                number + 1
+            )
+        };
+        if values.len() != 2 {
+            return Err(format!(
+                "picard.PicardException: Pos file number of values != 2, found ({}){}",
+                values.len(),
+                at()
+            ));
+        }
+        // shortcut: Rust's float parsing, which refuses Java's `1f` and hex forms.
+        match (values[0].parse::<f32>(), values[1].parse::<f32>()) {
+            (Ok(x), Ok(y)) if x >= 0.0 && y >= 0.0 => out.push((x, y)),
+            _ => {
+                return Err(format!(
+                    "picard.PicardException: Bad x or y value in {}",
+                    at()
+                ))
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// `PerTileParser`'s refusal of a tile it has no file for.
 fn no_file(tile: i32, files: &std::collections::BTreeMap<i32, std::path::PathBuf>) -> String {
     let keys: Vec<String> = files.keys().map(i32::to_string).collect();
@@ -245,12 +336,22 @@ impl Run {
             ".locs",
         );
         let run_locs = self.layout.intensities.join("s.locs");
+        let tile_clocs = per_tile_files(
+            &self.layout.intensities.join(long_lane(self.lane)),
+            self.lane,
+            ".clocs",
+        );
+        let tile_pos = per_tile_files(&self.layout.intensities, self.lane, "_pos.txt");
         // `IlluminaDataProviderFactory`: a data type with no file for any tile of the lane.
-        // shortcut: `.clocs` and `_pos.txt` positions are not read, so a run with only those
-        // is refused here too.
         let unmatched: Vec<&str> = [
             ("PF", filters.is_empty()),
-            ("Position", tile_locs.is_empty() && !run_locs.exists()),
+            (
+                "Position",
+                tile_locs.is_empty()
+                    && !run_locs.exists()
+                    && tile_clocs.is_empty()
+                    && tile_pos.is_empty(),
+            ),
         ]
         .iter()
         .filter(|(_, missing)| *missing)
@@ -263,10 +364,23 @@ impl Run {
             ));
         }
         let pf = filter(filters.get(&tile).ok_or_else(|| no_file(tile, &filters))?)?;
-        let positions = match tile_locs.get(&tile) {
-            Some(p) => locs(p)?,
-            None if run_locs.exists() => locs(&run_locs)?,
-            None => return Err(no_file(tile, &tile_locs)),
+        // `DATA_TYPE_TO_PREFERRED_FORMATS`: locs, then clocs, then pos, chosen for the lane.
+        let positions = if !tile_locs.is_empty() || run_locs.exists() {
+            match tile_locs.get(&tile) {
+                Some(p) => locs(p)?,
+                None if run_locs.exists() => locs(&run_locs)?,
+                None => return Err(no_file(tile, &tile_locs)),
+            }
+        } else if !tile_clocs.is_empty() {
+            clocs(
+                tile_clocs
+                    .get(&tile)
+                    .ok_or_else(|| no_file(tile, &tile_clocs))?,
+            )?
+        } else {
+            pos(tile_pos
+                .get(&tile)
+                .ok_or_else(|| no_file(tile, &tile_pos))?)?
         };
         // shortcut: a tile's BCLs are held whole, a byte per cluster per cycle (12 MB for 200,000
         // clusters of 58 cycles); read them a block of clusters at a time if tiles grow far past that.
@@ -442,4 +556,27 @@ pub fn matched_barcodes(
 /// Whether a lane has any barcode file in `dir`.
 pub fn has_barcode_files(dir: &std::path::Path, lane: i32) -> bool {
     !per_tile_files(dir, lane, "_barcode.txt").is_empty()
+}
+
+#[cfg(test)]
+mod position_files {
+    use super::clocs;
+
+    /// Two bins: the second starts 25 pixels to the right of the first, and an empty third bin
+    /// is skipped.
+    #[test]
+    fn clocs_positions_are_offset_by_their_bin() {
+        let mut bytes = vec![1];
+        bytes.extend_from_slice(&3u32.to_le_bytes());
+        bytes.extend_from_slice(&[1, 10, 20, 1, 5, 0, 0]);
+        let path = std::env::temp_dir().join(format!("clocs-{}.clocs", std::process::id()));
+        std::fs::write(&path, &bytes).unwrap();
+        let positions = clocs(&path).unwrap();
+        bytes.push(9);
+        std::fs::write(&path, &bytes).unwrap();
+        let extra = clocs(&path).unwrap_err();
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(positions, vec![(1.0, 2.0), (25.5, 0.0)]);
+        assert!(extra.contains("still had more elements"), "{extra}");
+    }
 }
