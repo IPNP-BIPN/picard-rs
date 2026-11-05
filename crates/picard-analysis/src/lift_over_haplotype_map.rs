@@ -7,7 +7,7 @@
 //! Ported from `picard.fingerprint.LiftOverHaplotypeMap` in Picard 3.4.0.
 
 use htsjdk_bam::interval::Interval;
-use htsjdk_bam::liftover::{LiftOver, MissingToSequence};
+use htsjdk_bam::liftover::LiftOver;
 
 use crate::haplotype_map::{rows, HaplotypeBlock, Row, Snp};
 
@@ -37,8 +37,9 @@ pub fn lift_over_haplotype_map(
     blocks: &[HaplotypeBlock],
     lift: &LiftOver,
     sequence_order: &[String],
-) -> Result<LiftOverHaplotypeMapResult, MissingToSequence> {
-    lift.validate_to_sequences(sequence_order)?;
+) -> Result<LiftOverHaplotypeMapResult, String> {
+    lift.validate_to_sequences(sequence_order)
+        .map_err(|missing| missing.to_string())?;
     let mut lifted: Vec<HaplotypeBlock> = Vec::with_capacity(blocks.len());
     let mut any_failed = false;
     for block in blocks {
@@ -47,9 +48,8 @@ pub fn lift_over_haplotype_map(
             let interval = Interval::new(&snp.chromosome, snp.position, snp.position);
             match lift.lift_over(&interval) {
                 Some(lifted_interval) => {
-                    // The addition cannot fail: a block's SNPs land on one contig or the chain
-                    // would have had to name two, which the reference does not check either.
-                    let _ = to.add_snp(Snp {
+                    // `addSnp` throws when a block's SNPs land on two contigs.
+                    to.add_snp(Snp {
                         name: snp.name.clone(),
                         chromosome: lifted_interval.contig.clone(),
                         position: lifted_interval.start,
@@ -57,7 +57,7 @@ pub fn lift_over_haplotype_map(
                         minor_allele: snp.minor_allele,
                         minor_allele_frequency: snp.minor_allele_frequency,
                         panels: snp.panels.clone(),
-                    });
+                    })?;
                 }
                 None => any_failed = true,
             }

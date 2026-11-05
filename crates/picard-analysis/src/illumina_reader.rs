@@ -28,23 +28,208 @@ pub fn qseq_coordinate(pos: f32) -> i32 {
     (value + 0.5).floor() as i32
 }
 
-/// The `.locs` positions, as floats.
-fn locs(bytes: &[u8]) -> Vec<(f32, f32)> {
-    let mut out = Vec::new();
-    if bytes.len() < 12 {
-        return out;
+fn absolute(path: &std::path::Path) -> String {
+    std::path::absolute(path)
+        .unwrap_or_else(|_| path.to_path_buf())
+        .display()
+        .to_string()
+}
+
+fn u32_at(bytes: &[u8], at: usize) -> u32 {
+    u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]])
+}
+
+/// The file read whole, a missing or unreadable one being `IOUtil`'s refusal.
+fn read(path: &std::path::Path) -> Result<Vec<u8>, String> {
+    std::fs::read(path).map_err(|e| {
+        format!(
+            "picard.PicardException: IOException opening cluster binary file {}: {e}",
+            path.display()
+        )
+    })
+}
+
+/// `MMapBackedIteratorFactory`'s header check and `assertTotalElementsEqual`.
+fn elements(
+    bytes: &[u8],
+    header: usize,
+    size: usize,
+    expected: u64,
+    path: &std::path::Path,
+) -> Result<(), String> {
+    if bytes.len() < header {
+        return Err(format!(
+            "picard.PicardException: Header size({header}) is greater than file size({}) for file {}",
+            bytes.len(),
+            absolute(path)
+        ));
     }
-    let count = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) as usize;
+    let found = ((bytes.len() - header) / size) as u64;
+    if found != expected {
+        return Err(format!(
+            "picard.PicardException: Expected {expected} elements in file but found {found} elements! File({})",
+            absolute(path)
+        ));
+    }
+    if !(bytes.len() - header).is_multiple_of(size) {
+        return Err(format!(
+            "picard.PicardException: Malformed file, expected {} bytes in file, found {} bytes for file({})",
+            header as u64 + expected * size as u64,
+            bytes.len(),
+            absolute(path)
+        ));
+    }
+    Ok(())
+}
+
+/// `FilterFileReader`: four zero bytes, version three, a count, a byte per cluster.
+fn filter(path: &std::path::Path) -> Result<Vec<bool>, String> {
+    let bytes = read(path)?;
+    if bytes.len() < 12 {
+        return elements(&bytes, 12, 1, 0, path).map(|_| Vec::new());
+    }
+    if let Some(i) = bytes[..4].iter().position(|&b| b != 0) {
+        return Err(format!(
+            "picard.PicardException: The first four bytes of a Filter File should be 0 but byte {i} was {} in file {}",
+            bytes[i] as i8,
+            absolute(path)
+        ));
+    }
+    let version = u32_at(&bytes, 4) as i32;
+    if version != 3 {
+        return Err(format!(
+            "picard.PicardException: Expected version is 3 but version found was {version} in file {}",
+            absolute(path)
+        ));
+    }
+    let count = u32_at(&bytes, 8);
+    elements(&bytes, 12, 1, u64::from(count), path)?;
+    Ok(bytes[12..].iter().map(|b| b & 1 == 1).collect())
+}
+
+/// `LocsFileReader`: a one, a float 1.0, a count, and a pair of floats per cluster.
+fn locs(path: &std::path::Path) -> Result<Vec<(f32, f32)>, String> {
+    let bytes = read(path)?;
+    if bytes.len() < 12 {
+        return elements(&bytes, 12, 4, 0, path).map(|_| Vec::new());
+    }
+    let first = u32_at(&bytes, 0) as i32;
+    if first != 1 || f32::from_le_bytes(bytes[4..8].try_into().expect("four bytes")) != 1.0 {
+        let version = if first != 1 { "1" } else { "1.0" };
+        return Err(format!(
+            "picard.PicardException: First header byte of locs files should be {version} value found({first})"
+        ));
+    }
+    let count = u32_at(&bytes, 8) as usize;
+    elements(&bytes, 12, 4, 2 * count as u64, path)?;
+    let mut out = Vec::with_capacity(count);
     for i in 0..count {
         let at = 12 + i * 8;
-        if at + 8 > bytes.len() {
-            break;
-        }
         let x = f32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
         let y = f32::from_le_bytes([bytes[at + 4], bytes[at + 5], bytes[at + 6], bytes[at + 7]]);
         out.push((x, y));
     }
-    out
+    Ok(out)
+}
+
+/// `ClocsFileReader`: a byte, a bin count, then per 25-pixel bin a cluster count and a byte pair
+/// per cluster, tenths of a pixel from the bin's corner. 82 bins make a row of the 2048-wide image.
+fn clocs(path: &std::path::Path) -> Result<Vec<(f32, f32)>, String> {
+    const BLOCK: f32 = 25.0;
+    const BINS_IN_ROW: u64 = 82;
+    let bytes = read(path)?;
+    if bytes.len() < 5 {
+        return elements(&bytes, 5, 1, 0, path).map(|_| Vec::new());
+    }
+    let bins = u64::from(u32_at(&bytes, 1));
+    let mut rest = bytes[5..].iter().copied();
+    let mut next = || {
+        rest.next()
+            .ok_or("java.util.NoSuchElementException".to_string())
+    };
+    let (mut x_offset, mut y_offset) = (0f32, 0f32);
+    let mut bin = 0u64;
+    let mut in_bin = next()?;
+    let mut current = 0u8;
+    let mut out = Vec::new();
+    loop {
+        // `checkAndAdvanceBin`, a loop so empty bins are skipped.
+        while current >= in_bin && bin < bins {
+            if (bin + 1).is_multiple_of(BINS_IN_ROW) {
+                x_offset = 0.0;
+                y_offset += BLOCK;
+            } else {
+                x_offset += BLOCK;
+            }
+            bin += 1;
+            if bin < bins {
+                in_bin = next()?;
+                current = 0;
+            }
+        }
+        // `hasNext`.
+        if current >= in_bin && (bin as i64) >= bins as i64 - 1 {
+            break;
+        }
+        let x = f32::from(next()?) / 10.0 + x_offset;
+        let y = f32::from(next()?) / 10.0 + y_offset;
+        out.push((x, y));
+        current = current.saturating_add(1);
+    }
+    let at = bytes.len() - rest.len();
+    if at < bytes.len() {
+        return Err(format!(
+            "picard.PicardException: Read the number of expected bins( {bins}) but still had more elements in file( {}) ",
+            absolute(path)
+        ));
+    }
+    Ok(out)
+}
+
+/// `PosFileReader`: a whitespace-separated x and y per line, neither negative.
+fn pos(path: &std::path::Path) -> Result<Vec<(f32, f32)>, String> {
+    let text = String::from_utf8_lossy(&read(path)?).into_owned();
+    let mut out = Vec::new();
+    for (number, line) in text.lines().enumerate() {
+        let values: Vec<&str> = line.split_whitespace().collect();
+        if values.is_empty() {
+            continue;
+        }
+        let at = || {
+            format!(
+                "pos file( {} ) on line number( {} ) with current line = {line}",
+                path.display(),
+                number + 1
+            )
+        };
+        if values.len() != 2 {
+            return Err(format!(
+                "picard.PicardException: Pos file number of values != 2, found ({}){}",
+                values.len(),
+                at()
+            ));
+        }
+        // shortcut: Rust's float parsing, which refuses Java's `1f` and hex forms.
+        match (values[0].parse::<f32>(), values[1].parse::<f32>()) {
+            (Ok(x), Ok(y)) if x >= 0.0 && y >= 0.0 => out.push((x, y)),
+            _ => {
+                return Err(format!(
+                    "picard.PicardException: Bad x or y value in {}",
+                    at()
+                ))
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// `PerTileParser`'s refusal of a tile it has no file for.
+fn no_file(tile: i32, files: &std::collections::BTreeMap<i32, std::path::PathBuf>) -> String {
+    let keys: Vec<String> = files.keys().map(i32::to_string).collect();
+    format!(
+        "picard.PicardException: PerTileParser does not contain key({tile}) keys available ({})",
+        keys.join(",")
+    )
 }
 
 /// A run directory's per-tile files for one lane.
@@ -105,35 +290,109 @@ impl Run {
                 cycles.len()
             ));
         }
-        let read_bcl = |cycle: i32| -> Vec<u8> {
-            self.bcl
-                .files
-                .get(&cycle)
-                .and_then(|m| m.get(&tile))
-                .and_then(|p| std::fs::read(p).ok())
-                .unwrap_or_default()
+        // `CycleIlluminaFileMap.assertValid`, which counts the tiles of the lowest cycle alone.
+        if let Some(first) = cycles.iter().min().and_then(|c| self.bcl.files.get(c)) {
+            let tiles = self.available_tiles()?;
+            let found = tiles.iter().filter(|t| first.contains_key(t)).count();
+            if found != tiles.len() {
+                return Err(format!(
+                    "picard.PicardException: Expected CycledIlluminaFileMap to contain {} tiles but only {found} were found!",
+                    tiles.len()
+                ));
+            }
+        }
+        // `BclReader`: every cycle's file there, its header whole and its count its length.
+        let read_bcl = |index: usize, cycle: i32| -> Result<Vec<u8>, String> {
+            let path = self.bcl.files.get(&cycle).and_then(|m| m.get(&tile)).ok_or_else(|| {
+                format!("htsjdk.samtools.util.RuntimeIOException: Could not find BCL file for cycle {index}")
+            })?;
+            let bytes = std::fs::read(path).map_err(|_| {
+                format!(
+                    "picard.PicardException: File not found: ({})",
+                    path.display()
+                )
+            })?;
+            if bytes.len() < 4 {
+                return Err(format!(
+                    "htsjdk.samtools.util.RuntimeIOException: BCL {} has invalid header structure.",
+                    absolute(path)
+                ));
+            }
+            let count = u32_at(&bytes, 0) as i32;
+            if i64::from(count) != bytes.len() as i64 - 4 {
+                return Err(format!(
+                    "picard.PicardException: Expected {count} in file {} but found {}",
+                    absolute(path),
+                    bytes.len() - 4
+                ));
+            }
+            Ok(bytes)
         };
         let lane_dir = self.layout.basecalls.join(long_lane(self.lane));
-        let filter = per_tile_files(&lane_dir, self.lane, ".filter")
-            .get(&tile)
-            .and_then(|p| std::fs::read(p).ok())
-            .unwrap_or_default();
-        let pf: Vec<bool> = filter.iter().skip(12).map(|b| b & 1 == 1).collect();
-        let intensity_lane = self.layout.intensities.join(long_lane(self.lane));
-        let positions = match per_tile_files(&intensity_lane, self.lane, ".locs").get(&tile) {
-            Some(p) => locs(&std::fs::read(p).unwrap_or_default()),
-            None => {
-                locs(&std::fs::read(self.layout.intensities.join("s.locs")).unwrap_or_default())
+        let filters = per_tile_files(&lane_dir, self.lane, ".filter");
+        let tile_locs = per_tile_files(
+            &self.layout.intensities.join(long_lane(self.lane)),
+            self.lane,
+            ".locs",
+        );
+        let run_locs = self.layout.intensities.join("s.locs");
+        let tile_clocs = per_tile_files(
+            &self.layout.intensities.join(long_lane(self.lane)),
+            self.lane,
+            ".clocs",
+        );
+        let tile_pos = per_tile_files(&self.layout.intensities, self.lane, "_pos.txt");
+        // `IlluminaDataProviderFactory`: a data type with no file for any tile of the lane.
+        let unmatched: Vec<&str> = [
+            ("PF", filters.is_empty()),
+            (
+                "Position",
+                tile_locs.is_empty()
+                    && !run_locs.exists()
+                    && tile_clocs.is_empty()
+                    && tile_pos.is_empty(),
+            ),
+        ]
+        .iter()
+        .filter(|(_, missing)| *missing)
+        .map(|(name, _)| *name)
+        .collect();
+        if !unmatched.is_empty() {
+            return Err(format!(
+                "picard.PicardException: Could not find a format with available files for the following data types: {}",
+                unmatched.join(", ")
+            ));
+        }
+        let pf = filter(filters.get(&tile).ok_or_else(|| no_file(tile, &filters))?)?;
+        // `DATA_TYPE_TO_PREFERRED_FORMATS`: locs, then clocs, then pos, chosen for the lane.
+        let positions = if !tile_locs.is_empty() || run_locs.exists() {
+            match tile_locs.get(&tile) {
+                Some(p) => locs(p)?,
+                None if run_locs.exists() => locs(&run_locs)?,
+                None => return Err(no_file(tile, &tile_locs)),
             }
+        } else if !tile_clocs.is_empty() {
+            clocs(
+                tile_clocs
+                    .get(&tile)
+                    .ok_or_else(|| no_file(tile, &tile_clocs))?,
+            )?
+        } else {
+            pos(tile_pos
+                .get(&tile)
+                .ok_or_else(|| no_file(tile, &tile_pos))?)?
         };
         // shortcut: a tile's BCLs are held whole, a byte per cluster per cycle (12 MB for 200,000
         // clusters of 58 cycles); read them a block of clusters at a time if tiles grow far past that.
-        let data: Vec<Vec<u8>> = cycles.iter().map(|c| read_bcl(*c)).collect();
+        let data = cycles
+            .iter()
+            .enumerate()
+            .map(|(index, &cycle)| read_bcl(index, cycle))
+            .collect::<Result<Vec<_>, _>>()?;
         // The clusters are counted by the first BCL, or by the filter file when no cycle is read
         // (a provider of PF and positions alone).
         let count = match data.first() {
-            Some(d) if d.len() >= 4 => u32::from_le_bytes([d[0], d[1], d[2], d[3]]) as usize,
-            Some(_) => 0,
+            Some(d) => u32_at(d, 0) as usize,
             None => pf.len(),
         };
         Ok(Tile {
@@ -297,4 +556,27 @@ pub fn matched_barcodes(
 /// Whether a lane has any barcode file in `dir`.
 pub fn has_barcode_files(dir: &std::path::Path, lane: i32) -> bool {
     !per_tile_files(dir, lane, "_barcode.txt").is_empty()
+}
+
+#[cfg(test)]
+mod position_files {
+    use super::clocs;
+
+    /// Two bins: the second starts 25 pixels to the right of the first, and an empty third bin
+    /// is skipped.
+    #[test]
+    fn clocs_positions_are_offset_by_their_bin() {
+        let mut bytes = vec![1];
+        bytes.extend_from_slice(&3u32.to_le_bytes());
+        bytes.extend_from_slice(&[1, 10, 20, 1, 5, 0, 0]);
+        let path = std::env::temp_dir().join(format!("clocs-{}.clocs", std::process::id()));
+        std::fs::write(&path, &bytes).unwrap();
+        let positions = clocs(&path).unwrap();
+        bytes.push(9);
+        std::fs::write(&path, &bytes).unwrap();
+        let extra = clocs(&path).unwrap_err();
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(positions, vec![(1.0, 2.0), (25.5, 0.0)]);
+        assert!(extra.contains("still had more elements"), "{extra}");
+    }
 }

@@ -119,8 +119,9 @@ pub struct TileMetric {
 }
 
 /// `TileMetricsOutReader` at version two: a version byte, a record size, and ten bytes a record.
+/// Java refuses any other record size; a 0 here would never advance.
 pub fn parse_tile_metrics(bytes: &[u8]) -> Option<Vec<TileMetric>> {
-    if bytes.len() < 2 || bytes[0] != 2 {
+    if bytes.len() < 2 || bytes[0] != 2 || bytes[1] != 10 {
         return None;
     }
     let record = bytes[1] as usize;
@@ -213,4 +214,21 @@ pub fn segment_cycles(structure: &[Segment]) -> Vec<Vec<usize>> {
         cycle += segment.cycles;
     }
     out
+}
+
+#[cfg(test)]
+mod tile_metrics_record_size {
+    use super::parse_tile_metrics;
+
+    /// A record size of 0 would never advance; Java refuses anything but 10.
+    #[test]
+    fn only_ten_byte_records_are_read() {
+        let mut bytes = vec![2u8, 10];
+        bytes.extend_from_slice(&[1, 0, 2, 0, 100, 0, 0, 0, 128, 63]);
+        assert_eq!(parse_tile_metrics(&bytes).expect("ten").len(), 1);
+        bytes[1] = 0;
+        assert!(parse_tile_metrics(&bytes).is_none());
+        bytes[1] = 6;
+        assert!(parse_tile_metrics(&bytes).is_none());
+    }
 }

@@ -149,7 +149,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             read_group: i32,
             location: Location,
             barcodes: (i32, i32, i32),
-            added: bool,
         }
         let mut pending: HashMap<String, Pending> = HashMap::new();
 
@@ -166,7 +165,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             records_read += 1;
 
-            let entry = pending.entry(record.read_name.clone()).or_insert_with(|| {
+            // `pendingByName.remove`: the second end takes the template out of the table whether
+            // or not the pair is kept, so a name met again starts a new one.
+            let found = pending.remove(&record.read_name);
+            let fresh = found.is_none();
+            let mut entry = found.unwrap_or_else(|| {
                 let parsed = picard_analysis::mark_duplicates::location_with(
                     &record.read_name,
                     &read_name_regex,
@@ -192,7 +195,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     read_group,
                     location: parsed,
                     barcodes: (0, 0, 0),
-                    added: false,
                 }
             });
 
@@ -227,8 +229,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            if entry.read1.is_some() && entry.read2.is_some() && entry.quality_ok && !entry.added {
-                entry.added = true;
+            if fresh {
+                pending.insert(record.read_name.clone(), entry);
+            } else if entry.read1.is_some() && entry.read2.is_some() && entry.quality_ok {
                 let library = if entry.read_group == -1 {
                     "Unknown".to_string()
                 } else {
@@ -237,7 +240,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .clone()
                         .unwrap_or_else(|| "Unknown".to_string())
                 };
-                // An added template is never added again, so its bases are moved, not copied.
                 pairs.push(PairedRead {
                     read1: entry.read1.take().expect("read one"),
                     read2: entry.read2.take().expect("read two"),

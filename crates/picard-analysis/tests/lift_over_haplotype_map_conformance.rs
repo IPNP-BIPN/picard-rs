@@ -238,3 +238,30 @@ fn a_block_spanning_two_contigs_is_refused_by_the_reader() {
         parse_haplotype_database(&field(&text, "db", "two-contigs").expect("a database")).is_err()
     );
 }
+
+/// A block whose SNPs a chain sends to two contigs is refused, as `HaplotypeBlock.addSnp` throws,
+/// rather than written with the second SNP missing.
+#[test]
+fn a_block_lifted_onto_two_contigs_is_refused() {
+    let chain = "chain 1000 chr1 1000 + 0 100 chrA 1000 + 0 100 1\n100\n\n\
+                 chain 1000 chr1 1000 + 100 200 chrB 1000 + 0 100 2\n100\n\n";
+    let lift = LiftOver::load(chain).expect("the chain parses");
+    let snp = |name: &str, position| picard_analysis::haplotype_map::Snp {
+        name: name.to_string(),
+        chromosome: "chr1".to_string(),
+        position,
+        major_allele: b'A',
+        minor_allele: b'C',
+        minor_allele_frequency: 0.1,
+        panels: None,
+    };
+    let mut block = picard_analysis::haplotype_map::HaplotypeBlock::default();
+    block.add_snp(snp("rs1", 50)).expect("one contig");
+    block.add_snp(snp("rs2", 150)).expect("one contig");
+    let order = ["chrA".to_string(), "chrB".to_string()];
+    let error = lift_over_haplotype_map(&[block], &lift, &order).expect_err("two contigs");
+    assert!(
+        error.contains("chrB does not agree with chromosome of existing snp(s): chrA"),
+        "{error}"
+    );
+}
