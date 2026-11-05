@@ -66,7 +66,8 @@ pub struct Declared {
 /// exits; returns when the tool should run. Every binary calls this first.
 pub fn check(tool: &str) {
     crate::args::set_tool(tool);
-    let args: Vec<String> = crate::args::process().into_iter().skip(1).collect();
+    // The words as typed: the banner prints them so, `i=x` and not `-INPUT x`.
+    let args: Vec<String> = std::env::args().skip(1).collect();
     if let Some(answer) = answer(tool, &args) {
         print!("{}", answer.stdout);
         eprint!("{}", answer.stderr);
@@ -268,23 +269,115 @@ pub fn answer(tool: &str, args: &[String]) -> Option<Answer> {
     barclay(tool, &declared, args)
 }
 
+/// What `LegacyCommandLineArgumentParser.parseOption` checks of one option's value, from the
+/// option's `option` row.
+struct Checked {
+    collection: bool,
+    optional: bool,
+    /// The class `constructFromString` builds the value with.
+    class: &'static str,
+    /// An enum's constants, comma-separated; empty for any other class.
+    constants: &'static str,
+}
+
+/// The `option` row of `tool`'s option `full`.
+fn checked(tool: &str, full: &str) -> Option<Checked> {
+    gunzip(DECLARATIONS).lines().find_map(|line| {
+        let f: Vec<&'static str> = line.split('\t').collect();
+        (f.len() == 7 && f[0] == "option" && f[1] == tool && f[2] == full).then(|| Checked {
+            collection: f[3] == "true",
+            optional: f[4] == "true",
+            class: f[5],
+            constants: f[6],
+        })
+    })
+}
+
+/// The message `parseOption` prints for `key=value` when it refuses it, with `set` the options
+/// already given. `key` is the name as typed, upper-cased.
+fn refusal(key: &str, value: &str, option: &Checked, set: bool) -> Option<String> {
+    if !option.collection && set {
+        return Some(format!(
+            "ERROR: Option '{key}' cannot be specified more than once."
+        ));
+    }
+    if value == "null" {
+        return (!option.optional)
+            .then(|| format!("ERROR: non-null value must be provided for '{key}'."));
+    }
+    let simple = option
+        .class
+        .rsplit(['.', '$'])
+        .next()
+        .unwrap_or(option.class);
+    if !option.constants.is_empty() {
+        // `Enum.valueOf` takes the exact name.
+        return (!option.constants.split(',').any(|c| c == value))
+            .then(|| format!("ERROR: '{value}' is not a valid value for {simple}."));
+    }
+    let range = match option.class {
+        "java.lang.Integer" => Some(i32::MIN as i64..=i32::MAX as i64),
+        "java.lang.Long" => Some(i64::MIN..=i64::MAX),
+        "java.lang.Short" => Some(i16::MIN as i64..=i16::MAX as i64),
+        "java.lang.Byte" => Some(i8::MIN as i64..=i8::MAX as i64),
+        _ => None,
+    };
+    // shortcut: only enums and numbers are checked; a value another class's `String`
+    // constructor refuses (`ReadStructure`, `Iso8601Date`) is left to the tool.
+    let refused = match (range, option.class) {
+        (Some(range), _) => {
+            !crate::command_line::java_integer(value).is_some_and(|v| range.contains(&v))
+        }
+        (None, "java.lang.Double" | "java.lang.Float") => {
+            crate::command_line::java_double(value).is_none()
+        }
+        _ => false,
+    };
+    refused.then(|| format!("ERROR: Problem constructing {simple} from the string '{value}'."))
+}
+
 fn legacy(tool: &str, declared: &Declared, args: &[String]) -> Option<Answer> {
-    for arg in args {
+    let refuse = |message: String| {
+        reworded(
+            tool,
+            "legacy_unknown",
+            "ERROR: Unrecognized option: PICARD_RS_PROBE",
+            args,
+            &message,
+        )
+    };
+    let mut set = HashSet::new();
+    let mut i = 0;
+    while i < args.len() {
+        let arg = &args[i];
+        i += 1;
         match arg.split_once('=') {
-            Some((name, _)) => {
+            Some((name, value)) => {
+                // `arg.split("=", 2)`: a NAME= with nothing after it takes the next word.
+                let value = if value.is_empty() && i < args.len() {
+                    i += 1;
+                    args[i - 1].as_str()
+                } else {
+                    value
+                };
                 let key = name.to_uppercase();
                 // An options file is read by the parser itself, and the binary is left to it.
-                if key == "OPTIONS_FILE" || declared.legacy.contains(&key) {
+                if key == "OPTIONS_FILE" {
                     continue;
                 }
-                let message = "ERROR: Unrecognized option: PICARD_RS_PROBE";
-                return Some(reworded(
-                    tool,
-                    "legacy_unknown",
-                    message,
-                    args,
-                    &format!("ERROR: Unrecognized option: {key}"),
-                ));
+                if !declared.legacy.contains(&key) {
+                    return Some(refuse(format!("ERROR: Unrecognized option: {key}")));
+                }
+                let Some(full) = full_name(tool, &key) else {
+                    continue;
+                };
+                let Some(option) = checked(tool, full) else {
+                    continue;
+                };
+                if let Some(message) = refusal(&key, value, &option, set.contains(full)) {
+                    return Some(refuse(message));
+                }
+                set.insert(full);
             }
             None if declared.positional => {}
             None => {

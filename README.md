@@ -91,11 +91,17 @@ none of them surprises you:
 - **Only `NAME=value` is read.** Picard's newer `--INPUT x` syntax is not: `-h`, `--help` and
   `--version` work, and an argument the tool does not declare is refused, but a declared one written
   that way is ignored.
-- **`MAX_RECORDS_IN_RAM`, `TMP_DIR`, `USE_JDK_INFLATER`, `VERBOSITY` and `QUIET` are accepted and
-  have no effect.** None of them changes an output file in Picard either: the first two bound memory
-  and name where records spill (picard-rs keeps them in memory), the inflater only reads, and the
-  last two set how much Picard logs. `COMPRESSION_LEVEL` and `USE_JDK_DEFLATER` do take effect, as
-  below.
+- **`MAX_RECORDS_IN_RAM` and `TMP_DIR` take effect only in the tools that sort to disk**:
+  `SortSam`, `MergeBamAlignment` and `LiftoverVcf` spill to the first `TMP_DIR` (default `$TMPDIR`)
+  after `MAX_RECORDS_IN_RAM` records, and `GtcToVcf` uses `TMP_DIR`. The other tools keep their
+  records in memory. `SortSam` holds a second batch while it writes one out, so it can use about
+  twice Picard's memory for the same `MAX_RECORDS_IN_RAM`. Neither option changes an output file.
+- **`USE_JDK_INFLATER`, `VERBOSITY` and `QUIET` are accepted and have no effect.** None of them
+  changes an output file in Picard either: the inflater only reads, and the last two set how much
+  Picard logs. `COMPRESSION_LEVEL` and `USE_JDK_DEFLATER` do take effect, as below.
+- **Illumina run folders are read in the per-tile layout only** (`.bcl` or `.bcl.gz` per cycle and
+  tile). A NovaSeq run, with `.cbcl` files, or a multi-tile (`.bci`) run is not read: the tools stop
+  with "No available tiles were found".
 - **Headers**: metrics files carry placeholder command-line and date lines, and no tool adds its
   own `@PG` record (see [Getting the same bytes as Picard](#getting-the-same-bytes-as-picard)).
 - An unknown or misspelled argument is refused with Picard's own message, usage and exit status.

@@ -18,7 +18,13 @@ import org.broadinstitute.barclay.argparser.NamedArgumentDefinition;
  * set: `help`, `version` and `arguments_file`, and the flow arguments of a collection the legacy
  * parser never sees. Its full and short names are the `barclay` rows.
  *
- * Rows: `legacy <tool> <key> <long name>`, `barclay <tool> <name>`, and
+ * What the legacy parser checks of a value before the tool runs is the `option` rows: whether the
+ * option is a collection (a single value set twice is refused), whether it is optional (`null`
+ * for a required one is refused), and the type `constructFromString` builds the value with (an
+ * enum takes one of its constants, a number refuses what its `String` constructor refuses).
+ *
+ * Rows: `legacy <tool> <key> <long name>`, `barclay <tool> <name>`,
+ * `option <tool> <long name> <collection> <optional> <type> <enum constants>`, and
  * `positional <tool> <min> <max>` for a tool that takes positional words.
  */
 public class CommandLineDeclarationsDump {
@@ -31,6 +37,24 @@ public class CommandLineDeclarationsDump {
             final Map<String, Object> map = (Map<String, Object>) Declarations.read(parser, "optionMap");
             for (final Map.Entry<String, Object> option : new TreeMap<>(map).entrySet()) {
                 System.out.println("legacy\t" + tool + "\t" + option.getKey() + "\t" + Declarations.read(option.getValue(), "name"));
+            }
+            final java.lang.reflect.Method underlying =
+                LegacyCommandLineArgumentParser.class.getDeclaredMethod("getUnderlyingType", java.lang.reflect.Field.class);
+            underlying.setAccessible(true);
+            final Map<String, Object> byName = new TreeMap<>();
+            for (final Object definition : map.values()) byName.put((String) Declarations.read(definition, "name"), definition);
+            for (final Map.Entry<String, Object> option : byName.entrySet()) {
+                final Object definition = option.getValue();
+                final Class<?> type = (Class<?>) underlying.invoke(parser, Declarations.read(definition, "field"));
+                final StringBuilder constants = new StringBuilder();
+                if (type.isEnum()) {
+                    for (final Object c : type.getEnumConstants()) {
+                        if (constants.length() > 0) constants.append(',');
+                        constants.append(((Enum<?>) c).name());
+                    }
+                }
+                System.out.println("option\t" + tool + "\t" + option.getKey() + "\t" + Declarations.read(definition, "isCollection")
+                    + "\t" + Declarations.read(definition, "optional") + "\t" + type.getName() + "\t" + constants);
             }
             for (final NamedArgumentDefinition definition : named) {
                 System.out.println("barclay\t" + tool + "\t" + definition.getFullName());
