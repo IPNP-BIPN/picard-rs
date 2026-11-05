@@ -325,10 +325,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         None
     };
-    // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
-    let create_index = picard_analysis::cram_output::create_index_argument();
     for (_, out) in outs {
-        out.finish(create_index, false)?;
+        out.finish_create_index()?;
     }
     if let Some(error) = error {
         eprintln!(

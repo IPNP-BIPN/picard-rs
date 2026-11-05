@@ -216,6 +216,7 @@ pub fn mark_with_mate_cigar(
         &base,
         &decisions.duplicate,
         &decisions.optical,
+        Some(&decisions.optical_pairs),
     );
     marking.all_sets = decisions.all_sets;
     marking.optical_sets = decisions.optical_sets;
@@ -269,7 +270,7 @@ pub fn simple_mark_with_mate_cigar(
     };
     let sets = crate::duplicate_set::mark_duplicate_sets_tracked(records, &base);
     let mut marking =
-        crate::mark_duplicates::marking_from(records, &base, &sets.duplicate, &sets.optical);
+        crate::mark_duplicates::marking_from(records, &base, &sets.duplicate, &sets.optical, None);
     marking.all_sets = sets.all_sets;
     marking.optical_sets = sets.optical_sets;
     marking.non_optical_sets = sets.non_optical_sets;
