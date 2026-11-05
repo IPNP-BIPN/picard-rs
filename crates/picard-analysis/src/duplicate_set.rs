@@ -370,7 +370,7 @@ fn track_set(
     if ends.len() < 2 {
         return;
     }
-    let flags = optical_flags(&ends, 0, options);
+    let flags = optical_flags(&ends, Some(0), options);
     let optical_count = flags.iter().filter(|flag| **flag).count();
     for (position, flag) in flags.iter().enumerate() {
         if !flag {

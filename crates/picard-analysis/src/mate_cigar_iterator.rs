@@ -30,8 +30,8 @@
 use std::cmp::Ordering;
 
 use crate::mark_duplicates::{
-    duplicate_score_with, orientation_byte, Location, Options, Record, ScoringStrategy, F, FF, FR,
-    R,
+    duplicate_score_with, optical_flags, orientation_byte, Location, Options, ReadEnds, Record,
+    ScoringStrategy, F, FF, FR, R,
 };
 
 /// One read end, as `ReadEndsForMateCigar` builds it.
@@ -248,6 +248,10 @@ pub struct Decisions {
     pub all_sets: Vec<(f64, f64)>,
     pub optical_sets: Vec<(f64, f64)>,
     pub non_optical_sets: Vec<(f64, f64)>,
+    /// `LibraryIdGenerator.getOpticalDuplicatesByLibraryIdMap`: the optical duplicates found per
+    /// library, in pairs, as the metrics count them. One end of a pair is all a location set holds,
+    /// so halving the records flagged would undercount.
+    pub optical_pairs: Vec<(String, i64)>,
 }
 
 /// The all, optical and non-optical set-size histograms, in that order.
@@ -269,6 +273,7 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
     let mut duplicate = vec![false; records.len()];
     let mut optical = vec![false; records.len()];
     let mut histograms: SetHistograms = Default::default();
+    let mut optical_by_library: Vec<i64> = Vec::new();
 
     // `LibraryIdGenerator`: an id per library, in the order the libraries are first seen.
     let mut libraries: Vec<String> = Vec::new();
@@ -330,6 +335,7 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
             &mut location_sets,
             &mut duplicate,
             &mut optical,
+            &mut optical_by_library,
             &mut histograms,
             options,
             false,
@@ -361,6 +367,7 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
         &mut location_sets,
         &mut duplicate,
         &mut optical,
+        &mut optical_by_library,
         &mut histograms,
         options,
         true,
@@ -370,12 +377,19 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
     );
 
     let (all_sets, optical_sets, non_optical_sets) = histograms;
+    let optical_pairs = optical_by_library
+        .into_iter()
+        .enumerate()
+        .filter(|(_, count)| *count > 0)
+        .map(|(id, count)| (libraries[id].clone(), count))
+        .collect();
     Decisions {
         duplicate,
         optical,
         all_sets,
         optical_sets,
         non_optical_sets,
+        optical_pairs,
     }
 }
 
@@ -548,6 +562,7 @@ fn drain(
     location_sets: &mut [LocationSet],
     duplicate: &mut [bool],
     optical: &mut [bool],
+    optical_by_library: &mut Vec<i64>,
     histograms: &mut SetHistograms,
     options: &Options,
     flush: bool,
@@ -610,6 +625,11 @@ fn drain(
                         increment(&mut histograms.2, (size - optical_count) as f64);
                     }
                     if optical_count > 0 {
+                        let library = entries[0].library_id as usize;
+                        if optical_by_library.len() <= library {
+                            optical_by_library.resize(library + 1, 0);
+                        }
+                        optical_by_library[library] += optical_count as i64;
                         increment(&mut histograms.1, optical_count as f64 + 1.0);
                     }
                 }
@@ -618,39 +638,80 @@ fn drain(
     }
 }
 
-/// `AbstractMarkDuplicatesCommandLineProgram.trackOpticalDuplicates` over one location set: the
-/// ends within the pixel distance of the best-scoring one are optical duplicates of it.
+/// `AbstractMarkDuplicatesCommandLineProgram.trackOpticalDuplicates(locations, null, ...)` over
+/// one location set. With no keeper a set of three or more goes through the graph clustering, and
+/// a set mixing FR and RF is split first: [`optical_flags`] does both, as MarkDuplicates does.
 /// It answers how many ends it found optical.
 fn track_optical(entries: &[End], options: &Options, optical: &mut [bool]) -> usize {
-    // `findOpticalDuplicates` returns nothing for a set longer than MAX_OPTICAL_DUPLICATE_SET_SIZE.
-    if entries.len() as i64 > options.max_optical_duplicate_set_size {
-        return 0;
-    }
-    let known: Vec<&End> = entries.iter().filter(|end| end.location.known).collect();
-    if known.len() < 2 {
-        return 0;
-    }
-    let mut count = 0;
-    // The keeper is the highest score, first one winning, as `MarkDuplicates` picks it.
-    let mut keeper = 0;
-    for (position, end) in known.iter().enumerate() {
-        if end.score > known[keeper].score {
-            keeper = position;
-        }
-    }
-    for (position, end) in known.iter().enumerate() {
-        if position == keeper {
-            continue;
-        }
-        let other = known[keeper];
-        if end.read_group == other.read_group
-            && end.location.tile == other.location.tile
-            && (end.location.x - other.location.x).abs() <= options.optical_duplicate_pixel_distance
-            && (end.location.y - other.location.y).abs() <= options.optical_duplicate_pixel_distance
-        {
+    let ends: Vec<ReadEnds> = entries
+        .iter()
+        .map(|end| ReadEnds {
+            library: std::sync::Arc::from(""),
+            read1_reference_index: end.read1_reference_index,
+            read1_coordinate: end.read1_coordinate,
+            read2_reference_index: end.read2_reference_index,
+            read2_coordinate: end.read2_coordinate,
+            orientation: end.orientation,
+            orientation_for_optical_duplicates: end.orientation_for_optical,
+            read1_index_in_file: end.index,
+            read2_index_in_file: end.index,
+            score: end.score,
+            location: end.location,
+            read_group: end.read_group,
+            barcode: None,
+            is_optical_duplicate: false,
+        })
+        .collect();
+    let flags = optical_flags(&ends, None, options);
+    for (end, flag) in entries.iter().zip(&flags) {
+        if *flag {
             optical[end.index] = true;
-            count += 1;
         }
     }
-    count
+    flags.iter().filter(|flag| **flag).count()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn end_at(index: usize, x: i32, score: i16) -> End {
+        End {
+            library_id: 0,
+            read1_reference_index: 0,
+            read1_coordinate: 100,
+            read2_reference_index: 0,
+            read2_coordinate: 209,
+            orientation: FR,
+            orientation_for_optical: FR,
+            has_unmapped: 0,
+            index,
+            paired: true,
+            first_of_pair: true,
+            name: format!("A:1:FC:1:1101:{x}:500"),
+            score,
+            location: Location {
+                tile: 1101,
+                x,
+                y: 500,
+                known: true,
+            },
+            read_group: 0,
+            location_set: None,
+        }
+    }
+
+    /// `trackOpticalDuplicates(locations, null, ...)`: with no keeper, three ends go through the
+    /// graph, so the two that lie close together are one cluster even though neither is close to
+    /// the best-scoring end. Picard 3.5.0 counts one optical duplicate here.
+    #[test]
+    fn three_ends_are_clustered_without_a_keeper() {
+        let entries = [end_at(0, 100, 30), end_at(2, 300, 20), end_at(4, 310, 10)];
+        let mut optical = vec![false; 6];
+        assert_eq!(
+            track_optical(&entries, &Options::default(), &mut optical),
+            1
+        );
+        assert_eq!(optical, [false, false, false, false, true, false]);
+    }
 }
