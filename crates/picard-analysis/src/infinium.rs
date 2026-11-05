@@ -104,6 +104,12 @@ impl<R: std::io::Read + std::io::Seek> Reader<R> {
         Ok(f32::from_le_bytes(self.take()?))
     }
 
+    /// Bytes not read yet: every record takes at least one, so a count read from the file is
+    /// capped by it before it sizes an allocation.
+    pub fn left(&self) -> usize {
+        (self.len - self.at) as usize
+    }
+
     pub fn skip(&mut self, n: usize) {
         self.seek((self.at + n as u64).min(self.len));
     }
@@ -324,7 +330,7 @@ impl Bpm {
         r.skip(4 * n);
         // The names, end to end, and where each ends.
         let mut names = String::new();
-        let mut ends = Vec::with_capacity(n);
+        let mut ends = Vec::with_capacity(n.min(r.left()));
         for _ in 0..n {
             names.push_str(&r.string()?);
             ends.push(names.len());
@@ -446,15 +452,16 @@ impl Egt {
         }
         let manifest_name = r.string()?;
         let codes = r.int()?.max(0) as usize;
+        let capacity = codes.min(r.left());
         let mut egt = Egt {
             manifest_name,
-            n: Vec::with_capacity(codes),
-            dev_r: Vec::with_capacity(codes),
-            mean_r: Vec::with_capacity(codes),
-            dev_theta: Vec::with_capacity(codes),
-            mean_theta: Vec::with_capacity(codes),
-            total_score: Vec::with_capacity(codes),
-            rs_index: foldhash::HashMap::with_capacity_and_hasher(codes, Default::default()),
+            n: Vec::with_capacity(capacity),
+            dev_r: Vec::with_capacity(capacity),
+            mean_r: Vec::with_capacity(capacity),
+            dev_theta: Vec::with_capacity(capacity),
+            mean_theta: Vec::with_capacity(capacity),
+            total_score: Vec::with_capacity(capacity),
+            rs_index: foldhash::HashMap::with_capacity_and_hasher(capacity, Default::default()),
         };
         let triple_f = |r: &mut Reader<R>| -> Result<[f32; 3], ReadError> {
             Ok([r.float()?, r.float()?, r.float()?])
@@ -564,7 +571,7 @@ impl Gtc {
         }
         g.file_version = i32::from(r.byte()?);
         let entries = r.int()?.max(0) as usize;
-        let mut toc = Vec::with_capacity(entries);
+        let mut toc = Vec::with_capacity(entries.min(r.left()));
         for _ in 0..entries {
             let id = r.short()? as i16;
             let offset = r.int()?;
@@ -631,7 +638,7 @@ impl Gtc {
                 }
                 1003 => {
                     let n = s.int()?.max(0) as usize;
-                    let mut calls = Vec::with_capacity(n);
+                    let mut calls = Vec::with_capacity(n.min(s.left()));
                     for _ in 0..n {
                         let mut pair = [s.byte()?, s.byte()?];
                         for b in &mut pair {
@@ -896,6 +903,17 @@ impl Iterator for ExtendedManifest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A count read from a damaged file is capped by the bytes left before it sizes a vector, so
+    /// the parse ends in an error rather than a 16 GB allocation.
+    #[test]
+    fn a_huge_locus_count_is_an_error_not_an_allocation() {
+        let mut bytes = b"BPM\x01".to_vec();
+        bytes.extend_from_slice(&4i32.to_le_bytes());
+        bytes.extend_from_slice(&[0, 0]); // two empty strings
+        bytes.extend_from_slice(&i32::MAX.to_le_bytes());
+        assert!(Bpm::parse(&mut Reader::from_bytes(&bytes)).is_err());
+    }
 
     #[test]
     fn utf8_is_checked_across_the_pieces() {

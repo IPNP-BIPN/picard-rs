@@ -394,7 +394,9 @@ fn main() {
             text.push_str(line);
             text.push('\n');
         }
-        let _ = std::fs::write(path, text);
+        if let Err(e) = std::fs::write(path, text) {
+            thrown(&format!("picard.PicardException: {e}"));
+        }
     }
 
     // The report.
