@@ -14,17 +14,33 @@ pub fn set_tool(tool: &str) {
 /// The process's arguments as a binary reads them: each `NAME=value` word under the full name
 /// Picard's legacy parser resolves NAME to, in any case and short or full, so a tool that asks for
 /// `PROBABILITY=` reads `P=0.5`, and one that asks for `INPUT=` reads `input=x`. A word the tool
-/// does not declare, or a Barclay `-` word, is left as it is. The first word is the program.
+/// does not declare, or a Barclay `-` word, is left as it is. A `NAME=` with nothing after the `=`
+/// takes the next word as its value, as the legacy parser does. The first word is the program.
 pub fn process() -> Vec<String> {
-    let raw: Vec<String> = std::env::args().collect();
-    match TOOL.get() {
-        Some(tool) => raw
-            .into_iter()
-            .enumerate()
-            .map(|(i, word)| if i == 0 { word } else { canonical(tool, &word) })
-            .collect(),
-        None => raw,
+    let Some(tool) = TOOL.get() else {
+        return std::env::args().collect();
+    };
+    joined(std::env::args().collect())
+        .into_iter()
+        .enumerate()
+        .map(|(i, word)| if i == 0 { word } else { canonical(tool, &word) })
+        .collect()
+}
+
+/// Each `NAME=` word, after the program, joined with the word after it: `I= x.bam` is `I=x.bam`.
+fn joined(raw: Vec<String>) -> Vec<String> {
+    let mut words = Vec::with_capacity(raw.len());
+    let mut raw = raw.into_iter();
+    words.extend(raw.next());
+    while let Some(word) = raw.next() {
+        let open =
+            !word.starts_with('-') && word.split_once('=').is_some_and(|(_, v)| v.is_empty());
+        match if open { raw.next() } else { None } {
+            Some(value) => words.push(word + &value),
+            None => words.push(word),
+        }
     }
+    words
 }
 
 /// One word under its full name, when `tool` declares the name it starts with.
@@ -42,9 +58,12 @@ fn canonical(tool: &str, word: &str) -> String {
 }
 
 /// The value of the first word that starts with `key`, which carries its `=` (`"INPUT="`).
+/// `null` is no value, as Barclay sets the field to `null`.
 pub fn arg(args: &[String], key: &str) -> Option<String> {
     args.iter()
-        .find_map(|a| a.strip_prefix(key).map(str::to_string))
+        .find_map(|a| a.strip_prefix(key))
+        .filter(|v| *v != "null")
+        .map(str::to_string)
 }
 
 /// A `Boolean` option's value as `new Boolean(value)` builds it, which is what the legacy parser's
@@ -54,13 +73,21 @@ pub fn is_true(value: &str) -> bool {
     value.eq_ignore_ascii_case("true")
 }
 
-/// Every value of a list option, in command-line order, under its long and short names (`"INPUT="`
-/// and `"I="`).
+/// Every value of a list option without a default, in command-line order, under its long and
+/// short names (`"INPUT="` and `"I="`). `null` empties the list, as Barclay clears it.
 pub fn all(args: &[String], long: &str, short: &str) -> Vec<String> {
-    args.iter()
+    let mut values = Vec::new();
+    for value in args
+        .iter()
         .filter_map(|a| a.strip_prefix(long).or_else(|| a.strip_prefix(short)))
-        .map(str::to_string)
-        .collect()
+    {
+        if value == "null" {
+            values.clear();
+        } else {
+            values.push(value.to_string());
+        }
+    }
+    values
 }
 
 /// The files a tool reads from `INPUT` (or `I`), a list in Picard, at least one of them.
@@ -111,6 +138,21 @@ mod tests {
         let args = words("tool CREATE_INDEX=true CREATE_INDEX=false");
         assert_eq!(arg(&args, "CREATE_INDEX=").as_deref(), Some("true"));
         assert_eq!(arg(&args, "OUTPUT="), None);
+    }
+
+    #[test]
+    fn null_is_no_value() {
+        let args = words("tool R=null I=a.bam I=null I=b.bam");
+        assert_eq!(arg(&args, "R="), None);
+        assert_eq!(all(&args, "INPUT=", "I="), vec!["b.bam".to_string()]);
+    }
+
+    #[test]
+    fn an_empty_value_takes_the_next_word() {
+        assert_eq!(
+            joined(words("tool I= in.bam O=x.bam -X= y A=")),
+            words("tool I=in.bam O=x.bam -X= y A=")
+        );
     }
 
     #[test]

@@ -146,12 +146,101 @@ fn no_covering_array_row_is_refused() {
             .filter(|n| !n.starts_with("--[NA"))
             .map(|n| format!("{}=x", n.trim_start_matches('-')))
             .collect();
+        // `x` stands for any value, which the option's type may refuse: only the name is checked.
         for arg in &args {
-            assert_eq!(
-                answer(&own, std::slice::from_ref(arg)),
-                None,
+            let refused = answer(&own, std::slice::from_ref(arg));
+            assert!(
+                refused.is_none_or(|a| !a.stderr.contains("ERROR: Unrecognized option")),
                 "{tool}: {arg}"
             );
         }
+    }
+}
+
+/// What Picard 3.5.0 printed for each of these command lines, checked against the reference.
+#[test]
+fn a_value_the_legacy_parser_refuses_is_refused_with_its_message() {
+    let cases = [
+        (
+            "CollectQualityYieldMetrics",
+            "I=in.sam O=m1.txt O=m2.txt",
+            "ERROR: Option 'O' cannot be specified more than once.",
+        ),
+        (
+            "CollectQualityYieldMetrics",
+            "I=in.sam OUTPUT=m1.txt o=m2.txt",
+            "ERROR: Option 'O' cannot be specified more than once.",
+        ),
+        (
+            "CollectQualityYieldMetrics",
+            "I=in.sam O=m1.txt I=x.sam",
+            "ERROR: Option 'I' cannot be specified more than once.",
+        ),
+        (
+            "CollectQualityYieldMetrics",
+            "I=in.sam O=m1.txt O=m2.txt BAD=1",
+            "ERROR: Option 'O' cannot be specified more than once.",
+        ),
+        (
+            "CollectQualityYieldMetrics",
+            "I=in.sam O=m1.txt BAD=1 O=m2.txt",
+            "ERROR: Unrecognized option: BAD",
+        ),
+        (
+            "CollectQualityYieldMetrics",
+            "I=in.sam O=m1.txt VALIDATION_STRINGENCY=strict",
+            "ERROR: 'strict' is not a valid value for ValidationStringency.",
+        ),
+        (
+            "CollectQualityYieldMetrics",
+            "I=in.sam O=m1.txt VALIDATION_STRINGENCY=",
+            "ERROR: '' is not a valid value for ValidationStringency.",
+        ),
+        (
+            "CollectQualityYieldMetrics",
+            "I=in.sam O=m1.txt MAX_RECORDS_IN_RAM=99999999999",
+            "ERROR: Problem constructing Integer from the string '99999999999'.",
+        ),
+        (
+            "MarkDuplicates",
+            "I=in.sam O=d.sam M=dm.txt MAX_OPTICAL_DUPLICATE_SET_SIZE=abc",
+            "ERROR: Problem constructing Long from the string 'abc'.",
+        ),
+        (
+            "DownsampleSam",
+            "I=in.sam O=d.sam PROBABILITY=abc",
+            "ERROR: Problem constructing Double from the string 'abc'.",
+        ),
+    ];
+    for (tool, line, message) in cases {
+        let words: Vec<String> = line.split(' ').map(str::to_string).collect();
+        let refused = answer(tool, &words).unwrap_or_else(|| panic!("{tool} {line}: not refused"));
+        assert_eq!(refused.exit, 1, "{tool} {line}");
+        assert!(
+            refused
+                .stderr
+                .contains(&format!("\n{message}\n\nUSAGE: {tool} ")),
+            "{tool} {line}:\n{}",
+            refused.stderr
+        );
+        assert!(
+            refused.stderr.contains(&format!(
+                "{tool} -{}",
+                line.split(' ').next().unwrap().replace('=', " ")
+            )),
+            "{tool} {line}: the banner prints the words as typed"
+        );
+    }
+    for (tool, line) in [
+        ("SortSam", "I= in.sam O= s.sam SORT_ORDER=coordinate"),
+        ("DownsampleSam", "I=in.sam O=d.sam PROBABILITY=1e-1d"),
+        ("CollectAlignmentSummaryMetrics", "I=in.sam O=a.txt R=null"),
+        (
+            "CollectAlignmentSummaryMetrics",
+            "I=in.sam O=a.txt ADAPTER_SEQUENCE=A ADAPTER_SEQUENCE=C",
+        ),
+    ] {
+        let words: Vec<String> = line.split(' ').map(str::to_string).collect();
+        assert_eq!(answer(tool, &words), None, "{tool} {line}");
     }
 }
