@@ -85,10 +85,31 @@ struct FastqWriter {
     molecular: Vec<Out>,
 }
 
+/// `value` in decimal, as `Display` writes it, for a name built once per read.
+fn push_int(out: &mut String, value: i64) {
+    let mut digits = [0u8; 20];
+    let mut at = digits.len();
+    let mut rest = value.unsigned_abs();
+    loop {
+        at -= 1;
+        digits[at] = b'0' + (rest % 10) as u8;
+        rest /= 10;
+        if rest == 0 {
+            break;
+        }
+    }
+    if value < 0 {
+        out.push('-');
+    }
+    for &digit in &digits[at..] {
+        out.push(digit as char);
+    }
+}
+
 /// A FASTQ file, plain or BGZF (`BlockCompressedOutputStream`, which ends with its empty block).
 enum Out {
     Plain(std::io::BufWriter<std::fs::File>),
-    Bgzf(htsjdk_bgzf::BgzfWriter<std::fs::File>),
+    Bgzf(Box<htsjdk_bgzf::BgzfWriter<std::fs::File>>),
 }
 
 impl Out {
@@ -115,7 +136,7 @@ fn open(path: &std::path::Path, compress: bool) -> Out {
         ))
     });
     if compress {
-        Out::Bgzf(picard_analysis::output::bgzf_writer(file))
+        Out::Bgzf(Box::new(picard_analysis::output::bgzf_writer(file)))
     } else {
         Out::Plain(std::io::BufWriter::new(file))
     }
@@ -135,36 +156,43 @@ struct Settings {
 impl Settings {
     fn short_name(&self, c: &ClusterData) -> String {
         let run = self.run_barcode.as_deref().unwrap_or("null");
-        if self.name_format == "ILLUMINA" {
-            format!("{run}:{}:{}:{}:{}", self.lane, c.tile, c.x, c.y)
-        } else {
-            format!(
-                "{}:{run}:{}:{}:{}:{}:{}",
-                self.machine.as_deref().unwrap_or("null"),
-                self.flowcell.as_deref().unwrap_or("null"),
-                self.lane,
-                c.tile,
-                c.x,
-                c.y
-            )
+        let mut name = String::with_capacity(64);
+        if self.name_format != "ILLUMINA" {
+            name.push_str(self.machine.as_deref().unwrap_or("null"));
+            name.push(':');
         }
+        name.push_str(run);
+        name.push(':');
+        if self.name_format != "ILLUMINA" {
+            name.push_str(self.flowcell.as_deref().unwrap_or("null"));
+            name.push(':');
+        }
+        push_int(&mut name, self.lane as i64);
+        name.push(':');
+        push_int(&mut name, c.tile as i64);
+        name.push(':');
+        push_int(&mut name, c.x as i64);
+        name.push(':');
+        push_int(&mut name, c.y as i64);
+        name
     }
 
     fn read_name(&self, c: &ClusterData, pair: Option<usize>) -> String {
-        let short = self.short_name(c);
+        let mut name = self.short_name(c);
         if self.name_format == "ILLUMINA" {
-            match pair {
-                Some(p) => format!("{short}/{p}"),
-                None => short,
+            if let Some(p) = pair {
+                name.push('/');
+                push_int(&mut name, p as i64);
             }
         } else {
-            format!(
-                "{short} {}:{}:0:{}",
-                pair.map(|p| p.to_string()).unwrap_or_default(),
-                if c.pf { 'N' } else { 'Y' },
-                c.barcode.as_deref().unwrap_or("")
-            )
+            name.push(' ');
+            if let Some(p) = pair {
+                push_int(&mut name, p as i64);
+            }
+            name.push_str(if c.pf { ":N:0:" } else { ":Y:0:" });
+            name.push_str(c.barcode.as_deref().unwrap_or(""));
         }
+        name
     }
 
     /// `ClusterToFastqWriter.write`.

@@ -174,7 +174,7 @@ fn parse_directive(directive: &str) -> (Calculator, Vec<Stratifier>) {
 
 /// A tag as `getIntegerAttribute` will meet it.
 fn attribute(record: &htsjdk_bam::record::BamRecord, tag: &[u8; 2]) -> Attribute {
-    match record.tags.get(Tag::new(tag)) {
+    match record.tags.find(Tag::new(tag)).as_deref() {
         None => Attribute::Absent,
         Some(TagValue::Int(value)) => Attribute::Int(*value),
         Some(TagValue::Float(value)) => Attribute::Float(value.to_bits()),
@@ -353,7 +353,7 @@ fn main() {
     };
 
     let to_read = |record: &htsjdk_bam::record::BamRecord| -> Read {
-        let group = match record.tags.get(Tag::new(b"RG")) {
+        let group = match record.tags.find(Tag::new(b"RG")).as_deref() {
             Some(TagValue::Str(id)) => id.to_string(),
             _ => String::new(),
         };
@@ -387,7 +387,7 @@ fn main() {
             reference_index: record.reference_index,
             mate_reference_index: record.mate_reference_index,
             nm: attribute(record, b"NM"),
-            has_sa: record.tags.get(Tag::new(b"SA")).is_some(),
+            has_sa: record.tags.contains(Tag::new(b"SA")),
             first_strand_copies: attribute(record, b"aD"),
             second_strand_copies: attribute(record, b"bD"),
             both_strands_copies: attribute(record, b"cD"),

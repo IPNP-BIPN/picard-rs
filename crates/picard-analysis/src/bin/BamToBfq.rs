@@ -147,14 +147,14 @@ fn validate(args: &CommandLine) {
 }
 
 fn int_tag(record: &BamRecord, tag: &[u8; 2]) -> Option<i64> {
-    match record.tags.get(Tag::new(tag)) {
+    match record.tags.find(Tag::new(tag)).as_deref() {
         Some(TagValue::Int(v)) => Some(*v),
         _ => None,
     }
 }
 
 fn has_tag(record: &BamRecord, tag: &[u8; 2]) -> bool {
-    record.tags.get(Tag::new(tag)).is_some()
+    record.tags.contains(Tag::new(tag))
 }
 
 /// `TagFilter(XN, 1)`.

@@ -150,7 +150,7 @@ pub type Bins = Vec<(u8, f64)>;
 ///
 /// Returns `None` when the tag is absent, which is what makes the second histogram appear or not.
 pub fn original_base_qualities(rec: &BamRecord) -> Option<Vec<u8>> {
-    match rec.tags.get(Tag::new(b"OQ")) {
+    match rec.tags.find(Tag::new(b"OQ")).as_deref() {
         Some(TagValue::Str(s)) => Some(s.bytes().map(|b| b.wrapping_sub(33)).collect()),
         _ => None,
     }

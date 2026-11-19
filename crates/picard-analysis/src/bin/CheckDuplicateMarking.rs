@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // HI tag the comparator breaks its last tie on.
     let mut walked: Vec<(Record, u16, Option<TagValue>)> = records
         .map(|record| {
-            let hit_index = record.tags.get(hi()).cloned();
+            let hit_index = record.tags.find(hi()).map(std::borrow::Cow::into_owned);
             let flags = record.flags;
             let walked = Record {
                 name: record.read_name,

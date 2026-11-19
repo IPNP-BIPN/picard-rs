@@ -128,7 +128,7 @@ fn pairs_of(input: &str) -> Result<FileReads, Box<dyn std::error::Error>> {
             first
         })
         .map(|rec| {
-            let mate_quality = match rec.tags.get(Tag::new(b"MQ")) {
+            let mate_quality = match rec.tags.find(Tag::new(b"MQ")).as_deref() {
                 Some(TagValue::Int(value)) => Some(*value as i32),
                 _ => None,
             };

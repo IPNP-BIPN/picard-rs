@@ -105,7 +105,7 @@ pub fn forward_mate_five_prime(rec: &BamRecord) -> i64 {
 pub fn mate_cigar_reference_length(rec: &BamRecord) -> Option<i32> {
     use htsjdk_bam::tag::{Tag, TagValue};
     let tag = Tag::new(b"MC");
-    match rec.tags.get(tag) {
+    match rec.tags.find(tag).as_deref() {
         Some(TagValue::Str(s)) => htsjdk_bam::text_parse::parse_cigar(s)
             .ok()
             .map(|c| c.reference_length() as i32),
@@ -500,7 +500,11 @@ impl Distributors {
         header: &htsjdk_bam::header::SamHeader,
         record: &BamRecord,
     ) -> Result<(), String> {
-        let group = match record.tags.get(htsjdk_bam::tag::Tag::new(b"RG")) {
+        let group = match record
+            .tags
+            .find(htsjdk_bam::tag::Tag::new(b"RG"))
+            .as_deref()
+        {
             Some(htsjdk_bam::tag::TagValue::Str(id)) => {
                 header.read_groups.iter().find(|g| g.id == *id)
             }

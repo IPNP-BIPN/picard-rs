@@ -277,7 +277,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut bins: std::collections::BTreeMap<i64, f64> = std::collections::BTreeMap::new();
     let xt = Tag::new(b"XT");
     let mut emit = |record: &BamRecord| -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(TagValue::Int(tag)) = record.tags.get(xt) {
+        if let Some(TagValue::Int(tag)) = record.tags.find(xt).as_deref() {
             let clipped = record.read_bases.len() as i64 - tag + 1;
             *bins.entry(clipped).or_insert(0.0) += 1.0;
         }

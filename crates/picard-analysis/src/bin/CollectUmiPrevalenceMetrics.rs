@@ -29,7 +29,7 @@ fn string_tag(record: &BamRecord, name: &str) -> Option<String> {
     if bytes.len() != 2 {
         return None;
     }
-    match record.tags.get(Tag::new(&[bytes[0], bytes[1]])) {
+    match record.tags.find(Tag::new(&[bytes[0], bytes[1]])).as_deref() {
         Some(TagValue::Str(value)) => Some(value.clone()),
         _ => None,
     }
@@ -123,7 +123,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 read_group,
                 barcode: None,
                 existing_dt: None,
-                mate_span: match record.tags.get(Tag::new(b"MC")) {
+                mate_span: match record.tags.find(Tag::new(b"MC")).as_deref() {
                     Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text)
                         .ok()
                         .as_ref()

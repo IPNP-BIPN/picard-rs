@@ -105,7 +105,7 @@ impl QualityByCycle {
         // immediately rather than falling back. That is the opposite of what
         // CollectQualityYieldMetrics does with the same tag.
         let quals: Vec<i8> = if self.use_original_qualities {
-            match rec.tags.get(Tag::new(b"OQ")) {
+            match rec.tags.find(Tag::new(b"OQ")).as_deref() {
                 Some(TagValue::Str(s)) if !s.is_empty() => fastq_to_phred(s),
                 _ => return,
             }

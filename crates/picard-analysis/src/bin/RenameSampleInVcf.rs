@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open_deferred(&input).unwrap_or_else(|exception| die(&exception));
     let samples = vcf.file.header.samples.clone();
     if samples.len() > 1 {
         vcf.fail("java.lang.IllegalArgumentException: Input VCF must be single-sample.");

@@ -513,7 +513,7 @@ fn filter_by_tag(
     let tag = Tag::new(tag);
     let include = filter.include();
 
-    let matches = |rec: &BamRecord| match rec.tags.get(tag) {
+    let matches = |rec: &BamRecord| match rec.tags.find(tag).as_deref() {
         Some(TagValue::Str(s)) => value_set.contains(s.as_str()),
         _ => false, // absent, or a non-string tag, never matches a string value
     };

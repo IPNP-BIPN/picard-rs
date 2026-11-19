@@ -53,8 +53,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut files: Vec<VcfReader> = Vec::with_capacity(inputs.len());
     let mut sample_list: Vec<String> = Vec::new();
     for input in &inputs {
-        let vcf =
-            VcfReader::open(input).unwrap_or_else(|exception| fail_all(&mut files, &exception));
+        let vcf = VcfReader::open_deferred(input)
+            .unwrap_or_else(|exception| fail_all(&mut files, &exception));
         files.push(vcf);
         let absolute = std::path::absolute(input)?;
         let header = &mut files.last_mut().expect("just pushed").file.header;
