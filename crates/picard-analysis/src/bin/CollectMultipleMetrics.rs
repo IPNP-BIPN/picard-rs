@@ -607,8 +607,9 @@ fn main() {
                     .status;
                 let stderr = drain.join().expect("stderr thread");
                 if status.success() {
-                    rewrite_headers(binary, outputs, &headers);
-                    None
+                    rewrite_headers(binary, outputs, &headers)
+                        .err()
+                        .map(|e| (format!("Error: {e:?}\n"), 1))
                 } else {
                     Some((
                         String::from_utf8_lossy(&stderr).into_owned(),
@@ -744,7 +745,7 @@ impl Collector {
 
 /// `setDefaultHeaders` on a file a program's process wrote: its own command line and start give
 /// way to this tool's.
-fn rewrite_headers(binary: &str, outputs: &[String], headers: &[String; 2]) {
+fn rewrite_headers(binary: &str, outputs: &[String], headers: &[String; 2]) -> std::io::Result<()> {
     let [command_line, started_on] = headers;
     // `port` is the tool name the program writes into its own headers.
     let own = format!("# {binary} ");
@@ -766,7 +767,8 @@ fn rewrite_headers(binary: &str, outputs: &[String], headers: &[String; 2]) {
                     }
                 })
                 .collect();
-            let _ = std::fs::write(path, lines.join("\n"));
+            std::fs::write(path, lines.join("\n"))?;
         }
     }
+    Ok(())
 }
