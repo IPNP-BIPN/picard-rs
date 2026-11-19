@@ -12,6 +12,7 @@
 //! one answers for that record. The script's last value decides, as `accept` reads it: a boolean is
 //! itself, a number is accepted when its `intValue()` is one, and anything else is a rejection.
 
+use boa_engine::object::builtins::JsArray;
 use boa_engine::object::ObjectInitializer;
 use boa_engine::property::Attribute;
 use boa_engine::{js_string, Context, JsObject, JsValue, NativeFunction, Script, Source};
@@ -35,11 +36,20 @@ enum Answer {
     Int(i64),
     Double(f64),
     Str(String),
+    /// A `B` tag, which Java answers with a primitive array.
+    Array(Vec<f64>),
 }
 
+/// A getter that takes a key: its name, the answers by key, and the answer for a key the record
+/// lacks.
+type Keyed = (&'static str, Vec<(String, Answer)>, Answer);
+
 impl Answer {
-    fn value(&self) -> JsValue {
+    fn value(&self, context: &mut Context) -> JsValue {
         match self {
+            Answer::Array(values) => {
+                JsArray::from_iter(values.iter().map(|v| JsValue::from(*v)), context).into()
+            }
             Answer::Null => JsValue::null(),
             Answer::Bool(b) => JsValue::from(*b),
             Answer::Int(i) => JsValue::from(*i as f64),
@@ -71,12 +81,15 @@ impl JavascriptFilter {
         &mut self,
         key: &str,
         getters: Vec<(&'static str, Answer)>,
-        maps: Vec<(&'static str, Vec<(String, Answer)>)>,
+        maps: Vec<Keyed>,
     ) -> Result<bool, String> {
+        let values: Vec<(&str, JsValue)> = getters
+            .iter()
+            .map(|(name, answer)| (*name, answer.value(&mut self.context)))
+            .collect();
         let object = {
             let mut init = ObjectInitializer::new(&mut self.context);
-            for (name, answer) in getters {
-                let captured = answer.value();
+            for (name, captured) in values {
                 init.function(
                     NativeFunction::from_copy_closure_with_captures(
                         |_, _, value, _| Ok(value.clone()),
@@ -88,21 +101,19 @@ impl JavascriptFilter {
             }
             init.build()
         };
-        // A getter that takes a key: the answers by key, and `null` for one the record lacks.
-        for (name, entries) in maps {
+        // A getter that takes a key: the answers by key, and the Java default for a key the
+        // record lacks (`null` from `getAttribute`, `false` from `hasAttribute`).
+        for (name, entries, missing) in maps {
             let table = ObjectInitializer::new(&mut self.context).build();
             for (k, answer) in entries {
+                let value = answer.value(&mut self.context);
                 table
-                    .set(
-                        js_string!(k.as_str()),
-                        answer.value(),
-                        false,
-                        &mut self.context,
-                    )
+                    .set(js_string!(k.as_str()), value, false, &mut self.context)
                     .map_err(|e| e.to_string())?;
             }
+            let missing = missing.value(&mut self.context);
             let getter = NativeFunction::from_copy_closure_with_captures(
-                |_, args, table: &JsObject, context| {
+                |_, args, (table, missing): &(JsObject, JsValue), context| {
                     let key = args
                         .first()
                         .cloned()
@@ -111,10 +122,10 @@ impl JavascriptFilter {
                     if table.has_own_property(key.clone(), context)? {
                         table.get(key, context)
                     } else {
-                        Ok(JsValue::null())
+                        Ok(missing.clone())
                     }
                 },
-                table,
+                (table, missing),
             );
             let function =
                 boa_engine::object::FunctionObjectBuilder::new(self.context.realm(), getter)
@@ -166,7 +177,19 @@ impl JavascriptFilter {
                     TagValue::Int(i) => Answer::Int(*i),
                     TagValue::Float(f) => Answer::Double(*f as f64),
                     TagValue::Char(c) => Answer::Str((*c as char).to_string()),
-                    _ => Answer::Null,
+                    // The array as Java holds it: an unsigned one keeps its signed bits.
+                    TagValue::ByteArray { values, .. } => {
+                        Answer::Array(values.iter().map(|&v| v as f64).collect())
+                    }
+                    TagValue::ShortArray { values, .. } => {
+                        Answer::Array(values.iter().map(|&v| v as f64).collect())
+                    }
+                    TagValue::IntArray { values, .. } => {
+                        Answer::Array(values.iter().map(|&v| v as f64).collect())
+                    }
+                    TagValue::FloatArray(values) => {
+                        Answer::Array(values.iter().map(|&v| v as f64).collect())
+                    }
                 };
                 (tag.to_string(), answer)
             })
@@ -237,7 +260,11 @@ impl JavascriptFilter {
             ("getDuplicateReadFlag", flag(0x400)),
             ("getSupplementaryAlignmentFlag", flag(0x800)),
         ];
-        self.accept("record", getters, vec![("getAttribute", tags)])
+        self.accept(
+            "record",
+            getters,
+            vec![("getAttribute", tags, Answer::Null)],
+        )
     }
 
     /// `JavascriptVariantFilter.accept(variant)`, with the variant as `variant`.
@@ -293,7 +320,10 @@ impl JavascriptFilter {
         self.accept(
             "variant",
             getters,
-            vec![("getAttribute", attributes), ("hasAttribute", has)],
+            vec![
+                ("getAttribute", attributes, Answer::Null),
+                ("hasAttribute", has, Answer::Bool(false)),
+            ],
         )
     }
 }

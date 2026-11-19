@@ -471,8 +471,10 @@ fn main() {
             match (in_process, Collector::new(*program, &levels, &header)) {
                 (true, Some(collector)) => Slot::Here(Ok(collector)),
                 _ => {
+                    // An empty `NAME=` is a field left unset; on a command line the legacy parser would
+                    // read the next word as its value.
                     let mut child = Command::new(here.join(binary))
-                        .args(program_args)
+                        .args(program_args.iter().filter(|a| !a.ends_with('=')))
                         // The reference the shared pass would have read the input with, whichever
                         // program this is.
                         .env(
