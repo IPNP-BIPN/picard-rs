@@ -149,13 +149,15 @@ fn main() {
     let markers_path = args.required("NUM_MARKERS_FILE");
     let mut out = HEADER.to_vec();
     let result = run(&vcfs, &mut out);
-    let _ = std::fs::write(&output, &out);
+    let written = std::fs::write(&output, &out);
+    let result = result.and_then(|(samples, loci)| {
+        written.map_err(|e| e.to_string())?;
+        let names: Vec<&str> = samples.iter().map(String::as_str).collect();
+        std::fs::write(&samples_path, samples_file(&names)).map_err(|e| e.to_string())?;
+        std::fs::write(&markers_path, markers_file(loci)).map_err(|e| e.to_string())
+    });
     match result {
-        Ok((samples, loci)) => {
-            let names: Vec<&str> = samples.iter().map(String::as_str).collect();
-            let _ = std::fs::write(&samples_path, samples_file(&names));
-            let _ = std::fs::write(&markers_path, markers_file(loci));
-        }
+        Ok(()) => {}
         Err(e) => {
             log_error("VcfToAdpc", &e);
             std::process::exit(1);

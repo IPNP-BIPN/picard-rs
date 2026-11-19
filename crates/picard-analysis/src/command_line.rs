@@ -71,7 +71,7 @@ fn normalize_file(path: &str) -> String {
 }
 
 /// `Integer.parseInt`'s grammar: an optional sign and decimal digits.
-fn java_integer(text: &str) -> Option<i64> {
+pub(crate) fn java_integer(text: &str) -> Option<i64> {
     let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
     if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
         return None;
@@ -81,7 +81,7 @@ fn java_integer(text: &str) -> Option<i64> {
 
 /// `Double.valueOf`, close enough for the values a command line carries: Rust's grammar plus
 /// Java's trailing type suffix and its spelling of the two specials.
-fn java_double(text: &str) -> Option<f64> {
+pub(crate) fn java_double(text: &str) -> Option<f64> {
     let trimmed = text.trim();
     let body = trimmed
         .strip_suffix(['d', 'D', 'f', 'F'])

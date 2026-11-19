@@ -186,7 +186,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         drop(out);
         return thrown(e);
     }
-    // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
-    out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
+    out.finish_create_index()?;
     Ok(())
 }

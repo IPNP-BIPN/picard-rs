@@ -448,7 +448,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     // `cram_output::write`: a CRAM takes `CREATE_INDEX` from the command line, a BAM no index.
-    out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
+    out.finish_create_index()?;
     if let Some(reads) = reads {
         reads.finish().unwrap_or_else(|e| fail(&e.to_string()));
         std::fs::rename(&reads_temporary, &reads_path).unwrap_or_else(|e| fail(&e.to_string()));

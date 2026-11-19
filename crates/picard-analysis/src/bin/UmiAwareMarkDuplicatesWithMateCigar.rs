@@ -92,6 +92,7 @@ fn main() {
                     .and_then(|v| v.parse().ok())
             })
             .unwrap_or(300_000),
+        read_barcodes: false,
         assume_mate_cigar: true,
         ..Options::default()
     };
@@ -278,8 +279,7 @@ fn main() {
         }
         out.write(&written).unwrap_or_else(|e| fail(&e.to_string()));
     }
-    // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
-    if let Err(e) = out.finish(picard_analysis::cram_output::create_index_argument(), false) {
+    if let Err(e) = out.finish_create_index() {
         fail(&e.to_string());
     }
 
@@ -304,6 +304,7 @@ fn main() {
         &base,
         &result.duplicate,
         &tracked.optical,
+        None,
     );
     marking.all_sets = tracked.all_sets;
     marking.optical_sets = tracked.optical_sets;

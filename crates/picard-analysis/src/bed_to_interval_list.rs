@@ -126,6 +126,22 @@ fn split_bed_line(line: &str) -> Vec<&str> {
     tokens
 }
 
+/// Whether `Float.parseFloat` reads `s`: Java trims, takes `NaN` and `Infinity` (signed or not)
+/// but not `inf`, and allows a trailing `f` or `d`.
+/// shortcut: a hex float (`0x1p3`) is refused here and read by Java; no BED score is written so.
+fn java_parses_float(s: &str) -> bool {
+    let s = s.trim_matches(|c: char| c <= ' ');
+    let unsigned = s.strip_prefix(['+', '-']).unwrap_or(s);
+    if unsigned == "NaN" || unsigned == "Infinity" {
+        return true;
+    }
+    let body = s.strip_suffix(['f', 'F', 'd', 'D']).unwrap_or(s);
+    !body
+        .chars()
+        .any(|c| c.is_ascii_alphabetic() && !matches!(c, 'e' | 'E'))
+        && body.parse::<f64>().is_ok()
+}
+
 /// The interval list `BedToIntervalList` writes: its header, its contigs and its intervals.
 pub struct Output {
     pub header: String,
@@ -153,7 +169,8 @@ pub fn read(
     let mut intervals = Vec::new();
 
     let read = ci::read_lines(bed, |line| {
-        if line.is_empty()
+        // `BEDCodec.decode` skips a line that `trim()` leaves empty.
+        if line.trim_matches(|c: char| c <= ' ').is_empty()
             || line.starts_with('#')
             || line.starts_with("track")
             || line.starts_with("browser")
@@ -190,10 +207,12 @@ pub fn read(
             None
         };
 
-        // Strand: only `-` (as the first character of column six) makes it negative. A non-numeric
-        // score column would stop BEDCodec before it reads the strand, leaving it non-negative; the
-        // corpus uses numeric scores, so the common path (read column six) is what matters here.
-        let negative_strand = tokens.len() > 5 && tokens[5].trim_start().starts_with('-');
+        // Strand: only `-` (as the first character of column six) makes it negative. A score that
+        // `Float.parseFloat` refuses stops BEDCodec before it reads the strand, so the interval
+        // stays positive.
+        let negative_strand = tokens.len() > 5
+            && java_parses_float(tokens[4])
+            && tokens[5].trim_start().starts_with('-');
 
         let record = dict_entries.iter().find(|e| e.name == contig);
         let record = match record {
@@ -281,6 +300,22 @@ mod tests {
          @SQ\tSN:chr1\tLN:20\tM5:aaa\tUR:file:///ref.fasta\n\
          @SQ\tSN:chr2\tLN:20\tM5:bbb\tUR:file:///ref.fasta\n"
             .to_string()
+    }
+
+    /// `BEDCodec` stops at a score `Float.parseFloat` refuses, before the strand, and skips a
+    /// blank line. Picard 3.5.0 writes these four intervals.
+    #[test]
+    fn a_score_java_cannot_parse_leaves_the_strand_positive() {
+        let bed = "chr1\t0\t5\tx\t.\t-\n   \nchr1\t5\t10\ty\t5\t-\n\
+                   chr1\t10\t15\tz\t1e2\t-\nchr2\t0\t5\tw\tinf\t-\n";
+        let out = bed_to_interval_list(DICT, bed, &Options::default()).unwrap();
+        assert_eq!(
+            out,
+            format!(
+                "{}chr1\t1\t5\t+\tx\nchr1\t6\t10\t-\ty\nchr1\t11\t15\t-\tz\nchr2\t1\t5\t+\tw\n",
+                header()
+            )
+        );
     }
 
     #[test]

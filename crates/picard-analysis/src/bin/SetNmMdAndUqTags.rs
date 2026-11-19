@@ -79,6 +79,6 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         out.write(&record)?;
     }
     // `cram_output::write`: a CRAM takes `CREATE_INDEX` from the command line, a BAM no index.
-    out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
+    out.finish_create_index()?;
     Ok(())
 }

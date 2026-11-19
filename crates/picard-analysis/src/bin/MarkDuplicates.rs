@@ -21,8 +21,8 @@ use htsjdk_bam::tag::{Tag, TagValue};
 use picard_analysis::args::arg;
 use picard_analysis::bam_stream::{Input, Records};
 use picard_analysis::mark_duplicates::{
-    base_quality_score, Flags, Options, ReadEndsBuilder, Record, ScoringStrategy, Span,
-    TaggingPolicy, Tally,
+    barcode_key, base_quality_score, Flags, Options, ReadEndsBuilder, Record, ScoringStrategy,
+    Span, TaggingPolicy, Tally,
 };
 use picard_analysis::stream_output::Output;
 use std::sync::Arc;
@@ -67,10 +67,22 @@ fn molecular_identifier(
     if !duplex {
         return Ok(out);
     }
+    if let Some(top) = strand(header, record, marked)? {
+        out.push_str(if top { "/A" } else { "/B" });
+    }
+    Ok(out)
+}
+
+/// `UmiUtil.getStrand`: whether the pair is on the top strand, `None` when a read of it is
+/// unmapped.
+///
+/// The strand needs the mate's unclipped 5' end, which comes from its `MC` tag, so a pair on one
+/// contig without one is htsjdk's refusal; and asking an unpaired read about its mate is Java's.
+fn strand(header: &SamHeader, record: &BamRecord, marked: &Record) -> Result<Option<bool>, String> {
     // `getReadUnmappedFlag() || getMateUnmappedFlag()`: the second is only asked of a mapped read,
     // and asking it of an unpaired one throws.
     if marked.unmapped() {
-        return Ok(out);
+        return Ok(None);
     }
     if !marked.paired() {
         return Err(
@@ -78,7 +90,7 @@ fn molecular_identifier(
         );
     }
     if marked.mate_unmapped() {
-        return Ok(out);
+        return Ok(None);
     }
     let top = if record.reference_index != record.mate_reference_index {
         marked.first_of_pair() == (record.reference_index < record.mate_reference_index)
@@ -106,8 +118,47 @@ fn molecular_identifier(
         };
         marked.first_of_pair() == (read_five <= mate_five)
     };
-    out.push_str(if top { "/A" } else { "/B" });
-    Ok(out)
+    Ok(Some(top))
+}
+
+/// `UmiUtil.getTopStrandNormalizedUmi`: the UMI as the read carries it, refused when it holds
+/// anything but `ATCGN-` in either case, and with `DUPLEX_UMI` a bottom-strand read's two halves
+/// swapped.
+fn top_strand_normalized_umi(
+    header: &SamHeader,
+    record: &BamRecord,
+    marked: &Record,
+    umi: Option<&str>,
+    duplex: bool,
+) -> Result<Option<String>, String> {
+    let Some(umi) = umi else {
+        return Ok(None);
+    };
+    if !umi.bytes().all(|b| b"ATCGNatcgn-".contains(&b)) {
+        return Err(
+            "picard.PicardException: UMI found with illegal characters.  UMIs must match \
+                    the regular expression ^[ATCGNatcgn-]*$."
+                .to_string(),
+        );
+    }
+    if !duplex {
+        return Ok(Some(umi.to_string()));
+    }
+    // `String.split("-")`, which drops trailing empty strings.
+    let mut halves: Vec<&str> = umi.split('-').collect();
+    while halves.last() == Some(&"") {
+        halves.pop();
+    }
+    let [top, bottom] = halves[..] else {
+        return Err(format!(
+            "picard.PicardException: Duplex UMIs must be of the form X-Y where X and Y are equal \
+             length UMIs, for example AT-GA.  Found UMI, {umi}"
+        ));
+    };
+    Ok(Some(match strand(header, record, marked)? {
+        Some(false) => format!("{bottom}-{top}"),
+        _ => umi.to_string(),
+    }))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -136,6 +187,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or(default)
     };
 
+    let read_one_barcode_tag = arg(&args, "READ_ONE_BARCODE_TAG=");
+    let read_two_barcode_tag = arg(&args, "READ_TWO_BARCODE_TAG=");
     let options = Options {
         scoring: match arg(&args, "DUPLICATE_SCORING_STRATEGY=").as_deref() {
             None | Some("SUM_OF_BASE_QUALITIES") => ScoringStrategy::SumOfBaseQualities,
@@ -168,8 +221,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .unwrap_or(300_000),
         barcode_tag: arg(&args, "BARCODE_TAG="),
+        read_barcodes: read_one_barcode_tag.is_some() || read_two_barcode_tag.is_some(),
         assume_mate_cigar: false,
     };
+    let duplex = flag("DUPLEX_UMI=", false);
 
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {
@@ -266,20 +321,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `buildSortedReadEndLists` keys every primary mapped read whose mate is mapped on
     // `rec.getReadGroup().getReadGroupId()`, which is null with no RG tag or one the header does
     // not declare. The pass stops at the first unplaced unmapped read when coordinate-sorted.
-    let mut past_unplaced = false;
     // What either pass reads of a record, built again on the second rather than kept.
     let summary = |record: &BamRecord| -> Record {
         let (library, read_group) = library_of(record);
-        let barcode = options.barcode_tag.as_ref().and_then(|tag| {
-            match record
-                .tags
-                .get(Tag::new(tag.as_bytes().try_into().unwrap_or(b"RX")))
-            {
-                Some(TagValue::Str(value)) => Some(value.clone()),
-                _ => None,
-            }
-        });
-        Record {
+        let tag_value = |tag: &Option<String>| {
+            tag.as_ref().and_then(|tag| {
+                match record
+                    .tags
+                    .get(Tag::new(tag.as_bytes().try_into().unwrap_or(b"RX")))
+                {
+                    Some(TagValue::Str(value)) => Some(value.clone()),
+                    _ => None,
+                }
+            })
+        };
+        let barcode = tag_value(&options.barcode_tag);
+        let mut marked = Record {
             name: record.read_name.clone(),
             flags: record.flags,
             reference_index: record.reference_index,
@@ -294,7 +351,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             existing_dt: string_tag(record, b"DT"),
             mate_span: None,
             mate_alignment_start: record.mate_alignment_start,
+        };
+        // `buildReadEnds` keys a mapped primary read on its top-strand normalized UMI and, with a
+        // read barcode tag, on read one's barcode or read two's.
+        if options.uses_barcodes() && !marked.unmapped() && !marked.secondary_or_supplementary() {
+            let umi = top_strand_normalized_umi(
+                &header,
+                record,
+                &marked,
+                marked.barcode.as_deref(),
+                duplex,
+            )
+            .unwrap_or_else(|thrown| picard_analysis::metrics_cli::thrown(&thrown));
+            marked.barcode = if options.read_barcodes {
+                let (one, two) = if !marked.paired() || marked.first_of_pair() {
+                    (tag_value(&read_one_barcode_tag), None)
+                } else {
+                    (None, tag_value(&read_two_barcode_tag))
+                };
+                Some(barcode_key(umi.as_deref(), one.as_deref(), two.as_deref()))
+            } else {
+                umi
+            };
         }
+        marked
     };
     let mut ends = ReadEndsBuilder::new(&options, header_order == "queryname");
     for record in records {
@@ -302,13 +382,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if !seen.contains(&id) {
             seen.push(id);
         }
+        // The first unplaced unmapped read ends the pass, after its `PG` id is collected: no
+        // record after it adds an id or a read end.
+        if record.flags & 0x4 != 0 && record.reference_index == -1 && header_order == "coordinate" {
+            break;
+        }
         let read_group = library_of(&record).1;
-        past_unplaced |=
-            record.flags & 0x4 != 0 && record.reference_index == -1 && header_order == "coordinate";
-        if !past_unplaced
-            && record.flags & (0x1 | 0x4 | 0x8 | 0x100 | 0x800) == 0x1
-            && read_group == -1
-        {
+        if record.flags & (0x1 | 0x4 | 0x8 | 0x100 | 0x800) == 0x1 && read_group == -1 {
             eprintln!(
                     "Exception in thread \"main\" java.lang.NullPointerException: Cannot invoke \
                      \"htsjdk.samtools.SAMReadGroupRecord.getReadGroupId()\" because the return value of \
@@ -337,7 +417,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tag_duplicate_set_members = flag("TAG_DUPLICATE_SET_MEMBERS=", false);
     let molecular_identifier_tag = arg(&args, "MOLECULAR_IDENTIFIER_TAG=")
         .filter(|tag| tag != "null" && options.barcode_tag.is_some());
-    let duplex = flag("DUPLEX_UMI=", false);
     let add_pg_tag = flag("ADD_PG_TAG_TO_READS=", true);
     // `getChainedPgIds`: the ids seen above, in the `HashSet`'s order, each chained to the id it
     // replaces; none when `PROGRAM_RECORD_ID` is `null`.
@@ -469,7 +548,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         writer.write(&written)?;
     }
-    writer.finish(picard_analysis::cram_output::create_index_argument(), false)?;
+    writer.finish_create_index()?;
 
     // The metrics file is written because the tool requires the argument, and its content is not
     // what this array compares: the OUTPUT is.

@@ -471,8 +471,10 @@ fn main() {
             match (in_process, Collector::new(*program, &levels, &header)) {
                 (true, Some(collector)) => Slot::Here(Ok(collector)),
                 _ => {
+                    // An empty `NAME=` is a field left unset; on a command line the legacy parser would
+                    // read the next word as its value.
                     let mut child = Command::new(here.join(binary))
-                        .args(program_args)
+                        .args(program_args.iter().filter(|a| !a.ends_with('=')))
                         // The reference the shared pass would have read the input with, whichever
                         // program this is.
                         .env(
@@ -607,8 +609,9 @@ fn main() {
                     .status;
                 let stderr = drain.join().expect("stderr thread");
                 if status.success() {
-                    rewrite_headers(binary, outputs, &headers);
-                    None
+                    rewrite_headers(binary, outputs, &headers)
+                        .err()
+                        .map(|e| (format!("Error: {e:?}\n"), 1))
                 } else {
                     Some((
                         String::from_utf8_lossy(&stderr).into_owned(),
@@ -744,7 +747,7 @@ impl Collector {
 
 /// `setDefaultHeaders` on a file a program's process wrote: its own command line and start give
 /// way to this tool's.
-fn rewrite_headers(binary: &str, outputs: &[String], headers: &[String; 2]) {
+fn rewrite_headers(binary: &str, outputs: &[String], headers: &[String; 2]) -> std::io::Result<()> {
     let [command_line, started_on] = headers;
     // `port` is the tool name the program writes into its own headers.
     let own = format!("# {binary} ");
@@ -766,7 +769,8 @@ fn rewrite_headers(binary: &str, outputs: &[String], headers: &[String; 2]) {
                     }
                 })
                 .collect();
-            let _ = std::fs::write(path, lines.join("\n"));
+            std::fs::write(path, lines.join("\n"))?;
         }
     }
+    Ok(())
 }

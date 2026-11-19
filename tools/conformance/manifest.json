@@ -621,7 +621,7 @@
         "tool": "MergeBamAlignment",
         "port": "MergeBamAlignment",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "output.bam"
       },
       {
@@ -869,7 +869,7 @@
         "tool": "IlluminaBasecallsToFastq",
         "port": "IlluminaBasecallsToFastq",
         "t": 2,
-        "status": "pending",
+        "status": "measured",
         "output_name": "@all"
       },
       {
