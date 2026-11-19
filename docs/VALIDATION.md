@@ -225,15 +225,18 @@ produced there. Committing the published file and flipping the status is what tu
 claim.
 
 Beyond the array, `tools/fuzz/` mutates from its rows and keeps whatever reaches a probe of the
-reference that nothing has reached, with JaCoCo measuring inside the pinned container:
+reference that nothing has reached, with JaCoCo measuring inside the pinned container, and replays
+every kept case on both sides through `run_array.py`. CI runs it over every measured tool in eight
+shards; `tools/fuzz/measured.json` is merged from their `fuzz-findings-*` artefacts:
 
 ```sh
-python3 tools/fuzz/run_fuzz.py --tool CollectAlignmentSummaryMetrics --iterations 200 \
+python3 tools/fuzz/run_fuzz.py --tool CollectAlignmentSummaryMetrics --iterations 30 \
     --port target/release/CollectAlignmentSummaryMetrics
+python3 tools/fuzz/run_fuzz.py --merge <downloaded fuzz-findings-*>   # -> tools/fuzz/measured.json
 ```
 
-Sixty mutations reach about 10% more of the reference than the whole pairwise array does, and the
-first two sessions found a numeric divergence the conformance corpus cannot contain: decision 0010.
+The first two sessions found a numeric divergence the conformance corpus cannot contain: decision
+0010.
 
 ## Decisions
 
