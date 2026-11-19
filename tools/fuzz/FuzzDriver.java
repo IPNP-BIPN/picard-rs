@@ -1,22 +1,27 @@
 /*
- * Coverage-guided differential fuzzing of the reference, in one warm JVM.
+ * Coverage-guided fuzzing of the reference, in one warm JVM.
  *
- * The covering arrays cover interactions between arguments; they say nothing about which *branches
- * of the reference* those interactions reach. A tool can be pairwise-covered and still have most
- * of its logic untouched, because a branch usually needs a particular argument together with a
- * particular shape of input. This closes that gap the way the plan commits to: mutate, measure the
- * reference's branch coverage, and keep whatever reaches something new.
+ * The covering arrays cover PAIRS of argument values; they say nothing about which branches of
+ * Picard those pairs reach. This starts from the array's rows, mutates one argument at a time
+ * within the array's own value domains, measures Picard's probes with JaCoCo, and keeps a mutant
+ * that reaches a probe no earlier case reached or ends in an outcome no earlier case ended in.
  *
- * Why a Java driver rather than a Python loop of `docker run`: each run of the tool has to happen
- * in the same JVM as the coverage agent, and a fresh container per iteration costs seconds. Here
- * the JVM stays warm, the tool runs in process through PicardCommandLine, and JaCoCo's runtime API
- * hands back the execution data after each iteration.
+ * The tool runs in process through PicardCommandLine.instanceMain, which returns where main would
+ * call System.exit, so the JVM and the agent stay warm across iterations.
  *
- * Usage: FuzzDriver <fixtures dir> <seed corpus file> <iterations> <out dir>
+ * What this driver decides is only what to KEEP. Whether the port agrees on a kept case is decided
+ * by run_fuzz.py, which re-runs both sides out of process through run_array.py, with the same
+ * canonicalization every covering-array row gets. An in-process outcome can carry state a fresh
+ * JVM would not have, so it guides the search and is never compared.
  *
- * The seed corpus is one command line per line: `<Tool>\t--ARG=value ...`, which is what
- * run_array.py writes from a covering array. Mutation is seeded and deterministic, so a run that
- * finds something can be replayed exactly.
+ * Usage: FuzzDriver <tool> <seed file> <iterations> <corpus out> <rng seed> <timeout seconds>
+ *
+ * The seed file is tab-separated, one record per line:
+ *   positional <word>...       appended last, as run_array.run_oracle does
+ *   lists      <name>...       a value of these is words, each `--NAME word`
+ *   stdin      [<file>]        a corpus file fed to standard input, for a filter
+ *   domain     <name> <v>...   every value the array gives the argument; what a mutation draws from
+ *   row        --NAME=value... one seed command line
  */
 
 import org.jacoco.agent.rt.IAgent;
@@ -27,278 +32,230 @@ import picard.cmdline.PicardCommandLine;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class FuzzDriver {
 
     /** Reaches the protected entry point without the System.exit that main would call. */
     static class Runner extends PicardCommandLine {
         int run(String[] argv) {
-            Object code = instanceMain(argv);
-            return code instanceof Integer ? (Integer) code : (code == null ? 0 : 1);
+            return instanceMain(argv);
         }
     }
 
-    /** One command line and what the reference did with it. */
-    static class Case {
-        final String tool;
-        final List<String> args;
-        String outcome = "";
-        int newBranches = 0;
-
-        Case(String tool, List<String> args) {
-            this.tool = tool;
-            this.args = args;
-        }
-
-        String commandLine() {
-            return tool + "\t" + String.join(" ", args);
-        }
-    }
-
+    /** A mutation that leaves the argument off; run_array.OMITTED is the array's own spelling. */
+    static final String UNSET = "<unset>";
+    static final String OMITTED = "<absent>";
+    static final String POSITIONAL = "[NA - Positional]";
     static final IAgent AGENT = RT.getAgent();
+    static final Path OUT = Path.of("/work/out");
+    static final Path FIXTURES = Path.of("/work/fixtures");
+
+    static String tool;
+    static List<String> positional = new ArrayList<>();
+    static Set<String> lists = new HashSet<>();
+    static byte[] stdin;
+    static Map<String, List<String>> domains = new LinkedHashMap<>();
 
     public static void main(String[] args) throws Exception {
-        String fixtures = args[0];
+        tool = args[0];
         Path seedFile = Path.of(args[1]);
         int iterations = Integer.parseInt(args[2]);
-        Path outDir = Path.of(args[3]);
-        Files.createDirectories(outDir);
+        Path corpusOut = Path.of(args[3]);
+        Random rng = new Random(Long.parseLong(args[4]));
+        long timeout = Long.parseLong(args[5]);
 
-        List<Case> corpus = new ArrayList<>();
+        List<List<String>> corpus = new ArrayList<>();
         for (String line : Files.readAllLines(seedFile)) {
-            if (line.isBlank() || line.startsWith("#")) continue;
-            String[] parts = line.split("\t", 2);
-            List<String> argv = new ArrayList<>(List.of(parts[1].trim().split("\\s+")));
-            corpus.add(new Case(parts[0], argv));
+            if (line.isBlank()) continue;
+            String[] f = line.split("\t", -1);
+            List<String> rest = new ArrayList<>(Arrays.asList(f).subList(1, f.length));
+            rest.removeIf(String::isEmpty);
+            switch (f[0]) {
+                case "positional": positional.addAll(rest); break;
+                case "lists": lists.addAll(rest); break;
+                case "stdin": if (!rest.isEmpty()) stdin = Files.readAllBytes(FIXTURES.resolve(rest.get(0))); break;
+                case "domain": domains.put(rest.get(0), rest.subList(1, rest.size())); break;
+                case "row": corpus.add(rest); break;
+                default: throw new IllegalArgumentException("unknown seed record: " + f[0]);
+            }
         }
         if (corpus.isEmpty()) throw new IllegalArgumentException("empty seed corpus");
 
-        Random rng = new Random(20260729L);
-        Set<String> coveredBranches = new HashSet<>();
-        Set<String> seenOutcomes = new HashSet<>();
-        List<Case> interesting = new ArrayList<>();
+        Set<String> covered = new HashSet<>();
+        Set<String> outcomes = new HashSet<>();
+        List<String> kept = new ArrayList<>();
+        ExecutorService runner = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "fuzz-case");
+            t.setDaemon(true);
+            return t;
+        });
 
-        // The seeds first: they establish the baseline coverage that a mutant has to beat.
-        final int seedCount = corpus.size();
-        int index = 0;
-        for (Case seed : corpus) {
-            evaluate(seed, fixtures, outDir, coveredBranches, seenOutcomes, interesting, index++);
-        }
-        int fromSeeds = coveredBranches.size();
-
-        for (int i = 0; i < iterations; i++) {
-            Case parent = corpus.get(rng.nextInt(corpus.size()));
-            Case mutant = mutate(parent, rng, fixtures);
-            boolean kept = evaluate(
-                mutant, fixtures, outDir, coveredBranches, seenOutcomes, interesting, index++);
-            // A mutant that reached something new becomes a parent: that is what makes the search
-            // guided rather than random.
-            if (kept) corpus.add(mutant);
-        }
-
-        try (PrintWriter out = new PrintWriter(outDir.resolve("corpus.txt").toFile())) {
-            out.println("# tool\targuments\toutcome\tnew_branches");
-            for (Case c : interesting) {
-                out.printf("%s\t%s\t%d%n", c.commandLine(), c.outcome, c.newBranches);
+        int seeds = corpus.size(), fromSeeds = 0, run = 0;
+        boolean timedOut = false;
+        // The seeds first, in order: they are the baseline a mutant has to beat.
+        for (int i = 0; i < seeds + iterations && !timedOut; i++) {
+            List<String> c = i < seeds ? corpus.get(i) : mutate(corpus.get(rng.nextInt(corpus.size())), rng);
+            String outcome = evaluate(c, runner, timeout);
+            run++;
+            if (outcome.startsWith("TIMEOUT")) timedOut = true;
+            Set<String> probes = probesCovered();
+            int before = covered.size();
+            covered.addAll(probes);
+            int fresh = covered.size() - before;
+            boolean novel = outcomes.add(outcome);
+            if (fresh > 0 || novel) {
+                // What the replay runs: the pairs a command line carries, without the placeholders.
+                String given = c.stream().filter(p -> !isUnset(value(p))).collect(Collectors.joining("\t"));
+                kept.add(given + "\t#\t" + outcome + "\t" + fresh);
+                // A mutant that reached something new becomes a parent: that is what makes the
+                // search guided rather than random.
+                if (i >= seeds) corpus.add(c);
             }
+            if (i == seeds - 1) fromSeeds = covered.size();
+            System.out.printf("%-5d new=%-5d total=%-7d %s%n", i, fresh, covered.size(),
+                outcome.substring(0, Math.min(100, outcome.length())));
+        }
+
+        try (PrintWriter out = new PrintWriter(corpusOut.toFile())) {
+            for (String line : kept) out.println(line);
         }
         System.out.printf(
-            "SUMMARY seeds=%d iterations=%d branches_from_seeds=%d branches_total=%d "
-                + "interesting=%d distinct_outcomes=%d%n",
-            seedCount,
-            iterations,
-            fromSeeds,
-            coveredBranches.size(),
-            interesting.size(),
-            seenOutcomes.size());
+            "SUMMARY tool=%s seeds=%d iterations=%d run=%d probes_from_seeds=%d probes_total=%d "
+                + "kept=%d outcomes=%d timed_out=%b%n",
+            tool, seeds, iterations, run, fromSeeds, covered.size(), kept.size(), outcomes.size(), timedOut);
+        // A case that timed out may still be running, and a Picard tool that threw can leave a
+        // non-daemon executor behind; nothing else should wait for either.
+        System.exit(0);
     }
 
-    /**
-     * Run one case, measure the reference's branch coverage, and keep it when it reaches a branch
-     * nothing has reached before or produces an outcome nothing has produced before.
-     */
-    static boolean evaluate(
-            Case c,
-            String fixtures,
-            Path outDir,
-            Set<String> coveredBranches,
-            Set<String> seenOutcomes,
-            List<Case> interesting,
-            int index)
-            throws Exception {
-        String output = outDir.resolve("fuzz-" + index + ".txt").toString();
-        List<String> argv = new ArrayList<>();
-        argv.add(c.tool);
-        for (String a : c.args) {
-            // Every case writes its own output, so one iteration cannot read another's leftovers.
-            if (a.startsWith("--OUTPUT=")) argv.addAll(List.of("--OUTPUT", output));
-            else if (a.contains("=")) {
-                int eq = a.indexOf('=');
-                argv.add(a.substring(0, eq));
-                argv.add(a.substring(eq + 1));
-            } else argv.add(a);
-        }
-        if (argv.stream().noneMatch("--OUTPUT"::equals)) argv.addAll(List.of("--OUTPUT", output));
+    static String name(String pair) { int eq = pair.indexOf('='); return eq < 0 ? pair : pair.substring(0, eq); }
+    static String value(String pair) { int eq = pair.indexOf('='); return eq < 0 ? "" : pair.substring(eq + 1); }
+    static boolean isUnset(String v) { return v.equals(UNSET) || v.equals(OMITTED); }
 
+    /** `--NAME=value` pairs to argv, the way run_array.run_oracle writes them. */
+    static String[] argv(List<String> pairs) {
+        List<String> out = new ArrayList<>();
+        out.add(tool);
+        List<String> words = positional;
+        for (String pair : pairs) {
+            String name = name(pair), value = value(pair);
+            if (isUnset(value)) continue;
+            if (name.equals(POSITIONAL)) {
+                words = Arrays.asList(value.split(" "));
+            } else if (lists.contains(name)) {
+                for (String word : value.split(" ")) { out.add(name); out.add(word); }
+            } else { out.add(name); out.add(value); }
+        }
+        out.addAll(words);
+        return out.toArray(new String[0]);
+    }
+
+    static String evaluate(List<String> c, ExecutorService runner, long timeout) throws Exception {
+        clearOut();
         AGENT.reset();
+        String[] command = argv(c);
         PrintStream realOut = System.out, realErr = System.err;
+        InputStream realIn = System.in;
         PrintStream quiet = new PrintStream(new ByteArrayOutputStream());
         String outcome;
+        System.setOut(quiet);
+        System.setErr(quiet);
+        if (stdin != null) System.setIn(new ByteArrayInputStream(stdin));
         try {
-            System.setOut(quiet);
-            System.setErr(quiet);
-            int code = new Runner().run(argv.toArray(new String[0]));
-            outcome = "EXIT=" + code + " sha=" + digest(Path.of(output), c.tool);
+            Future<Integer> f = runner.submit(() -> new Runner().run(command));
+            outcome = "EXIT=" + f.get(timeout, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            outcome = "TIMEOUT";
         } catch (Throwable t) {
             Throwable root = t;
-            while (root.getCause() != null) root = root.getCause();
-            outcome = "THROWN=" + root.getClass().getSimpleName() + ": " + root.getMessage();
+            while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+            // The class, not the message: a message carries per-case values and paths, and would
+            // make every rejection novel.
+            outcome = "THROWN=" + root.getClass().getName();
         } finally {
             System.setOut(realOut);
             System.setErr(realErr);
-            new File(output).delete();
+            System.setIn(realIn);
         }
-        c.outcome = outcome.replace(fixtures, "<FIXTURES>").replace("\n", "\\n");
+        return outcome;
+    }
 
-        Set<String> branches = branchesCovered();
-        int before = coveredBranches.size();
-        coveredBranches.addAll(branches);
-        c.newBranches = coveredBranches.size() - before;
-
-        boolean novelOutcome = seenOutcomes.add(c.outcome);
-        boolean kept = c.newBranches > 0 || novelOutcome;
-        if (kept) interesting.add(c);
-        System.out.printf(
-            "%-5d new_branches=%-4d total=%-6d %s%n",
-            index, c.newBranches, coveredBranches.size(), c.outcome.substring(0, Math.min(90, c.outcome.length())));
-        return kept;
+    static void clearOut() throws IOException {
+        Files.createDirectories(OUT);
+        try (Stream<Path> walk = Files.walk(OUT)) {
+            walk.sorted(Comparator.reverseOrder()).filter(p -> !p.equals(OUT)).forEach(p -> p.toFile().delete());
+        }
     }
 
     /**
-     * The reference's covered probes, as class#probe identifiers.
-     *
-     * This reads the agent's execution data directly rather than running JaCoCo's Analyzer over
-     * picard.jar. Two reasons, and the second is the one that decided it:
-     *
-     *   1. The Analyzer re-reads several thousand classes on every iteration, which would dominate
-     *      the loop; the execution data is already in memory.
-     *   2. picard.jar bundles its own, older asm, and it wins the classpath, so the Analyzer dies
-     *      with "Unsupported class file major version 61". Putting JaCoCo's asm first would mean
-     *      running the reference against a classpath the oracle contract does not describe, and the
-     *      contract is the point of the oracle.
-     *
-     * A JaCoCo probe sits at a branch boundary, so the set of covered probes is a proxy for branch
-     * coverage rather than the thing itself: it is a guidance signal and a stopping condition, not
-     * a published coverage figure. Stated here so it is not quoted as one.
+     * Picard's covered probes, as class#probe. Read straight from the agent's execution data:
+     * running JaCoCo's Analyzer over the jar would re-read thousands of classes per case. A probe
+     * sits at a branch boundary, so this is a proxy for branch coverage: a guidance signal, stated
+     * here so the count is not quoted as a coverage percentage.
      */
-    static Set<String> branchesCovered() throws Exception {
+    static Set<String> probesCovered() throws Exception {
         ExecFileLoader loader = new ExecFileLoader();
         loader.load(new ByteArrayInputStream(AGENT.getExecutionData(false)));
         Set<String> covered = new HashSet<>();
         for (ExecutionData data : loader.getExecutionDataStore().getContents()) {
-            // Only the reference's own code counts. htsjdk is measured by its own repository, and
-            // counting it here would let an htsjdk-only probe masquerade as Picard coverage.
-            if (!data.getName().startsWith("picard/")) continue;
             boolean[] probes = data.getProbes();
-            for (int i = 0; i < probes.length; i++) {
-                if (probes[i]) covered.add(data.getName() + "#" + i);
-            }
+            for (int i = 0; i < probes.length; i++) if (probes[i]) covered.add(data.getName() + "#" + i);
         }
         return covered;
     }
 
-    static boolean isNumeric(String value) {
-        if (value.isEmpty()) return false;
-        try {
-            Double.parseDouble(value);
-            return true;
-        } catch (NumberFormatException e) {
-            return false;
-        }
+    static boolean isNumeric(String v) {
+        try { Double.parseDouble(v); return !v.isEmpty(); } catch (NumberFormatException e) { return false; }
     }
 
     /**
-     * The output's fingerprint, over the canonicalized content.
-     *
-     * Hashing the raw file would make every comparison with the port fail for a reason that is not
-     * the tool: a metrics file carries the command line (with per-run paths) and a start time, and
-     * the conformance suites already declare both as canonicalized. The same two rules apply here,
-     * so a divergence in a fingerprint is a divergence in the metrics.
+     * One edit per mutant: a mutant that changes several things and reaches a new probe says
+     * nothing about which edit did it. Only arguments the array varies are touched; a held fixture
+     * value is what lets the tool run at all.
      */
-    static String digest(Path path, String tool) throws Exception {
-        if (!Files.exists(path)) return "no-output";
-        StringBuilder body = new StringBuilder();
-        for (String line : Files.readAllLines(path)) {
-            if (line.startsWith("# " + tool) || line.startsWith("# Started on:")) continue;
-            body.append(line).append('\n');
-        }
-        MessageDigest md = MessageDigest.getInstance("SHA-256");
-        byte[] hash = md.digest(body.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 8; i++) sb.append(String.format("%02x", hash[i]));
-        return sb.toString();
-    }
-
-    /**
-     * One edit per mutant, deliberately: a mutant that changes five things and reaches a new
-     * branch says nothing about which of the five did it, and the minimizer would have to undo
-     * the other four before the case is readable.
-     */
-    static Case mutate(Case parent, Random rng, String fixtures) {
-        List<String> args = new ArrayList<>(parent.args);
+    static List<String> mutate(List<String> parent, Random rng) {
+        List<String> args = new ArrayList<>(parent);
         List<Integer> mutable = new ArrayList<>();
-        for (int i = 0; i < args.size(); i++) {
-            if (args.get(i).contains("=") && !args.get(i).startsWith("--OUTPUT")) mutable.add(i);
-        }
-        if (mutable.isEmpty()) return new Case(parent.tool, args);
-
+        for (int i = 0; i < args.size(); i++) if (domains.containsKey(name(args.get(i)))) mutable.add(i);
+        if (mutable.isEmpty()) return args;
         int at = mutable.get(rng.nextInt(mutable.size()));
-        String arg = args.get(at);
-        String name = arg.substring(0, arg.indexOf('='));
-        String value = arg.substring(arg.indexOf('=') + 1);
-
-        String mutated;
-        switch (rng.nextInt(4)) {
-            case 0:
-                mutated = value.equals("true") ? "false" : value.equals("false") ? "true" : value;
-                break;
-            case 1:
-                // Numeric edge: zero, one, or a large value. Numbers are where off-by-one branches
-                // live, and the covering array only ever passes the declared default.
-                //
-                // Only where the current value is already a number. Replacing a path with "0"
-                // produces "Cannot read non-existent file", an outcome the fuzzer reaches on its
-                // first mutation and learns nothing further from: it is a rejection by the argument
-                // parser, not a branch of the tool.
-                if (isNumeric(value)) {
-                    mutated = new String[] {"0", "1", "2", "1000000"}[rng.nextInt(4)];
-                } else mutated = value;
-                break;
-            case 2:
-                // Swap the input for another fixture: a branch usually needs an argument *and* a
-                // shape of input, and the array holds the input fixed per row.
-                if (name.equals("--INPUT")) {
-                    String[] inputs = {"small.bam", "small.sam", "queryname.bam", "unmapped.bam"};
-                    mutated = fixtures + "/" + inputs[rng.nextInt(inputs.length)];
-                } else mutated = value;
-                break;
-            default:
-                // Drop the argument: absent and defaulted are different code paths in Barclay.
-                args.remove(at);
-                return new Case(parent.tool, args);
+        String name = name(args.get(at)), value = value(args.get(at));
+        List<String> domain = domains.get(name);
+        int op = rng.nextInt(4);
+        if (op == 0 || op == 1) {
+            // Another value the array itself uses: always one the inventory considers valid.
+            args.set(at, name + "=" + domain.get(rng.nextInt(domain.size())));
+        } else if (op == 2 && isNumeric(value)) {
+            // Numeric edges, where off-by-one branches live; the array passes declared values
+            // only. Kept small: a large count can make one case run for the whole budget.
+            String[] edges = {"0", "1", "-1", "2", "100"};
+            args.set(at, name + "=" + edges[rng.nextInt(edges.length)]);
+        } else {
+            // Absent and defaulted are different paths through Barclay.
+            args.set(at, name + "=" + UNSET);
         }
-        args.set(at, name + "=" + mutated);
-        return new Case(parent.tool, args);
+        return args;
     }
 }
