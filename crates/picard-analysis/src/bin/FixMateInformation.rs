@@ -124,7 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             for record in fixed {
                 out.write(&record?)?;
             }
-            out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
+            out.finish_create_index()?;
             return Ok(());
         }
         // Any other order is sorted by the writer, after every record is fixed, so a refusal
@@ -135,8 +135,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             for record in sorted {
                 out.write(&record?)?;
             }
-            // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
-            out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
+            out.finish_create_index()?;
         }
     }
     Ok(())

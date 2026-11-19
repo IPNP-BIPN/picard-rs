@@ -175,8 +175,15 @@ pub fn sort(contigs: &Contigs, intervals: &mut [Iv]) {
 /// (or, when `merge_abutting`, abutting) run into its first interval, names joined with `|`.
 pub fn uniqued(contigs: &Contigs, mut intervals: Vec<Iv>, merge_abutting: bool) -> Vec<Iv> {
     sort(contigs, &mut intervals);
-    // The names of the run being folded, once a second name has joined the first.
-    let mut joined: Option<String> = None;
+    // The names of the run being folded, once a second interval has joined the first: in order and
+    // each once, as `merge` gathers them in a `LinkedHashSet`.
+    let mut folding = false;
+    let mut names: Vec<Box<str>> = Vec::new();
+    let mut seen: std::collections::HashSet<Box<str>> = std::collections::HashSet::new();
+    let finish = |interval: &mut Iv, names: &mut Vec<Box<str>>| {
+        interval.name = (!names.is_empty()).then(|| names.join("|").into_boxed_str());
+        names.clear();
+    };
     let mut kept = 0;
     for next in 0..intervals.len() {
         if kept > 0 && {
@@ -187,30 +194,29 @@ pub fn uniqued(contigs: &Contigs, mut intervals: Vec<Iv>, merge_abutting: bool) 
             let end = intervals[next].end;
             let cur = &mut intervals[kept - 1];
             cur.end = cur.end.max(end);
+            if !folding {
+                folding = true;
+                seen.clear();
+                if let Some(first) = cur.name.take() {
+                    seen.insert(first.clone());
+                    names.push(first);
+                }
+            }
             if let Some(name) = name {
-                match &mut joined {
-                    Some(joined) => {
-                        joined.push('|');
-                        joined.push_str(&name);
-                    }
-                    None => {
-                        joined = Some(match cur.name.take() {
-                            Some(first) => format!("{first}|{name}"),
-                            None => name.into(),
-                        })
-                    }
+                if seen.insert(name.clone()) {
+                    names.push(name);
                 }
             }
         } else {
-            if let Some(joined) = joined.take() {
-                intervals[kept - 1].name = Some(joined.into_boxed_str());
+            if std::mem::take(&mut folding) {
+                finish(&mut intervals[kept - 1], &mut names);
             }
             intervals.swap(kept, next);
             kept += 1;
         }
     }
-    if let Some(joined) = joined {
-        intervals[kept - 1].name = Some(joined.into_boxed_str());
+    if folding {
+        finish(&mut intervals[kept - 1], &mut names);
     }
     intervals.truncate(kept);
     intervals
@@ -365,7 +371,9 @@ pub fn parse_line(line: &str, contigs: &mut Contigs) -> Result<Option<Iv>, Parse
         end: number(end)?,
         contig: contigs.intern(contig),
         negative_strand: strand == "-",
-        name: (name != ".").then(|| name.into()),
+        // `IntervalListCodec` keeps the name as written, `.` included: only a merge with no name,
+        // or a BED line with none, is null.
+        name: Some(name.into()),
     }))
 }
 
@@ -405,6 +413,27 @@ pub fn write_lines(contigs: &Contigs, intervals: &[Iv], out: &mut impl Write) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `IntervalList.merge` over what `IntervalListCodec` read: `.` is a name like any other,
+    /// and a name already in the run is not added again. Picard 3.5.0 writes these two lines.
+    #[test]
+    fn a_merge_keeps_a_dot_name_and_each_name_once() {
+        let list = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:1000\n\
+            chr1\t1\t100\t+\t.\nchr1\t90\t150\t+\tB\n\
+            chr1\t300\t400\t+\texonA\nchr1\t350\t450\t+\texonA\n";
+        let mut contigs = Contigs::default();
+        let mut intervals = Vec::new();
+        read_list(list.as_bytes(), &mut contigs, &mut intervals)
+            .unwrap()
+            .unwrap();
+        contigs.set_dictionary(&["chr1".to_string()]);
+        let mut out = Vec::new();
+        write_lines(&contigs, &uniqued(&contigs, intervals, true), &mut out).unwrap();
+        assert_eq!(
+            String::from_utf8(out).unwrap(),
+            "chr1\t1\t150\t+\t.|B\nchr1\t300\t450\t+\texonA\n"
+        );
+    }
     use htsjdk_bam::interval::IntervalList;
 
     const LIST: &str = "@HD\tVN:1.6\n@SQ\tSN:chr2\tLN:100\n@SQ\tSN:chr1\tLN:100\n\
@@ -439,9 +468,12 @@ mod tests {
             v
         };
         assert_eq!(lines(&contigs, &sorted), theirs.sorted().write_body());
+        // Not `theirs.uniqued(true)`: htsjdk-rs reads a `.` name as none and does not drop a name
+        // already in the run, where `IntervalList.merge` keeps `.` and joins each name once, so
+        // chr2's run is `c|.` as Picard writes it.
         assert_eq!(
             lines(&contigs, &uniqued(&contigs, intervals.clone(), true)),
-            theirs.uniqued(true).write_body()
+            "chrU\t1\t2\t-\t.\nchr2\t40\t60\t-\tc|.\nchr1\t1\t20\t+\ta|d|b\nchr1\t30\t30\t+\te\n"
         );
         let sequences = vec![("chr2".to_string(), 100), ("chr1".to_string(), 100)];
         let inverted = invert(&mut contigs, &sequences, intervals.clone());
@@ -454,9 +486,11 @@ mod tests {
             dictionary,
             intervals: broken,
         };
+        // htsjdk-rs names a `.` interval's pieces `null.k`; `IntervalListCodec` kept the name, so
+        // Picard writes `..k`.
         assert_eq!(
             lines(&contigs, &break_at_band_multiples(intervals, 7)),
-            broken.write_body()
+            broken.write_body().replace("\tnull.", "\t..")
         );
     }
 

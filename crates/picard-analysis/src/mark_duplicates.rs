@@ -96,11 +96,31 @@ pub struct Options {
     pub max_optical_duplicate_set_size: i64,
     /// `BARCODE_TAG`, whose value splits one position into one set per barcode.
     pub barcode_tag: Option<String>,
+    /// `READ_ONE_BARCODE_TAG` or `READ_TWO_BARCODE_TAG` is set: [`Record::barcode`] is then a
+    /// [`barcode_key`], and a pair takes its read-one part from read one and its read-two part
+    /// from read two.
+    pub read_barcodes: bool,
     /// Not an argument of any tool: the two mate-cigar markers score a pair from ONE end, adding
     /// the mate's reference length off the `MC` tag (`DuplicateScoringStrategy.compare(..., true)`
     /// in `MarkQueue`), and `MarkDuplicates` scores each end alone. It decides which read of a set
     /// is kept, so the same file can come out marked differently under the two tools.
     pub assume_mate_cigar: bool,
+}
+
+impl Options {
+    /// `useBarcodes`: any of the three barcode tags is set.
+    pub fn uses_barcodes(&self) -> bool {
+        self.barcode_tag.is_some() || self.read_barcodes
+    }
+}
+
+/// What `areComparableForDuplicates` compares when a read barcode tag is set: the top-strand
+/// normalized UMI, read one's barcode and read two's, as one string. The reference compares their
+/// hashes, and `Objects.hash(null)` equals `Objects.hash("")` as `"".hashCode()` is the 0 of a
+/// missing tag, so a missing value is the empty one here.
+pub fn barcode_key(umi: Option<&str>, read_one: Option<&str>, read_two: Option<&str>) -> String {
+    let [umi, read_one, read_two] = [umi, read_one, read_two].map(|part| part.unwrap_or(""));
+    format!("{umi}\0{read_one}\0{read_two}")
 }
 
 impl Default for Options {
@@ -118,6 +138,7 @@ impl Default for Options {
             read_name_regex: ReadNameRegex::Default,
             max_optical_duplicate_set_size: 300_000,
             barcode_tag: None,
+            read_barcodes: false,
             assume_mate_cigar: false,
         }
     }
@@ -200,7 +221,8 @@ pub struct Record {
     pub library: Arc<str>,
     /// The nth read group of the header, which is what `closeEnough` compares.
     pub read_group: i32,
-    /// The value of `BARCODE_TAG`, where the record carries one.
+    /// The value of `BARCODE_TAG`, where the record carries one; with
+    /// [`Options::read_barcodes`], a [`barcode_key`].
     pub barcode: Option<String>,
     /// An incoming `DT`, which `CLEAR_DT` decides the fate of.
     pub existing_dt: Option<String>,
@@ -530,7 +552,7 @@ pub fn build_read_ends(record: &Record, index: usize, options: &Options) -> Read
             Location::default()
         },
         read_group: record.read_group,
-        barcode: options.barcode_tag.as_ref().and(record.barcode.clone()),
+        barcode: record.barcode.clone().filter(|_| options.uses_barcodes()),
         is_optical_duplicate: false,
     }
 }
@@ -931,15 +953,7 @@ impl Strings {
         } as u32;
         let barcode = match ends.barcode {
             None => u32::MAX,
-            Some(barcode) => match self.barcode_numbers.get(&barcode) {
-                Some(&number) => number,
-                None => {
-                    let number = self.barcodes.len() as u32;
-                    self.barcodes.push(barcode.clone());
-                    self.barcode_numbers.insert(barcode, number);
-                    number
-                }
-            },
+            Some(barcode) => self.barcode_number(barcode),
         };
         Packed {
             read1_index_in_file: ends.read1_index_in_file,
@@ -956,6 +970,36 @@ impl Strings {
             orientation: ends.orientation,
             orientation_for_optical_duplicates: ends.orientation_for_optical_duplicates,
         }
+    }
+
+    fn barcode_number(&mut self, barcode: String) -> u32 {
+        match self.barcode_numbers.get(&barcode) {
+            Some(&number) => number,
+            None => {
+                let number = self.barcodes.len() as u32;
+                self.barcodes.push(barcode.clone());
+                self.barcode_numbers.insert(barcode, number);
+                number
+            }
+        }
+    }
+
+    /// The pair's [`barcode_key`]: the first end's, with the part the second end's record sets
+    /// (read one's for a first of pair, read two's otherwise) taken from the second end's.
+    fn pair_barcode(&mut self, first: u32, second: u32, second_first_of_pair: bool) -> u32 {
+        let parts = |number: u32| -> Vec<String> {
+            let key = self
+                .barcodes
+                .get(number as usize)
+                .map_or("", String::as_str);
+            let mut parts: Vec<String> = key.split('\0').map(str::to_string).collect();
+            parts.resize(3, String::new());
+            parts
+        };
+        let mut pair = parts(first);
+        let slot = if second_first_of_pair { 1 } else { 2 };
+        pair[slot] = std::mem::take(&mut parts(second)[slot]);
+        self.barcode_number(pair.join("\0"))
     }
 
     fn unpack(&self, packed: &Packed) -> ReadEnds {
@@ -1098,6 +1142,13 @@ impl<'o> ReadEndsBuilder<'o> {
                 paired.score = paired
                     .score
                     .wrapping_add(duplicate_score(record, options.scoring));
+                if options.read_barcodes {
+                    paired.barcode = self.strings.pair_barcode(
+                        paired.barcode,
+                        fragment.barcode,
+                        record.first_of_pair(),
+                    );
+                }
                 self.pairs.push(paired);
             }
         }
@@ -1140,7 +1191,7 @@ impl<'o> ReadEndsBuilder<'o> {
                 }
             }
             let flags = if options.parse_read_names {
-                optical_flags(&chunk, keeper, options)
+                optical_flags(&chunk, Some(keeper), options)
             } else {
                 vec![false; chunk.len()]
             };
@@ -1368,7 +1419,10 @@ pub fn sets_by_position(records: &[Record], options: &Options) -> Vec<Vec<usize>
         let ends = build_read_ends(record, index, options);
         let next = groups.len();
         // The strings `build_read_ends` copied, borrowed from the record instead.
-        let barcode = options.barcode_tag.as_ref().and(record.barcode.as_deref());
+        let barcode = record
+            .barcode
+            .as_deref()
+            .filter(|_| options.uses_barcodes());
         let position = *keys
             .entry(key_with(&record.library, barcode, &ends, false))
             .or_insert(next);
@@ -1465,7 +1519,11 @@ fn chunks<'a>(
 /// The split is the point: in PCR duplicate detection a set can hold both orientations once the
 /// ends are ordered by position, and in OPTICAL duplicate detection two reads whose first ends
 /// point opposite ways are not duplicates of one another.
-pub(crate) fn optical_flags(chunk: &[ReadEnds], keeper: usize, options: &Options) -> Vec<bool> {
+pub(crate) fn optical_flags(
+    chunk: &[ReadEnds],
+    keeper: Option<usize>,
+    options: &Options,
+) -> Vec<bool> {
     let has_fr = chunk
         .iter()
         .any(|ends| ends.orientation_for_optical_duplicates == FR);
@@ -1480,7 +1538,7 @@ pub(crate) fn optical_flags(chunk: &[ReadEnds], keeper: usize, options: &Options
         }
     };
     if !(has_fr && has_rf) {
-        return limited(chunk, Some(keeper));
+        return limited(chunk, keeper);
     }
     let mut flags = vec![false; chunk.len()];
     for orientation in [FR, RF] {
@@ -1491,7 +1549,8 @@ pub(crate) fn optical_flags(chunk: &[ReadEnds], keeper: usize, options: &Options
             .iter()
             .map(|index| chunk[*index].clone())
             .collect();
-        let inner_keeper = positions.iter().position(|index| *index == keeper);
+        let inner_keeper =
+            keeper.and_then(|keeper| positions.iter().position(|index| *index == keeper));
         let inner = limited(&list, inner_keeper);
         for (position, flag) in positions.iter().zip(inner) {
             flags[*position] = flag;
@@ -1503,14 +1562,15 @@ pub(crate) fn optical_flags(chunk: &[ReadEnds], keeper: usize, options: &Options
 /// The second pass: the flag, the tag, the removal and the metrics, in the reference's order.
 /// The writing pass over decisions someone else made: the flags, the `DT` tags, what is written
 /// at all, and the metrics. `MarkDuplicates` reaches it through [`mark`]; the mate-cigar iterator
-/// reaches it with its own decisions.
+/// reaches it with its own decisions, and with its own optical count per library when it keeps one.
 pub fn marking_from(
     records: &[Record],
     options: &Options,
     duplicate: &[bool],
     optical: &[bool],
+    optical_pairs: Option<&[(String, i64)]>,
 ) -> Marking {
-    write(records, options, duplicate, optical, None)
+    write(records, options, duplicate, optical, optical_pairs)
 }
 
 /// `optical_pairs` is `MarkDuplicates`' own optical count per library, in pairs; without it the
@@ -1759,6 +1819,25 @@ pub fn duplication_metrics_text(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A pair's barcode key: the UMI of the end seen first, read one's barcode from read one and
+    /// read two's from read two, whichever came first; a missing value is the empty one, as
+    /// `Objects.hash(null)` is `Objects.hash("")`.
+    #[test]
+    fn a_pair_takes_each_read_barcode_from_its_own_read() {
+        let mut strings = Strings::default();
+        let first = strings.barcode_number(barcode_key(Some("AC"), None, Some("R2")));
+        let second = strings.barcode_number(barcode_key(Some("GG"), Some("R1"), None));
+        let pair = strings.pair_barcode(first, second, true);
+        assert_eq!(
+            strings.barcodes[pair as usize],
+            barcode_key(Some("AC"), Some("R1"), Some("R2"))
+        );
+        assert_eq!(
+            barcode_key(None, None, None),
+            barcode_key(Some(""), Some(""), None)
+        );
+    }
 
     fn named(name: &str, flags: u16) -> Record {
         Record {

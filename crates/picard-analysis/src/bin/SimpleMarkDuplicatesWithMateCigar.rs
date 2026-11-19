@@ -88,6 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .unwrap_or(300_000),
         barcode_tag: arg(&args, "BARCODE_TAG="),
+        read_barcodes: false,
         assume_mate_cigar: false,
     };
 
@@ -275,8 +276,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         out.write(&written)?;
     }
-    // A CRAM is indexed under CREATE_INDEX, a BAM never was here.
-    out.finish(picard_analysis::cram_output::create_index_argument(), false)?;
+    out.finish_create_index()?;
 
     // `finalizeAndWriteMetrics`, shared with `MarkDuplicates`.
     if let Some(path) = metrics_file {
