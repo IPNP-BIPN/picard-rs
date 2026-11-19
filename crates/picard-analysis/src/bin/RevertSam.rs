@@ -16,10 +16,6 @@ use picard_analysis::revert_sam::{
 };
 use picard_analysis::sort_sam::SortingCollection;
 use picard_analysis::stream_output::Output;
-use rayon::prelude::*;
-
-/// How many records are reverted in parallel at a time.
-const CHUNK: usize = 16 * 1024;
 
 /// A collection argument as Barclay builds it: the default, each value appended, `null` emptying it.
 fn collection(args: &[String], keys: &[&str], default: Vec<String>, set: bool) -> Vec<String> {
@@ -256,19 +252,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The discard-fraction refusal happens after `out.close()`, so the output exists and then the
     // tool throws. Writing before the exit is not tidiness: a row that stopped short of the write
     // would differ from the reference on the file as well as on the message.
-    // Reverted a chunk at a time, in parallel, in input order.
-    let mut records = records.peekable();
-    let reverted = std::iter::from_fn(|| {
-        records.peek()?;
-        let chunk: Vec<BamRecord> = records.by_ref().take(CHUNK).collect();
-        Some(
-            chunk
-                .into_par_iter()
-                .filter_map(|record| revert_primary(record, &options))
-                .collect::<Vec<_>>(),
-        )
-    })
-    .flatten();
+    // Reverted as they are read: the work per record is too small to pay for waking rayon's pool,
+    // which the writer's deflating has busy enough.
+    let reverted = records.filter_map(|record| revert_primary(record, &options));
     let out_header = revert_header(&header, &options);
     // The writer sorts what it is not handed presorted, through a SortingCollection, and every
     // record is read before the output is created.

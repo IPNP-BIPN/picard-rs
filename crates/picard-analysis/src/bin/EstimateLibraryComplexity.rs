@@ -21,8 +21,6 @@
 //! The optical duplicates are found per SET, with the template that claimed the others as the
 //! keeper, and a set of four takes the finder's graph path rather than its pairwise one.
 
-use std::collections::HashMap;
-
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{Histogram as OutHistogram, MetricsFile};
@@ -151,7 +149,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             barcodes: (i32, i32, i32),
             added: bool,
         }
-        let mut pending: HashMap<String, Pending> = HashMap::new();
+        let mut pending: foldhash::HashMap<String, Pending> = foldhash::HashMap::default();
 
         for record in records {
             let record = &record;

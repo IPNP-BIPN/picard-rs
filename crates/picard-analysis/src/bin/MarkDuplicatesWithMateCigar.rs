@@ -185,11 +185,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let marked_records: Vec<Record> = records
-        .map(|record| {
+        .map(|mut record| {
+            let name = std::mem::take(&mut record.read_name);
             let record = &record;
             let (library, read_group) = library_of(record);
             Record {
-                name: record.read_name.clone(),
+                name,
                 flags: record.flags,
                 reference_index: record.reference_index,
                 alignment_start: record.alignment_start,

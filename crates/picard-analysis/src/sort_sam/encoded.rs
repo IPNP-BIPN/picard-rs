@@ -7,6 +7,7 @@
 //! output. The other tools that sort keep that collection, with its comparators on decoded records.
 
 use std::cmp::Ordering;
+use std::collections::binary_heap::PeekMut;
 use std::collections::BinaryHeap;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
@@ -331,11 +332,9 @@ impl SortingCollection {
         if self.runs.len() + 1 == MAX_OPEN_RUNS {
             self.wait_for_run()?;
             let runs = std::mem::take(&mut self.runs).into_iter().map(Run::file);
-            let mut merged = Merge::new(self.compare, runs.collect())?;
+            let mut merged = Merge::new(self.compare, self.parallel, runs.collect())?;
             let mut run = RunWriter::create(&self.tmp_dir)?;
-            while let Some(record) = merged.next_owned() {
-                run.push(record?.view())?;
-            }
+            merged.for_each(|record| run.push(record))?;
             self.runs.push(run.finish()?);
         }
         Ok(())
@@ -373,11 +372,7 @@ impl SortingCollection {
                 entries: self.entries.into_iter(),
             });
         }
-        let mut merge = Merge::new(self.compare, runs)?;
-        while let Some(head) = merge.next_owned() {
-            emit(head?.view())?;
-        }
-        Ok(())
+        Merge::new(self.compare, self.parallel, runs)?.for_each(emit)
     }
 }
 
@@ -406,10 +401,17 @@ fn view<'a>(arenas: &'a [Vec<u8>], entry: &Entry) -> Encoded<'a> {
 const RUN_BUFFER: usize = 1 << 20;
 
 /// A fresh file in `dir`, unlinked at once so nothing is left behind, that records are written to
-/// each as its `HI` (a presence byte and eight bytes), its end, and its bytes.
+/// each as whether it has an `HI`, its end, the `HI` if it has one, how much of its name the record
+/// before it has, and its bytes without that much of the name. Records are not otherwise compressed:
+/// LZ4 took a third off a run for 7% more CPU over a whole sort, where a name's prefix costs a compare.
 struct RunWriter {
     out: BufWriter<File>,
+    name: Vec<u8>,
 }
+
+/// Where a record's name starts in its bytes, and the byte giving its length, NUL included.
+const NAME_AT: usize = 36;
+const NAME_LENGTH_AT: usize = 12;
 
 impl RunWriter {
     fn create(dir: &Path) -> io::Result<RunWriter> {
@@ -430,14 +432,25 @@ impl RunWriter {
         std::fs::remove_file(&path)?;
         Ok(RunWriter {
             out: BufWriter::with_capacity(RUN_BUFFER, file),
+            name: Vec::new(),
         })
     }
 
     fn push(&mut self, record: Encoded) -> io::Result<()> {
         self.out.write_all(&[record.hit.is_some() as u8])?;
-        self.out.write_all(&record.hit.unwrap_or(0).to_le_bytes())?;
         self.out.write_all(&record.end.to_le_bytes())?;
-        self.out.write_all(record.bytes)
+        if let Some(hit) = record.hit {
+            self.out.write_all(&hit.to_le_bytes())?;
+        }
+        let name_end = NAME_AT + record.bytes[NAME_LENGTH_AT] as usize;
+        let name = &record.bytes[NAME_AT..name_end];
+        let shared = shared_prefix(name, &self.name);
+        self.out.write_all(&[shared as u8])?;
+        self.out.write_all(&record.bytes[..NAME_AT])?;
+        self.out.write_all(&record.bytes[NAME_AT + shared..])?;
+        self.name.clear();
+        self.name.extend_from_slice(name);
+        Ok(())
     }
 
     /// The run, rewound for reading.
@@ -449,6 +462,7 @@ impl RunWriter {
 }
 
 /// A record read back from a run.
+#[derive(Default)]
 struct Owned {
     bytes: Vec<u8>,
     hit: Option<i64>,
@@ -465,9 +479,28 @@ impl Owned {
     }
 }
 
+/// How many leading bytes `a` and `b` have in common, eight at a time: this is asked once a record.
+fn shared_prefix(a: &[u8], b: &[u8]) -> usize {
+    let mut shared = 0;
+    for (x, y) in a.chunks_exact(8).zip(b.chunks_exact(8)) {
+        let difference =
+            u64::from_le_bytes(x.try_into().unwrap()) ^ u64::from_le_bytes(y.try_into().unwrap());
+        if difference != 0 {
+            return shared + (difference.trailing_zeros() / 8) as usize;
+        }
+        shared += 8;
+    }
+    let tails = a[shared..].iter().zip(&b[shared..]);
+    shared + tails.take_while(|(x, y)| x == y).count()
+}
+
 /// One sorted run, read back record by record.
 enum Run {
-    File(BufReader<File>),
+    File {
+        reader: BufReader<File>,
+        /// The name of the record read last.
+        name: Vec<u8>,
+    },
     /// The last batch, sorted in RAM and never spilled.
     Ram {
         arenas: Vec<Vec<u8>>,
@@ -477,40 +510,56 @@ enum Run {
 
 impl Run {
     fn file(file: File) -> Run {
-        Run::File(BufReader::with_capacity(RUN_BUFFER, file))
+        Run::File {
+            reader: BufReader::with_capacity(RUN_BUFFER, file),
+            name: Vec::new(),
+        }
     }
 
-    fn next(&mut self) -> Option<io::Result<Owned>> {
-        let reader = match self {
-            Run::File(reader) => reader,
+    /// Reads the next record over `record`; `false` when the run has ended.
+    fn next_into(&mut self, record: &mut Owned) -> io::Result<bool> {
+        let (reader, name) = match self {
+            Run::File { reader, name } => (reader, name),
             Run::Ram { arenas, entries } => {
-                return entries.next().map(|entry| {
-                    Ok(Owned {
-                        bytes: view(arenas, &entry).bytes.to_vec(),
-                        hit: entry.hit,
-                        end: entry.end,
-                    })
-                })
+                let Some(entry) = entries.next() else {
+                    return Ok(false);
+                };
+                record.bytes.clear();
+                record.bytes.extend_from_slice(view(arenas, &entry).bytes);
+                record.hit = entry.hit;
+                record.end = entry.end;
+                return Ok(true);
             }
         };
-        match reader.fill_buf() {
-            Ok([]) => return None,
-            Ok(_) => {}
-            Err(e) => return Some(Err(e)),
+        if reader.fill_buf()?.is_empty() {
+            return Ok(false);
         }
-        let read = (|| {
-            let mut fixed = [0u8; 17];
-            reader.read_exact(&mut fixed)?;
-            let hit = (fixed[0] != 0).then(|| i64::from_le_bytes(fixed[1..9].try_into().unwrap()));
-            let end = i32::from_le_bytes(fixed[9..13].try_into().unwrap());
-            let size = i32::from_le_bytes(fixed[13..17].try_into().unwrap()) as usize;
-            let mut bytes = Vec::with_capacity(4 + size);
-            bytes.extend_from_slice(&fixed[13..17]);
-            bytes.resize(4 + size, 0);
-            reader.read_exact(&mut bytes[4..])?;
-            Ok(Owned { bytes, hit, end })
-        })();
-        Some(read)
+        let mut fixed = [0u8; 5];
+        reader.read_exact(&mut fixed)?;
+        record.end = i32::from_le_bytes(fixed[1..5].try_into().unwrap());
+        record.hit = if fixed[0] != 0 {
+            let mut hit = [0u8; 8];
+            reader.read_exact(&mut hit)?;
+            Some(i64::from_le_bytes(hit))
+        } else {
+            None
+        };
+        let mut shared = [0u8; 1];
+        reader.read_exact(&mut shared)?;
+        let shared = shared[0] as usize;
+        let mut length = [0u8; 4];
+        reader.read_exact(&mut length)?;
+        let size = i32::from_le_bytes(length) as usize;
+        record.bytes.clear();
+        record.bytes.extend_from_slice(&length);
+        record.bytes.resize(4 + size, 0);
+        reader.read_exact(&mut record.bytes[4..NAME_AT])?;
+        record.bytes[NAME_AT..NAME_AT + shared].copy_from_slice(&name[..shared]);
+        reader.read_exact(&mut record.bytes[NAME_AT + shared..])?;
+        name.clear();
+        let name_end = NAME_AT + record.bytes[NAME_LENGTH_AT] as usize;
+        name.extend_from_slice(&record.bytes[NAME_AT..name_end]);
+        Ok(true)
     }
 }
 
@@ -545,14 +594,16 @@ impl Eq for Head {}
 /// A k-way merge of sorted runs.
 struct Merge {
     compare: Compare,
+    total_preorder: bool,
     runs: Vec<Run>,
     heap: BinaryHeap<Head>,
 }
 
 impl Merge {
-    fn new(compare: Compare, runs: Vec<Run>) -> io::Result<Merge> {
+    fn new(compare: Compare, total_preorder: bool, runs: Vec<Run>) -> io::Result<Merge> {
         let mut merge = Merge {
             compare,
+            total_preorder,
             runs,
             heap: BinaryHeap::new(),
         };
@@ -563,9 +614,10 @@ impl Merge {
     }
 
     fn refill(&mut self, run: usize) -> io::Result<()> {
-        if let Some(record) = self.runs[run].next() {
+        let mut record = Owned::default();
+        if self.runs[run].next_into(&mut record)? {
             self.heap.push(Head {
-                record: record?,
+                record,
                 run,
                 compare: self.compare,
             });
@@ -573,9 +625,31 @@ impl Merge {
         Ok(())
     }
 
-    fn next_owned(&mut self) -> Option<io::Result<Owned>> {
-        let head = self.heap.pop()?;
-        Some(self.refill(head.run).map(|()| head.record))
+    /// Hands `emit` every record in order, reading each run's next record over the buffer of the
+    /// one it replaces.
+    fn for_each<E: From<io::Error>>(
+        &mut self,
+        mut emit: impl FnMut(Encoded) -> Result<(), E>,
+    ) -> Result<(), E> {
+        if self.total_preorder {
+            // Sifted down once, half the comparisons of a pop and a push. Only a total preorder
+            // gives the same order whichever way the heap is walked.
+            while let Some(mut head) = self.heap.peek_mut() {
+                emit(head.record.view())?;
+                let run = head.run;
+                if !self.runs[run].next_into(&mut head.record)? {
+                    PeekMut::pop(head);
+                }
+            }
+        } else {
+            while let Some(mut head) = self.heap.pop() {
+                emit(head.record.view())?;
+                if self.runs[head.run].next_into(&mut head.record)? {
+                    self.heap.push(head);
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -735,6 +809,62 @@ mod tests {
         let (_, mut records) = read_sam(sam).unwrap();
         records.sort_by(order.comparator());
         records.iter().map(|r| r.encode().unwrap()).collect()
+    }
+
+    #[test]
+    fn a_run_gives_back_what_it_was_given_for_less_than_its_names() {
+        let mut sam = String::from("@HD\tVN:1.6\tSO:unsorted\n@SQ\tSN:chr1\tLN:1000\n");
+        // Long shared prefixes, a name that is a prefix of the next, one sharing nothing, the same
+        // name twice, and the unnamed read.
+        for name in [
+            "A00123:456:HXXXXDSXY:1:1101:1000:1000",
+            "A00123:456:HXXXXDSXY:1:1101:1000:1001",
+            "A00123:456:HXXXXDSXY:1:1101:1000:1001",
+            "A00123",
+            "A00123:456",
+            "z",
+            "*",
+            "A00123:456:HXXXXDSXY:1:1102:2000:1000",
+        ] {
+            sam.push_str(&format!("{name}\t4\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n"));
+        }
+        let (_, records) = read_sam(&sam).unwrap();
+        let encoded: Vec<Vec<u8>> = records.iter().map(|r| r.encode().unwrap()).collect();
+        let mut run = RunWriter::create(&std::env::temp_dir()).unwrap();
+        for (i, bytes) in encoded.iter().enumerate() {
+            run.push(Encoded {
+                bytes,
+                hit: (i % 2 == 0).then_some(i as i64),
+                end: i as i32,
+            })
+            .unwrap();
+        }
+        let file = run.finish().unwrap();
+        let everything: usize = encoded.iter().map(Vec::len).sum();
+        assert!((file.metadata().unwrap().len() as usize) < everything);
+        let mut run = Run::file(file);
+        let mut record = Owned::default();
+        for (i, bytes) in encoded.iter().enumerate() {
+            assert!(run.next_into(&mut record).unwrap());
+            assert_eq!(&record.bytes, bytes);
+            assert_eq!(record.hit, (i % 2 == 0).then_some(i as i64));
+            assert_eq!(record.end, i as i32);
+        }
+        assert!(!run.next_into(&mut record).unwrap());
+    }
+
+    #[test]
+    fn the_shared_prefix_counts_what_comparing_bytes_counts() {
+        let long = b"A00123:456:HXXXXDSXY:1:1101:1000:1000\0";
+        for length in 0..=long.len() {
+            for at in 0..length {
+                let mut other = long[..length].to_vec();
+                other[at] ^= 0x40;
+                assert_eq!(shared_prefix(&long[..length], &other), at);
+            }
+            assert_eq!(shared_prefix(&long[..length], long), length);
+            assert_eq!(shared_prefix(long, &long[..length]), length);
+        }
     }
 
     #[test]

@@ -153,29 +153,23 @@ impl QualityYieldMetricsCollector {
         };
         // Java iterates `byte[]` widened to `int`, so a stored quality above 127 is negative
         // here rather than large. Reproduced by keeping the scores signed.
-        let quals: Vec<i8> = match original {
-            Some(oq) => oq,
-            None => rec.base_qualities.iter().map(|&b| b as i8).collect(),
+        let (mut sum, mut q20, mut q30) = (0i64, 0i64, 0i64);
+        let mut count = |qual: i8| {
+            sum += qual as i64;
+            q20 += (qual >= 20) as i64;
+            q30 += (qual >= 30) as i64;
         };
-
-        for qual in quals {
-            let qual = qual as i64;
-            self.metrics.q20_equivalent_yield += qual;
-            if qual >= 30 {
-                self.metrics.q20_bases += 1;
-                self.metrics.q30_bases += 1;
-            } else if qual >= 20 {
-                self.metrics.q20_bases += 1;
-            }
-            if is_pf_read {
-                self.metrics.pf_q20_equivalent_yield += qual;
-                if qual >= 30 {
-                    self.metrics.pf_q20_bases += 1;
-                    self.metrics.pf_q30_bases += 1;
-                } else if qual >= 20 {
-                    self.metrics.pf_q20_bases += 1;
-                }
-            }
+        match original {
+            Some(oq) => oq.into_iter().for_each(&mut count),
+            None => rec.base_qualities.iter().for_each(|&b| count(b as i8)),
+        }
+        self.metrics.q20_equivalent_yield += sum;
+        self.metrics.q20_bases += q20;
+        self.metrics.q30_bases += q30;
+        if is_pf_read {
+            self.metrics.pf_q20_equivalent_yield += sum;
+            self.metrics.pf_q20_bases += q20;
+            self.metrics.pf_q30_bases += q30;
         }
     }
 
