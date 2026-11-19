@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let dictionary = extract_dictionary(&sequence_dictionary)?;
-    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open_deferred(&input).unwrap_or_else(|exception| die(&exception));
 
     // A VCF without contig lines extracts to `null`. The builder takes that happily unless it is
     // to index, and then refuses; otherwise the refusal is `setSequenceDictionary`'s.

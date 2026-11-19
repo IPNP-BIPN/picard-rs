@@ -56,7 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     // `new VCFFileReader(INPUT, REQUIRE_INDEX)`: the header is read before the index is looked for.
-    let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
+    let mut vcf = VcfReader::open_deferred(&input).unwrap_or_else(|exception| die(&exception));
     if require_index {
         let tabix = has_block_compressed_extension(&input)
             && std::path::Path::new(&format!("{input}.tbi")).exists();
