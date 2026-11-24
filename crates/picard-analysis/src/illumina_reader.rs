@@ -591,6 +591,32 @@ pub fn has_barcode_files(dir: &std::path::Path, lane: i32) -> bool {
 }
 
 #[cfg(test)]
+mod unmatched_types {
+    use super::Run;
+
+    /// A lane with no files but the run's `s.locs`: every requested type but Position is named,
+    /// Barcodes among them when asked for.
+    #[test]
+    fn a_lane_without_files_names_every_type_it_lacks() {
+        let root = std::env::temp_dir().join(format!("picard-rs-unmatched-{}", std::process::id()));
+        let basecalls = root.join("Data/Intensities/BaseCalls");
+        std::fs::create_dir_all(&basecalls).unwrap();
+        std::fs::write(root.join("Data/Intensities/s.locs"), b"").unwrap();
+        let run = Run::new(&basecalls, 2);
+        let wanted = ["Position", "BaseCalls", "QualityScores", "PF", "Barcodes"];
+        assert_eq!(
+            run.unmatched(&wanted, &basecalls).as_deref(),
+            Some(
+                "picard.PicardException: Could not find a format with available files for the \
+                 following data types: BaseCalls, QualityScores, PF, Barcodes"
+            )
+        );
+        assert_eq!(run.unmatched(&["Position"], &basecalls), None);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+}
+
+#[cfg(test)]
 mod position_files {
     use super::clocs;
 

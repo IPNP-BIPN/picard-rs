@@ -748,4 +748,46 @@ mod tests {
         );
         assert_eq!(optical, [false, false, false, false, true, false]);
     }
+
+    fn fragment(start: i32, reverse: bool) -> Record {
+        Record {
+            name: format!("r{start}"),
+            flags: if reverse { 0x10 } else { 0 },
+            reference_index: 0,
+            alignment_start: start,
+            span: crate::mark_duplicates::Span {
+                reference_length: 50,
+                leading_clip: 0,
+                trailing_clip: 0,
+            },
+            read_length: 50,
+            base_quality_score: 0,
+            mate_reference_index: -1,
+            library: std::sync::Arc::from("lib"),
+            read_group: 0,
+            barcode: None,
+            existing_dt: None,
+            mate_span: None,
+            mate_alignment_start: 0,
+        }
+    }
+
+    /// `checkForMinimumDistanceFailure`: a reverse read's 5' end (71) lies past the forward read
+    /// after it (48) by at least MINIMUM_DISTANCE=1, so the window may have missed a duplicate.
+    /// The default window, twice the read length or 100, holds both.
+    #[test]
+    fn a_window_narrower_than_the_clipping_is_refused() {
+        let records = [fragment(22, true), fragment(48, false)];
+        let refused = mark_with_queue(&records, &Options::default(), &[], 1).err();
+        assert_eq!(
+            refused,
+            Some(TooClose {
+                other: 0,
+                current: 1,
+                minimum: 1,
+                required: 22
+            })
+        );
+        assert!(mark_with_queue(&records, &Options::default(), &[], -1).is_ok());
+    }
 }
