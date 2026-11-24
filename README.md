@@ -188,4 +188,6 @@ same CI as any other change.
 
 ## License
 
-MIT, matching Picard. See `LICENSE`.
+MIT, matching Picard. See `LICENSE` and `NOTICE`; the code ported from other projects (ISA-L, zlib,
+FDLIBM, Apache Commons Math) is credited in `THIRD-PARTY-NOTICES`, and each release archive lists
+the licence of every crate linked into its binaries in `THIRD-PARTY-LICENSES.txt`.

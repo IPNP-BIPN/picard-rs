@@ -1,20 +1,33 @@
 name: Release binaries
 
-# A tagged release carries prebuilt binaries, so using the port does not start with a Rust
-# toolchain. Each archive holds every tool's binary for one platform, built from the tag itself.
+# A `v*` tag gets a DRAFT GitHub release carrying every tool's binary for three platforms, each
+# archive with its sha256. Nothing is published until a person reviews the draft and presses Publish.
 # The binaries are a convenience: what the release claims is measured by ci.yml on the same commit.
+#
+# There is no `target-cpu=native`: the x86-64 binaries are run under QEMU's baseline `qemu64` CPU
+# before they are packaged, so an instruction the oldest x86-64 lacks fails here, not on a user's host.
+#
+# A pull request that touches this file or tools/release/ runs every step except the release
+# itself: that is the dry run, and it needs no tag. `workflow_dispatch` rebuilds an existing tag.
 
 on:
   push:
     tags: ["v*"]
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "tools/release/**"
   workflow_dispatch:
     inputs:
       tag:
-        description: "An existing release tag to build and attach binaries to, e.g. v0.1.0"
+        description: "An existing release tag to build and attach binaries to, e.g. v0.3.0"
         required: true
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '' }}
 
 jobs:
   build:
@@ -24,39 +37,89 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-latest
+          - runner: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
           - runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-          - runner: macos-latest
+          - runner: macos-15
             target: aarch64-apple-darwin
-    env:
-      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG || github.sha }}
+
+      - run: echo "NAME=picard-rs-${TAG:-dryrun}-${{ matrix.target }}" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          # Pinned; must match rust-toolchain.toml.
+          toolchain: "1.97.1"
+
+      # isal-sys builds ISA-L with autotools: nasm for its x86-64 assembly (the v0.2.0 run failed
+      # without it), and on macOS a current LLVM, whose assembler accepts ISA-L's ARM `movk ... lsl`
+      # where Xcode's rejects it (gatk-rs run 42178742672).
+      - name: ISA-L's build tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq || echo "apt refresh incomplete; the install below is the gate"
+          sudo apt-get install -y -qq nasm autoconf automake libtool qemu-user
+      - name: ISA-L's build tools (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install autoconf automake libtool llvm
+          echo "CC_aarch64_apple_darwin=$(brew --prefix llvm)/bin/clang" >> "$GITHUB_ENV"
+
+      - name: Build every tool
+        run: cargo build --profile dist --locked
+
+      - name: The binaries run on the host
+        run: tools/release/smoke.sh target/dist
+
+      - name: The binaries run on a baseline x86-64 CPU (qemu64)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: RUN="qemu-x86_64 -cpu qemu64" tools/release/smoke.sh target/dist
+
+      - name: Package
+        run: |
+          mkdir -p "dist/${NAME}/bin"
+          for src in crates/picard-analysis/src/bin/*.rs; do
+            cp "target/dist/$(basename "${src}" .rs)" "dist/${NAME}/bin/"
+          done
+          cp LICENSE NOTICE THIRD-PARTY-NOTICES README.md CHANGELOG.md "dist/${NAME}/"
+          python3 tools/release/third_party.py picard-analysis "${{ matrix.target }}" > "dist/${NAME}/THIRD-PARTY-LICENSES.txt"
+          tar -C dist -czf "${NAME}.tar.gz" "${NAME}"
+          shasum -a 256 "${NAME}.tar.gz" > "${NAME}.tar.gz.sha256"
+          cat "${NAME}.tar.gz.sha256"
+          find "dist/${NAME}/bin" -type f | wc -l
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ env.NAME }}.tar.gz*
+
+  release:
+    name: Draft release
+    needs: build
+    if: inputs.tag || github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ env.TAG }}
 
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/download-artifact@v7
         with:
-          toolchain: "1.97.1"
+          path: dist
+          merge-multiple: true
 
-      - name: Build every tool
-        run: cargo build --profile dist --locked
-
-      - name: Package
-        run: |
-          name="picard-rs-${TAG}-${{ matrix.target }}"
-          mkdir -p "dist/${name}/bin"
-          for src in crates/picard-analysis/src/bin/*.rs; do
-            cp "target/dist/$(basename "${src}" .rs)" "dist/${name}/bin/"
-          done
-          cp LICENSE README.md "dist/${name}/"
-          tar -C dist -czf "${name}.tar.gz" "${name}"
-          shasum -a 256 "${name}.tar.gz" > "${name}.tar.gz.sha256"
-          find "dist/${name}/bin" -type f | wc -l
-
-      - name: Attach to the release
+      - name: Create the draft and attach the archives
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${TAG}" "picard-rs-${TAG}-${{ matrix.target }}.tar.gz" "picard-rs-${TAG}-${{ matrix.target }}.tar.gz.sha256" --clobber
+        run: |
+          # The CHANGELOG section of this version is the release's notes.
+          awk -v v="${TAG#v}" '/^## /{p = index($0, "[" v "]") > 0; next} p' CHANGELOG.md > notes.md
+          gh release view "${TAG}" >/dev/null 2>&1 \
+            || gh release create "${TAG}" --draft --verify-tag --title "picard-rs ${TAG}" --notes-file notes.md
+          gh release upload "${TAG}" dist/* --clobber

@@ -1,0 +1,8 @@
+picard-rs
+Copyright (c) 2026 Benjamin Demaille
+
+This product is a Rust port of Picard (https://github.com/broadinstitute/picard),
+Copyright (c) 2017-2021 Broad Institute, licensed under the MIT License.
+It is not the official Picard and is not affiliated with or endorsed by the Broad Institute.
+
+The notices of the other projects whose code it ports are in THIRD-PARTY-NOTICES.
