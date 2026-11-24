@@ -261,6 +261,84 @@ jobs:
           path: tools/fuzz/findings/
           if-no-files-found: ignore
 
+  test-resources:
+    name: "Picard's own tests, replayed on both sides (shard ${{ matrix.shard }}/8)"
+    # Criterion (1) of a bit-identical tool: every invocation Picard 3.5.0's tests make of a ported
+    # tool, read out of src/test/java by tools/coverage/test_resources.py (committed as
+    # tools/coverage/test_resources/picard.json), runs against the pinned oracle and the port on
+    # the tests' own testdata/. A divergence is a finding, not a red build; measured.json is frozen
+    # from the merge job's artefact, never from a local run.
+    needs: oracle-image
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/cache/restore@v6
+        with:
+          path: /tmp/oracle-image.tar
+          key: picard-rs-oracle-${{ hashFiles('tools/oracle/**') }}
+          fail-on-cache-miss: true
+
+      - run: docker load -i /tmp/oracle-image.tar
+
+      - name: Picard's sources at the pinned tag, read-only on both sides
+        # The oracle mounts the checkout read-only; the port gets the same, so a tool that writes
+        # beside its input is refused on both sides rather than dirtying the corpus.
+        run: |
+          git clone -q --depth 1 --branch "$(python3 -c "import json; print(json.load(open('tools/coverage/test_resources/picard.json'))['source']['tag'])")" https://github.com/broadinstitute/picard.git picard-src
+          test "$(git -C picard-src rev-parse HEAD)" = "$(python3 -c "import json; print(json.load(open('tools/coverage/test_resources/picard.json'))['source']['sha'])")"
+          chmod -R a-w picard-src
+
+      - name: nasm, which gkl-igzip needs to build
+        # The htsjdk-bgzf `gkl-igzip` feature assembles ISA-L, so every job that compiles the
+        # workspace needs an assembler; see the deflater job for why the feature stays on.
+        run: |
+          sudo apt-get update -qq || echo "apt refresh incomplete; the install below is the gate"
+          sudo apt-get install -y -qq nasm
+          nasm -v
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.97.1"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo build --release --bins
+
+      - name: Replay this shard's tests
+        run: python3 tools/coverage/test_resources.py run --picard picard-src --port-dir target/release --shard ${{ matrix.shard }}/8 --out test-resources-shard-${{ matrix.shard }}.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: test-resources-shard-${{ matrix.shard }}
+          path: test-resources-shard-${{ matrix.shard }}.json
+
+  test-resources-measured:
+    name: "Picard's own tests: merge the shards into measured.json"
+    needs: test-resources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: test-resources-shard-*
+          merge-multiple: true
+
+      - run: python3 tools/coverage/test_resources.py merge test-resources-shard-*.json
+
+      - name: Publish the candidate measurement
+        # Frozen by copying this artefact's measured.json over
+        # tools/coverage/test_resources/measured.json, then `test_resources.py report`.
+        uses: actions/upload-artifact@v7
+        with:
+          name: candidate-test-resources
+          path: tools/coverage/test_resources/measured.json
+
   coverage:
     name: "Argument coverage: the covering array against both sides"
     runs-on: ubuntu-latest
@@ -1448,6 +1526,8 @@ jobs:
       - determinism
       - deflater
       - fuzz
+      - test-resources
+      - test-resources-measured
       - coverage
       - test
       - oracle-image

@@ -1,0 +1,11 @@
+{
+ "$comment": "Extracted invocations test_resources.py does not replay, each with its reason. An invocation of a tool the manifest's coverage list does not name is never replayed; those are listed too, so every one of picard.json's invocations is either replayed or here.",
+ "invocations": {
+  "IntelInflaterDeflaterLoadTest#testIntelInflaterIsUsed.0": "a CommandLineProgram defined inside Picard's test sources to load the Intel deflater; it is not in picard.jar.",
+  "IntelInflaterDeflaterLoadTest#testDeflaterIsUsed.0": "a CommandLineProgram defined inside Picard's test sources to load the Intel deflater; it is not in picard.jar.",
+  "CommandLineProgramStartupErrorLogTest#testNoStartupErrorLog.0": "a CommandLineProgram defined inside Picard's test sources to exercise the parser; it is not in picard.jar.",
+  "CommandLineProgramStartupErrorLogTest#testNoStartupOutputLog.0": "a CommandLineProgram defined inside Picard's test sources to exercise the parser; it is not in picard.jar.",
+  "PicardCommandLineTest#TestPicardPublic.0": "PicardCommandLine run with no program: it prints the program list, which is the jar's launcher, not a tool picard-rs ports.",
+  "PicardCommandLineTest#testPrintUsage.0": "PicardCommandLine's own help, not a tool picard-rs ports."
+ }
+}

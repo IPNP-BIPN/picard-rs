@@ -207,7 +207,7 @@ def stdin_file(spec, row):
     return spec
 
 
-def run_captured(argv, stdin_bytes=None, env=None, side="port", container=None):
+def run_captured(argv, stdin_bytes=None, env=None, side="port", container=None, cwd=None):
     """`subprocess.run` that returns text, and feeds standard input when a tool has one.
 
     With no standard input this is exactly the call the runner always made. With one the streams
@@ -219,8 +219,8 @@ def run_captured(argv, stdin_bytes=None, env=None, side="port", container=None):
     """
     try:
         if stdin_bytes is None:
-            return subprocess.run(argv, capture_output=True, text=True, env=env, timeout=ROW_TIMEOUT)
-        raw = subprocess.run(argv, capture_output=True, input=stdin_bytes, env=env, timeout=ROW_TIMEOUT)
+            return subprocess.run(argv, capture_output=True, text=True, env=env, timeout=ROW_TIMEOUT, cwd=cwd)
+        raw = subprocess.run(argv, capture_output=True, input=stdin_bytes, env=env, timeout=ROW_TIMEOUT, cwd=cwd)
     except subprocess.TimeoutExpired:
         if container:
             subprocess.run(["docker", "rm", "-f", container], capture_output=True)
