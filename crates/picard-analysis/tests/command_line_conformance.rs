@@ -13,7 +13,7 @@
 use std::io::Read;
 use std::path::Path;
 
-use picard_analysis::argument_check::{answer, declared, probe_args, unescape, Answer};
+use picard_analysis::argument_check::{answer, declared, missing, probe_args, unescape, Answer};
 
 fn gunzip(name: &str) -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -153,6 +153,68 @@ fn no_covering_array_row_is_refused() {
                 refused.is_none_or(|a| !a.stderr.contains("ERROR: Unrecognized option")),
                 "{tool}: {arg}"
             );
+        }
+        // Every argument the array names, given at once, leaves nothing Barclay requires unset.
+        let mut all = args.clone();
+        if tool == "CompareSAMs" {
+            all.extend(["a.bam".to_string(), "b.bam".to_string()]);
+        }
+        let refused = missing(&own, &all);
+        assert!(refused.is_none(), "{tool}: {:?}", refused.map(|a| a.stderr));
+    }
+}
+
+/// What Picard 3.5.0 printed last for each of these command lines given as `--NAME value`,
+/// checked against the reference.
+#[test]
+fn a_required_argument_left_unset_is_refused_as_barclay_refuses_it() {
+    let cases = [
+        (
+            "ViewSam",
+            "INPUT=in.sam HEADER_ONLY=true",
+            Some("Argument ALIGNMENT_STATUS was missing: Argument 'ALIGNMENT_STATUS' is required"),
+        ),
+        (
+            "ViewSam",
+            "VERBOSITY=INFO",
+            Some("Argument INPUT was missing: Argument 'INPUT' is required"),
+        ),
+        (
+            "CollectHsMetrics",
+            "I=in.sam",
+            Some("Argument BAIT_INTERVALS was missing: Argument 'BAIT_INTERVALS' is required"),
+        ),
+        (
+            "SamToFastq",
+            "INPUT=in.sam",
+            Some("Argument FASTQ was missing: Argument 'FASTQ' is required unless one of {[OUTPUT_PER_RG, COMPRESS_OUTPUTS_PER_RG, OUTPUT_DIR]} are provided"),
+        ),
+        ("SamToFastq", "INPUT=in.sam OUTPUT_DIR=d OUTPUT_PER_RG=true", None),
+        (
+            "CompareSAMs",
+            "OUTPUT=x",
+            Some("Argument Positional Argument was missing: At least 2 positional arguments must be specified."),
+        ),
+        (
+            "CompareMetrics",
+            "OUTPUT=x",
+            Some("Argument INPUT was missing: Argument 'INPUT' is required"),
+        ),
+    ];
+    for (tool, line, expected) in cases {
+        let args: Vec<String> = line.split(' ').map(str::to_string).collect();
+        let got = missing(tool, &args);
+        match expected {
+            None => assert!(got.is_none(), "{tool} {line}"),
+            Some(message) => {
+                let got = got.unwrap_or_else(|| panic!("{tool} {line}: not refused"));
+                assert_eq!(got.exit, 1, "{tool} {line}");
+                assert!(
+                    got.stderr.trim_end().ends_with(message),
+                    "{tool} {line}: {}",
+                    got.stderr
+                );
+            }
         }
     }
 }

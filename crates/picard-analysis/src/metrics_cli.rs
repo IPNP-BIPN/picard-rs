@@ -166,8 +166,19 @@ pub fn refuse_chart_without_r(tool: &str, chart_requested: bool) {
 }
 
 /// `customCommandLineValidation`'s messages: the usage, then one message per line.
+///
+/// The usage is the tool's whole one, as Picard prints it: the embedded `barclay_unknown` probe's
+/// text, which is the same usage followed by one more blank line and its own message.
 pub fn refuse_validation(tool: &str, messages: &[String]) -> ! {
-    eprintln!("USAGE: {tool} [arguments]\n");
+    let usage = crate::argument_check::probe(tool, "barclay_unknown")
+        .and_then(|answer| {
+            let (usage, _) = answer
+                .stderr
+                .rsplit_once("PICARD_RS_PROBE is not a recognized option")?;
+            Some(usage.strip_suffix('\n').unwrap_or(usage).to_string())
+        })
+        .unwrap_or_else(|| format!("USAGE: {tool} [arguments]\n\n"));
+    eprint!("{usage}");
     for message in messages {
         eprintln!("{message}");
     }

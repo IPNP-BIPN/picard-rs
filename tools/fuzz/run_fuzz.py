@@ -143,9 +143,26 @@ def both_sides(tool, args, port, workdir, fixtures, entry):
 
     reference = side(lambda: run_array.run_oracle(
         tool, args, workdir, on_stdout, strip_pg, output_name, fixtures))
+    if port is None:
+        return reference, None
     ours = side(lambda: run_array.run_port(
         port, args, workdir, on_stdout, strip_pg, output_name, fixtures, tool))
     return reference, ours
+
+
+RERUNS = 6
+
+
+def raced(tool, args, ours, workdir, fixtures, entry):
+    """Whether the reference, run again, answers what the port answered. FifoBuffer's two threads
+    die on a negative IO_SIZE and log it in whichever order they race, so one command line has two
+    reference answers and no port can give both. A miss is 1 in 2**RERUNS for a 50/50 race; an
+    answer the reference never gives is still a divergence."""
+    for _ in range(RERUNS):
+        reference, _ = both_sides(tool, args, None, workdir, fixtures, entry)
+        if reference == ours:
+            return True
+    return False
 
 
 def minimize(tool, args, varied, port, workdir, fixtures, entry, original):
@@ -195,6 +212,9 @@ def run(options):
             for case in kept:
                 reference, ours = both_sides(options.tool, case["arguments"], port, workdir, fixtures, entry)
                 case["matched"] = reference == ours
+                if not case["matched"] and raced(options.tool, case["arguments"], ours, workdir, fixtures, entry):
+                    # The port's answer is one the reference gives too, on another run.
+                    case["matched"] = case["raced"] = True
                 if case["matched"]:
                     continue
                 if minimized < MINIMIZE_PER_TOOL:
@@ -221,6 +241,7 @@ def run(options):
     if port:
         summary["replayed"] = len(kept)
         summary["diverged"] = sum(not case["matched"] for case in kept)
+        summary["raced"] = sum(bool(case.get("raced")) for case in kept)
         summary["divergence_classes"] = len(divergences)
         summary["minimized"] = minimized
 

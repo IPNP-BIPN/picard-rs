@@ -47,7 +47,15 @@ IMAGE = "picard-rs-oracle:3.5.0"
 PLATFORM = "linux/amd64"
 
 # The level and time fields of an htsjdk `Log` line; see `first_error`.
-LOG_TIME = re.compile(r"(?m)^(ERROR|WARN|INFO|DEBUG)\t\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\t")
+LOG_TIME = re.compile(r"(?m)^(ERROR|WARNING|WARN|INFO|DEBUG)\t\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\t")
+
+# The lines Picard frames a run with, which carry the wall clock or the JVM's state and which a
+# port does not print: the start and end banners (`[Tue Nov 24 04:24:58 UTC 2026] ...`), the
+# memory report and help footer after them, and GKL's native-library notice.
+RUN_FRAME = re.compile(
+    r"(?m)^(\[\w{3} \w{3} [ \d]\d \d\d:\d\d:\d\d \w+ \d{4}\] .*|Runtime\.totalMemory\(\)=\d+"
+    r"|To get help, see http://broadinstitute\.github\.io/picard/index\.html#GettingHelp"
+    r"|\d\d:\d\d:\d\d\.\d{3} INFO  NativeLibraryLoader - .*)\n?")
 
 # Values that mean "the argument is absent", so a held-at value carrying one must not be passed.
 ABSENT = {"None", "null", "[]", ""}
@@ -483,6 +491,9 @@ def first_error(text):
     for line in text.split("\n"):
         if "Exception" in line or line.startswith("ERROR"):
             return line.strip()
+    # A tool that ran and returned a code (CheckFingerprint's EXIT_CODE_WHEN_EXPECTED_SAMPLE_NOT_FOUND)
+    # printed its log between the run's banners; the banners are the clock's, the log the answer.
+    text = RUN_FRAME.sub("", text)
     # Neither a stack trace nor a usage dump: the refusal is whatever was printed last, and a tool
     # that failed two checks printed two lines. Taking only the last one recorded half the answer
     # -- the reference's `FilterSamReads` prints both the argument that does not belong to the
@@ -530,6 +541,11 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_
     # output below, handed to the port instead of applied after it.
     env = dict(os.environ)
     env["PICARD_RS_PATH_MAP"] = f"{fixtures}=/work/fixtures;{out_dir}=/work/out"
+    # The reference was given this command line as `--NAME value`, which Barclay's parser reads; the
+    # port reads the `NAME=value` it stands for, which Picard would hand its legacy parser. The two
+    # disagree on what is required (Barclay requires ViewSam's defaulted ALIGNMENT_STATUS), so the
+    # port is told which parser the reference used.
+    env["PICARD_RS_BARCLAY_SYNTAX"] = "1"
     result = run_captured(argv, stdin_bytes, env)
     # The mount points are mapped back BEFORE the message is read, not after: `first_error` caps
     # what it returns, and a host path is longer than the container path it stands for, so mapping
@@ -558,7 +574,21 @@ def run_port(binary, row_args, workdir, on_stdout=False, strip_pg=False, output_
     return result.returncode, text, message
 
 
+# A message that prints a Java `HashSet` lists it in the order the JVM's identity hashes give,
+# which differs between two runs of one command line on two machines: `IlluminaDataProviderFactory`
+# names the data types it has no file for that way. The list is compared as a set.
+UNORDERED = re.compile(r"(Could not find a format with available files for the following data types: )(\w+(?:, \w+)*)")
+
+
+def unordered(answer):
+    return UNORDERED.sub(lambda m: m[1] + ", ".join(sorted(m[2].split(", "))), answer)
+
+
 def outcome(code, text, error, tool, exit_code_is_a_result=False):
+    return unordered(answered(code, text, error, tool, exit_code_is_a_result))
+
+
+def answered(code, text, error, tool, exit_code_is_a_result=False):
     """One row's result, as the thing that will be compared: output, or rejection.
 
     `exit_code_is_a_result` is for a tool whose non-zero exit is an ANSWER rather than a refusal.

@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use crate::barcode_extractor::{Extractor, Metric};
 use crate::illumina_files::{Segment, SegmentKind};
-use crate::illumina_reader::{eamss, has_barcode_files, matched_barcodes, Run, Tile};
+use crate::illumina_reader::{eamss, matched_barcodes, Run, Tile};
 use crate::metrics_cli::thrown;
 
 /// A cluster as the converter hands it to a writer: every read the structure does not skip.
@@ -84,10 +84,13 @@ impl Converter {
         let mut runs = Vec::new();
         for &lane in o.lanes {
             let run = Run::new(o.basecalls, lane);
-            if wants_barcodes
-                && !has_barcode_files(o.barcodes_dir.as_deref().unwrap_or(o.basecalls), lane)
-            {
-                thrown("picard.PicardException: Could not find a format with available files for the following data types: Barcodes");
+            let mut wanted = vec!["Position", "BaseCalls", "QualityScores", "PF"];
+            if wants_barcodes {
+                wanted.push("Barcodes");
+            }
+            let barcodes = o.barcodes_dir.as_deref().unwrap_or(o.basecalls);
+            if let Some(refusal) = run.unmatched(&wanted, barcodes) {
+                thrown(&refusal);
             }
             let tiles = run.available_tiles().unwrap_or_else(|e| thrown(&e));
             runs.push((lane, run, tiles));

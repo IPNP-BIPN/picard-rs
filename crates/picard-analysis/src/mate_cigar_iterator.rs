@@ -269,7 +269,26 @@ fn increment(bins: &mut Vec<(f64, f64)>, key: f64) {
 ///
 /// `skipped` are the records the caller has already decided to leave out (a pair with no `MC`
 /// under `SKIP_PAIRS_WITH_NO_MATE_CIGAR`): they reach the output unmarked and take no part.
-pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize]) -> Decisions {
+/// `checkForMinimumDistanceFailure`'s throw: the queue's head lies `minimum` or more past the end
+/// just built, so the window may already have let a duplicate of it go. `required` is the distance
+/// the message asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TooClose {
+    /// The record of the queue's head, which the message prints.
+    pub other: usize,
+    /// The record whose end was just built.
+    pub current: usize,
+    pub minimum: i32,
+    pub required: i32,
+}
+
+/// `minimum_distance` is `MINIMUM_DISTANCE`; `-1` takes it from the first mapped read.
+pub fn mark_with_queue(
+    records: &[Record],
+    options: &Options,
+    skipped: &[usize],
+    minimum_distance: i32,
+) -> Result<Decisions, TooClose> {
     let mut duplicate = vec![false; records.len()];
     let mut optical = vec![false; records.len()];
     let mut histograms: SetHistograms = Default::default();
@@ -295,7 +314,7 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
     let mut other_end = SortedEnds::new();
     // Every location set ever made, so that an end can point at one by index.
     let mut location_sets: Vec<LocationSet> = Vec::new();
-    let mut minimum_distance: i32 = -1;
+    let mut minimum_distance = minimum_distance;
     let mut reference_index: i32 = -1;
 
     let mut skip = vec![false; records.len()];
@@ -326,6 +345,21 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
             library_id(&mut libraries, &record.library),
             options,
         );
+
+        // `checkForMinimumDistanceFailure`, before the window moves on.
+        if let Some(head) = non_duplicate.first() {
+            let past = head.read1_coordinate - current.read1_coordinate;
+            if head.read1_reference_index == current.read1_reference_index
+                && minimum_distance <= past
+            {
+                return Err(TooClose {
+                    other: head.index,
+                    current: index,
+                    minimum: minimum_distance,
+                    required: past - 1,
+                });
+            }
+        }
 
         // Drain everything the window has left behind, which is what makes those ends
         // non-duplicates.
@@ -383,14 +417,14 @@ pub fn mark_with_queue(records: &[Record], options: &Options, skipped: &[usize])
         .filter(|(_, count)| *count > 0)
         .map(|(id, count)| (libraries[id].clone(), count))
         .collect();
-    Decisions {
+    Ok(Decisions {
         duplicate,
         optical,
         all_sets,
         optical_sets,
         non_optical_sets,
         optical_pairs,
-    }
+    })
 }
 
 /// `new ReadEndsForMateCigar(...)`.

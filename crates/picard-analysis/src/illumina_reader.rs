@@ -246,6 +246,38 @@ impl Run {
         Run { layout, lane, bcl }
     }
 
+    /// `IlluminaDataProviderFactory`'s first refusal: the data types of `wanted` that no file
+    /// format of the lane provides (`findUnmatchedTypes`), `Barcodes` read from `barcodes`. Picard
+    /// prints them from a `HashSet`, in an order its identity hashes decide; the comparison takes
+    /// the list as a set, so these come in `wanted`'s order.
+    pub fn unmatched(&self, wanted: &[&'static str], barcodes: &std::path::Path) -> Option<String> {
+        let intensities_lane = self.layout.intensities.join(long_lane(self.lane));
+        let missing = |kind: &str| match kind {
+            "BaseCalls" | "QualityScores" => self.bcl.files.is_empty(),
+            "PF" => per_tile_files(
+                &self.layout.basecalls.join(long_lane(self.lane)),
+                self.lane,
+                ".filter",
+            )
+            .is_empty(),
+            "Position" => {
+                per_tile_files(&intensities_lane, self.lane, ".locs").is_empty()
+                    && !self.layout.intensities.join("s.locs").exists()
+                    && per_tile_files(&intensities_lane, self.lane, ".clocs").is_empty()
+                    && per_tile_files(&self.layout.intensities, self.lane, "_pos.txt").is_empty()
+            }
+            "Barcodes" => !has_barcode_files(barcodes, self.lane),
+            _ => false,
+        };
+        let unmatched: Vec<&str> = wanted.iter().copied().filter(|k| missing(k)).collect();
+        (!unmatched.is_empty()).then(|| {
+            format!(
+                "picard.PicardException: Could not find a format with available files for the following data types: {}",
+                unmatched.join(", ")
+            )
+        })
+    }
+
     /// `getAvailableTiles`: the tiles the BCLs cover, in `TILE_NUMBER_COMPARATOR` order (by
     /// number).
     pub fn available_tiles(&self) -> Result<Vec<i32>, String> {

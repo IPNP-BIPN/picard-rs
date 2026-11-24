@@ -121,6 +121,12 @@ fn main() {
     }
 
     let run = Run::new(&basecalls, lane);
+    if let Some(refusal) = run.unmatched(
+        &["BaseCalls", "PF", "QualityScores", "Position"],
+        &basecalls,
+    ) {
+        thrown(&refusal);
+    }
     let tiles = run.available_tiles().unwrap_or_else(|e| thrown(&e));
     let read: Vec<i32> = (1..=24).collect();
     let mut per_tile: Vec<(i32, Summary, Vec<Row>)> = Vec::new();

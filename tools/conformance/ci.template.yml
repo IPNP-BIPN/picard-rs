@@ -54,6 +54,7 @@ jobs:
           python3 -c "import json; json.load(open('tools/coverage/fixtures.json'))"
           python3 -c "import json; json.load(open('tools/conformance/manifest.json'))"
           echo "no conflict markers, and the two JSON files parse"
+          python3 tools/coverage/test_run_array.py
 
       - name: Every committed golden belongs to a declared suite
         # A golden that no suite regenerates is a golden nothing checks: it can only ever be

@@ -40,6 +40,17 @@ fn main() {
         .iter()
         .filter_map(|v| v.parse().ok())
         .collect();
+    // `customCommandLineValidation`: one message for every lane, at the first below 1.
+    if lanes.iter().any(|&lane| lane < 1) {
+        let passed: Vec<String> = lanes.iter().map(i32::to_string).collect();
+        picard_analysis::metrics_cli::refuse_validation(
+            "CheckIlluminaDirectory",
+            &[format!(
+                "LANES must be greater than or equal to 1.  LANES passed in {}",
+                passed.join(", ")
+            )],
+        );
+    }
     let tile_numbers: Vec<i32> = args
         .collection("TILE_NUMBERS", &[])
         .iter()

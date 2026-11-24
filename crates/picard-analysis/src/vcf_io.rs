@@ -1609,6 +1609,11 @@ pub fn add_other_meta_data_line(header: &mut VcfHeader, key: &str, value: &str) 
 ///
 /// The time is `yyyy-MM-dd HH:mm:ss` in the JVM's zone, which the oracle image leaves at UTC.
 pub fn log_error(tool: &str, message: &str) {
+    log("ERROR", tool, message);
+}
+
+/// The same line at another of `Log.LogLevel`'s levels, named as the enum names it (`WARNING`).
+pub fn log(level: &str, tool: &str, message: &str) {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -1625,7 +1630,7 @@ pub fn log_error(tool: &str, message: &str) {
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = yoe + era * 400 + i64::from(month <= 2);
     eprintln!(
-        "ERROR\t{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02}\t{tool}\t{message}",
+        "{level}\t{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02}\t{tool}\t{message}",
         seconds / 3_600,
         seconds % 3_600 / 60,
         seconds % 60

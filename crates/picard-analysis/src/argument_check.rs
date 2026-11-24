@@ -22,7 +22,7 @@
 //! The port reads `NAME=value` only. A Barclay-syntax argument the tool declares, `--INPUT x`, is
 //! left to the binary, which does not read it.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::sync::{Mutex, OnceLock};
 
@@ -68,7 +68,12 @@ pub fn check(tool: &str) {
     crate::args::set_tool(tool);
     // The words as typed: the banner prints them so, `i=x` and not `-INPUT x`.
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if let Some(answer) = answer(tool, &args) {
+    // The runner hands the port `NAME=value` for a command line the reference was given as
+    // `--NAME value`, and says so: the two parsers disagree on what is required.
+    let barclay_syntax = std::env::var_os("PICARD_RS_BARCLAY_SYNTAX").is_some();
+    if let Some(answer) =
+        answer(tool, &args).or_else(|| barclay_syntax.then(|| missing(tool, &args)).flatten())
+    {
         print!("{}", answer.stdout);
         eprint!("{}", answer.stderr);
         std::process::exit(answer.exit);
@@ -444,5 +449,77 @@ fn barclay(tool: &str, declared: &Declared, args: &[String]) -> Option<Answer> {
         exit: recorded.exit,
         stdout: recorded.stdout,
         stderr: format!("{warning}{}", recorded.stderr),
+    })
+}
+
+/// Barclay's refusal of a `NAME=value` command line that leaves a required argument unset, read as
+/// the `--NAME value` one it stands for: `CommandLineArgumentParser`'s positional count, then
+/// `NamedArgumentDefinition.validateValues` over the `required` rows in their order. A required
+/// argument is missing when it was never set and holds no default element, unless one of its mutex
+/// targets was set.
+///
+/// shortcut: a required argument given together with its mutex target ("cannot be used in
+/// conjunction"), and `null` for a required collection, are left to the tool; port them when a
+/// row needs them.
+pub fn missing(tool: &str, args: &[String]) -> Option<Answer> {
+    let mut values: HashMap<&str, Vec<&str>> = HashMap::new();
+    let mut bare = 0;
+    for arg in args {
+        match arg.split_once('=') {
+            // An options file holds arguments this cannot see, so it does not count them.
+            Some((name, _)) if name.eq_ignore_ascii_case("OPTIONS_FILE") => return None,
+            Some((name, value)) => {
+                if let Some(full) = full_name(tool, &name.to_uppercase()) {
+                    values.entry(full).or_default().push(value);
+                }
+            }
+            None => bare += 1,
+        }
+    }
+    let rows = || {
+        gunzip(DECLARATIONS)
+            .lines()
+            .map(|line| line.split('\t').collect::<Vec<_>>())
+            .filter(move |f| f.len() >= 3 && f[1] == tool)
+    };
+    let positional = rows().find_map(|f| {
+        let min: usize = (f[0] == "positional").then(|| f[2].parse().ok())??;
+        (bare < min).then(|| {
+            (
+                "Positional Argument".to_string(),
+                format!("At least {min} positional arguments must be specified."),
+            )
+        })
+    });
+    let (name, message) = positional.or_else(|| {
+        rows()
+            .filter(|f| f[0] == "required" && f.len() == 7)
+            .find_map(|f| {
+                if f[5].split(',').any(|m| values.contains_key(m)) {
+                    return None;
+                }
+                // A collection holding a default element is set. `null` for a required collection is
+                // refused while parsing ("Non \"null\" value must be provided"), never as missing.
+                let unset = !values.contains_key(f[2]) && (f[3] != "true" || f[4] != "true");
+                let message = if f[5].is_empty() {
+                    format!("Argument '{}' is required", f[2])
+                } else {
+                    format!(
+                        "Argument '{}' is required unless one of {{{}}} are provided",
+                        f[2], f[6]
+                    )
+                };
+                unset.then(|| (f[2].to_string(), message))
+            })
+    })?;
+    // Barclay prints a missing argument as it prints an unknown one: the usage, then the message.
+    let recorded = probe(tool, "barclay_unknown")?;
+    let (before, after) = recorded
+        .stderr
+        .rsplit_once("PICARD_RS_PROBE is not a recognized option")?;
+    Some(Answer {
+        exit: recorded.exit,
+        stdout: recorded.stdout,
+        stderr: format!("{before}Argument {name} was missing: {message}{after}"),
     })
 }

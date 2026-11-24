@@ -22,11 +22,9 @@
 //!
 //! # What is not ported
 //!
-//! `MINIMUM_DISTANCE` is the width of the window `MarkDuplicatesWithMateCigar` buffers records in,
-//! and no fixture separates a run that used it from one that did not: the golden's distant-mate
-//! case is marked the same at the default window and at three thousand. It is an argument this
-//! port accepts and does not act on, which is said here rather than implied by its absence. The
-//! same goes for `BLOCK_SIZE`, which is a buffer size.
+//! `BLOCK_SIZE` is a buffer size, accepted and not acted on, which is said here rather than
+//! implied by its absence. `MINIMUM_DISTANCE` is the window's width, and the window is
+//! [`crate::mate_cigar_iterator`]'s.
 //!
 //! Ported from `picard.sam.markduplicates.MarkDuplicatesWithMateCigar` and
 //! `picard.sam.markduplicates.SimpleMarkDuplicatesWithMateCigar` in Picard 3.4.0.
@@ -47,7 +45,7 @@ pub struct MateCigarOptions {
     pub base: Options,
     /// `SKIP_PAIRS_WITH_NO_MATE_CIGAR`, true by default.
     pub skip_pairs_with_no_mate_cigar: bool,
-    /// `MINIMUM_DISTANCE`, accepted and not acted on: see the module's note.
+    /// `MINIMUM_DISTANCE`; `-1`, the default, takes it from the first mapped read.
     pub minimum_distance: i32,
 }
 
@@ -77,6 +75,35 @@ pub enum Refusal {
     /// refuses one of the three scoring strategies outright, because the two ends of a pair are
     /// scored separately here and summing base qualities would let them disagree.
     SumOfBaseQualitiesUnsupported,
+    /// `PicardException`, from `checkForMinimumDistanceFailure`. The message prints both records
+    /// whole, which a `Record` cannot, so a binary renders it with [`too_close_message`].
+    TooClose(crate::mate_cigar_iterator::TooClose),
+}
+
+/// `checkForMinimumDistanceFailure`'s message, `other_line` being the queue head's SAM line;
+/// `spliced` when that record's cigar skips reference bases (`N`).
+pub fn too_close_message(
+    close: &crate::mate_cigar_iterator::TooClose,
+    spliced: bool,
+    other_line: &str,
+) -> String {
+    let (minimum, required) = (close.minimum, close.required);
+    if spliced {
+        format!(
+            "Found a samRecordWithOrdinal with sufficiently large code length that we may have\n \
+             missed including it in an early duplicate marking iteration.  Alignment contains \
+             skipped reference bases (N's). If this is an\n RNAseq aligned bam, please use \
+             MarkDuplicates instead, as this tool does not work well with spliced reads.\n \
+             Minimum distance set to {minimum} but {required} would be required.\nRecord was: {other_line}"
+        )
+    } else {
+        format!(
+            "Found a samRecordWithOrdinal with sufficiently large clipping that we may have\n \
+             missed including it in an early duplicate marking iteration.  Please increase the \
+             minimum distance to at least {required}bp\nto ensure it is considered (was \
+             {minimum}).\nRecord was: {other_line}"
+        )
+    }
 }
 
 impl Refusal {
@@ -107,6 +134,7 @@ impl Refusal {
             Refusal::MateCigarNotFound { read, .. } => {
                 format!("Mate CIGAR (Tag MC) not found: {read}")
             }
+            Refusal::TooClose(close) => too_close_message(close, false, "?"),
             Refusal::SumOfBaseQualitiesUnsupported => {
                 "SUM_OF_BASE_QUALITIES not supported as this \
                  may cause inconsistencies across ends in a pair.  Please use a different scoring \
@@ -121,7 +149,8 @@ impl Refusal {
         match self {
             Refusal::NotCoordinateSorted
             | Refusal::NoMateCigar { .. }
-            | Refusal::SumOfBaseQualitiesUnsupported => "picard.PicardException",
+            | Refusal::SumOfBaseQualitiesUnsupported
+            | Refusal::TooClose(_) => "picard.PicardException",
             Refusal::MateCigarNotFound { .. } => "htsjdk.samtools.SAMException",
         }
     }
@@ -210,7 +239,13 @@ pub fn mark_with_mate_cigar(
     // that decides a duplicate as the second end arrives, rather than a sorted whole cut into
     // sets. The two disagree wherever three ends share a position and arrival order is not score
     // order (picard-rs #307).
-    let decisions = crate::mate_cigar_iterator::mark_with_queue(records, &base, &skipped);
+    let decisions = crate::mate_cigar_iterator::mark_with_queue(
+        records,
+        &base,
+        &skipped,
+        options.minimum_distance,
+    )
+    .map_err(Refusal::TooClose)?;
     let mut marking = crate::mark_duplicates::marking_from(
         records,
         &base,
