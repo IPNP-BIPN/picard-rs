@@ -482,9 +482,8 @@ impl Owned {
 /// How many leading bytes `a` and `b` have in common, eight at a time: this is asked once a record.
 fn shared_prefix(a: &[u8], b: &[u8]) -> usize {
     let mut shared = 0;
-    for (x, y) in a.chunks_exact(8).zip(b.chunks_exact(8)) {
-        let difference =
-            u64::from_le_bytes(x.try_into().unwrap()) ^ u64::from_le_bytes(y.try_into().unwrap());
+    for (x, y) in a.as_chunks::<8>().0.iter().zip(b.as_chunks::<8>().0) {
+        let difference = u64::from_le_bytes(*x) ^ u64::from_le_bytes(*y);
         if difference != 0 {
             return shared + (difference.trailing_zeros() / 8) as usize;
         }

@@ -39,7 +39,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.98.0"
 
       - name: Build every tool
         run: cargo build --profile dist --locked
