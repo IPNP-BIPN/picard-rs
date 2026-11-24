@@ -1521,11 +1521,7 @@ fn chunks<'a>(
 /// The split is the point: in PCR duplicate detection a set can hold both orientations once the
 /// ends are ordered by position, and in OPTICAL duplicate detection two reads whose first ends
 /// point opposite ways are not duplicates of one another.
-pub fn optical_flags(
-    chunk: &[ReadEnds],
-    keeper: Option<usize>,
-    options: &Options,
-) -> Vec<bool> {
+pub fn optical_flags(chunk: &[ReadEnds], keeper: Option<usize>, options: &Options) -> Vec<bool> {
     let has_fr = chunk
         .iter()
         .any(|ends| ends.orientation_for_optical_duplicates == FR);
