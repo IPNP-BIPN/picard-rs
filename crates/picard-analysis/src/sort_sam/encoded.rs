@@ -716,7 +716,7 @@ pub fn read_in_parallel(
 /// `write` makes of the record they were encoded from.
 pub struct EncodedBamWriter<W: Write> {
     bgzf: BgzfWriter<W>,
-    reference_lengths: Vec<i32>,
+    header: SamHeader,
     indexer: Option<BamIndexer>,
 }
 
@@ -731,36 +731,39 @@ impl<W: Write> EncodedBamWriter<W> {
         let reference_lengths: Vec<i32> = header.sequences.iter().map(|s| s.length).collect();
         Ok(EncodedBamWriter {
             bgzf,
-            indexer: index.then(|| BamIndexer::new(reference_lengths.clone())),
-            reference_lengths,
+            indexer: index.then(|| BamIndexer::new(reference_lengths)),
+            header: header.clone(),
         })
     }
 
-    /// `BamWriter::write`, from the record's bytes.
-    pub fn write(&mut self, record: Encoded) -> io::Result<()> {
+    /// `BamWriter::write`, from the record's bytes. A record the index refuses (one past
+    /// `BIN_GENOMIC_SPAN`) is already in the stream, and the indexer is dropped, as
+    /// `BAMFileWriter.writeAlignment` does: `WriteError::Index` carries htsjdk 5.0.0's message.
+    pub fn write(&mut self, record: Encoded) -> Result<(), WriteError> {
         // Only an indexing writer asks for pointers, which wait for every block in flight.
         let Some(indexer) = &mut self.indexer else {
-            return self.bgzf.write_all(record.bytes);
+            return self.bgzf.write_all(record.bytes).map_err(WriteError::Io);
         };
-        let start = self.bgzf.file_pointer()?;
-        self.bgzf.write_all(record.bytes)?;
-        let stop = self.bgzf.file_pointer()?;
-        let (reference, alignment_start) = (record.reference_index(), record.alignment_start());
-        let index_bin = if bin_zero(&self.reference_lengths, reference)
-            || alignment_start == bin::NO_ALIGNMENT_START
-        {
-            0
-        } else {
-            bin::compute_indexing_bin(alignment_start, record.end).unwrap_or(0)
-        };
-        indexer.process(
-            reference,
-            alignment_start,
+        let start = self.bgzf.file_pointer().map_err(WriteError::Io)?;
+        self.bgzf.write_all(record.bytes).map_err(WriteError::Io)?;
+        let stop = self.bgzf.file_pointer().map_err(WriteError::Io)?;
+        let indexed = indexer.process(
+            record.reference_index(),
+            record.alignment_start(),
             record.end,
-            index_bin,
             record.has(READ_UNMAPPED),
             Chunk { start, end: stop },
         );
+        if indexed.is_err() {
+            self.indexer = None;
+            let Ok(Some((decoded, _))) = BamRecord::decode(record.bytes) else {
+                unreachable!("the collection decodes what it encoded");
+            };
+            return Err(WriteError::Index(format!(
+                "Exception when processing alignment for BAM index {}",
+                crate::view_sam::sam_string(&self.header, &decoded)
+            )));
+        }
         Ok(())
     }
 

@@ -51,6 +51,19 @@ fn run(binary: &str, out: &Path, args: &[String]) -> (String, String) {
     ("error".into(), exception)
 }
 
+/// Rows that move with a deliberate divergence from Picard 3.5.0, compared against what the port
+/// now writes instead of the golden. `refuse-nullint` carries `AC=1,.`: htsjdk 5.0.0's BCF2 writer
+/// threw an NPE on the interior missing value, so the golden has the error and no later step; the
+/// port writes the record, as htsjdk #1828/#1889 do (htsjdk-rs #295), and every step runs.
+const DIVERGED: [(&str, &str); 6] = [
+    ("refuse-nullint", "converter-bcf"),
+    ("refuse-nullint", "converter-vcf"),
+    ("refuse-nullint", "converter-bcf2"),
+    ("refuse-nullint", "sortvcf-bcf"),
+    ("refuse-nullint", "mergevcfs-bcf"),
+    ("refuse-nullint", "sitesonly-bcf"),
+];
+
 #[test]
 fn bcf_tools_match_picard() {
     let text = golden();
@@ -76,6 +89,7 @@ fn bcf_tools_match_picard() {
     std::fs::create_dir_all(&dir).expect("a directory");
     let converter = env!("CARGO_BIN_EXE_VcfFormatConverter");
     let mut failures = Vec::new();
+    let mut diverged = 0;
     for (name, vcf_bytes) in &cases {
         let path = |suffix: &str| dir.join(format!("{name}{suffix}"));
         let vcf = path(".vcf");
@@ -83,6 +97,17 @@ fn bcf_tools_match_picard() {
         let s = |p: &Path| p.display().to_string();
         let mut check = |step: &str, binary: &str, out: &Path, args: Vec<String>| -> bool {
             let (kind, payload) = run(binary, out, &args);
+            if DIVERGED.contains(&(name.as_str(), step)) {
+                diverged += 1;
+                assert_eq!(kind, "bytes", "{name}/{step} writes its output: {payload}");
+                if step == "converter-vcf" {
+                    let text = String::from_utf8(unhex(&payload)).expect("a VCF");
+                    // The BCF holds the missing value; reading it back prunes it, as htsjdk's
+                    // `BCF2Decoder.decodeTypedValue` drops missing vector entries.
+                    assert!(text.contains("\tAC=1\tGT\t"), "{name}: {text}");
+                }
+                return true;
+            }
             let (want_key, ok) = if kind == "bytes" {
                 ((step.to_string(), name.clone()), true)
             } else {
@@ -173,5 +198,6 @@ fn bcf_tools_match_picard() {
         );
     }
     let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(diverged, DIVERGED.len(), "every listed divergence ran");
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }

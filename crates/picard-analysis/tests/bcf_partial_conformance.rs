@@ -68,6 +68,15 @@ fn vcf(n: usize, bad: usize, kind: &str, pad: usize) -> String {
     b
 }
 
+/// The rows that move with a deliberate divergence from Picard 3.5.0, with what the port now
+/// gives. `late-missing` carries `AC=1,.` at record 18000: htsjdk 5.0.0's BCF2 writer threw an NPE
+/// there and left a partial BCF; the port writes every record, as htsjdk #1828/#1889 do
+/// (htsjdk-rs #295).
+const DIVERGED: [((&str, &str), &str); 1] = [(
+    ("bcf", "late-missing"),
+    "1369261 f99bb0a1e2042bb263310dbd0626cb24 idx=no ok",
+)];
+
 #[test]
 fn partial_outputs_match_picard() {
     let rows: HashMap<(String, String), String> = golden()
@@ -84,6 +93,7 @@ fn partial_outputs_match_picard() {
     std::fs::create_dir_all(&dir).expect("a directory");
     let converter = env!("CARGO_BIN_EXE_VcfFormatConverter");
     let mut failures = Vec::new();
+    let mut diverged = 0;
     let cases: [(&str, usize, usize, &str, usize); 6] = [
         ("late-undeclared", 20000, 18000, "undeclared", 0),
         ("late-count", 20000, 18000, "count", 0),
@@ -128,7 +138,10 @@ fn partial_outputs_match_picard() {
                 digest(&std::fs::read(&out).unwrap_or_default()),
                 if idx { "yes" } else { "no" }
             );
-            if rows[&key(step)] != port {
+            if let Some((_, now)) = DIVERGED.iter().find(|(row, _)| *row == (step, name)) {
+                diverged += 1;
+                assert_eq!(port, *now, "{name}/{step}, a listed divergence");
+            } else if rows[&key(step)] != port {
                 failures.push(format!(
                     "{name}/{step}:\n  oracle {}\n  port   {port}",
                     rows[&key(step)]
@@ -137,5 +150,6 @@ fn partial_outputs_match_picard() {
         }
     }
     let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(diverged, DIVERGED.len(), "every listed divergence ran");
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }

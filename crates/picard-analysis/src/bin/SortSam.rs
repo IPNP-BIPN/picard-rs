@@ -41,9 +41,7 @@ fn write<W: Write>(
     writer: &mut EncodedBamWriter<W>,
     encoded: Encoded,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    writer
-        .write(encoded)
-        .map_err(|e| format!("{:?}", WriteError::Io(e)).into())
+    writer.write(encoded).map_err(|e| format!("{e:?}").into())
 }
 
 /// The name htsjdk gives the index it writes beside an output.
@@ -191,11 +189,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let out = BufWriter::new(std::fs::File::create(&output)?);
             let mut writer = EncodedBamWriter::new(out, &header, create_index)?;
             sorting.for_each_sorted(|encoded| {
-                writer
-                    .write(encoded)
-                    .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
-                        format!("{:?}", WriteError::Io(e)).into()
-                    })
+                match writer.write(encoded) {
+                    Err(WriteError::Index(message)) => {
+                        // `BAMFileWriter` created the .bai with the header and never writes it:
+                        // htsjdk 5.0.0 leaves it 0 bytes and the exception ends the run.
+                        std::fs::write(index_path(&output), [])?;
+                        eprintln!(
+                            "Exception in thread \"main\" htsjdk.samtools.SAMException: {message}"
+                        );
+                        std::process::exit(1);
+                    }
+                    result => result.map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
+                        format!("{e:?}").into()
+                    }),
+                }
             })?;
             let (out, index) = writer.finish()?;
             out.into_inner().map_err(|e| e.into_error())?;
