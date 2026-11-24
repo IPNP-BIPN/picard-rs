@@ -309,7 +309,7 @@ fn main() {
     marking.optical_sets = tracked.optical_sets;
     marking.non_optical_sets = tracked.non_optical_sets;
     let text = picard_analysis::mark_duplicates::duplication_metrics_text(
-        "UmiAwareMarkDuplicatesWithMateCigar",
+        &picard_analysis::command_line::default_headers("UmiAwareMarkDuplicatesWithMateCigar"),
         &marking.metrics,
         &header
             .read_groups

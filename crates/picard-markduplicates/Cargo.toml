@@ -1,0 +1,16 @@
+[package]
+name = "picard-markduplicates"
+version = "0.2.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "MarkDuplicates' duplicate decisions and metrics, without the rest of picard-analysis, so gatk-rs can run `gatk MarkDuplicates` on them."
+
+# Only what the marking itself reads: no allocator, no JavaScript engine, no embedded goldens. A
+# crate that links this one keeps its own allocator and its own command line.
+[dependencies]
+htsjdk-bam.workspace = true
+htsjdk-metrics.workspace = true
+foldhash = "0.2"
+hashbrown = { version = "0.17.1", default-features = false }
+regex = "1"

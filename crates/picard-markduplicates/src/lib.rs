@@ -45,6 +45,8 @@
 //! `picard.sam.markduplicates.util.OpticalDuplicateFinder`, `picard.sam.util.ReadNameParser`,
 //! `picard.sam.DuplicationMetrics` and `htsjdk.samtools.DuplicateScoringStrategy` in Picard 3.4.0.
 
+pub mod murmur3;
+
 use foldhash::{HashMap, HashMapExt};
 use std::hash::BuildHasher;
 use std::sync::Arc;
@@ -817,7 +819,7 @@ pub struct Marking {
 }
 
 /// `Histogram.increment`, which adds to the bin or creates it.
-pub(crate) fn increment(histogram: &mut Vec<(f64, f64)>, bin: f64, by: f64) {
+pub fn increment(histogram: &mut Vec<(f64, f64)>, bin: f64, by: f64) {
     match histogram.iter_mut().find(|(id, _)| *id == bin) {
         Some((_, count)) => *count += by,
         None => histogram.push((bin, by)),
@@ -1519,7 +1521,7 @@ fn chunks<'a>(
 /// The split is the point: in PCR duplicate detection a set can hold both orientations once the
 /// ends are ordered by position, and in OPTICAL duplicate detection two reads whose first ends
 /// point opposite ways are not duplicates of one another.
-pub(crate) fn optical_flags(
+pub fn optical_flags(
     chunk: &[ReadEnds],
     keeper: Option<usize>,
     options: &Options,
@@ -1747,8 +1749,10 @@ impl htsjdk_metrics::file::MetricBean for DuplicationRow<'_> {
 
 /// `finalizeAndWriteMetrics`: a row per library, the return-on-investment histogram when there is
 /// one library, and the three set-size histograms beside it (an empty one is not printed).
+/// `headers` are the file's `StringHeader`s, which the caller's command line decides: Picard's
+/// `NAME=value` one, or the `--NAME value` one `gatk MarkDuplicates` records.
 pub fn duplication_metrics_text(
-    tool: &str,
+    headers: &[String],
     metrics: &[Metrics],
     header_libraries: &[String],
     all_sets: &[(f64, f64)],
@@ -1771,8 +1775,8 @@ pub fn duplication_metrics_text(
         bins: bins.iter().map(|&(k, v)| (key(k), v)).collect(),
     };
     let mut file = MetricsFile::new();
-    for header in crate::command_line::default_headers(tool) {
-        file.add_header(&header);
+    for header in headers {
+        file.add_header(header);
     }
     // `new LibraryIdGenerator(header)` makes a row for every library the header's read groups
     // name, so a library with no record left is a row of zeroes.

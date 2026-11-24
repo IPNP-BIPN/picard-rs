@@ -554,7 +554,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // what this array compares: the OUTPUT is.
     if let Some(path) = metrics_file {
         let text = picard_analysis::mark_duplicates::duplication_metrics_text(
-            "MarkDuplicates",
+            &picard_analysis::command_line::default_headers("MarkDuplicates"),
             &tally.finish(Some(&optical_pairs)),
             &header
                 .read_groups
