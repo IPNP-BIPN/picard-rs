@@ -57,17 +57,83 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         drop_missing_contigs: flag(&args, "DROP_MISSING_CONTIGS=", false),
     };
 
-    // `SAMSequenceDictionaryExtractor`: a FASTA's dictionary is the `.dict` beside it.
-    let beside = std::path::Path::new(&dictionary);
-    let dictionary_text = match beside.extension().and_then(|e| e.to_str()) {
-        Some("fasta" | "fa" | "fna") => std::fs::read_to_string(beside.with_extension("dict"))?,
-        _ => std::fs::read_to_string(&dictionary)?,
-    };
+    if input == "/dev/stdin" {
+        refuse(
+            "java.lang.IllegalArgumentException: BedToIntervalList does not support reading from \
+             standard input - a file must be provided.",
+        );
+    }
+    let dictionary_text = dictionary_text(&dictionary)?;
     let bed = std::io::BufReader::new(std::fs::File::open(&input)?);
-    let list = read(&dictionary_text, bed, &opts)?.map_err(|e| format!("{e:?}"))?;
+    let list = read(&dictionary_text, bed, &opts)?.unwrap_or_else(|e| refuse(&e.to_string()));
 
     let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
     list.write(&mut out)?;
     out.flush()?;
     Ok(())
+}
+
+fn refuse(thrown: &str) -> ! {
+    eprintln!("Exception in thread \"main\" {thrown}");
+    std::process::exit(1);
+}
+
+/// `SAMSequenceDictionaryExtractor.extractDictionary`, as the `@SQ` text `read` takes: the first
+/// `TYPE` one of whose extensions ends the path's URI, in `TYPE`'s order.
+fn dictionary_text(path: &str) -> Result<String, Box<dyn std::error::Error>> {
+    const FASTA: &[&str] = &[
+        ".fa.gz",
+        ".fna.gz",
+        ".txt",
+        ".fasta.gz",
+        ".fa",
+        ".fas",
+        ".fasta",
+        ".fna",
+        ".txt.gz",
+        ".fas.gz",
+    ];
+    let is = |extensions: &[&str]| extensions.iter().any(|e| path.ends_with(e));
+    if is(FASTA) {
+        // `ReferenceSequenceFileFactory` reads the `.dict` beside the FASTA.
+        let stem = path.strip_suffix(".gz").unwrap_or(path);
+        let stem = stem.rsplit_once('.').map_or(stem, |(stem, _)| stem);
+        return Ok(std::fs::read_to_string(format!("{stem}.dict"))?);
+    }
+    if is(&[".dict", ".sam", ".interval_list"]) {
+        return Ok(std::fs::read_to_string(path)?);
+    }
+    if is(&[".bam", ".cram"]) {
+        let input = picard_analysis::bam_stream::Input::open_with(
+            path,
+            htsjdk_bam::text_parse::ValidationStringency::Silent,
+        )
+        .map_err(|e| format!("{e:?}"))?;
+        return Ok(input.into_parts().0.encode());
+    }
+    if is(&[".vcf"]) {
+        // `VCFContigHeaderLine.getSAMSequenceRecord`: the name, the length and the assembly.
+        let sequences = picard_analysis::vcf_io::extract_dictionary(path)?.unwrap_or_default();
+        return Ok(sequences
+            .iter()
+            .map(|s| match &s.assembly {
+                Some(a) => format!("@SQ\tSN:{}\tLN:{}\tAS:{a}\n", s.name, s.length),
+                None => format!("@SQ\tSN:{}\tLN:{}\n", s.name, s.length),
+            })
+            .collect());
+    }
+    // shortcut: a compressed VCF, a BCF and a compressed interval list are not read; port them
+    // when a test or a row gives one.
+    if is(&[".bcf", ".vcf.gz", ".vcf.bgz", ".interval_list.gz"]) {
+        return Err(format!("a SEQUENCE_DICTIONARY read from {path} is not ported").into());
+    }
+    let absolute = std::fs::canonicalize(path).unwrap_or_else(|_| path.into());
+    refuse(&format!(
+        "htsjdk.samtools.SAMException: Cannot figure out type of file file://{} from extension. \
+         Current implementation understands the following types: [FASTA: [{}], DICTIONARY: \
+         [.dict], CRAM: [.cram], SAM: [.bam, .sam], VCF: [.bcf, .vcf.gz, .vcf.bgz, .vcf], \
+         INTERVAL_LIST: [.interval_list.gz, .interval_list]]",
+        absolute.display(),
+        FASTA.join(", ")
+    ))
 }
