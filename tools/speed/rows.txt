@@ -12,7 +12,7 @@ prep RevertSam I=$Q O=$P/unmapped.bam
 prep CollectInsertSizeMetrics I=$I O=$P/k.txt H=$P/k.pdf
 prep CollectSequencingArtifactMetrics I=$I O=$P/t R=$R
 prep CollectQualityYieldMetrics I=$I O=$P/qy.txt
-AddCommentsToBam I=$I O=$O/a.bam C=hello
+AddCommentsToBam I=$W/bench.bam O=$O/a.bam C=hello
 AddOATag I=$I O=$O/b.bam
 AddOrReplaceReadGroups I=$I O=$O/c.bam RGLB=l RGPL=ILLUMINA RGPU=u RGSM=s
 BuildBamIndex I=$I O=$O/bench.bai

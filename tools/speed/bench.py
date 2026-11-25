@@ -26,6 +26,7 @@ Rows are `tools/speed/rows.txt`: one tool command line each, over the inputs
 """
 
 import argparse
+import re
 import json
 import os
 import statistics
@@ -40,7 +41,7 @@ VARIABLES = {
     "$I": "/derived/bench.bam", "$R": "/derived/bench.fasta", "$D": "/derived/bench.dict",
     "$Q": "/derived/qname.bam", "$T": "/derived/targets.interval_list", "$B": "/derived",
     "$G": "/derived/big", "$N": "/derived/nonbam", "$S": "/data", "$P": "/derived/prep",
-    "$O": "/work/out", "$A": "/derived/nonbam/arrays",
+    "$O": "/work/out", "$W": "/work/w", "$A": "/derived/nonbam/arrays",
     "$RUN": "/derived/nonbam/ill_big/Data/Intensities/BaseCalls",
     "$R384": "/derived/nonbam/ill_384/Data/Intensities/BaseCalls",
 }
@@ -113,7 +114,10 @@ def run_prep(options, prep):
 
 def time_row(options, tool, arguments):
     """`timer.py` once in the container over one row; its raw JSON."""
+    # `$W/<name>`: a writable copy of /derived/<name>, made before each run and not timed.
+    copies = sorted(set(re.findall(r"/work/w/([\w.]+)", arguments)))
     spec = {
+        "setup": " && ".join(f"cp /derived/{name} /work/w/" for name in copies) or None,
         "reps": options.reps,
         "timeout": options.timeout,
         "oracle": f"java -jar $PICARD_JAR {tool} {arguments}",

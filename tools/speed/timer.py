@@ -30,7 +30,7 @@ OUT = Path("/work/out")
 
 def prepare():
     """An empty output directory and a temporary one, as every row expects."""
-    for path in (OUT, Path("/work/tmp")):
+    for path in (OUT, Path("/work/tmp"), Path("/work/w")):
         if path.exists():
             for stale in path.iterdir():
                 if stale.is_dir() and not stale.is_symlink():
@@ -40,9 +40,12 @@ def prepare():
         path.mkdir(parents=True, exist_ok=True)
 
 
-def run(command, timeout):
+def run(command, timeout, setup=None):
     """One run: wall seconds, CPU seconds (user + system), peak RSS in KiB, exit code."""
     prepare()
+    if setup:
+        # Untimed: what the row needs in place before it starts (a writable copy of an input).
+        subprocess.run(["bash", "-c", setup], check=True)
     start = time.perf_counter()
     child = subprocess.Popen(
         ["bash", "-c", f"cd {OUT} && exec {command}"],
@@ -107,7 +110,7 @@ def main(spec_path):
         for side in order:
             if not spec.get(side):
                 continue
-            measured = run(spec[side], timeout)
+            measured = run(spec[side], timeout, spec.get("setup"))
             runs[side].append(measured)
             if measured["exit"] != 0:
                 result.setdefault("errors", {})[side] = tail(OUT.parent / "stderr.txt")
