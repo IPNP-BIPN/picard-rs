@@ -101,7 +101,7 @@ print(f"hap.txt: {len(sites)} sites")
 samples = [f"s{i:03d}" for i in range(100)]
 fp = ["##fileformat=VCFv4.2\n", '##FORMAT=<ID=GT,Number=1,Type=String,Description="GT">\n',
       '##FORMAT=<ID=PL,Number=G,Type=Integer,Description="PL">\n']
-fp += [l.replace("@SQ\tSN:", "##contig=<ID=").replace("\tLN:", ",length=").rstrip("\n") + ">\n"
+fp += ["##contig=<ID={SN},length={LN}>\n".format(**dict(f.split(":", 1) for f in l.split("\t")[1:3]))
        for l in dict_lines]
 fp.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + "\t".join(samples) + "\n")
 gts = ["0/0", "0/1", "1/1"]

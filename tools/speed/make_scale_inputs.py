@@ -179,3 +179,17 @@ for path in (D / "nonbam").glob("ill_*.txt"):
     for suffix in ("_384", ""):
         text = text.replace(f"{D / 'nonbam'}/ill_out{suffix}/", "/work/out/")
     path.write_text(text)
+
+# Tribble indexes beside every plain VCF but the unsorted one and the one whose header lost lines:
+# CollectVariantCallingMetrics and others require one.
+vcfs = [p for p in sorted((D / "big").glob("*.vcf")) + sorted((D / "nonbam").glob("*.vcf"))
+        if not Path(str(p) + ".idx").exists() and p.name not in ("shuffled.vcf", "big_missing.vcf")]
+if vcfs:
+    subprocess.run(
+        ["docker", "run", "--rm", "-m", "1g", "-v", f"{HERE.parent}:/tools:ro", "-v", f"{D}:/derived",
+         "picard-rs-speed:3.5.0",
+         "mkdir -p /tmp/ix && cd /tmp/ix && cp /tools/benchmark/IndexVcfs.java . "
+         "&& javac -cp $PICARD_JAR IndexVcfs.java && java -cp .:$PICARD_JAR IndexVcfs "
+         + " ".join(f"/derived/{p.relative_to(D)}" for p in vcfs)],
+        check=True,
+    )
