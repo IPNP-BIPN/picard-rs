@@ -12,6 +12,8 @@
 use picard_analysis::args::arg;
 use picard_analysis::build_bam_index::build_bam_index;
 
+use std::io::Read;
+
 fn refuse(message: &str) -> ! {
     eprintln!("Exception in thread \"main\" htsjdk.samtools.SAMException: {message}");
     std::process::exit(1);
@@ -38,26 +40,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
 
-    // shortcut: the compressed file is held for `build_bam_index`'s slice API (the records are
-    // inflated a block at a time); stream it once htsjdk-rs takes a reader.
-    let raw = std::fs::read(&input)?;
-    if !raw.starts_with(&[0x1f, 0x8b]) {
+    let mut magic = Vec::new();
+    std::fs::File::open(&input)?
+        .take(2)
+        .read_to_end(&mut magic)?;
+    if magic != [0x1f, 0x8b] {
         refuse("Input file must be bam file, not sam file.");
     }
-    let header = match picard_analysis::bam_stream::clean_header(&input) {
-        Some(header) => header,
+    // A BAM whose every block inflates cleanly is indexed as it is read; anything else is read
+    // whole, as before, so that it is refused where and as it was.
+    let bai = match picard_analysis::bam_stream::clean_header(&input) {
+        Some(header) => {
+            if header.attributes.get("SO") != Some("coordinate") {
+                refuse("Input bam file must be sorted by coordinate");
+            }
+            let file = std::io::BufReader::with_capacity(1 << 20, std::fs::File::open(&input)?);
+            picard_analysis::build_bam_index::build_bam_index_from(file)
+        }
         None => {
+            let raw = std::fs::read(&input)?;
             let plain =
                 picard_analysis::bgzf::decompress_all(&raw).map_err(|e| format!("{e:?}"))?;
             let reader =
                 picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-            reader.header.text.clone()
+            if reader.header.text.attributes.get("SO") != Some("coordinate") {
+                refuse("Input bam file must be sorted by coordinate");
+            }
+            build_bam_index(&raw)
         }
-    };
-    if header.attributes.get("SO") != Some("coordinate") {
-        refuse("Input bam file must be sorted by coordinate");
     }
-    let bai = build_bam_index(&raw).map_err(|e| format!("{e:?}"))?;
+    .map_err(|e| format!("{e:?}"))?;
     std::fs::write(&output, bai)?;
     Ok(())
 }
