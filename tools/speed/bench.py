@@ -101,10 +101,14 @@ def run_prep(options, prep):
         # A directory argument Picard writes into must exist before it runs.
         dirs = " ".join(a.split("=", 1)[1] for a in command.split() if a.startswith("OUTPUT_DIR="))
         with tempfile.TemporaryDirectory() as work:
-            subprocess.run(docker(options, work, f"mkdir -p /derived/prep {dirs} && cd /derived/prep "
-                                  f"&& java -jar $PICARD_JAR {command}",
-                                  derived_writable=True), check=True)
-        mark.touch()
+            done = subprocess.run(docker(options, work, f"mkdir -p /derived/prep {dirs} && cd /derived/prep "
+                                         f"&& java -jar $PICARD_JAR {command}",
+                                         derived_writable=True), capture_output=True)
+        if done.returncode == 0:
+            mark.touch()
+        else:
+            # The rows reading it fail and say so; the next run tries again.
+            print(f"prep failed, its rows will too: {command[:100]}", file=sys.stderr)
 
 
 def time_row(options, tool, arguments):
@@ -221,6 +225,7 @@ def main(argv):
     parser.add_argument("--timeout", type=int, default=3600)
     parser.add_argument("--cpus", type=int, default=4)
     parser.add_argument("--memory", default="6g")
+    parser.add_argument("--no-prep", action="store_true", help="skip the Picard-made inputs")
     parser.add_argument("--out", help="JSON to write (rows already in it are kept)")
     parser.add_argument("--table", help="print the ranked table of this JSON")
     parser.add_argument("--compare", nargs=2)
@@ -235,7 +240,8 @@ def main(argv):
     if "/" in options.port_volume:
         options.port_volume = str(Path(options.port_volume).resolve())
     rows, prep = read_rows(options.rows)
-    run_prep(options, prep)
+    if not options.no_prep:
+        run_prep(options, prep)
     out = Path(options.out) if options.out else None
     document = json.loads(out.read_text()) if out and out.exists() else {"rows": {}}
     document["settings"] = {"cpus": options.cpus, "memory": options.memory, "reps": options.reps,

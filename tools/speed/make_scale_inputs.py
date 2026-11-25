@@ -148,7 +148,7 @@ if not (D / "md.bam").exists():
     picard("MarkDuplicates I=/data/NA12878.chr20.bam O=/derived/md.tmp.bam M=/derived/md.metrics")
     os.rename(D / "md.tmp.bam", D / "md.bam")
 
-# The genotyping-array chip (500,000 loci) from the corpus's own writers, in the speed image.
+# The genotyping-array chip (200,000 loci) from the corpus's own writers, in the speed image.
 arrays = D / "nonbam" / "arrays"
 if not (arrays / "arr_s1.vcf").exists():
     arrays.mkdir(parents=True, exist_ok=True)
@@ -156,8 +156,8 @@ if not (arrays / "arr_s1.vcf").exists():
         ["docker", "run", "--rm", "-m", "6g", "-v", f"{HERE.parent}:/tools:ro", "-v", f"{D}:/derived",
          "picard-rs-speed:3.5.0",
          "mkdir -p /tmp/mba && cd /tmp/mba && cp /tools/coverage/*.java /tools/benchmark/MakeBigArrays.java . "
-         "&& javac -cp $PICARD_JAR -d . *.java && java -cp .:$PICARD_JAR MakeBigArrays "
-         "/derived/nonbam/arrays 500000"],
+         "&& javac -cp $PICARD_JAR -d . *.java && java -Xmx4g -cp .:$PICARD_JAR MakeBigArrays "
+         "/derived/nonbam/arrays 200000"],
         check=True,
     )
 
