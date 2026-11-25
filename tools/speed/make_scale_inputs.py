@@ -57,14 +57,24 @@ def picard(command):
 
 
 BIG.mkdir(parents=True, exist_ok=True)
-for name in ("bench.bam", "bench.bam.bai", "bench.fasta", "bench.fasta.fai", "bench.dict"):
-    source = {"bench.bam": "NA12878.chr20.bam", "bench.bam.bai": "NA12878.chr20.bam.bai",
-              "bench.fasta": "chr20.fasta", "bench.fasta.fai": "chr20.fasta.fai",
-              "bench.dict": "chr20.dict"}[name]
+# The scale BAM keeps GRCh38's whole dictionary (3,366 contigs) while the reference is chr20 alone,
+# so every tool that checks one against the other refuses it. bench.bam is the same records over
+# chr20's dictionary alone: mates and supplementary parts on other contigs become unplaced (RNEXT
+# `*`, SA dropped). samtools does it, so no input is shaped by either side.
+if not (D / "bench.bam").exists():
+    keep_chr20 = ("BEGIN { FS = OFS = \"\\t\" } /^@SQ/ { if ($2 == \"SN:chr20\") print; next } /^@/ { print; next } "
+                  "{ if ($7 != \"=\" && $7 != \"*\" && $7 != \"chr20\") { $7 = \"*\"; $8 = 0 } print }")
+    subprocess.run(
+        f"samtools view -h -x SA {SCALE / 'NA12878.chr20.bam'} | awk '{keep_chr20}' "
+        f"| samtools view -b -@4 -o {D / 'bench.tmp.bam'} - && samtools index {D / 'bench.tmp.bam'} {D / 'bench.bam.bai'}",
+        shell=True, check=True)
+    os.rename(D / "bench.tmp.bam", D / "bench.bam")
+for name, target in (("bench.bai", "bench.bam.bai"), ("coord.bam", "bench.bam"), ("coord.bai", "bench.bam.bai")):
+    if not (D / name).is_symlink():
+        (D / name).symlink_to(target)
+for name in ("bench.fasta", "bench.fasta.fai", "bench.dict"):
+    source = {"bench.fasta": "chr20.fasta", "bench.fasta.fai": "chr20.fasta.fai", "bench.dict": "chr20.dict"}[name]
     link(name, SCALE / source)
-link("bench.bai", SCALE / "NA12878.chr20.bam.bai")
-link("coord.bam", SCALE / "NA12878.chr20.bam")
-link("coord.bai", SCALE / "NA12878.chr20.bam.bai")
 link("big/genome.fasta", SCALE / "chr20.fasta")
 link("big/genome.fasta.fai", SCALE / "chr20.fasta.fai")
 link("big/genome.dict", SCALE / "chr20.dict")
@@ -142,10 +152,10 @@ write(D / "refflat.txt", refflat)
 
 # Picard's own queryname sort and duplicate marking of the BAM, once.
 if not (D / "qname.bam").exists():
-    picard("SortSam I=/data/NA12878.chr20.bam O=/derived/qname.tmp.bam SORT_ORDER=queryname")
+    picard("SortSam I=/derived/bench.bam O=/derived/qname.tmp.bam SORT_ORDER=queryname")
     os.rename(D / "qname.tmp.bam", D / "qname.bam")
 if not (D / "md.bam").exists():
-    picard("MarkDuplicates I=/data/NA12878.chr20.bam O=/derived/md.tmp.bam M=/derived/md.metrics")
+    picard("MarkDuplicates I=/derived/bench.bam O=/derived/md.tmp.bam M=/derived/md.metrics")
     os.rename(D / "md.tmp.bam", D / "md.bam")
 
 # The genotyping-array chip (200,000 loci) from the corpus's own writers, in the speed image.
