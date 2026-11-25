@@ -228,7 +228,11 @@ fn main() {
             }
             let reference_bases = &upper.as_ref().expect("reference").1;
             let contig_name = &contigs[index as usize].name;
-            let original = if use_oq { original_qualities(record) } else { None };
+            let original = if use_oq {
+                original_qualities(record)
+            } else {
+                None
+            };
             let quals = original.as_deref().unwrap_or(&record.base_qualities);
             let counter = &mut counters
                 .iter_mut()

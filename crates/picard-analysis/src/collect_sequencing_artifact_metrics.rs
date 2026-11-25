@@ -656,7 +656,14 @@ impl ArtifactCounter {
 
     /// `countRecord`: a context of another length or with a base outside A, C, G, T is no key
     /// of `full`, and is ignored.
-    pub fn count(&mut self, context: &[u8], called: u8, negative: bool, paired: bool, second: bool) {
+    pub fn count(
+        &mut self,
+        context: &[u8],
+        called: u8,
+        negative: bool,
+        paired: bool,
+        second: bool,
+    ) {
         let Some(i) = base_index(called) else {
             return;
         };
