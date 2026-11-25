@@ -414,12 +414,17 @@ impl Unit {
         let read_start = record.alignment_start;
         let read_end = record.alignment_start + reference_length(&record.cigar) - 1;
         let sequence = record.reference_index;
-        let targets =
-            index.0.overlapping(sequence, i64::from(read_start), i64::from(read_end));
+        let targets = index
+            .0
+            .overlapping(sequence, i64::from(read_start), i64::from(read_end));
         let near = i64::from(options.near_distance);
         let probes: Vec<&Span> = index
             .1
-            .overlapping(sequence, i64::from(read_start) - near, i64::from(read_end) + near)
+            .overlapping(
+                sequence,
+                i64::from(read_start) - near,
+                i64::from(read_end) + near,
+            )
             .into_iter()
             .map(|i| &panel.probes[i])
             .collect();
@@ -748,7 +753,10 @@ pub fn collect(
     options: &Options,
 ) -> Result<Outcome, Thrown> {
     let adapter = AdapterUtility::with_defaults();
-    let index = (SpanIndex::new(&panel.targets), SpanIndex::new(&panel.probes));
+    let index = (
+        SpanIndex::new(&panel.targets),
+        SpanIndex::new(&panel.probes),
+    );
     let mut distributors: Vec<Distributor> = Vec::new();
     for level in [
         Level::AllReads,
@@ -924,7 +932,9 @@ mod tests {
         // A small LCG: spans of every shape, some longer than others, some reversed.
         let mut x: u64 = 7;
         let mut next = |m: u64| {
-            x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            x = x
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             ((x >> 33) % m) as i32
         };
         let spans: Vec<Span> = (0..500)
