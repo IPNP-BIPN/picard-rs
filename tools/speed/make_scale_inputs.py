@@ -59,11 +59,11 @@ def picard(command):
 BIG.mkdir(parents=True, exist_ok=True)
 # The scale BAM keeps GRCh38's whole dictionary (3,366 contigs) while the reference is chr20 alone,
 # so every tool that checks one against the other refuses it. bench.bam is the same records over
-# chr20's dictionary alone: mates and supplementary parts on other contigs become unplaced (RNEXT
-# `*`, SA dropped). samtools does it, so no input is shaped by either side.
+# chr20's dictionary alone, without the reads whose mate is on another contig (that mate is not in
+# the file) and without SA tags. samtools does it, so no input is shaped by either side.
 if not (D / "bench.bam").exists():
     keep_chr20 = ("BEGIN { FS = OFS = \"\\t\" } /^@SQ/ { if ($2 == \"SN:chr20\") print; next } /^@/ { print; next } "
-                  "{ if ($7 != \"=\" && $7 != \"*\" && $7 != \"chr20\") { $7 = \"*\"; $8 = 0 } print }")
+                  "$3 == \"*\" || $3 == \"chr20\" { if ($7 == \"=\" || $7 == \"*\" || $7 == \"chr20\") print }")
     subprocess.run(
         f"samtools view -h -x SA {SCALE / 'NA12878.chr20.bam'} | awk '{keep_chr20}' "
         f"| samtools view -b -@4 -o {D / 'bench.tmp.bam'} - && samtools index {D / 'bench.tmp.bam'} {D / 'bench.bam.bai'}",
