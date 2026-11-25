@@ -27,6 +27,7 @@ the harness does not replay is counted rather than missed.
 """
 
 import argparse
+import hashlib
 import concurrent.futures
 import json
 import os
@@ -153,7 +154,8 @@ def jstr(value):
     if isinstance(value, EnumValue):
         return value.name
     if isinstance(value, ClassRef):
-        return f"class {value.name}"
+        # An unresolved capitalised name falls back to a class; its string form is never an argument.
+        raise Unresolved(f"no string form for the class {value.name}")
     if isinstance(value, list):
         return "[" + ", ".join(jstr(v) for v in value) + "]"
     raise Unresolved(f"no string form for {type(value).__name__}")
@@ -523,7 +525,7 @@ class Interpreter:
             except Unresolved:
                 continue
             for item in value if isinstance(value, list) else [value]:
-                if isinstance(item, str) and item.startswith(OUT + "/"):
+                if isinstance(item, str) and (item.startswith(OUT + "/") or missing_from_checkout(item)):
                     snippet = " ".join(node.text.decode().split())[:120]
                     self.run.tainted.setdefault(item, f"{reason}, in `{snippet}`")
 
@@ -965,8 +967,19 @@ class Interpreter:
         for path, reason in self.run.tainted.items():
             if any(path in t for t in tokens):
                 raise Unresolved(f"{tool} reads {path}, which the test writes in code not evaluated ({reason})")
+        # A `testdata/` path the checkout does not hold is one the test writes (an output beside its
+        # inputs) or one it expects to be missing; the checkout is read-only on both sides, so it
+        # moves to the output directory, under the same relative path, as `moved` records.
+        moved = sorted({m for t in tokens for m in re.findall(rf"{ROOT}/(testdata/[^\s,;:=]+)", t)
+                        if missing_from_checkout(m)})
+        for path in moved:
+            tokens = [t.replace(f"{ROOT}/{path}", f"{OUT}/{path}") for t in tokens]
+            parent = f"{OUT}/{path}".rsplit("/", 1)[0]
+            if parent not in self.run.mkdir:
+                self.run.mkdir.append(parent)
         self.run.invocations.append({
             "tool": tool, "args": tokens, **({"via": via} if via else {}),
+            **({"moved": moved} if moved else {}),
             "touch": list(self.run.touch), "mkdir": list(self.run.mkdir),
         })
 
@@ -975,7 +988,8 @@ class Interpreter:
             raise Unresolved(target.reason)
         if isinstance(target, Tool):
             if name == "instanceMain":
-                self.record(target.name, [jstr(t) for t in args[0]])
+                # The fields the test set are the values the parser starts from: the command line.
+                self.record(target.name, target.tokens() + [jstr(t) for t in args[0]])
                 return 0
             if name == "doWork":
                 self.record(target.name, target.tokens(), via="doWork")
@@ -1370,8 +1384,21 @@ def called_elsewhere(sources, tests):
     return frozenset(reach - main_names)
 
 
+CHECKOUT = None
+
+
+def missing_from_checkout(path):
+    """A `testdata/` path the checkout does not hold: the test writes it in code before a tool
+    reads it (CollectMultipleMetricsTest's setup builds CollectGcBias2.bam), so both sides lack it."""
+    if CHECKOUT is None or not re.match(rf"({ROOT}/)?testdata/", path):
+        return False
+    return not (CHECKOUT / path.removeprefix(ROOT + "/")).exists()
+
+
 def extract(options):
+    global CHECKOUT
     picard = Path(options.picard).resolve()
+    CHECKOUT = picard
     roots = [picard / "src" / "main" / "java", picard / "src" / "test" / "java"]
     sources = Sources(roots + [Path(c) for c in options.constants])
     invocations, unextracted = [], []
@@ -1430,12 +1457,32 @@ def snapshot(directory):
     return {p: (p.stat().st_size, p.stat().st_mtime_ns) for p in directory.rglob("*") if p.is_file()}
 
 
-def written(directory, before, strip_pg):
+def written(directory, before, strip_pg, back=lambda text: text):
     """Every file the invocation wrote or rewrote, by its path under the output directory, read as
     `run_array.read_output` reads one; a test's outputs have the names it chose, so none is named
     in advance, and a file an earlier invocation of the same test wrote is not this one's answer."""
     names = sorted(str(p.relative_to(directory)) for p, stamp in snapshot(directory).items() if before.get(p) != stamp)
-    return "".join(f"== {name}\n{run_array.read_output(directory, strip_pg, name)}\n" for name in names)
+    out = ""
+    for name in names:
+        raw = (directory / name).read_bytes()
+        if raw[:4] == b"TIDX":
+            answer = tribble_index(raw, back)
+        else:
+            answer = run_array.read_output(directory, strip_pg, name)
+        out += f"== {name}\n{answer}\n"
+    return out
+
+
+def tribble_index(raw, back):
+    """A tribble `.idx`, digested with its header's timestamp masked: the indexed file's
+    modification time, which no two runs share, so the reference itself has no stable byte there
+    (htsjdk-rs's index suite masks the same eight bytes). The indexed path it records is mapped
+    back to the container's, as every other path the port was handed is."""
+    end = raw.index(b"\0", 12)
+    path = back(raw[12:end].decode("utf-8", "replace")).encode()
+    rest = raw[end + 1:]
+    canonical = raw[:12] + path + b"\0" + rest[:8] + b"\0" * 8 + rest[16:]
+    return f"TRIBBLE-INDEX(timestamp masked) sha256={hashlib.sha256(canonical).hexdigest()} bytes={len(canonical)}"
 
 
 def oracle(invocation, picard, out_dir, entry):
@@ -1466,6 +1513,11 @@ def port(invocation, picard, out_dir, entry, port_dir):
 
 ANSWER = threading.Lock()
 
+# The notice Picard logs before running a `NAME=value` command line (`CommandLineProgram.instanceMain`):
+# the syntax's transition, not the tool's answer, and a refusal printed without a stack trace is
+# read from the last block of standard error, which the notice can be.
+LEGACY_NOTE = re.compile(r"(?m)^INFO\t[^\n]*\t\n(\n|\*{10}[^\n]*\n)+")
+
 
 def side_answer(run, invocation, out_dir, entry):
     """(exit code, the answer compared), read as `run_array.py` reads a row's."""
@@ -1474,13 +1526,13 @@ def side_answer(run, invocation, out_dir, entry):
         result, back = run()
     except run_array.RowTimeout as hung:
         return None, f"TIMEOUT: the {hung} ran past {run_array.ROW_TIMEOUT} s"
-    error = run_array.first_error(back(result.stderr or result.stdout))
+    error = run_array.first_error(LEGACY_NOTE.sub("", back(result.stderr or result.stdout)))
     on_stdout = "stderr" if entry.get("output") == "stderr" else entry.get("output") == "stdout"
     if on_stdout:
         text = run_array.stream_answer(result, on_stdout)
     else:
         # A tool given no output file prints its answer (ValidateSamFile's report) on stdout.
-        text = written(out_dir, before, bool(entry.get("strip_program_records")))
+        text = written(out_dir, before, bool(entry.get("strip_program_records")), back)
         text += f"== <stdout>\n{result.stdout}\n" if result.stdout else ""
     with ANSWER:  # `canonical` reads a module-wide list of prefixes
         run_array.EXTRA_PREFIXES[:] = entry.get("strip_line_prefixes", [])
@@ -1633,6 +1685,11 @@ def self_check():
     tool.fields.update(INPUT=["/a", "/b"], CREATE_INDEX=True)
     assert tool.tokens() == ["INPUT=/a", "INPUT=/b", "CREATE_INDEX=true"]
     assert test_of("A#b[2].0") == "A#b[2]"
+    one = b"TIDX" + bytes(8) + b"/h/x.vcf\0" + (5).to_bytes(8, "little") + (7).to_bytes(8, "little") + b"md5\0"
+    two = one.replace((7).to_bytes(8, "little"), (9).to_bytes(8, "little"))
+    assert tribble_index(one, lambda t: t.replace("/h", "/work/out")) == tribble_index(two, lambda t: t.replace("/h", "/work/out"))
+    note = "INFO\t2026-11-24 20:46:46\tSortSam\t\n\n********** NOTE: x\n**********\n\n\nERROR: boom\n"
+    assert LEGACY_NOTE.sub("", note) == "ERROR: boom\n"
     assert cell({"extracted": 2, "replayed": 2, "matched": 2, "excluded": 0, "unextracted": 1}) == "**2 of 2 match** (1 unextracted)"
 
 

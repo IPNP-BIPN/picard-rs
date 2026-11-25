@@ -569,25 +569,8 @@
    "mkdir": []
   },
   {
-   "id": "CollectMultipleMetricsTest#setup.0",
-   "source": "src/test/java/picard/analysis/CollectMultipleMetricsTest.java",
-   "group": "CollectMultipleMetricsTest",
-   "tool": "SortSam",
-   "args": [
-    "INPUT=/work/fixtures/testdata/picard/sam/CollectGcBiasMetrics/CollectGcBias2.bam",
-    "OUTPUT=/work/fixtures/testdata/picard/sam/CollectGcBiasMetrics/CollectGcBias1.bam",
-    "SORT_ORDER=coordinate"
-   ],
-   "touch": [
-    "testdata/picard/sam/CollectGcBiasMetrics/CollectGcBias1.bam",
-    "testdata/picard/sam/CollectGcBiasMetrics/CollectGcBias2.bam"
-   ],
-   "mkdir": []
-  },
-  {
    "id": "CollectMultipleMetricsTest#testAlignmentSummaryViaMultipleMetrics.0",
    "source": "src/test/java/picard/analysis/CollectMultipleMetricsTest.java",
-   "group": "CollectMultipleMetricsTest",
    "tool": "CollectMultipleMetrics",
    "args": [
     "INPUT=/work/fixtures/testdata/picard/sam/AlignmentSummaryMetrics/summary_alignment_stats_test.sam",
@@ -611,7 +594,6 @@
   {
    "id": "CollectMultipleMetricsTest#testInsertSize.0",
    "source": "src/test/java/picard/analysis/CollectMultipleMetricsTest.java",
-   "group": "CollectMultipleMetricsTest",
    "tool": "CollectMultipleMetrics",
    "args": [
     "INPUT=/work/fixtures/testdata/picard/sam/insert_size_metrics_test.sam",
@@ -633,7 +615,6 @@
   {
    "id": "CollectMultipleMetricsTest#testInsertSizeNoPlots.0",
    "source": "src/test/java/picard/analysis/CollectMultipleMetricsTest.java",
-   "group": "CollectMultipleMetricsTest",
    "tool": "CollectMultipleMetrics",
    "args": [
     "INPUT=/work/fixtures/testdata/picard/sam/insert_size_metrics_test.sam",
@@ -656,7 +637,6 @@
   {
    "id": "CollectMultipleMetricsTest#testInsertSizeFailureGatkLiteDocker.0",
    "source": "src/test/java/picard/analysis/CollectMultipleMetricsTest.java",
-   "group": "CollectMultipleMetricsTest",
    "tool": "CollectMultipleMetrics",
    "args": [
     "INPUT=/work/fixtures/testdata/picard/sam/insert_size_metrics_test.sam",
@@ -678,7 +658,6 @@
   {
    "id": "CollectMultipleMetricsTest#testRnaSeqMetricsViaMultipleMetrics.0",
    "source": "src/test/java/picard/analysis/CollectMultipleMetricsTest.java",
-   "group": "CollectMultipleMetricsTest",
    "tool": "CollectMultipleMetrics",
    "args": [
     "INPUT=/work/fixtures/testdata/picard/sam/rna_seq_metrics.sam",
@@ -699,10 +678,9 @@
   {
    "id": "CollectMultipleMetricsTest#testGcBiasMetrics.0",
    "source": "src/test/java/picard/analysis/CollectMultipleMetricsTest.java",
-   "group": "CollectMultipleMetricsTest",
    "tool": "CollectMultipleMetrics",
    "args": [
-    "INPUT=/work/fixtures/testdata/picard/sam/CollectGcBiasMetrics/CollectGcBias1.bam",
+    "INPUT=/work/out/testdata/picard/sam/CollectGcBiasMetrics/CollectGcBias1.bam",
     "OUTPUT=/work/out/test3",
     "REFERENCE_SEQUENCE=/work/fixtures/testdata/picard/reference/chrM.reference.fasta",
     "METRIC_ACCUMULATION_LEVEL=ALL_READS",
@@ -711,12 +689,17 @@
     "PROGRAM=CollectInsertSizeMetrics",
     "PROGRAM=CollectGcBiasMetrics"
    ],
+   "moved": [
+    "testdata/picard/sam/CollectGcBiasMetrics/CollectGcBias1.bam"
+   ],
    "touch": [
     "testdata/picard/sam/CollectGcBiasMetrics/CollectGcBias1.bam",
     "testdata/picard/sam/CollectGcBiasMetrics/CollectGcBias2.bam",
     "/work/out/test3"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/sam/CollectGcBiasMetrics"
+   ]
   },
   {
    "id": "CollectOxoGMetricsTest#testCollectOxoGMetrics.0",
@@ -724,13 +707,18 @@
    "tool": "CollectOxoGMetrics",
    "args": [
     "INPUT=/work/fixtures/testdata/picard/sam/AlignmentSummaryMetrics/summary_alignment_stats_test.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/sam/test1.oxo_g_metrics",
+    "OUTPUT=/work/out/testdata/picard/sam/test1.oxo_g_metrics",
     "REFERENCE_SEQUENCE=/work/fixtures/testdata/picard/sam/merger.fasta"
+   ],
+   "moved": [
+    "testdata/picard/sam/test1.oxo_g_metrics"
    ],
    "touch": [
     "testdata/picard/sam/test1.oxo_g_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/sam"
+   ]
   },
   {
    "id": "CollectOxoGMetricsTest#testCollectOxoGMetricsShortContext.0",
@@ -738,14 +726,19 @@
    "tool": "CollectOxoGMetrics",
    "args": [
     "INPUT=/work/fixtures/testdata/picard/sam/AlignmentSummaryMetrics/summary_alignment_stats_test.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/sam/test1.oxo_g_metrics",
+    "OUTPUT=/work/out/testdata/picard/sam/test1.oxo_g_metrics",
     "REFERENCE_SEQUENCE=/work/fixtures/testdata/picard/sam/merger.fasta",
     "CONTEXT_SIZE=0"
+   ],
+   "moved": [
+    "testdata/picard/sam/test1.oxo_g_metrics"
    ],
    "touch": [
     "testdata/picard/sam/test1.oxo_g_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/sam"
+   ]
   },
   {
    "id": "CollectOxoGMetricsTest#testCollectOxoGMetricsLongContext.0",
@@ -753,14 +746,19 @@
    "tool": "CollectOxoGMetrics",
    "args": [
     "INPUT=/work/fixtures/testdata/picard/sam/AlignmentSummaryMetrics/summary_alignment_stats_test.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/sam/test1.oxo_g_metrics",
+    "OUTPUT=/work/out/testdata/picard/sam/test1.oxo_g_metrics",
     "REFERENCE_SEQUENCE=/work/fixtures/testdata/picard/sam/merger.fasta",
     "CONTEXT_SIZE=2"
+   ],
+   "moved": [
+    "testdata/picard/sam/test1.oxo_g_metrics"
    ],
    "touch": [
     "testdata/picard/sam/test1.oxo_g_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/sam"
+   ]
   },
   {
    "id": "CollectQualityYieldMetricsFlowTest#test.0",
@@ -1171,44 +1169,6 @@
    "mkdir": []
   },
   {
-   "id": "CollectWgsMetricsWithNonZeroCoverageTest#testPoorQualityBases.0",
-   "source": "src/test/java/picard/analysis/CollectWgsMetricsWithNonZeroCoverageTest.java",
-   "tool": "CollectWgsMetricsWithNonZeroCoverage",
-   "args": [
-    "INPUT=/work/fixtures/testdata/picard/sam/CollectWgsMetrics1.bam",
-    "OUTPUT=/work/out/testExcludedBases-metrics2.txt",
-    "REFERENCE_SEQUENCE=/work/fixtures/testdata/picard/reference/chrM.reference.fasta",
-    "INCLUDE_BQ_HISTOGRAM=true",
-    "COVERAGE_CAP=3",
-    "CHART_OUTPUT=/work/out/testExcludedBases3.pdf"
-   ],
-   "touch": [
-    "testdata/picard/sam/CollectWgsMetrics1.bam",
-    "/work/out/testExcludedBases-metrics2.txt",
-    "/work/out/testExcludedBases3.pdf"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CollectWgsMetricsWithNonZeroCoverageTest#testNoCoverage.0",
-   "source": "src/test/java/picard/analysis/CollectWgsMetricsWithNonZeroCoverageTest.java",
-   "tool": "CollectWgsMetricsWithNonZeroCoverage",
-   "args": [
-    "INPUT=/work/fixtures/testdata/picard/sam/CollectWgsMetrics1.bam",
-    "OUTPUT=/work/out/testPoorQualityBases-metrics2.txt",
-    "REFERENCE_SEQUENCE=/work/fixtures/testdata/picard/reference/chrM.reference.fasta",
-    "INCLUDE_BQ_HISTOGRAM=true",
-    "COVERAGE_CAP=3",
-    "CHART_OUTPUT=/work/out/testPoorQualityBases3.pdf"
-   ],
-   "touch": [
-    "testdata/picard/sam/CollectWgsMetrics1.bam",
-    "/work/out/testPoorQualityBases-metrics2.txt",
-    "/work/out/testPoorQualityBases3.pdf"
-   ],
-   "mkdir": []
-  },
-  {
    "id": "CollectWgsMetricsWithNonZeroCoverageTest#testChartFailureGATKLite.0",
    "source": "src/test/java/picard/analysis/CollectWgsMetricsWithNonZeroCoverageTest.java",
    "tool": "CollectWgsMetricsWithNonZeroCoverage",
@@ -1253,7 +1213,9 @@
    "id": "CompareMetricsTest#testFailCompareMetricsInvalidMetricToIgnore.0",
    "source": "src/test/java/picard/analysis/CompareMetricsTest.java",
    "tool": "CompareMetrics",
-   "args": [],
+   "args": [
+    "METRICS_TO_IGNORE=NONEXISTENT_METRIC"
+   ],
    "touch": [],
    "mkdir": []
   },
@@ -1261,7 +1223,9 @@
    "id": "CompareMetricsTest#testFailCompareMetricsInvalidMetricToAllowableRelativeChange.0",
    "source": "src/test/java/picard/analysis/CompareMetricsTest.java",
    "tool": "CompareMetrics",
-   "args": [],
+   "args": [
+    "METRIC_ALLOWABLE_RELATIVE_CHANGE=NONEXISTENT_METRIC:0.3"
+   ],
    "touch": [],
    "mkdir": []
   },
@@ -1358,32 +1322,42 @@
    "source": "src/test/java/picard/analysis/artifacts/ConvertSequencingArtifactToOxoGTest.java",
    "tool": "CollectOxoGMetrics",
    "args": [
-    "OUTPUT=/work/fixtures/testdata/picard/sam/test1.oxo_g_metrics",
+    "OUTPUT=/work/out/testdata/picard/sam/test1.oxo_g_metrics",
     "INPUT=/work/fixtures/testdata/picard/sam/AlignmentSummaryMetrics/summary_alignment_stats_test.sam",
     "REFERENCE_SEQUENCE=/work/fixtures/testdata/picard/sam/merger.fasta"
+   ],
+   "moved": [
+    "testdata/picard/sam/test1.oxo_g_metrics"
    ],
    "touch": [
     "testdata/picard/sam/test1.oxo_g_metrics",
     "testdata/picard/sam/test2",
     "testdata/picard/sam/test3"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/sam"
+   ]
   },
   {
    "id": "ConvertSequencingArtifactToOxoGTest#testEquivalence[1].0",
    "source": "src/test/java/picard/analysis/artifacts/ConvertSequencingArtifactToOxoGTest.java",
    "tool": "CollectOxoGMetrics",
    "args": [
-    "OUTPUT=/work/fixtures/testdata/picard/sam/test1.oxo_g_metrics",
+    "OUTPUT=/work/out/testdata/picard/sam/test1.oxo_g_metrics",
     "INPUT=/work/fixtures/testdata/picard/sam/AlignmentSummaryMetrics/summary_alignment_stats_test.sam",
     "REFERENCE_SEQUENCE=/work/fixtures/testdata/picard/sam/merger.fasta"
+   ],
+   "moved": [
+    "testdata/picard/sam/test1.oxo_g_metrics"
    ],
    "touch": [
     "testdata/picard/sam/test1.oxo_g_metrics",
     "testdata/picard/sam/test2",
     "testdata/picard/sam/test3"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/sam"
+   ]
   },
   {
    "id": "CollectHsMetricsTest#runCollectHsMetricsTest[0].0",
@@ -1393,16 +1367,21 @@
     "TARGET_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM.interval_list",
     "BAIT_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM.interval_list",
     "INPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/lowbaseq.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
+    "OUTPUT=/work/out/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
     "MINIMUM_MAPPING_QUALITY=1",
     "MINIMUM_BASE_QUALITY=10",
     "CLIP_OVERLAPPING_READS=true",
     "SAMPLE_SIZE=1000"
    ],
+   "moved": [
+    "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
+   ],
    "touch": [
     "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/analysis/directed/CollectHsMetrics"
+   ]
   },
   {
    "id": "CollectHsMetricsTest#runCollectHsMetricsTest[1].0",
@@ -1412,16 +1391,21 @@
     "TARGET_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM_100bp.interval_list",
     "BAIT_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM_100bp.interval_list",
     "INPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/lowbaseq.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
+    "OUTPUT=/work/out/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
     "MINIMUM_MAPPING_QUALITY=1",
     "MINIMUM_BASE_QUALITY=10",
     "CLIP_OVERLAPPING_READS=true",
     "SAMPLE_SIZE=1000"
    ],
+   "moved": [
+    "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
+   ],
    "touch": [
     "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/analysis/directed/CollectHsMetrics"
+   ]
   },
   {
    "id": "CollectHsMetricsTest#runCollectHsMetricsTest[2].0",
@@ -1431,16 +1415,21 @@
     "TARGET_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM.interval_list",
     "BAIT_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM.interval_list",
     "INPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/lowmapq.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
+    "OUTPUT=/work/out/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
     "MINIMUM_MAPPING_QUALITY=2",
     "MINIMUM_BASE_QUALITY=0",
     "CLIP_OVERLAPPING_READS=true",
     "SAMPLE_SIZE=1000"
    ],
+   "moved": [
+    "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
+   ],
    "touch": [
     "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/analysis/directed/CollectHsMetrics"
+   ]
   },
   {
    "id": "CollectHsMetricsTest#runCollectHsMetricsTest[3].0",
@@ -1450,16 +1439,21 @@
     "TARGET_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM_100bp.interval_list",
     "BAIT_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM_100bp.interval_list",
     "INPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/lowmapq.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
+    "OUTPUT=/work/out/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
     "MINIMUM_MAPPING_QUALITY=2",
     "MINIMUM_BASE_QUALITY=0",
     "CLIP_OVERLAPPING_READS=true",
     "SAMPLE_SIZE=1000"
    ],
+   "moved": [
+    "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
+   ],
    "touch": [
     "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/analysis/directed/CollectHsMetrics"
+   ]
   },
   {
    "id": "CollectHsMetricsTest#runCollectHsMetricsTest[4].0",
@@ -1469,16 +1463,21 @@
     "TARGET_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM.interval_list",
     "BAIT_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM.interval_list",
     "INPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/overlapping.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
+    "OUTPUT=/work/out/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
     "MINIMUM_MAPPING_QUALITY=0",
     "MINIMUM_BASE_QUALITY=0",
     "CLIP_OVERLAPPING_READS=true",
     "SAMPLE_SIZE=1000"
    ],
+   "moved": [
+    "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
+   ],
    "touch": [
     "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/analysis/directed/CollectHsMetrics"
+   ]
   },
   {
    "id": "CollectHsMetricsTest#runCollectHsMetricsTest[5].0",
@@ -1488,16 +1487,21 @@
     "TARGET_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM.interval_list",
     "BAIT_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM.interval_list",
     "INPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/overlapping.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
+    "OUTPUT=/work/out/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
     "MINIMUM_MAPPING_QUALITY=0",
     "MINIMUM_BASE_QUALITY=0",
     "CLIP_OVERLAPPING_READS=false",
     "SAMPLE_SIZE=1000"
    ],
+   "moved": [
+    "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
+   ],
    "touch": [
     "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/analysis/directed/CollectHsMetrics"
+   ]
   },
   {
    "id": "CollectHsMetricsTest#runCollectHsMetricsTest[6].0",
@@ -1507,16 +1511,21 @@
     "TARGET_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM_100bp.interval_list",
     "BAIT_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM_100bp.interval_list",
     "INPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/overlapping.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
+    "OUTPUT=/work/out/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
     "MINIMUM_MAPPING_QUALITY=0",
     "MINIMUM_BASE_QUALITY=0",
     "CLIP_OVERLAPPING_READS=true",
     "SAMPLE_SIZE=1000"
    ],
+   "moved": [
+    "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
+   ],
    "touch": [
     "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/analysis/directed/CollectHsMetrics"
+   ]
   },
   {
    "id": "CollectHsMetricsTest#runCollectHsMetricsTest[7].0",
@@ -1526,16 +1535,21 @@
     "TARGET_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM_100bp.interval_list",
     "BAIT_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/chrM_100bp.interval_list",
     "INPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/overlapping.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
+    "OUTPUT=/work/out/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
     "MINIMUM_MAPPING_QUALITY=0",
     "MINIMUM_BASE_QUALITY=0",
     "CLIP_OVERLAPPING_READS=false",
     "SAMPLE_SIZE=1000"
    ],
+   "moved": [
+    "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
+   ],
    "touch": [
     "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/analysis/directed/CollectHsMetrics"
+   ]
   },
   {
    "id": "CollectHsMetricsTest#runCollectHsMetricsTest[8].0",
@@ -1545,16 +1559,21 @@
     "TARGET_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/two-small.interval_list",
     "BAIT_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/two-small.interval_list",
     "INPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/single-short-read.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
+    "OUTPUT=/work/out/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
     "MINIMUM_MAPPING_QUALITY=20",
     "MINIMUM_BASE_QUALITY=20",
     "CLIP_OVERLAPPING_READS=true",
     "SAMPLE_SIZE=1000"
    ],
+   "moved": [
+    "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
+   ],
    "touch": [
     "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/analysis/directed/CollectHsMetrics"
+   ]
   },
   {
    "id": "CollectHsMetricsTest#runCollectHsMetricsTest[9].0",
@@ -1564,16 +1583,21 @@
     "TARGET_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/two-small.interval_list",
     "BAIT_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/two-small.interval_list",
     "INPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/someLowbaseq.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
+    "OUTPUT=/work/out/testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics",
     "MINIMUM_MAPPING_QUALITY=0",
     "MINIMUM_BASE_QUALITY=21",
     "CLIP_OVERLAPPING_READS=true",
     "SAMPLE_SIZE=1000"
    ],
+   "moved": [
+    "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
+   ],
    "touch": [
     "testdata/picard/analysis/directed/CollectHsMetrics/CollectHsMetrics1.hs_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/analysis/directed/CollectHsMetrics"
+   ]
   },
   {
    "id": "CollectHsMetricsTest#testCoverageHistogram.0",
@@ -1583,16 +1607,21 @@
     "TARGET_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/two-small.interval_list",
     "BAIT_INTERVALS=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/two-small.interval_list",
     "INPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/single-short-read.sam",
-    "OUTPUT=/work/fixtures/testdata/picard/analysis/directed/CollectHsMetrics/testCoverageHistogram1.hs_metrics",
+    "OUTPUT=/work/out/testdata/picard/analysis/directed/CollectHsMetrics/testCoverageHistogram1.hs_metrics",
     "MINIMUM_MAPPING_QUALITY=20",
     "MINIMUM_BASE_QUALITY=20",
     "CLIP_OVERLAPPING_READS=true",
     "SAMPLE_SIZE=10"
    ],
+   "moved": [
+    "testdata/picard/analysis/directed/CollectHsMetrics/testCoverageHistogram1.hs_metrics"
+   ],
    "touch": [
     "testdata/picard/analysis/directed/CollectHsMetrics/testCoverageHistogram1.hs_metrics"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/analysis/directed/CollectHsMetrics"
+   ]
   },
   {
    "id": "CollectTargetedMetricsTest#testRawBqDistributionWithSoftClips.0",
@@ -1909,7 +1938,10 @@
    "id": "CreateBafRegressMetricsFileTest#testCreateBafRegressMetricsFile.0",
    "source": "src/test/java/picard/arrays/CreateBafRegressMetricsFileTest.java",
    "tool": "CreateBafRegressMetricsFile",
-   "args": [],
+   "args": [
+    "INPUT=/work/fixtures/testdata/picard/arrays/BafRegress.output.txt",
+    "OUTPUT=/work/out/testCreateBafRegressMetricsFile1"
+   ],
    "touch": [
     "/work/out/testCreateBafRegressMetricsFile1"
    ],
@@ -1919,7 +1951,10 @@
    "id": "CreateBafRegressMetricsFileTest#testFailCreateBafRegressMetricsFile.0",
    "source": "src/test/java/picard/arrays/CreateBafRegressMetricsFileTest.java",
    "tool": "CreateBafRegressMetricsFile",
-   "args": [],
+   "args": [
+    "INPUT=/work/fixtures/testdata/picard/arrays/input.vcf",
+    "OUTPUT=/work/out/testFailCreateBafRegressMetricsFile1"
+   ],
    "touch": [
     "/work/out/testFailCreateBafRegressMetricsFile1"
    ],
@@ -1929,7 +1964,9 @@
    "id": "CreateVerifyIDIntensityContaminationMetricsFileTest#testCreateVerifyIDIntensityContaminationMetricsFile.0",
    "source": "src/test/java/picard/arrays/CreateVerifyIDIntensityContaminationMetricsFileTest.java",
    "tool": "CreateVerifyIDIntensityContaminationMetricsFile",
-   "args": [],
+   "args": [
+    "INPUT=/work/fixtures/testdata/picard/arrays/VerifyIDIntensity.txt"
+   ],
    "touch": [
     "/work/out/testCreateVerifyIDIntensityContaminationMetricsFile1"
    ],
@@ -1939,7 +1976,9 @@
    "id": "CreateVerifyIDIntensityContaminationMetricsFileTest#testFailCreateVerifyIDIntensityContaminationMetricsFile.0",
    "source": "src/test/java/picard/arrays/CreateVerifyIDIntensityContaminationMetricsFileTest.java",
    "tool": "CreateVerifyIDIntensityContaminationMetricsFile",
-   "args": [],
+   "args": [
+    "INPUT=/work/fixtures/testdata/picard/arrays/input.vcf"
+   ],
    "touch": [
     "/work/out/testFailCreateVerifyIDIntensityContaminationMetricsFile1"
    ],
@@ -1997,7 +2036,12 @@
    "id": "VcfToAdpcTest#testVcfToAdpc[0].0",
    "source": "src/test/java/picard/arrays/illumina/VcfToAdpcTest.java",
    "tool": "VcfToAdpc",
-   "args": [],
+   "args": [
+    "VCF=/work/fixtures/testdata/picard/arrays/illumina/TestVcfToAdpc.vcf",
+    "OUTPUT=/work/out/testIlluminaAdpcFileWriter.1.adpc.bin",
+    "SAMPLES_FILE=/work/out/testIlluminaAdpcFileWriter.2.samples.txt",
+    "NUM_MARKERS_FILE=/work/out/testIlluminaAdpcFileWriter.3.num_markers.txt"
+   ],
    "touch": [
     "/work/out/testIlluminaAdpcFileWriter.1.adpc.bin",
     "/work/out/testIlluminaAdpcFileWriter.2.samples.txt",
@@ -2009,7 +2053,12 @@
    "id": "VcfToAdpcTest#testVcfToAdpc[1].0",
    "source": "src/test/java/picard/arrays/illumina/VcfToAdpcTest.java",
    "tool": "VcfToAdpc",
-   "args": [],
+   "args": [
+    "VCF=/work/fixtures/testdata/picard/arrays/illumina/TestAdpc1.vcf",
+    "OUTPUT=/work/out/testIlluminaAdpcFileWriter.1.adpc.bin",
+    "SAMPLES_FILE=/work/out/testIlluminaAdpcFileWriter.2.samples.txt",
+    "NUM_MARKERS_FILE=/work/out/testIlluminaAdpcFileWriter.3.num_markers.txt"
+   ],
    "touch": [
     "/work/out/testIlluminaAdpcFileWriter.1.adpc.bin",
     "/work/out/testIlluminaAdpcFileWriter.2.samples.txt",
@@ -2021,7 +2070,12 @@
    "id": "VcfToAdpcTest#testVcfToAdpc[2].0",
    "source": "src/test/java/picard/arrays/illumina/VcfToAdpcTest.java",
    "tool": "VcfToAdpc",
-   "args": [],
+   "args": [
+    "VCF=/work/fixtures/testdata/picard/arrays/illumina/TestAdpc23.vcf",
+    "OUTPUT=/work/out/testIlluminaAdpcFileWriter.1.adpc.bin",
+    "SAMPLES_FILE=/work/out/testIlluminaAdpcFileWriter.2.samples.txt",
+    "NUM_MARKERS_FILE=/work/out/testIlluminaAdpcFileWriter.3.num_markers.txt"
+   ],
    "touch": [
     "/work/out/testIlluminaAdpcFileWriter.1.adpc.bin",
     "/work/out/testIlluminaAdpcFileWriter.2.samples.txt",
@@ -2033,7 +2087,13 @@
    "id": "VcfToAdpcTest#testVcfToAdpc[3].0",
    "source": "src/test/java/picard/arrays/illumina/VcfToAdpcTest.java",
    "tool": "VcfToAdpc",
-   "args": [],
+   "args": [
+    "VCF=/work/fixtures/testdata/picard/arrays/illumina/TestAdpc1.vcf",
+    "VCF=/work/fixtures/testdata/picard/arrays/illumina/TestAdpc23.vcf",
+    "OUTPUT=/work/out/testIlluminaAdpcFileWriter.1.adpc.bin",
+    "SAMPLES_FILE=/work/out/testIlluminaAdpcFileWriter.2.samples.txt",
+    "NUM_MARKERS_FILE=/work/out/testIlluminaAdpcFileWriter.3.num_markers.txt"
+   ],
    "touch": [
     "/work/out/testIlluminaAdpcFileWriter.1.adpc.bin",
     "/work/out/testIlluminaAdpcFileWriter.2.samples.txt",
@@ -2045,7 +2105,13 @@
    "id": "VcfToAdpcTest#testVcfToAdpc[4].0",
    "source": "src/test/java/picard/arrays/illumina/VcfToAdpcTest.java",
    "tool": "VcfToAdpc",
-   "args": [],
+   "args": [
+    "VCF=/work/fixtures/testdata/picard/arrays/illumina/TestAdpc23.vcf",
+    "VCF=/work/fixtures/testdata/picard/arrays/illumina/TestAdpc1.vcf",
+    "OUTPUT=/work/out/testIlluminaAdpcFileWriter.1.adpc.bin",
+    "SAMPLES_FILE=/work/out/testIlluminaAdpcFileWriter.2.samples.txt",
+    "NUM_MARKERS_FILE=/work/out/testIlluminaAdpcFileWriter.3.num_markers.txt"
+   ],
    "touch": [
     "/work/out/testIlluminaAdpcFileWriter.1.adpc.bin",
     "/work/out/testIlluminaAdpcFileWriter.2.samples.txt",
@@ -2057,7 +2123,13 @@
    "id": "VcfToAdpcTest#testVcfToAdpcFailOnDifferingNumberOfLoci.0",
    "source": "src/test/java/picard/arrays/illumina/VcfToAdpcTest.java",
    "tool": "VcfToAdpc",
-   "args": [],
+   "args": [
+    "VCF=/work/fixtures/testdata/picard/arrays/illumina/TestVcfToAdpc.vcf",
+    "VCF=/work/fixtures/testdata/picard/arrays/illumina/TestAdpc1.vcf",
+    "OUTPUT=/work/out/testIlluminaAdpcFileWriter.1.adpc.bin",
+    "SAMPLES_FILE=/work/out/testIlluminaAdpcFileWriter.2.samples.txt",
+    "NUM_MARKERS_FILE=/work/out/testIlluminaAdpcFileWriter.3.num_markers.txt"
+   ],
    "touch": [
     "/work/out/testIlluminaAdpcFileWriter.1.adpc.bin",
     "/work/out/testIlluminaAdpcFileWriter.2.samples.txt",
@@ -2196,187 +2268,6 @@
    ],
    "touch": [
     "/work/out/testFingerprintMetric1fingerprint_metric"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CheckFingerprintTest#testBaseOutput.0",
-   "source": "src/test/java/picard/fingerprint/CheckFingerprintTest.java",
-   "tool": "CheckFingerprint",
-   "args": [
-    "I=/work/fixtures/testdata/picard/fingerprint/NA12892.vcf",
-    "O=/work/fixtures/testdata/picard/fingerprint/tempCheckFPDir/otp.fp",
-    "G=/work/fixtures/testdata/picard/fingerprint/NA12892.g.vcf",
-    "H=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CheckFingerprintTest#testMismatchingAndMissing[0].0",
-   "source": "src/test/java/picard/fingerprint/CheckFingerprintTest.java",
-   "tool": "CheckFingerprint",
-   "args": [
-    "I=/work/fixtures/testdata/picard/fingerprint/NA12891.over.fingerprints.r1.sam",
-    "O=/work/fixtures/testdata/picard/fingerprint/tempCheckFPDir/otp.fp",
-    "G=/work/fixtures/testdata/picard/fingerprint/NA12892.g.vcf",
-    "H=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CheckFingerprintTest#testMismatchingAndMissing[1].0",
-   "source": "src/test/java/picard/fingerprint/CheckFingerprintTest.java",
-   "tool": "CheckFingerprint",
-   "args": [
-    "I=/work/fixtures/testdata/picard/fingerprint/NA12892.vcf",
-    "O=/work/fixtures/testdata/picard/fingerprint/tempCheckFPDir/otp.fp",
-    "G=/work/fixtures/testdata/picard/fingerprint/NA12892.g.vcf",
-    "H=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "EXPECTED_SAMPLE_ALIAS=TEST123"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CheckFingerprintTest#testMismatchingAndMissing[2].0",
-   "source": "src/test/java/picard/fingerprint/CheckFingerprintTest.java",
-   "tool": "CheckFingerprint",
-   "args": [
-    "I=/work/fixtures/testdata/picard/fingerprint/NA12892.vcf",
-    "O=/work/fixtures/testdata/picard/fingerprint/tempCheckFPDir/otp.fp",
-    "G=/work/fixtures/testdata/picard/fingerprint/NA12892.g.vcf",
-    "H=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "EXPECTED_SAMPLE_ALIAS=TEST123",
-    "EXIT_CODE_WHEN_EXPECTED_SAMPLE_NOT_FOUND=0"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CheckFingerprintTest#testMismatchingAndMissing[3].0",
-   "source": "src/test/java/picard/fingerprint/CheckFingerprintTest.java",
-   "tool": "CheckFingerprint",
-   "args": [
-    "I=/work/fixtures/testdata/picard/fingerprint/empty.vcf",
-    "O=/work/fixtures/testdata/picard/fingerprint/tempCheckFPDir/otp.fp",
-    "G=/work/fixtures/testdata/picard/fingerprint/NA12892.g.vcf",
-    "H=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CheckFingerprintTest#testMismatchingAndMissing[4].0",
-   "source": "src/test/java/picard/fingerprint/CheckFingerprintTest.java",
-   "tool": "CheckFingerprint",
-   "args": [
-    "I=/work/fixtures/testdata/picard/fingerprint/empty.vcf",
-    "O=/work/fixtures/testdata/picard/fingerprint/tempCheckFPDir/otp.fp",
-    "G=/work/fixtures/testdata/picard/fingerprint/NA12892.g.vcf",
-    "H=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "EXIT_CODE_WHEN_NO_VALID_CHECKS=0"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CheckFingerprintTest#testSummaryAndDetailOutputs.0",
-   "source": "src/test/java/picard/fingerprint/CheckFingerprintTest.java",
-   "tool": "CheckFingerprint",
-   "args": [
-    "I=/work/fixtures/testdata/picard/fingerprint/NA12892.vcf",
-    "S=/work/fixtures/testdata/picard/fingerprint/tempCheckFPDir/summary",
-    "D=/work/fixtures/testdata/picard/fingerprint/tempCheckFPDir/detail",
-    "G=/work/fixtures/testdata/picard/fingerprint/NA12892.g.vcf",
-    "H=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CheckFingerprintTest#testBadData[0].0",
-   "source": "src/test/java/picard/fingerprint/CheckFingerprintTest.java",
-   "tool": "CheckFingerprint",
-   "args": [
-    "I=/tempCheckFPDir/void.vcf",
-    "O=/work/fixtures/testdata/picard/fingerprint/tempCheckFPDir/otp.fp",
-    "G=/work/fixtures/testdata/picard/fingerprint/NA12892.g.vcf",
-    "H=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CheckFingerprintTest#testBadData[1].0",
-   "source": "src/test/java/picard/fingerprint/CheckFingerprintTest.java",
-   "tool": "CheckFingerprint",
-   "args": [
-    "I=/work/fixtures/testdata/picard/fingerprint/noFile.vcf",
-    "O=/work/fixtures/testdata/picard/fingerprint/tempCheckFPDir/otp.fp",
-    "G=/work/fixtures/testdata/picard/fingerprint/NA12892.g.vcf",
-    "H=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CheckFingerprintTest#testBadData[2].0",
-   "source": "src/test/java/picard/fingerprint/CheckFingerprintTest.java",
-   "tool": "CheckFingerprint",
-   "args": [
-    "I=/work/fixtures/testdata/picard/fingerprint/NA12892.vcf",
-    "O=/work/fixtures/testdata/picard/fingerprint/tempCheckFPDir/otp.fp",
-    "G=/work/fixtures/testdata/picard/fingerprint/noFile.g.vcf",
-    "H=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CheckFingerprintTest#testBadData[3].0",
-   "source": "src/test/java/picard/fingerprint/CheckFingerprintTest.java",
-   "tool": "CheckFingerprint",
-   "args": [
-    "I=/work/fixtures/testdata/picard/fingerprint/noFile.vcf",
-    "O=/work/fixtures/testdata/picard/fingerprint/tempCheckFPDir/otp.fp",
-    "G=/work/fixtures/testdata/picard/fingerprint/noFile.g.vcf",
-    "H=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf"
    ],
    "mkdir": []
   },
@@ -2995,37 +2886,6 @@
    "mkdir": []
   },
   {
-   "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[0].0",
-   "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
-   "tool": "CrosscheckFingerprints",
-   "args": [
-    "OUTPUT=/work/out/Fingerprinting.comparison15crosscheck_metrics",
-    "LOD_THRESHOLD=-1.0",
-    "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "CROSSCHECK_MODE=CHECK_SAME_SAMPLE",
-    "INPUT=class NA12891_1_vcf",
-    "SECOND_INPUT=class NA12892_and_NA123891_vcf"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf",
-    "/work/out/fingerprint3.vcf",
-    "/work/out/fingerprint4.vcf",
-    "/work/out/fingerprint5.vcf",
-    "/work/out/fingerprint6.vcf",
-    "/work/out/fingerprint7.vcf",
-    "/work/out/fingerprint8.vcf",
-    "/work/out/fingerprint9.vcf",
-    "/work/out/fingerprint10.vcf",
-    "/work/out/fingerprint11.vcf",
-    "/work/out/fingerprint12.vcf",
-    "/work/out/fingerprint13.vcf",
-    "/work/out/fingerprint14.vcf",
-    "/work/out/Fingerprinting.comparison15crosscheck_metrics"
-   ],
-   "mkdir": []
-  },
-  {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[1].0",
    "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
    "tool": "CrosscheckFingerprints",
@@ -3036,37 +2896,6 @@
     "CROSSCHECK_MODE=CHECK_SAME_SAMPLE",
     "INPUT=/work/fixtures/testdata/picard/fingerprint/NA12891.vcf",
     "SECOND_INPUT=/work/fixtures/testdata/picard/fingerprint/NA12891andNA12892.vcf"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf",
-    "/work/out/fingerprint3.vcf",
-    "/work/out/fingerprint4.vcf",
-    "/work/out/fingerprint5.vcf",
-    "/work/out/fingerprint6.vcf",
-    "/work/out/fingerprint7.vcf",
-    "/work/out/fingerprint8.vcf",
-    "/work/out/fingerprint9.vcf",
-    "/work/out/fingerprint10.vcf",
-    "/work/out/fingerprint11.vcf",
-    "/work/out/fingerprint12.vcf",
-    "/work/out/fingerprint13.vcf",
-    "/work/out/fingerprint14.vcf",
-    "/work/out/Fingerprinting.comparison15crosscheck_metrics"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[2].0",
-   "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
-   "tool": "CrosscheckFingerprints",
-   "args": [
-    "OUTPUT=/work/out/Fingerprinting.comparison15crosscheck_metrics",
-    "LOD_THRESHOLD=-1.0",
-    "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "CROSSCHECK_MODE=CHECK_SAME_SAMPLE",
-    "INPUT=class NA12891_no_fp_sites_and_NA12892_vcf",
-    "SECOND_INPUT=class NA12892_and_NA123891_vcf"
    ],
    "touch": [
     "/work/out/fingerprint1.vcf",
@@ -3119,38 +2948,6 @@
    "mkdir": []
   },
   {
-   "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[4].0",
-   "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
-   "tool": "CrosscheckFingerprints",
-   "args": [
-    "OUTPUT=/work/out/Fingerprinting.comparison15crosscheck_metrics",
-    "LOD_THRESHOLD=-1.0",
-    "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "CROSSCHECK_MODE=CHECK_ALL_OTHERS",
-    "INPUT=class NA12891_1_vcf",
-    "SECOND_INPUT=class NA12892_and_NA123891_vcf",
-    "CROSSCHECK_BY=SAMPLE"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf",
-    "/work/out/fingerprint3.vcf",
-    "/work/out/fingerprint4.vcf",
-    "/work/out/fingerprint5.vcf",
-    "/work/out/fingerprint6.vcf",
-    "/work/out/fingerprint7.vcf",
-    "/work/out/fingerprint8.vcf",
-    "/work/out/fingerprint9.vcf",
-    "/work/out/fingerprint10.vcf",
-    "/work/out/fingerprint11.vcf",
-    "/work/out/fingerprint12.vcf",
-    "/work/out/fingerprint13.vcf",
-    "/work/out/fingerprint14.vcf",
-    "/work/out/Fingerprinting.comparison15crosscheck_metrics"
-   ],
-   "mkdir": []
-  },
-  {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[5].0",
    "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
    "tool": "CrosscheckFingerprints",
@@ -3161,38 +2958,6 @@
     "CROSSCHECK_MODE=CHECK_ALL_OTHERS",
     "INPUT=/work/fixtures/testdata/picard/fingerprint/NA12891.vcf",
     "SECOND_INPUT=/work/fixtures/testdata/picard/fingerprint/NA12891andNA12892.vcf",
-    "CROSSCHECK_BY=SAMPLE"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf",
-    "/work/out/fingerprint3.vcf",
-    "/work/out/fingerprint4.vcf",
-    "/work/out/fingerprint5.vcf",
-    "/work/out/fingerprint6.vcf",
-    "/work/out/fingerprint7.vcf",
-    "/work/out/fingerprint8.vcf",
-    "/work/out/fingerprint9.vcf",
-    "/work/out/fingerprint10.vcf",
-    "/work/out/fingerprint11.vcf",
-    "/work/out/fingerprint12.vcf",
-    "/work/out/fingerprint13.vcf",
-    "/work/out/fingerprint14.vcf",
-    "/work/out/Fingerprinting.comparison15crosscheck_metrics"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[6].0",
-   "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
-   "tool": "CrosscheckFingerprints",
-   "args": [
-    "OUTPUT=/work/out/Fingerprinting.comparison15crosscheck_metrics",
-    "LOD_THRESHOLD=-1.0",
-    "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "CROSSCHECK_MODE=CHECK_ALL_OTHERS",
-    "INPUT=class NA12891_no_fp_sites_and_NA12892_vcf",
-    "SECOND_INPUT=class NA12892_and_NA123891_vcf",
     "CROSSCHECK_BY=SAMPLE"
    ],
    "touch": [
@@ -3247,38 +3012,6 @@
    "mkdir": []
   },
   {
-   "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[8].0",
-   "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
-   "tool": "CrosscheckFingerprints",
-   "args": [
-    "OUTPUT=/work/out/Fingerprinting.comparison15crosscheck_metrics",
-    "LOD_THRESHOLD=-1.0",
-    "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "CROSSCHECK_MODE=CHECK_ALL_OTHERS",
-    "INPUT=class NA12891_no_fp_sites_vcf",
-    "SECOND_INPUT=class NA12892_and_NA123891_vcf",
-    "CROSSCHECK_BY=SAMPLE"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf",
-    "/work/out/fingerprint3.vcf",
-    "/work/out/fingerprint4.vcf",
-    "/work/out/fingerprint5.vcf",
-    "/work/out/fingerprint6.vcf",
-    "/work/out/fingerprint7.vcf",
-    "/work/out/fingerprint8.vcf",
-    "/work/out/fingerprint9.vcf",
-    "/work/out/fingerprint10.vcf",
-    "/work/out/fingerprint11.vcf",
-    "/work/out/fingerprint12.vcf",
-    "/work/out/fingerprint13.vcf",
-    "/work/out/fingerprint14.vcf",
-    "/work/out/Fingerprinting.comparison15crosscheck_metrics"
-   ],
-   "mkdir": []
-  },
-  {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[9].0",
    "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
    "tool": "CrosscheckFingerprints",
@@ -3311,38 +3044,6 @@
    "mkdir": []
   },
   {
-   "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[10].0",
-   "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
-   "tool": "CrosscheckFingerprints",
-   "args": [
-    "OUTPUT=/work/out/Fingerprinting.comparison15crosscheck_metrics",
-    "LOD_THRESHOLD=-1.0",
-    "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "CROSSCHECK_MODE=CHECK_SAME_SAMPLE",
-    "INPUT=class NA12892_r1",
-    "SECOND_INPUT=class NA12891_r2",
-    "SECOND_INPUT=class NA12892_r2"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf",
-    "/work/out/fingerprint3.vcf",
-    "/work/out/fingerprint4.vcf",
-    "/work/out/fingerprint5.vcf",
-    "/work/out/fingerprint6.vcf",
-    "/work/out/fingerprint7.vcf",
-    "/work/out/fingerprint8.vcf",
-    "/work/out/fingerprint9.vcf",
-    "/work/out/fingerprint10.vcf",
-    "/work/out/fingerprint11.vcf",
-    "/work/out/fingerprint12.vcf",
-    "/work/out/fingerprint13.vcf",
-    "/work/out/fingerprint14.vcf",
-    "/work/out/Fingerprinting.comparison15crosscheck_metrics"
-   ],
-   "mkdir": []
-  },
-  {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[11].0",
    "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
    "tool": "CrosscheckFingerprints",
@@ -3354,39 +3055,6 @@
     "INPUT=/work/fixtures/testdata/picard/fingerprint/NA12892.over.fingerprints.r1.sam",
     "SECOND_INPUT=/work/fixtures/testdata/picard/fingerprint/NA12891.over.fingerprints.r2.sam",
     "SECOND_INPUT=/work/fixtures/testdata/picard/fingerprint/NA12892.over.fingerprints.r2.sam"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf",
-    "/work/out/fingerprint3.vcf",
-    "/work/out/fingerprint4.vcf",
-    "/work/out/fingerprint5.vcf",
-    "/work/out/fingerprint6.vcf",
-    "/work/out/fingerprint7.vcf",
-    "/work/out/fingerprint8.vcf",
-    "/work/out/fingerprint9.vcf",
-    "/work/out/fingerprint10.vcf",
-    "/work/out/fingerprint11.vcf",
-    "/work/out/fingerprint12.vcf",
-    "/work/out/fingerprint13.vcf",
-    "/work/out/fingerprint14.vcf",
-    "/work/out/Fingerprinting.comparison15crosscheck_metrics"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[12].0",
-   "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
-   "tool": "CrosscheckFingerprints",
-   "args": [
-    "OUTPUT=/work/out/Fingerprinting.comparison15crosscheck_metrics",
-    "LOD_THRESHOLD=-1.0",
-    "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "CROSSCHECK_MODE=CHECK_SAME_SAMPLE",
-    "INPUT=class NA12891_r1_no_fingerprint",
-    "INPUT=class NA12892_r1",
-    "SECOND_INPUT=class NA12891_r2",
-    "SECOND_INPUT=class NA12892_r2"
    ],
    "touch": [
     "/work/out/fingerprint1.vcf",
@@ -3441,39 +3109,6 @@
    "mkdir": []
   },
   {
-   "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[14].0",
-   "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
-   "tool": "CrosscheckFingerprints",
-   "args": [
-    "OUTPUT=/work/out/Fingerprinting.comparison15crosscheck_metrics",
-    "LOD_THRESHOLD=-1.0",
-    "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "CROSSCHECK_MODE=CHECK_ALL_OTHERS",
-    "INPUT=class NA12892_r1",
-    "SECOND_INPUT=class NA12891_r2",
-    "SECOND_INPUT=class NA12892_r2",
-    "CROSSCHECK_BY=SAMPLE"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf",
-    "/work/out/fingerprint3.vcf",
-    "/work/out/fingerprint4.vcf",
-    "/work/out/fingerprint5.vcf",
-    "/work/out/fingerprint6.vcf",
-    "/work/out/fingerprint7.vcf",
-    "/work/out/fingerprint8.vcf",
-    "/work/out/fingerprint9.vcf",
-    "/work/out/fingerprint10.vcf",
-    "/work/out/fingerprint11.vcf",
-    "/work/out/fingerprint12.vcf",
-    "/work/out/fingerprint13.vcf",
-    "/work/out/fingerprint14.vcf",
-    "/work/out/Fingerprinting.comparison15crosscheck_metrics"
-   ],
-   "mkdir": []
-  },
-  {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[15].0",
    "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
    "tool": "CrosscheckFingerprints",
@@ -3485,40 +3120,6 @@
     "INPUT=/work/fixtures/testdata/picard/fingerprint/NA12892.over.fingerprints.r1.sam",
     "SECOND_INPUT=/work/fixtures/testdata/picard/fingerprint/NA12891.over.fingerprints.r2.sam",
     "SECOND_INPUT=/work/fixtures/testdata/picard/fingerprint/NA12892.over.fingerprints.r2.sam",
-    "CROSSCHECK_BY=SAMPLE"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf",
-    "/work/out/fingerprint3.vcf",
-    "/work/out/fingerprint4.vcf",
-    "/work/out/fingerprint5.vcf",
-    "/work/out/fingerprint6.vcf",
-    "/work/out/fingerprint7.vcf",
-    "/work/out/fingerprint8.vcf",
-    "/work/out/fingerprint9.vcf",
-    "/work/out/fingerprint10.vcf",
-    "/work/out/fingerprint11.vcf",
-    "/work/out/fingerprint12.vcf",
-    "/work/out/fingerprint13.vcf",
-    "/work/out/fingerprint14.vcf",
-    "/work/out/Fingerprinting.comparison15crosscheck_metrics"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[16].0",
-   "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
-   "tool": "CrosscheckFingerprints",
-   "args": [
-    "OUTPUT=/work/out/Fingerprinting.comparison15crosscheck_metrics",
-    "LOD_THRESHOLD=-1.0",
-    "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "CROSSCHECK_MODE=CHECK_ALL_OTHERS",
-    "INPUT=class NA12891_r1_no_fingerprint",
-    "INPUT=class NA12892_r1",
-    "SECOND_INPUT=class NA12891_r2",
-    "SECOND_INPUT=class NA12892_r2",
     "CROSSCHECK_BY=SAMPLE"
    ],
    "touch": [
@@ -3575,39 +3176,6 @@
    "mkdir": []
   },
   {
-   "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[18].0",
-   "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
-   "tool": "CrosscheckFingerprints",
-   "args": [
-    "OUTPUT=/work/out/Fingerprinting.comparison15crosscheck_metrics",
-    "LOD_THRESHOLD=-1.0",
-    "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "CROSSCHECK_MODE=CHECK_ALL_OTHERS",
-    "INPUT=class NA12891_r1_no_fingerprint",
-    "SECOND_INPUT=class NA12891_r2",
-    "SECOND_INPUT=class NA12892_r2",
-    "CROSSCHECK_BY=SAMPLE"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf",
-    "/work/out/fingerprint3.vcf",
-    "/work/out/fingerprint4.vcf",
-    "/work/out/fingerprint5.vcf",
-    "/work/out/fingerprint6.vcf",
-    "/work/out/fingerprint7.vcf",
-    "/work/out/fingerprint8.vcf",
-    "/work/out/fingerprint9.vcf",
-    "/work/out/fingerprint10.vcf",
-    "/work/out/fingerprint11.vcf",
-    "/work/out/fingerprint12.vcf",
-    "/work/out/fingerprint13.vcf",
-    "/work/out/fingerprint14.vcf",
-    "/work/out/Fingerprinting.comparison15crosscheck_metrics"
-   ],
-   "mkdir": []
-  },
-  {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[19].0",
    "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
    "tool": "CrosscheckFingerprints",
@@ -3641,37 +3209,6 @@
    "mkdir": []
   },
   {
-   "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[20].0",
-   "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
-   "tool": "CrosscheckFingerprints",
-   "args": [
-    "OUTPUT=/work/out/Fingerprinting.comparison15crosscheck_metrics",
-    "LOD_THRESHOLD=-1.0",
-    "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "CROSSCHECK_MODE=CHECK_ALL_OTHERS",
-    "INPUT=class NA12891_r1_one_rg_no_fingerprint",
-    "CROSSCHECK_BY=READGROUP"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf",
-    "/work/out/fingerprint3.vcf",
-    "/work/out/fingerprint4.vcf",
-    "/work/out/fingerprint5.vcf",
-    "/work/out/fingerprint6.vcf",
-    "/work/out/fingerprint7.vcf",
-    "/work/out/fingerprint8.vcf",
-    "/work/out/fingerprint9.vcf",
-    "/work/out/fingerprint10.vcf",
-    "/work/out/fingerprint11.vcf",
-    "/work/out/fingerprint12.vcf",
-    "/work/out/fingerprint13.vcf",
-    "/work/out/fingerprint14.vcf",
-    "/work/out/Fingerprinting.comparison15crosscheck_metrics"
-   ],
-   "mkdir": []
-  },
-  {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[21].0",
    "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
    "tool": "CrosscheckFingerprints",
@@ -3681,37 +3218,6 @@
     "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
     "CROSSCHECK_MODE=CHECK_ALL_OTHERS",
     "INPUT=/work/fixtures/testdata/picard/fingerprint/NA12891.over.fingerprints.r1.one.rg.no.fingerprint.sam",
-    "CROSSCHECK_BY=READGROUP"
-   ],
-   "touch": [
-    "/work/out/fingerprint1.vcf",
-    "/work/out/fingerprint2.vcf",
-    "/work/out/fingerprint3.vcf",
-    "/work/out/fingerprint4.vcf",
-    "/work/out/fingerprint5.vcf",
-    "/work/out/fingerprint6.vcf",
-    "/work/out/fingerprint7.vcf",
-    "/work/out/fingerprint8.vcf",
-    "/work/out/fingerprint9.vcf",
-    "/work/out/fingerprint10.vcf",
-    "/work/out/fingerprint11.vcf",
-    "/work/out/fingerprint12.vcf",
-    "/work/out/fingerprint13.vcf",
-    "/work/out/fingerprint14.vcf",
-    "/work/out/Fingerprinting.comparison15crosscheck_metrics"
-   ],
-   "mkdir": []
-  },
-  {
-   "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[22].0",
-   "source": "src/test/java/picard/fingerprint/CrosscheckFingerprintsTest.java",
-   "tool": "CrosscheckFingerprints",
-   "args": [
-    "OUTPUT=/work/out/Fingerprinting.comparison15crosscheck_metrics",
-    "LOD_THRESHOLD=-1.0",
-    "HAPLOTYPE_MAP=/work/fixtures/testdata/picard/fingerprint/Homo_sapiens_assembly19.haplotype_database.subset.txt",
-    "CROSSCHECK_MODE=CHECK_ALL_OTHERS",
-    "INPUT=class NA12891_r1_no_fingerprint",
     "CROSSCHECK_BY=READGROUP"
    ],
    "touch": [
@@ -4462,22 +3968,32 @@
    "tool": "SortSam",
    "args": [
     "I=/work/fixtures/testdata/picard/indices/index_test.sam",
-    "O=/work/fixtures/testdata/picard/indices/index_test_sorted.bam",
+    "O=/work/out/testdata/picard/indices/index_test_sorted.bam",
     "SORT_ORDER=coordinate"
    ],
+   "moved": [
+    "testdata/picard/indices/index_test_sorted.bam"
+   ],
    "touch": [],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/indices"
+   ]
   },
   {
    "id": "BuildBamIndexTest#testBuildBamIndexOK.1",
    "source": "src/test/java/picard/sam/BuildBamIndexTest.java",
    "tool": "BuildBamIndex",
    "args": [
-    "INPUT=/work/fixtures/testdata/picard/indices/index_test_sorted.bam",
+    "INPUT=/work/out/testdata/picard/indices/index_test_sorted.bam",
     "OUTPUT=/index_test.bam.bai"
    ],
+   "moved": [
+    "testdata/picard/indices/index_test_sorted.bam"
+   ],
    "touch": [],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/indices"
+   ]
   },
   {
    "id": "BuildBamIndexTest#testBuildSamIndexFail.0",
@@ -7079,36 +6595,46 @@
    "source": "src/test/java/picard/sam/FilterSamReadsTest.java",
    "tool": "FilterSamReads",
    "args": [
-    "INPUT=/work/fixtures/testdata/picard/sam/testSam1.sam",
+    "INPUT=/work/out/testdata/picard/sam/testSam1.sam",
     "OUTPUT=/work/out/FilterSamReads.output.3.sam",
     "FILTER=includeReadList",
     "WRITE_READS_FILES=false"
    ],
    "via": "doWork",
+   "moved": [
+    "testdata/picard/sam/testSam1.sam"
+   ],
    "touch": [
     "testdata/picard/sam/testSam1.sam",
     "/work/out/testdata_picard_sam_2reads",
     "/work/out/FilterSamReads.output.3.sam"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/sam"
+   ]
   },
   {
    "id": "FilterSamReadsTest#testReadFilters[1].0",
    "source": "src/test/java/picard/sam/FilterSamReadsTest.java",
    "tool": "FilterSamReads",
    "args": [
-    "INPUT=/work/fixtures/testdata/picard/sam/testSam1.sam",
+    "INPUT=/work/out/testdata/picard/sam/testSam1.sam",
     "OUTPUT=/work/out/FilterSamReads.output.3.sam",
     "FILTER=excludeReadList",
     "WRITE_READS_FILES=false"
    ],
    "via": "doWork",
+   "moved": [
+    "testdata/picard/sam/testSam1.sam"
+   ],
    "touch": [
     "testdata/picard/sam/testSam1.sam",
     "/work/out/testdata_picard_sam_2reads",
     "/work/out/FilterSamReads.output.3.sam"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/sam"
+   ]
   },
   {
    "id": "FilterSamReadsTest#testBadArgumentCombinations[0].0",
@@ -11209,22 +10735,32 @@
    "source": "src/test/java/picard/vcf/AccumulateVariantCallingMetricsTest.java",
    "tool": "AccumulateVariantCallingMetrics",
    "args": [
-    "OUTPUT=/work/fixtures/testdata/picard/vcfmergeTest"
+    "OUTPUT=/work/out/testdata/picard/vcfmergeTest"
    ],
    "via": "doWork",
+   "moved": [
+    "testdata/picard/vcfmergeTest"
+   ],
    "touch": [],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard"
+   ]
   },
   {
    "id": "AccumulateVariantCallingMetricsTest#testMerge[1].0",
    "source": "src/test/java/picard/vcf/AccumulateVariantCallingMetricsTest.java",
    "tool": "AccumulateVariantCallingMetrics",
    "args": [
-    "OUTPUT=/work/fixtures/testdata/picard/vcfmergeTest"
+    "OUTPUT=/work/out/testdata/picard/vcfmergeTest"
    ],
    "via": "doWork",
+   "moved": [
+    "testdata/picard/vcfmergeTest"
+   ],
    "touch": [],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard"
+   ]
   },
   {
    "id": "CollectVariantCallingMetricsTest#testMetricsTiny.0",
@@ -11233,11 +10769,16 @@
    "args": [
     "INPUT=/work/fixtures/testdata/picard/vcf/mini.vcf",
     "DBSNP=/work/fixtures/testdata/picard/vcf/mini.dbsnp.vcf",
-    "OUTPUT=/work/fixtures/testdata/picard/vcf/vcmetrics_tiny"
+    "OUTPUT=/work/out/testdata/picard/vcf/vcmetrics_tiny"
    ],
    "via": "doWork",
+   "moved": [
+    "testdata/picard/vcf/vcmetrics_tiny"
+   ],
    "touch": [],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/vcf"
+   ]
   },
   {
    "id": "CollectVariantCallingMetricsTest#testMetricsTinyGVCF.0",
@@ -11246,12 +10787,17 @@
    "args": [
     "INPUT=/work/fixtures/testdata/picard/vcf/mini_gvcf.vcf",
     "DBSNP=/work/fixtures/testdata/picard/vcf/mini.dbsnp.vcf",
-    "OUTPUT=/work/fixtures/testdata/picard/vcf/vcmetrics_tiny_gvcf",
+    "OUTPUT=/work/out/testdata/picard/vcf/vcmetrics_tiny_gvcf",
     "GVCF_INPUT=true"
    ],
    "via": "doWork",
+   "moved": [
+    "testdata/picard/vcf/vcmetrics_tiny_gvcf"
+   ],
    "touch": [],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/vcf"
+   ]
   },
   {
    "id": "CollectVariantCallingMetricsTest#testAllHomRefVCF.0",
@@ -11260,19 +10806,28 @@
    "args": [
     "INPUT=/work/out/allHomRef.tmp.1.vcf",
     "DBSNP=/work/fixtures/testdata/picard/vcf/mini.dbsnp.vcf",
-    "OUTPUT=/work/fixtures/testdata/picard/vcf/vcmetrics_allHomRef"
+    "OUTPUT=/work/out/testdata/picard/vcf/vcmetrics_allHomRef"
    ],
    "via": "doWork",
+   "moved": [
+    "testdata/picard/vcf/vcmetrics_allHomRef"
+   ],
    "touch": [
     "/work/out/allHomRef.tmp.1.vcf"
    ],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/vcf"
+   ]
   },
   {
    "id": "FixVcfHeaderTest#testMissingFilterNotInFirstNRecords.0",
    "source": "src/test/java/picard/vcf/FixVcfHeaderTest.java",
    "tool": "FixVcfHeader",
-   "args": [],
+   "args": [
+    "INPUT=/work/fixtures/testdata/picard/vcf/FixVcfHeaderTest/input.vcf",
+    "OUTPUT=/work/out/output.1.vcf",
+    "CHECK_FIRST_N_RECORDS=1"
+   ],
    "touch": [
     "/work/out/output.1.vcf"
    ],
@@ -11282,7 +10837,12 @@
    "id": "FixVcfHeaderTest#testReplaceHeaderWithDifferentSamplesError.0",
    "source": "src/test/java/picard/vcf/FixVcfHeaderTest.java",
    "tool": "FixVcfHeader",
-   "args": [],
+   "args": [
+    "INPUT=/work/fixtures/testdata/picard/vcf/FixVcfHeaderTest/input.vcf",
+    "OUTPUT=/work/out/output.1.vcf",
+    "HEADER=/work/fixtures/testdata/picard/vcf/FixVcfHeaderTest/header_with_extra_sample.vcf",
+    "ENFORCE_SAME_SAMPLES=true"
+   ],
    "touch": [
     "/work/out/output.1.vcf"
    ],
@@ -11292,7 +10852,14 @@
    "id": "GenotypeConcordanceGA4GHSchemeTest#testGA4GHScheme.0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceGA4GHSchemeTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12878",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11302,7 +10869,14 @@
    "id": "GenotypeConcordanceGA4GHSchemeTest#testGA4GHSchemeDiffSamples.0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceGA4GHSchemeTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12891",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11312,7 +10886,14 @@
    "id": "GenotypeConcordanceGA4GHSchemeTest#testGA4GHSchemeWithIntervals.0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceGA4GHSchemeTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12878",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11322,7 +10903,14 @@
    "id": "GenotypeConcordanceGA4GHSchemeTest#testGA4GHSchemeDiffSamplesWithIntervals.0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceGA4GHSchemeTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12891",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11332,7 +10920,14 @@
    "id": "GenotypeConcordanceGA4GHSchemeWithMissingTest#testMissingHomRefSchemeWithIntervals.0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceGA4GHSchemeWithMissingTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/NIST.selected.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12878",
+    "MISSING_SITES_HOM_REF=true",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11342,7 +10937,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[0].0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11352,7 +10956,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[0].1",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=false"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11362,7 +10975,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[1].0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-indels.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-indels.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11372,7 +10994,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[1].1",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-indels.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-indels.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=false"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11382,7 +11013,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[2].0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps_first_line_diff.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11392,7 +11032,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[2].1",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps_first_line_diff.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=false"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11402,7 +11051,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[3].0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps_last_line_diff.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11412,7 +11070,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[3].1",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps_last_line_diff.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=false"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11422,7 +11089,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[4].0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps_del_line.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11432,7 +11108,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[4].1",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps_del_line.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=false"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11442,7 +11127,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[5].0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=true",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11452,7 +11146,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[5].1",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=true",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=false"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11462,7 +11165,17 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[6].0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12891",
+    "MIN_GQ=40",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11472,7 +11185,17 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[6].1",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12891",
+    "MIN_GQ=40",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=false"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11482,7 +11205,17 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[7].0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12891",
+    "MIN_DP=40",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11492,7 +11225,17 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[7].1",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12891",
+    "MIN_DP=40",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=false"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11502,7 +11245,17 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[8].0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/NIST.selected.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=true",
+    "INTERVALS=/work/fixtures/testdata/picard/vcf/IntervalList1PerChrom.interval_list",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11512,7 +11265,17 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[8].1",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/NIST.selected.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/CEUTrio-snps.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=true",
+    "INTERVALS=/work/fixtures/testdata/picard/vcf/IntervalList1PerChrom.interval_list",
+    "OUTPUT_VCF=false"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11522,7 +11285,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[9].0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/spanningDeletionTruth.vcf",
+    "TRUTH_SAMPLE=/dev/stdin",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/spanningDeletionCallset.vcf",
+    "CALL_SAMPLE=CHMI_CHMI3_WGS2",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11532,7 +11304,16 @@
    "id": "GenotypeConcordanceTest#testGenotypeConcordance[9].1",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/spanningDeletionTruth.vcf",
+    "TRUTH_SAMPLE=/dev/stdin",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/spanningDeletionCallset.vcf",
+    "CALL_SAMPLE=CHMI_CHMI3_WGS2",
+    "OUTPUT_ALL_ROWS=false",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/actualGtConc",
+    "MISSING_SITES_HOM_REF=false",
+    "OUTPUT_VCF=false"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11542,7 +11323,14 @@
    "id": "GenotypeConcordanceTest#testNoCallVariants.0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/mini.vcf",
+    "TRUTH_SAMPLE=NA20801",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/mini.vcf",
+    "CALL_SAMPLE=NA19920",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/TwoNoCalls",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11552,7 +11340,14 @@
    "id": "GenotypeConcordanceTest#testNormalizeAllelesForWritingVCF.0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/normalize_no_calls_truth.vcf",
+    "TRUTH_SAMPLE=truth",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/normalize_no_calls_call.vcf",
+    "CALL_SAMPLE=truth",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/MultipleRefAlleles",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11562,7 +11357,14 @@
    "id": "GenotypeConcordanceTest#testSpanningDeletion.0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/spanningDeletionTruth.vcf",
+    "TRUTH_SAMPLE=/dev/stdin",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/spanningDeletionCallset.vcf",
+    "CALL_SAMPLE=CHMI_CHMI3_WGS2",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/spanningDeletion",
+    "OUTPUT_VCF=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11572,7 +11374,14 @@
    "id": "GenotypeConcordanceTest#testIgnoreFilterStatus.0",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/NIST_subset_3sites.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/vcf_with_filtered_calls.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/dontIgnoreFilterStatus",
+    "OUTPUT_VCF=false"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11582,7 +11391,14 @@
    "id": "GenotypeConcordanceTest#testIgnoreFilterStatus.1",
    "source": "src/test/java/picard/vcf/GenotypeConcordanceTest.java",
    "tool": "GenotypeConcordance",
-   "args": [],
+   "args": [
+    "TRUTH_VCF=/work/fixtures/testdata/picard/vcf/NIST_subset_3sites.vcf",
+    "TRUTH_SAMPLE=NA12878",
+    "CALL_VCF=/work/fixtures/testdata/picard/vcf/vcf_with_filtered_calls.vcf",
+    "CALL_SAMPLE=NA12878",
+    "OUTPUT=/work/out/GenotypeConcordanceTest.tmp1/ignoreFilterStatus",
+    "IGNORE_FILTER_STATUS=true"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/GenotypeConcordanceTest.tmp1"
@@ -11609,10 +11425,15 @@
    "tool": "MakeVcfSampleNameMap",
    "args": [
     "I=/work/fixtures/testdata/picard/vcf/mini.vcf",
-    "O=/work/fixtures/testdata/picard/vcf/MakeVcfSampleNameMap/not-used"
+    "O=/work/out/testdata/picard/vcf/MakeVcfSampleNameMap/not-used"
+   ],
+   "moved": [
+    "testdata/picard/vcf/MakeVcfSampleNameMap/not-used"
    ],
    "touch": [],
-   "mkdir": []
+   "mkdir": [
+    "/work/out/testdata/picard/vcf/MakeVcfSampleNameMap"
+   ]
   },
   {
    "id": "FindMendelianViolationsTest#testFindMedelianViolations.0",
@@ -11904,7 +11725,11 @@
    "id": "UpdateVcfSequenceDictionaryTest#testUpdateVcfSequenceDictionary[0].0",
    "source": "src/test/java/picard/vcf/UpdateVcfSequenceDictionaryTest.java",
    "tool": "UpdateVcfSequenceDictionary",
-   "args": [],
+   "args": [
+    "INPUT=/work/fixtures/testdata/picard/vcf/vcfFormatTest.vcf",
+    "SEQUENCE_DICTIONARY=/work/fixtures/testdata/picard/vcf/vcfFormatTest.bad_dict.vcf",
+    "OUTPUT=/work/out/UpdateVcfSequenceDictionaryTest.tmp1updateVcfSequenceDictionaryTest-delete-me.vcf.gz"
+   ],
    "touch": [],
    "mkdir": []
   },
@@ -11912,7 +11737,11 @@
    "id": "UpdateVcfSequenceDictionaryTest#testUpdateVcfSequenceDictionary[1].0",
    "source": "src/test/java/picard/vcf/UpdateVcfSequenceDictionaryTest.java",
    "tool": "UpdateVcfSequenceDictionary",
-   "args": [],
+   "args": [
+    "INPUT=/work/fixtures/testdata/picard/vcf/vcfFormatTest.vcf",
+    "SEQUENCE_DICTIONARY=/work/fixtures/testdata/picard/vcf/vcfFormatTest.bad_dict.vcf",
+    "OUTPUT=/work/out/UpdateVcfSequenceDictionaryTest.tmp1updateVcfSequenceDictionaryTest-delete-me.vcf"
+   ],
    "touch": [],
    "mkdir": []
   },
@@ -11920,7 +11749,10 @@
    "id": "UpdateVcfSequenceDictionaryTest#testUpdateVcfSequenceDictionary[2].0",
    "source": "src/test/java/picard/vcf/UpdateVcfSequenceDictionaryTest.java",
    "tool": "UpdateVcfSequenceDictionary",
-   "args": [],
+   "args": [
+    "INPUT=/work/fixtures/testdata/picard/vcf/vcfFormatTest.vcf",
+    "SEQUENCE_DICTIONARY=/work/fixtures/testdata/picard/vcf/vcfFormatTest.bad_dict.vcf"
+   ],
    "touch": [],
    "mkdir": [
     "/work/out/UpdateVcfSequenceDictionaryTest.tmp1"
@@ -12147,6 +11979,14 @@
    "reason": "data provider: field CollectWgsMetricsTest.tempSamFile has no initializer"
   },
   {
+   "id": "CollectWgsMetricsWithNonZeroCoverageTest#testPoorQualityBases",
+   "reason": "CollectWgsMetricsWithNonZeroCoverage reads testdata/picard/sam/CollectWgsMetrics1.bam, which the test writes in code not evaluated (new SAMFileWriterFactory, in `new SAMFileWriterFactory().setCreateIndex(true).makeBAMWriter(setBuilder.getHeader(), false, testSamFile)`)"
+  },
+  {
+   "id": "CollectWgsMetricsWithNonZeroCoverageTest#testNoCoverage",
+   "reason": "CollectWgsMetricsWithNonZeroCoverage reads testdata/picard/sam/CollectWgsMetrics1.bam, which the test writes in code not evaluated (new SAMFileWriterFactory, in `new SAMFileWriterFactory().setCreateIndex(true).makeBAMWriter(setBuilder.getHeader(), false, testSamFile)`)"
+  },
+  {
    "id": "CompareMetricsTest#testCompareMetrics/8",
    "reason": "data provider: method asList/2"
   },
@@ -12244,6 +12084,50 @@
    "id": "CalculateFingerprintMetricsTest#testFingerprintMetric[4]",
    "reason": "method assertEquals/2",
    "partial": true
+  },
+  {
+   "id": "CheckFingerprintTest#testBaseOutput",
+   "reason": "CheckFingerprint reads testdata/picard/fingerprint/tempCheckFPDir, which the test writes in code not evaluated (branch on String.exists, in `if (!tempFolder.exists()) { tempFolder.mkdir(); }`)"
+  },
+  {
+   "id": "CheckFingerprintTest#testMismatchingAndMissing[0]",
+   "reason": "CheckFingerprint reads testdata/picard/fingerprint/tempCheckFPDir, which the test writes in code not evaluated (branch on String.exists, in `if (!tempFolder.exists()) { tempFolder.mkdir(); }`)"
+  },
+  {
+   "id": "CheckFingerprintTest#testMismatchingAndMissing[1]",
+   "reason": "CheckFingerprint reads testdata/picard/fingerprint/tempCheckFPDir, which the test writes in code not evaluated (branch on String.exists, in `if (!tempFolder.exists()) { tempFolder.mkdir(); }`)"
+  },
+  {
+   "id": "CheckFingerprintTest#testMismatchingAndMissing[2]",
+   "reason": "CheckFingerprint reads testdata/picard/fingerprint/tempCheckFPDir, which the test writes in code not evaluated (branch on String.exists, in `if (!tempFolder.exists()) { tempFolder.mkdir(); }`)"
+  },
+  {
+   "id": "CheckFingerprintTest#testMismatchingAndMissing[3]",
+   "reason": "CheckFingerprint reads testdata/picard/fingerprint/tempCheckFPDir, which the test writes in code not evaluated (branch on String.exists, in `if (!tempFolder.exists()) { tempFolder.mkdir(); }`)"
+  },
+  {
+   "id": "CheckFingerprintTest#testMismatchingAndMissing[4]",
+   "reason": "CheckFingerprint reads testdata/picard/fingerprint/tempCheckFPDir, which the test writes in code not evaluated (branch on String.exists, in `if (!tempFolder.exists()) { tempFolder.mkdir(); }`)"
+  },
+  {
+   "id": "CheckFingerprintTest#testSummaryAndDetailOutputs",
+   "reason": "CheckFingerprint reads testdata/picard/fingerprint/tempCheckFPDir, which the test writes in code not evaluated (branch on String.exists, in `if (!tempFolder.exists()) { tempFolder.mkdir(); }`)"
+  },
+  {
+   "id": "CheckFingerprintTest#testBadData[0]",
+   "reason": "CheckFingerprint reads testdata/picard/fingerprint/tempCheckFPDir, which the test writes in code not evaluated (branch on String.exists, in `if (!tempFolder.exists()) { tempFolder.mkdir(); }`)"
+  },
+  {
+   "id": "CheckFingerprintTest#testBadData[1]",
+   "reason": "CheckFingerprint reads testdata/picard/fingerprint/tempCheckFPDir, which the test writes in code not evaluated (branch on String.exists, in `if (!tempFolder.exists()) { tempFolder.mkdir(); }`)"
+  },
+  {
+   "id": "CheckFingerprintTest#testBadData[2]",
+   "reason": "CheckFingerprint reads testdata/picard/fingerprint/tempCheckFPDir, which the test writes in code not evaluated (branch on String.exists, in `if (!tempFolder.exists()) { tempFolder.mkdir(); }`)"
+  },
+  {
+   "id": "CheckFingerprintTest#testBadData[3]",
+   "reason": "CheckFingerprint reads testdata/picard/fingerprint/tempCheckFPDir, which the test writes in code not evaluated (branch on String.exists, in `if (!tempFolder.exists()) { tempFolder.mkdir(); }`)"
   },
   {
    "id": "CheckFingerprintTest#testCheckFingerprintSam[0]",
@@ -12984,8 +12868,7 @@
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[0]",
-   "reason": "unknown name f",
-   "partial": true
+   "reason": "unknown name f"
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[1]",
@@ -12994,8 +12877,7 @@
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[2]",
-   "reason": "unknown name f",
-   "partial": true
+   "reason": "unknown name f"
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[3]",
@@ -13004,8 +12886,7 @@
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[4]",
-   "reason": "unknown name f",
-   "partial": true
+   "reason": "unknown name f"
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[5]",
@@ -13014,8 +12895,7 @@
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[6]",
-   "reason": "unknown name f",
-   "partial": true
+   "reason": "unknown name f"
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[7]",
@@ -13024,8 +12904,7 @@
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[8]",
-   "reason": "unknown name f",
-   "partial": true
+   "reason": "unknown name f"
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[9]",
@@ -13034,8 +12913,7 @@
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[10]",
-   "reason": "unknown name f",
-   "partial": true
+   "reason": "unknown name f"
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[11]",
@@ -13044,8 +12922,7 @@
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[12]",
-   "reason": "unknown name f",
-   "partial": true
+   "reason": "unknown name f"
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[13]",
@@ -13054,8 +12931,7 @@
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[14]",
-   "reason": "unknown name f",
-   "partial": true
+   "reason": "unknown name f"
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[15]",
@@ -13064,8 +12940,7 @@
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[16]",
-   "reason": "unknown name f",
-   "partial": true
+   "reason": "unknown name f"
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[17]",
@@ -13074,8 +12949,7 @@
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[18]",
-   "reason": "unknown name f",
-   "partial": true
+   "reason": "unknown name f"
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[19]",
@@ -13084,8 +12958,7 @@
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[20]",
-   "reason": "CrosscheckFingerprints reads /work/out/Fingerprinting.comparison15crosscheck_metrics, which the test writes in code not evaluated (new MetricsFile, in `metricsOutput.read(new FileReader(metrics));`)",
-   "partial": true
+   "reason": "unknown name f"
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[21]",
@@ -13094,8 +12967,7 @@
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[22]",
-   "reason": "CrosscheckFingerprints reads /work/out/Fingerprinting.comparison15crosscheck_metrics, which the test writes in code not evaluated (new MetricsFile, in `metricsOutput.read(new FileReader(metrics));`)",
-   "partial": true
+   "reason": "unknown name f"
   },
   {
    "id": "CrosscheckFingerprintsTest#testMissingOrNoFingerprintingSites[23]",
