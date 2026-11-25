@@ -93,13 +93,15 @@ pub struct Panel {
 #[derive(Debug, Clone, Default)]
 pub struct SpanIndex {
     /// Per contig: `(start, end, index in the list)` by start, and the longest `end - start`.
-    contigs: std::collections::HashMap<i32, (Vec<(i32, i32, usize)>, i64)>,
+    contigs: std::collections::HashMap<i32, ContigSpans>,
 }
+
+/// One contig's `(start, end, index in the list)` by start, and its longest `end - start`.
+type ContigSpans = (Vec<(i32, i32, usize)>, i64);
 
 impl SpanIndex {
     pub fn new(spans: &[Span]) -> Self {
-        let mut contigs: std::collections::HashMap<i32, (Vec<(i32, i32, usize)>, i64)> =
-            Default::default();
+        let mut contigs: std::collections::HashMap<i32, ContigSpans> = Default::default();
         for (i, s) in spans.iter().enumerate() {
             let entry = contigs.entry(s.0).or_default();
             entry.0.push((s.1, s.2, i));
