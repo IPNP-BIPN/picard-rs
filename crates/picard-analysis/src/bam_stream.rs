@@ -1367,6 +1367,28 @@ mod tests {
         at + u16::from_le_bytes([file[at + 16], file[at + 17]]) as usize + 1
     }
 
+    /// The header alone is read, so a damaged or truncated block after it changes nothing, and a
+    /// file whose header does not read is left to the caller.
+    #[test]
+    fn the_header_alone_reads_past_damage_after_it() {
+        let (plain, _) = plain_bam(20_000);
+        let file = bgzf(&plain);
+        let second = block_end(&file, 0);
+        let mut flipped = file.clone();
+        flipped[block_end(&file, second) + 40] ^= 0xff;
+        let truncated = file[..block_end(&file, second) + 40].to_vec();
+        let expected = BamReader::new(&plain).unwrap().header.text.clone();
+        let path = std::env::temp_dir().join(format!("header_only.{}.bam", std::process::id()));
+        let path_str = path.to_str().unwrap();
+        for case in [&file, &flipped, &truncated] {
+            std::fs::write(&path, case).unwrap();
+            assert_eq!(header_only(path_str).map(|h| h.encode()), Some(expected.encode()));
+        }
+        std::fs::write(&path, &file[..20]).unwrap();
+        assert!(header_only(path_str).is_none());
+        std::fs::remove_file(&path).unwrap();
+    }
+
     #[test]
     fn answers_as_the_whole_file_read_did() {
         let (plain, start) = plain_bam(20_000);
