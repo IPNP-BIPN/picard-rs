@@ -30,12 +30,12 @@ CollectJumpingLibraryMetrics I=$I O=$O/l.txt
 CollectMultipleMetrics I=$I O=$O/m R=$R
 CollectOxoGMetrics I=$I O=$O/n.txt R=$R
 CollectQualityYieldMetrics I=$I O=$O/o.txt
-CollectQualityYieldMetricsFlow I=$I O=$O/o2.txt
-CollectQualityYieldMetricsSNVQ I=$I O=$O/o3.txt
+# CollectQualityYieldMetricsFlow: both sides refuse a non-flow BAM ("Reads should originate from a flow based platform"); no flow data at scale.
+# CollectQualityYieldMetricsSNVQ: both sides need SNVQ tags (Picard throws a NullPointerException without them); none at scale.
 CollectRawWgsMetrics I=$I O=$O/p.txt R=$R
 CollectRnaSeqMetrics I=$I O=$O/q.txt REF_FLAT=$B/refflat.txt STRAND_SPECIFICITY=NONE
 CollectRrbsMetrics I=$I M=$O/r R=$R
-CollectSamErrorMetrics I=$I O=$O/s R=$R ERROR_METRICS=ERROR ERROR_METRICS=ERROR:READ_ORDINALITY ERROR_METRICS=ERROR:BASE_QUALITY ERROR_METRICS=ERROR:CYCLE
+CollectSamErrorMetrics I=$I O=$O/s R=$R V=$S/dbsnp138.chr20.vcf.gz
 CollectSequencingArtifactMetrics I=$I O=$O/t R=$R
 CollectTargetedPcrMetrics I=$I O=$O/u.txt R=$R AMPLICON_INTERVALS=$T TARGET_INTERVALS=$T
 CollectUmiPrevalenceMetrics I=$I O=$O/v.txt
@@ -51,7 +51,7 @@ MarkDuplicates I=$I O=$O/fd.bam M=$O/fd.txt
 MarkDuplicatesWithMateCigar I=$I O=$O/fe.bam M=$O/fe.txt
 SimpleMarkDuplicatesWithMateCigar I=$I O=$O/ff.bam M=$O/ff.txt
 UmiAwareMarkDuplicatesWithMateCigar I=$I O=$O/fg.bam M=$O/fg.txt UMI_METRICS=$O/fg2.txt
-MarkIlluminaAdapters I=$Q O=$O/fh.bam M=$O/fh.txt
+MarkIlluminaAdapters I=$P/unmapped.bam O=$O/fh.bam M=$O/fh.txt
 MeanQualityByCycle I=$I O=$O/fi.txt CHART=$O/fi.pdf
 MergeSamFiles I=$I I=$B/coord.bam O=$O/fj.bam
 PositionBasedDownsampleSam I=$I O=$O/fk.bam FRACTION=0.5
