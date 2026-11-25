@@ -106,7 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // filled. Neither is closed, so neither the index nor the MD5 file appears.
     let thrown = |thrown: String| -> Result<(), Box<dyn std::error::Error>> {
         let partial = if output.ends_with(".sam") {
-            header.encode().into_bytes()
+            header.encode_replacing_version().into_bytes()
         } else {
             let writer = picard_analysis::output::bam_writer(Vec::new(), &header)
                 .expect("in-memory BAM writer never fails");

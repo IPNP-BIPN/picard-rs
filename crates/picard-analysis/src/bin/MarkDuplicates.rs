@@ -435,7 +435,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut previous: Option<(i32, i32)> = None;
 
     // Picard's writer is opened before the second pass, and a failure in it leaves no file.
-    let mut writer = Output::bam(&output, &out_header, false)?;
+    let mut writer = Output::create(&output, &out_header, false)?;
     let optical_pairs = std::mem::take(&mut decisions.optical_pairs);
     let all_sets = std::mem::take(&mut decisions.all_sets);
     let optical_sets = std::mem::take(&mut decisions.optical_sets);

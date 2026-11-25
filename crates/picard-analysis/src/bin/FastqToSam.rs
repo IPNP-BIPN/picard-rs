@@ -191,7 +191,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             Box::new(records)
         };
-    let mut out = Output::bam(&output, &full_header(&options), false)?;
+    let mut out = Output::create(&output, &full_header(&options), false)?;
     for record in sorted {
         match record {
             Ok(record) => out.write(&record)?,

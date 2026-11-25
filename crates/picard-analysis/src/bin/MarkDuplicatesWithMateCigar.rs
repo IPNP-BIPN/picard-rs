@@ -273,7 +273,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "MarkDuplicatesWithMateCigar",
     );
 
-    let mut out = Output::bam(&output, &out_header, false)?;
+    let mut out = Output::create(&output, &out_header, false)?;
     for (index, mut written) in open(Some(streamed))?.1.enumerate() {
         if !marking.written[index] {
             continue;

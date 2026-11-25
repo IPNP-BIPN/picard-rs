@@ -198,18 +198,12 @@ impl Checker {
 }
 
 impl Output {
-    /// Opens `path` for `header`. `opened_first` says whether the tool's whole-file writer had
-    /// already created the file when a record failed, so a failure leaves it empty, not absent.
+    /// Opens `path` for `header`, as `SAMFileWriterFactory.makeWriter` picks the format: `.sam`
+    /// is SAM text, `.cram` CRAM, any other name BAM. `opened_first` says whether the tool's
+    /// whole-file writer had already created the file when a record failed, so a failure leaves
+    /// it empty, not absent.
     pub fn create(path: &str, header: &SamHeader, opened_first: bool) -> io::Result<Output> {
-        Output::open(path, header, opened_first, path.ends_with(".sam"))
-    }
-
-    /// [`Self::create`] for a tool that writes a BAM whatever the name, a CRAM name aside.
-    pub fn bam(path: &str, header: &SamHeader, opened_first: bool) -> io::Result<Output> {
-        Output::open(path, header, opened_first, false)
-    }
-
-    fn open(path: &str, header: &SamHeader, opened_first: bool, sam: bool) -> io::Result<Output> {
+        let sam = path.ends_with(".sam");
         let coordinate = header.attributes.get("SO") == Some("coordinate");
         let sink = if crate::cram_output::is_cram(path) {
             if opened_first {
@@ -218,7 +212,7 @@ impl Output {
             Sink::Cram(crate::output::bam_writer(Vec::new(), header)?)
         } else if sam {
             let mut out = BufWriter::new(File::create(path)?);
-            let text = header.encode();
+            let text = header.encode_replacing_version();
             out.write_all(text.as_bytes())?;
             Sink::Sam(out, header.clone(), text.len())
         } else {
@@ -451,6 +445,24 @@ mod tests {
         let mut out = Output::create(&path, &header, false).unwrap();
         out.write(&records[0]).unwrap();
         out.abandon_unclosed().unwrap();
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), header.encode());
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            header.encode_replacing_version()
+        );
+    }
+
+    /// `SAMTextWriter` encodes the header with `keepExistingVersionNumber = false`: a `VN:1.0`
+    /// input comes out as `VN:1.6`, as CleanSamTest's outputs do.
+    #[test]
+    fn a_sam_gets_the_current_version() {
+        let (header, _) = read_sam(&SAM.replace("VN:1.6", "VN:1.0")).unwrap();
+        let path = scratch("version.sam");
+        Output::create(&path, &header, false)
+            .unwrap()
+            .finish(false, false)
+            .unwrap();
+        assert!(std::fs::read_to_string(&path)
+            .unwrap()
+            .starts_with("@HD\tVN:1.6\tSO:coordinate\n"));
     }
 }

@@ -76,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if output.ends_with(".sam") {
         let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
-        out.write_all(header.encode().as_bytes())?;
+        out.write_all(header.encode_replacing_version().as_bytes())?;
         for record in records {
             // `write_sam` refused the file for one record it could not encode, which left the
             // empty file opened above: written line by line, the same file is emptied again.

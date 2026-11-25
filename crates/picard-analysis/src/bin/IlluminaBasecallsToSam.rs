@@ -231,7 +231,7 @@ fn main() {
         let out = if sam {
             picard_analysis::stream_output::Output::create(&name, &header, true)
         } else {
-            picard_analysis::stream_output::Output::bam(&name, &header, true)
+            picard_analysis::stream_output::Output::create(&name, &header, true)
         };
         let out = out.unwrap_or_else(|e| {
             thrown(&format!(

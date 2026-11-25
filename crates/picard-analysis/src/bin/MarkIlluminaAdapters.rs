@@ -270,7 +270,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // first record as `makeWriter` opens it, so a run that throws leaves it empty.
     let mut out = output
         .as_deref()
-        .map(|output| picard_analysis::stream_output::Output::bam(output, &header, true))
+        .map(|output| picard_analysis::stream_output::Output::create(output, &header, true))
         .transpose()?;
     // `histo.increment(r.getReadLength() - clip + 1)`: the bases a read would lose if it were
     // clipped at the tag, counted for every marked record and for no other.
