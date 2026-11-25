@@ -121,19 +121,12 @@ fn tail(path: &str) -> std::io::Result<Vec<u8>> {
     Ok(data)
 }
 
-/// The INPUT's header, inflating no further than it reaches, as `findVirtualOffsetOfFirstRecordInBam`
-/// reads it.
-fn header_only(path: &str) -> Result<SamHeader, picard_analysis::bam_stream::Failure> {
-    let file = std::io::BufReader::new(std::fs::File::open(path)?);
-    picard_analysis::bam_stream::RecordStream::new(htsjdk_bgzf::BgzfReader::new(file)).header()
-}
-
 /// HEADER's header, as `SamReaderFactory.getFileHeader` reads it: a BAM no further than its header,
 /// so a large or damaged file past the header costs nothing and refuses nothing. A header that does
 /// not read is read whole, which throws what htsjdk throws.
 fn replacement_header(path: &str) -> Result<SamHeader, Box<dyn std::error::Error>> {
     if is_bam(path)? {
-        if let Ok(header) = header_only(path) {
+        if let Some(header) = picard_analysis::bam_stream::header_only(path) {
             return Ok(header);
         }
         return Ok(Input::open_with(path, ValidationStringency::Silent)?.header);
@@ -202,7 +195,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
         if !create_index {
-            if let Ok(input_header) = header_only(&input) {
+            if let Some(input_header) = picard_analysis::bam_stream::header_only(&input) {
                 check_sort_order(&input_header, &replacement);
                 return block_copy(&input, &output, &replacement);
             }

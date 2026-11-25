@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| arg(&args, "O="))
         .unwrap_or_else(|| format!("{input}.read_group_md5"));
 
-    let read_groups = match picard_analysis::bam_stream::clean_header(&input) {
+    let read_groups = match picard_analysis::bam_stream::header_only(&input) {
         Some(header) => header.read_groups,
         None => {
             let mut raw = Vec::new();
