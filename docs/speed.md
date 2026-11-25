@@ -34,6 +34,8 @@ What holds the rest:
 
 ## Every row, worst RSS ratio first
 
+CPU s is user + system time of every thread, RSS MiB the peak resident set, Picard against the port (origin/main) on the same input; for a row an open PR changes, the last column gives the port after it, CPU and RSS, and the two ratios to Picard.
+
 | Row | Picard CPU s | port CPU s | CPU ratio | Picard RSS MiB | port RSS MiB | RSS ratio | Verdict | Why, or what is open |
 |---|---:|---:|---:|---:|---:|---:|---|---|
 | MarkDuplicatesWithMateCigar | 126.6 | 181.2 | 1.43 | 375 | 6120 | 16.33 | port failed | port killed at the 6 GB limit (Picard 375 MiB); MarkDuplicates* move to picard-markduplicates in #484, optimised after it |
