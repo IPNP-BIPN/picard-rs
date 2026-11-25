@@ -724,7 +724,9 @@ pub fn clean_header(path: &str) -> Option<SamHeader> {
 /// the refusal it gave.
 pub fn header_only(path: &str) -> Option<SamHeader> {
     let file = File::open(path).ok()?;
-    RecordStream::new(htsjdk_bgzf::BgzfReader::new(BufReader::new(file))).header().ok()
+    RecordStream::new(htsjdk_bgzf::BgzfReader::new(BufReader::new(file)))
+        .header()
+        .ok()
 }
 
 /// A BAM decoded in one pass, for a tool that can throw away what it made of the records: the
@@ -1181,7 +1183,10 @@ mod tests {
         let path_str = path.to_str().unwrap();
         for case in [&file, &flipped, &truncated] {
             std::fs::write(&path, case).unwrap();
-            assert_eq!(header_only(path_str).map(|h| h.encode()), Some(expected.encode()));
+            assert_eq!(
+                header_only(path_str).map(|h| h.encode()),
+                Some(expected.encode())
+            );
         }
         std::fs::write(&path, &file[..20]).unwrap();
         assert!(header_only(path_str).is_none());
