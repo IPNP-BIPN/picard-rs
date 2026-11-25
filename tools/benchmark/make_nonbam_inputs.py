@@ -119,7 +119,7 @@ with open(N / "bait_targets.interval_list", "w") as f:
     f.write("@HD\tVN:1.6\n" + "".join(dict_lines))
     for i in range(5000):
         start = 1000 + i * 190
-        f.write(f"chr1\t{start}\t{start + 299}\t+\tt{i}\n")
+        f.write(f"{dict_lines[0].split()[1][3:]}\t{start}\t{start + 299}\t+\tt{i}\n")
 
 # Metrics files for the tools that read other tools' metrics.
 for name in ("quality_yield_one.metrics",):
