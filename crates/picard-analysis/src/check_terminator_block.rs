@@ -7,6 +7,7 @@
 //! the enum name Picard prints and to the exit code.
 
 use htsjdk_bgzf::{check_termination, FileTermination};
+use std::io::{Read, Seek, SeekFrom};
 
 /// The exit code Picard returns for a defective file (`FileTermination.DEFECTIVE`).
 pub const DEFECTIVE_EXIT_CODE: i32 = 100;
@@ -30,6 +31,18 @@ pub fn check_terminator_block(data: &[u8]) -> (String, i32) {
         0
     };
     (termination_name(term).to_string(), code)
+}
+
+/// The last block's worth of the file: `checkTermination` reads no further back than that.
+pub fn tail(path: &str) -> std::io::Result<Vec<u8>> {
+    let mut file = std::fs::File::open(path)?;
+    let len = file.metadata()?.len();
+    file.seek(SeekFrom::Start(
+        len.saturating_sub(htsjdk_bgzf::MAX_COMPRESSED_BLOCK_SIZE as u64),
+    ))?;
+    let mut data = Vec::new();
+    file.read_to_end(&mut data)?;
+    Ok(data)
 }
 
 #[cfg(test)]

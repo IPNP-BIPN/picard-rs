@@ -64,7 +64,7 @@ pub fn add_comments_to_bam_file(
     output: &str,
     comments: &[&str],
 ) -> Option<Result<(), AddCommentsError>> {
-    let mut header = crate::bam_stream::header_if_clean(input)?;
+    let mut header = crate::bam_stream::header_only(input)?;
     for comment in comments {
         if comment.contains('\n') {
             return Some(Err(AddCommentsError::NewlineInComment));
@@ -103,6 +103,36 @@ mod tests {
             w.write(r).unwrap();
         }
         w.finish().unwrap()
+    }
+
+    /// Only the header is read: the blocks after it are copied as they are, a damaged one included,
+    /// as `reheaderBamFile` copies them without inflating them.
+    #[test]
+    fn a_damaged_block_after_the_header_is_copied_as_it_is() {
+        let mut sam = String::from("@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:100000\n");
+        for i in 0..20_000 {
+            sam.push_str(&format!(
+                "r{i}\t0\tchr1\t{}\t60\t4M\t*\t0\t0\tACGT\tIIII\n",
+                i + 1
+            ));
+        }
+        let mut input = build_bam(&sam);
+        let block_end =
+            |at: usize| at + u16::from_le_bytes([input[at + 16], input[at + 17]]) as usize + 1;
+        let second = block_end(0);
+        let third = block_end(second);
+        input[third + 40] ^= 0xff;
+        let dir = std::env::temp_dir();
+        let (from, to) = (
+            dir.join(format!("damaged.{}.bam", std::process::id())),
+            dir.join(format!("damaged.{}.out.bam", std::process::id())),
+        );
+        std::fs::write(&from, &input).unwrap();
+        let copied = add_comments_to_bam_file(from.to_str().unwrap(), to.to_str().unwrap(), &["c"]);
+        assert!(matches!(copied, Some(Ok(()))));
+        assert!(std::fs::read(&to).unwrap().ends_with(&input[second..]));
+        std::fs::remove_file(&from).unwrap();
+        std::fs::remove_file(&to).unwrap();
     }
 
     #[test]
