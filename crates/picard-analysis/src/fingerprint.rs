@@ -1827,10 +1827,10 @@ pub fn fingerprint_sam_input(
             let (name, rg) = &reads[rec.read as usize];
             if rg.is_none() && !groups.iter().any(|(g, _, _)| g.is_none()) {
                 if options.strict {
-                    return Err(format!(
-                        "picard.PicardException: Found read with no readgroup: {} in file: {path}",
-                        name
-                    ));
+                    // `createUnknownFP` logs the exception before it throws it.
+                    let message = format!("Found read with no readgroup: {name} in file: {path}");
+                    crate::vcf_io::log_error("FingerprintChecker", &message);
+                    return Err(format!("picard.PicardException: {message}"));
                 }
                 let mut details = IdDetails::new(Some("<UNKNOWN>.0.ZZZ"), &uri);
                 details.library = Some("<UNKNOWN>".to_string());

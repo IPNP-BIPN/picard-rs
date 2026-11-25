@@ -223,27 +223,38 @@ pub fn fingerprint_files_concurrent(
     fingerprint_files_indexed(files, map, sam_options, require_index_files, &[], random)
 }
 
-/// Is `file` a CRAM with no index beside it (`SamFiles.lookForIndex`) and none in the map?
-fn cram_without_index(file: &str, index_map: &[(String, String)]) -> bool {
-    let mut head = [0u8; 4];
-    let is_cram = std::fs::File::open(file)
-        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut head))
-        .is_ok()
-        && crate::cram_input::is_cram(&head);
-    if !is_cram {
-        return false;
-    }
+/// Is `file` a reads file `getSamReader` cannot query: no index in the map and none
+/// `SamFiles.findIndex` finds beside it (`foo.bai` or `foo.csi` for `foo.bam`, `foo.crai` for
+/// `foo.cram`, then the whole name with `.bai` or `.csi` added), or SAM text, which no index makes
+/// queryable.
+fn unqueryable(file: &str, index_map: &[(String, String)]) -> bool {
     let explicit = index_map
         .iter()
         .any(|(input, _)| *input == crate::fingerprint::reference_path(file));
+    if explicit {
+        return false;
+    }
+    let mut head = [0u8; 4];
+    let read = std::fs::File::open(file)
+        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut head))
+        .is_ok();
+    let is_cram = read && crate::cram_input::is_cram(&head);
+    // A BAM is BGZF, which starts as any gzip member does; SAM text does not.
+    let is_bam = read && head[..2] == [0x1f, 0x8b];
+    if !is_cram && !is_bam {
+        return true;
+    }
     let mut candidates = Vec::new();
-    if let Some(stem) = file.strip_suffix(".cram") {
+    if let Some(stem) = file.strip_suffix(".bam") {
+        candidates.push(format!("{stem}.bai"));
+        candidates.push(format!("{stem}.csi"));
+    } else if let Some(stem) = file.strip_suffix(".cram") {
         candidates.push(format!("{stem}.crai"));
         candidates.push(format!("{file}.crai"));
     }
     candidates.push(format!("{file}.bai"));
     candidates.push(format!("{file}.csi"));
-    !explicit && !candidates.iter().any(|c| std::path::Path::new(c).is_file())
+    !candidates.iter().any(|c| std::path::Path::new(c).is_file())
 }
 
 /// The same, with the index map's explicit indexes: a file it names is read through that index,
@@ -258,11 +269,42 @@ fn fingerprint_files_indexed(
 ) -> Result<Vec<(IdDetails, Fingerprint)>, String> {
     let mut collected: Vec<(i32, (IdDetails, Fingerprint))> = Vec::new();
     for file in files {
+        // Each file is fingerprinted in a task of `fingerprintFiles`' pool, and whatever the task
+        // throws comes out of `ExecutorCompletionService.take().get()` as `Failed to fingerprint`.
+        let found = fingerprint_file(
+            file,
+            map,
+            sam_options,
+            require_index_files,
+            index_map,
+            random,
+        )
+        .map_err(|_| "picard.PicardException: Failed to fingerprint".to_string())?;
+        for (details, fp) in found {
+            match collected.iter().position(|(_, (d, _))| d.same(&details)) {
+                Some(at) => collected[at].1 .1 = fp,
+                None => collected.push((details.hash_code(), (details, fp))),
+            }
+        }
+    }
+    Ok(concurrent_hash_order(collected, files.len()))
+}
+
+/// One task of `fingerprintFiles`' pool: the fingerprints of one SAM, BAM, CRAM or VCF.
+fn fingerprint_file(
+    file: &str,
+    map: &HaplotypeMap,
+    sam_options: &SamOptions,
+    require_index_files: bool,
+    index_map: &[(String, String)],
+    random: &mut SharedRandom,
+) -> Result<Vec<(IdDetails, Fingerprint)>, String> {
+    {
         let reads = file.ends_with(".bam") || file.ends_with(".sam") || file.ends_with(".cram");
         let found: Vec<(IdDetails, Fingerprint)> = if reads {
-            // `getSamReader`: a CRAM is queryable only through an index `SamFiles.findIndex`
+            // `getSamReader`: a reads file is queryable only through an index `SamFiles.findIndex`
             // finds or the index map names, and the refusal is raised inside the pool.
-            if require_index_files && cram_without_index(file, index_map) {
+            if require_index_files && unqueryable(file, index_map) {
                 return Err("picard.PicardException: Failed to fingerprint".to_string());
             }
             fingerprint_sam_file(
@@ -302,14 +344,8 @@ fn fingerprint_files_indexed(
                     .collect(),
             )
         };
-        for (details, fp) in found {
-            match collected.iter().position(|(_, (d, _))| d.same(&details)) {
-                Some(at) => collected[at].1 .1 = fp,
-                None => collected.push((details.hash_code(), (details, fp))),
-            }
-        }
+        Ok(found)
     }
-    Ok(concurrent_hash_order(collected, files.len()))
 }
 
 /// `fingerprintFiles` followed by `capFingerprints`, which copies into a `HashMap`, in that map's
