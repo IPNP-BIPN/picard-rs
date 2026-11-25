@@ -1155,6 +1155,7 @@ dependencies = [
  "htsjdk-vcf",
  "jmath",
  "libc",
+ "libdeflater",
  "md-5",
  "mimalloc",
  "noodles-bgzf",

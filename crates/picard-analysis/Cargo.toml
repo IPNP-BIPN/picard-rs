@@ -31,6 +31,8 @@ hashbrown = { version = "0.17.1", default-features = false }
 # Whole-file BGZF inflation on every core, with libdeflate. Its libdeflater must resolve to the
 # libdeflate-sys htsjdk-bgzf already links (`links = "deflate"` admits one copy).
 noodles-bgzf = { version = "0.52", features = ["libdeflate"] }
+# The streaming inflater's own blocks (bam_stream::BlockInflater), with the same libdeflate.
+libdeflater = "1.26"
 # The sequence-dictionary M5 is an MD5 of the uppercased contig bases (SequenceUtil.calculateMD5).
 md-5 = "0.11"
 # `READ_NAME_REGEX` when it is not the default: a Java `Pattern` the parser `matches` a name against.
