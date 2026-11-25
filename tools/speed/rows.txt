@@ -1,0 +1,147 @@
+# The rows tools/speed/bench.py times: one per picard-rs tool (121), plus two at a plate of 384
+# barcodes. Variables: $I the chr20 30x BAM (coordinate), $Q Picard's queryname sort of it,
+# $R/$D chr20 FASTA and dict, $T exome-like targets, $B derived inputs, $G big/ (trio VCF over
+# dbSNP's sites, intervals, chain, GFF), $N nonbam/ (make_nonbam_inputs.py), $P Picard-made
+# inputs (prep lines below, run once, unmeasured), $RUN/$R384 Illumina basecalls, $A arrays,
+# $O the row's output directory. Derived by tools/speed/make_scale_inputs.py.
+prep CollectVariantCallingMetrics I=$G/big.vcf DBSNP=$N/dbsnp.vcf O=$P/cvcm SD=$D
+prep CrosscheckFingerprints I=$N/fp_many.vcf CROSSCHECK_BY=SAMPLE HAPLOTYPE_MAP=$N/hap.txt O=$P/xc.txt LOD_THRESHOLD=-5 EXIT_CODE_WHEN_MISMATCH=0
+prep ExtractIlluminaBarcodes BASECALLS_DIR=$RUN READ_STRUCTURE=25T8B25T BARCODE_FILE=$N/ill_barcodes.txt LANE=1 OUTPUT_DIR=$P/bc METRICS_FILE=$P/bc_metrics.txt
+prep ExtractIlluminaBarcodes BASECALLS_DIR=$R384 READ_STRUCTURE=25T8B25T BARCODE_FILE=$N/ill_barcodes_384.txt LANE=1 OUTPUT_DIR=$P/bc384 METRICS_FILE=$P/bc384_metrics.txt
+prep RevertSam I=$Q O=$P/unmapped.bam
+prep CollectInsertSizeMetrics I=$I O=$P/k.txt H=$P/k.pdf
+prep CollectSequencingArtifactMetrics I=$I O=$P/t R=$R
+prep CollectQualityYieldMetrics I=$I O=$P/qy.txt
+AddCommentsToBam I=$W/bench.bam O=$O/a.bam C=hello
+AddOATag I=$I O=$O/b.bam
+AddOrReplaceReadGroups I=$I O=$O/c.bam RGLB=l RGPL=ILLUMINA RGPU=u RGSM=s
+BuildBamIndex I=$I O=$O/bench.bai
+BamIndexStats I=$B/coord.bam
+CalculateReadGroupChecksum I=$I O=$O/d.md5
+CheckTerminatorBlock I=$I
+CleanSam I=$I O=$O/e.bam
+CollectAlignmentSummaryMetrics I=$I O=$O/f.txt R=$R
+CollectBaseDistributionByCycle I=$I O=$O/g.txt CHART=$O/g.pdf
+CollectDuplicateMetrics I=$I M=$O/h.txt
+CollectGcBiasMetrics I=$I O=$O/i.txt CHART=$O/i.pdf S=$O/i2.txt R=$R
+CollectHsMetrics I=$I O=$O/j.txt R=$R BAIT_INTERVALS=$T TARGET_INTERVALS=$T
+CollectInsertSizeMetrics I=$I O=$O/k.txt H=$O/k.pdf
+CollectJumpingLibraryMetrics I=$I O=$O/l.txt
+CollectMultipleMetrics I=$I O=$O/m R=$R
+CollectOxoGMetrics I=$I O=$O/n.txt R=$R
+CollectQualityYieldMetrics I=$I O=$O/o.txt
+# CollectQualityYieldMetricsFlow: both sides refuse a non-flow BAM ("Reads should originate from a flow based platform"); no flow data at scale.
+# CollectQualityYieldMetricsSNVQ: both sides need SNVQ tags (Picard throws a NullPointerException without them); none at scale.
+CollectRawWgsMetrics I=$I O=$O/p.txt R=$R
+CollectRnaSeqMetrics I=$I O=$O/q.txt REF_FLAT=$B/refflat.txt STRAND_SPECIFICITY=NONE
+CollectRrbsMetrics I=$I M=$O/r R=$R
+CollectSamErrorMetrics I=$I O=$O/s R=$R V=$S/dbsnp138.chr20.vcf.gz
+CollectSequencingArtifactMetrics I=$I O=$O/t R=$R
+CollectTargetedPcrMetrics I=$I O=$O/u.txt R=$R AMPLICON_INTERVALS=$T TARGET_INTERVALS=$T
+CollectUmiPrevalenceMetrics I=$I O=$O/v.txt
+CollectWgsMetrics I=$I O=$O/w.txt R=$R
+CollectWgsMetricsWithNonZeroCoverage I=$I O=$O/w2.txt CHART=$O/w2.pdf R=$R
+CompareSAMs $I $B/coord.bam O=$O/x.txt
+DownsampleSam I=$I O=$O/y.bam P=0.5
+EstimateLibraryComplexity I=$I O=$O/z.txt
+FilterSamReads I=$I O=$O/fa.bam FILTER=includeAligned
+FixMateInformation I=$Q O=$O/fb.bam
+GatherBamFiles I=$I O=$O/fc.bam
+MarkDuplicates I=$I O=$O/fd.bam M=$O/fd.txt
+MarkDuplicatesWithMateCigar I=$I O=$O/fe.bam M=$O/fe.txt
+SimpleMarkDuplicatesWithMateCigar I=$I O=$O/ff.bam M=$O/ff.txt
+UmiAwareMarkDuplicatesWithMateCigar I=$I O=$O/fg.bam M=$O/fg.txt UMI_METRICS=$O/fg2.txt
+MarkIlluminaAdapters I=$P/unmapped.bam O=$O/fh.bam M=$O/fh.txt
+MeanQualityByCycle I=$I O=$O/fi.txt CHART=$O/fi.pdf
+MergeSamFiles I=$I I=$B/coord.bam O=$O/fj.bam
+PositionBasedDownsampleSam I=$I O=$O/fk.bam FRACTION=0.5
+QualityScoreDistribution I=$I O=$O/fl.txt CHART=$O/fl.pdf
+ReorderSam I=$I O=$O/fm.bam SEQUENCE_DICTIONARY=$B/bench.dict
+ReplaceSamHeader I=$W/bench.bam HEADER=$B/coord.bam O=$O/fn.bam
+RevertOriginalBaseQualitiesAndAddMateCigar I=$Q O=$O/fo.bam
+RevertSam I=$I O=$O/fp.bam
+MergeBamAlignment UNMAPPED_BAM=$P/unmapped.bam ALIGNED_BAM=$Q R=$R O=$O/fp2.bam
+SamFormatConverter I=$I O=$O/fq.sam
+SamToFastq I=$Q F=$O/fr1.fq F2=$O/fr2.fq VALIDATION_STRINGENCY=SILENT
+SamToFastqWithTags I=$Q F=$O/fs1.fq F2=$O/fs2.fq QUALITY_TAG_GROUP=OQ SEQUENCE_TAG_GROUP=OA
+SetNmMdAndUqTags I=$I O=$O/ft.bam R=$R
+SetNmAndUqTags I=$I O=$O/ft2.bam R=$R
+SortSam I=$I O=$O/fu.bam SORT_ORDER=queryname
+SplitSamByLibrary I=$I O=$O
+SplitSamByNumberOfReads I=$I OUTPUT=$O SPLIT_TO_N_FILES=4
+ValidateSamFile I=$I MODE=SUMMARY
+ViewSam I=$I
+CheckDuplicateMarking I=$B/md.bam
+CollectVariantCallingMetrics I=$G/big.vcf DBSNP=$N/dbsnp.vcf O=$O/cvcm SD=$D
+AccumulateVariantCallingMetrics I=$P/cvcm I=$P/cvcm O=$O/avcm
+FilterVcf I=$G/big.vcf O=$O/filter.vcf MIN_DP=10 MIN_GQ=20 MIN_AB=0.2
+FindMendelianViolations I=$G/big.vcf TRIOS=$G/trio.ped O=$O/mendel.txt
+FixVcfHeader I=$N/big_missing.vcf O=$O/fixed.vcf
+GatherVcfs I=$N/part1.vcf I=$N/part2.vcf I=$N/part3.vcf I=$N/part4.vcf O=$O/gathered.vcf
+GenotypeConcordance TRUTH_VCF=$G/big.vcf CALL_VCF=$N/big_call.vcf TRUTH_SAMPLE=child CALL_SAMPLE=child O=$O/gc OUTPUT_VCF=true
+LiftoverVcf I=$G/big.vcf O=$O/lifted.vcf REJECT=$O/rejected.vcf CHAIN=$G/identity.chain R=$R
+MakeSitesOnlyVcf I=$G/big.vcf O=$O/sites.vcf
+MakeVcfSampleNameMap I=$N/big_one.vcf O=$O/names.txt
+MergeVcfs I=$N/part1.vcf I=$N/part2.vcf I=$N/part3.vcf I=$N/part4.vcf O=$O/merged.vcf
+RenameSampleInVcf I=$N/big_one.vcf O=$O/renamed.vcf NEW_SAMPLE_NAME=renamed
+SortVcf I=$G/shuffled.vcf O=$O/sorted.vcf
+SplitVcfs I=$G/big.vcf SNP_OUTPUT=$O/snp.vcf INDEL_OUTPUT=$O/indel.vcf
+UpdateVcfSequenceDictionary I=$G/big.vcf O=$O/updated.vcf SD=$D
+VcfFormatConverter I=$G/big.vcf O=$O/converted.vcf REQUIRE_INDEX=false
+VcfToIntervalList I=$G/big.vcf O=$O/vcf.interval_list
+CollectIndependentReplicateMetrics I=$B/coord.bam VCF=$G/big.vcf SAMPLE=child O=$O/cirm.txt MATRIX_OUTPUT=$O/cirm_matrix.txt
+GtcToVcf I=$A/arr_s1.gtc O=$O/arr.vcf EXTENDED_ILLUMINA_MANIFEST=$A/arr_extended.csv CLUSTER_FILE=$A/arr.egt ILLUMINA_BEAD_POOL_MANIFEST_FILE=$A/arr.bpm R=$A/arr_ref.fasta EXPECTED_GENDER=Female SAMPLE_ALIAS=sample1 PIPELINE_VERSION=1.0 ANALYSIS_VERSION_NUMBER=1
+BpmToNormalizationManifestCsv I=$A/arr.bpm CLUSTER_FILE=$A/arr.egt O=$O/norm.csv
+CompareGtcFiles I=$A/arr_s1.gtc I=$A/arr_s2.gtc ILLUMINA_BEAD_POOL_MANIFEST_FILE=$A/arr.bpm
+CreateExtendedIlluminaManifest I=$A/arr_manifest.csv O=$O/ext.csv REPORT_FILE=$O/ext_report.txt BAD_ASSAYS_FILE=$O/ext_bad.txt CLUSTER_FILE=$A/arr.egt DBSNP_FILE=$A/arr_dbsnp.vcf TARGET_BUILD=37 R=$A/arr_ref.fasta
+CollectArraysVariantCallingMetrics I=$A/arr_s1.vcf DBSNP=$A/arr_dbsnp.vcf O=$O/avcm_arr
+CombineGenotypingArrayVcfs I=$A/arr_s1.vcf I=$A/arr_s2.vcf O=$O/combined.vcf
+VcfToAdpc VCF=$A/arr_s1.vcf VCF=$A/arr_s2.vcf O=$O/adpc.bin SAMPLES_FILE=$O/adpc_samples.txt NUM_MARKERS_FILE=$O/adpc_markers.txt
+MergePedIntoVcf ORIGINAL_VCF=$A/arr_s1.vcf PED_FILE=$N/zcall.ped MAP_FILE=$N/zcall.map ZCALL_THRESHOLDS_FILE=$N/zcall_thresholds.txt ZCALL_VERSION=1.0.0.0 O=$O/zcall.vcf
+CreateBafRegressMetricsFile I=$N/bafregress.txt O=$O/baf
+CreateVerifyIDIntensityContaminationMetricsFile I=$N/verifyidintensity.txt O=$O/verifyid
+ConvertHaplotypeDatabaseToVcf I=$N/hap.txt O=$O/hap.vcf R=$R
+LiftOverHaplotypeMap I=$N/hap.txt O=$O/hap_lifted.txt CHAIN=$G/identity.chain SD=$D
+CheckFingerprint I=$I GENOTYPES=$G/big.vcf HAPLOTYPE_MAP=$N/hap.txt O=$O/cfp EXPECTED_SAMPLE_ALIAS=child R=$R
+ExtractFingerprint I=$I O=$O/efp.vcf HAPLOTYPE_MAP=$N/hap.txt R=$R
+IdentifyContaminant I=$I O=$O/contam.vcf HAPLOTYPE_MAP=$N/hap.txt R=$R
+CalculateFingerprintMetrics I=$I O=$O/cfm.txt HAPLOTYPE_MAP=$N/hap.txt R=$R
+CrosscheckFingerprints I=$N/fp_many.vcf CROSSCHECK_BY=SAMPLE HAPLOTYPE_MAP=$N/hap.txt O=$O/xc.txt LOD_THRESHOLD=-5 MATRIX_OUTPUT=$O/xc_matrix.txt EXIT_CODE_WHEN_MISMATCH=0
+CrosscheckReadGroupFingerprints I=$I HAPLOTYPE_MAP=$N/hap.txt O=$O/xcrg.txt R=$R
+ClusterCrosscheckMetrics I=$P/xc.txt O=$O/cluster.txt LOD_THRESHOLD=5
+CheckIlluminaDirectory BASECALLS_DIR=$RUN READ_STRUCTURE=25T8B25T LANES=1
+ExtractIlluminaBarcodes BASECALLS_DIR=$RUN READ_STRUCTURE=25T8B25T BARCODE_FILE=$N/ill_barcodes.txt LANE=1 OUTPUT_DIR=$O METRICS_FILE=$O/bc_metrics.txt
+CollectIlluminaBasecallingMetrics BASECALLS_DIR=$RUN BARCODES_DIR=$P/bc LANE=1 READ_STRUCTURE=25T8B25T INPUT=$N/ill_barcodes.txt O=$O/ibm.txt
+CollectIlluminaLaneMetrics RUN_DIRECTORY=$N/ill_lanes_many OUTPUT_DIRECTORY=$O OUTPUT_PREFIX=lanes READ_STRUCTURE=25T8B25T
+CollectHiSeqXPfFailMetrics BASECALLS_DIR=$RUN O=$O/pffail LANE=1
+IlluminaBasecallsToFastq BASECALLS_DIR=$RUN BARCODES_DIR=$P/bc LANE=1 READ_STRUCTURE=25T8B25T MULTIPLEX_PARAMS=$N/ill_multiplex.txt RUN_BARCODE=R1 MACHINE_NAME=M1 FLOWCELL_BARCODE=FC1
+IlluminaBasecallsToSam BASECALLS_DIR=$RUN BARCODES_DIR=$P/bc LANE=1 READ_STRUCTURE=25T8B25T LIBRARY_PARAMS=$N/ill_library.txt RUN_BARCODE=R1 SEQUENCING_CENTER=BI TMP_DIR=/work/tmp
+ExtractIlluminaBarcodes@384 BASECALLS_DIR=$R384 READ_STRUCTURE=25T8B25T BARCODE_FILE=$N/ill_barcodes_384.txt LANE=1 OUTPUT_DIR=$O METRICS_FILE=$O/bc384_metrics.txt
+IlluminaBasecallsToFastq@384 BASECALLS_DIR=$R384 BARCODES_DIR=$P/bc384 LANE=1 READ_STRUCTURE=25T8B25T MULTIPLEX_PARAMS=$N/ill_multiplex_384.txt RUN_BARCODE=R1 MACHINE_NAME=M1 FLOWCELL_BARCODE=FC1
+BedToIntervalList I=$G/many.bed O=$O/bed.interval_list SD=$D
+IntervalListToBed I=$G/many.interval_list O=$O/il.bed
+IntervalListTools I=$G/many.interval_list O=$O/uniq.interval_list UNIQUE=true SORT=true
+LiftOverIntervalList I=$G/many.interval_list O=$O/lifted.interval_list CHAIN=$G/identity.chain SD=$D REJECT=$O/rejected.interval_list
+BaitDesigner TARGETS=$N/bait_targets.interval_list R=$R DESIGN_NAME=design OUTPUT_DIRECTORY=$O
+ScatterIntervalsByNs R=$G/genome.fasta O=$O/ns.interval_list
+NonNFastaSize I=$G/genome.fasta O=$O/nonn.txt
+NormalizeFasta I=$G/genome.fasta O=$O/normalized.fasta LINE_LENGTH=100
+CreateSequenceDictionary R=$G/genome.fasta O=$O/genome.dict
+ExtractSequences INTERVAL_LIST=$G/many.interval_list R=$R O=$O/extracted.fasta
+SortGff I=$G/big.gff3 O=$O/sorted.gff3
+FastqToSam FASTQ=$N/r1.fq FASTQ2=$N/r2.fq OUTPUT=$O/fastq.bam SAMPLE_NAME=s1 READ_GROUP_NAME=rg1
+BamToBfq I=$I ANALYSIS_DIR=$O FLOWCELL_BARCODE=FC1 LANE=1 READ_NAME_PREFIX=x PAIRED_RUN=false
+FifoBuffer < $G/genome.fasta
+AccumulateQualityYieldMetrics I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt I=$P/qy.txt O=$O/aqy.txt
+CompareMetrics I=$P/k.txt I=$P/k.txt O=$O/cmp.txt
+ConvertSequencingArtifactToOxoG INPUT_BASE=$P/t OUTPUT_BASE=$O/oxog
+# The real chr20 VCFs, block-gzipped and indexed, as they come.
+MakeSitesOnlyVcf@gnomad I=$S/gnomad.chr20.vcf.gz O=$O/sites.vcf.gz
+SplitVcfs@gnomad I=$S/gnomad.chr20.vcf.gz SNP_OUTPUT=$O/snp.vcf.gz INDEL_OUTPUT=$O/indel.vcf.gz STRICT=false
+VcfToIntervalList@gnomad I=$S/gnomad.chr20.vcf.gz O=$O/vcf.interval_list
+VcfFormatConverter@gnomad I=$S/gnomad.chr20.vcf.gz O=$O/converted.vcf.gz
+UpdateVcfSequenceDictionary@gnomad I=$S/gnomad.chr20.vcf.gz O=$O/updated.vcf.gz SD=$D
+LiftoverVcf@gnomad I=$S/gnomad.chr20.vcf.gz O=$O/lifted.vcf.gz REJECT=$O/rejected.vcf.gz CHAIN=$G/identity.chain R=$R
+CollectVariantCallingMetrics@gnomad I=$S/gnomad.chr20.vcf.gz DBSNP=$S/dbsnp138.chr20.vcf.gz O=$O/cvcm SD=$D
+SortVcf@dbsnp I=$S/dbsnp138.chr20.vcf.gz O=$O/sorted.vcf.gz
+CollectVariantCallingMetrics@dbsnp I=$S/dbsnp138.chr20.vcf.gz DBSNP=$S/dbsnp138.chr20.vcf.gz O=$O/cvcm SD=$D

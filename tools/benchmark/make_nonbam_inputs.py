@@ -101,7 +101,7 @@ print(f"hap.txt: {len(sites)} sites")
 samples = [f"s{i:03d}" for i in range(100)]
 fp = ["##fileformat=VCFv4.2\n", '##FORMAT=<ID=GT,Number=1,Type=String,Description="GT">\n',
       '##FORMAT=<ID=PL,Number=G,Type=Integer,Description="PL">\n']
-fp += [l.replace("@SQ\tSN:", "##contig=<ID=").replace("\tLN:", ",length=").rstrip("\n") + ">\n"
+fp += ["##contig=<ID={SN},length={LN}>\n".format(**dict(f.split(":", 1) for f in l.split("\t")[1:3]))
        for l in dict_lines]
 fp.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + "\t".join(samples) + "\n")
 gts = ["0/0", "0/1", "1/1"]
@@ -119,7 +119,7 @@ with open(N / "bait_targets.interval_list", "w") as f:
     f.write("@HD\tVN:1.6\n" + "".join(dict_lines))
     for i in range(5000):
         start = 1000 + i * 190
-        f.write(f"chr1\t{start}\t{start + 299}\t+\tt{i}\n")
+        f.write(f"{dict_lines[0].split()[1][3:]}\t{start}\t{start + 299}\t+\tt{i}\n")
 
 # Metrics files for the tools that read other tools' metrics.
 for name in ("quality_yield_one.metrics",):
