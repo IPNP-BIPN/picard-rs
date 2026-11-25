@@ -6,6 +6,12 @@
   "CommandLineProgramStartupErrorLogTest#testNoStartupErrorLog.0": "a CommandLineProgram defined inside Picard's test sources to exercise the parser; it is not in picard.jar.",
   "CommandLineProgramStartupErrorLogTest#testNoStartupOutputLog.0": "a CommandLineProgram defined inside Picard's test sources to exercise the parser; it is not in picard.jar.",
   "PicardCommandLineTest#TestPicardPublic.0": "PicardCommandLine run with no program: it prints the program list, which is the jar's launcher, not a tool picard-rs ports.",
-  "PicardCommandLineTest#testPrintUsage.0": "PicardCommandLine's own help, not a tool picard-rs ports."
+  "PicardCommandLineTest#testPrintUsage.0": "PicardCommandLine's own help, not a tool picard-rs ports.",
+  "CreateSequenceDictionaryTest#testDefaultOutputFile.0": "writes its default output beside its input in testdata/, whose path exists, so it cannot be moved; the checkout is read-only on both sides (a written corpus would change under later invocations), so the reference's answer would be the harness's refusal, not the test's.",
+  "CreateSequenceDictionaryTest#testPunctuationInReferenceNames.0": "writes its default output beside its input in testdata/, whose path exists, so it cannot be moved; the checkout is read-only on both sides (a written corpus would change under later invocations), so the reference's answer would be the harness's refusal, not the test's.",
+  "RevertSamTest#testNoRgInfoOutputByRg.0": "writes into the working directory, which is the checkout's root as in Picard's own run and is read-only on both sides, so the reference's answer would be the harness's refusal, not the test's.",
+  "SplitSamByLibraryTest#testNoLibrarySpecified.0": "writes into the working directory, which is the checkout's root as in Picard's own run and is read-only on both sides, so the reference's answer would be the harness's refusal, not the test's.",
+  "SplitSamByLibraryTest#basicPositiveTest.0": "writes into the working directory, which is the checkout's root as in Picard's own run and is read-only on both sides, so the reference's answer would be the harness's refusal, not the test's.",
+  "SplitSamByLibraryTest#testNoUnknownFile.0": "writes into the working directory, which is the checkout's root as in Picard's own run and is read-only on both sides, so the reference's answer would be the harness's refusal, not the test's."
  }
 }
