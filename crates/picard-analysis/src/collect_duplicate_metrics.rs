@@ -168,13 +168,16 @@ pub fn collect(
     }
     for record in records {
         let record = record.borrow();
-        let metrics = by_library.entry(record.library.clone()).or_insert_with(|| {
+        // Looked up before it is cloned: the key exists for all but a library's first read.
+        if !by_library.contains_key(&record.library) {
             order.push(record.library.clone());
-            DuplicationMetrics {
+            let metrics = DuplicationMetrics {
                 library: record.library.clone(),
                 ..Default::default()
-            }
-        });
+            };
+            by_library.insert(record.library.clone(), metrics);
+        }
+        let metrics = by_library.get_mut(&record.library).expect("inserted");
         metrics.add_read(record);
         if record.duplicate {
             metrics.add_duplicate(record);
