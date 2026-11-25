@@ -718,6 +718,15 @@ pub fn clean_header(path: &str) -> Option<SamHeader> {
     (!blocks.damaged && blocks.declared == inflated).then_some(header)
 }
 
+/// The header of a BAM, read from its first blocks alone, the way `SamReader.getFileHeader` reads
+/// it: a damaged or truncated block after the header changes nothing, as it changes nothing for
+/// htsjdk. `None` when the header itself does not read, for the caller's whole-file read to give
+/// the refusal it gave.
+pub fn header_only(path: &str) -> Option<SamHeader> {
+    let file = File::open(path).ok()?;
+    RecordStream::new(htsjdk_bgzf::BgzfReader::new(BufReader::new(file))).header().ok()
+}
+
 /// A BAM decoded in one pass, for a tool that can throw away what it made of the records: the
 /// header to `on_header`, then each record, validated, to `on_record`. `true` when the whole-file
 /// read would have handed over the same records and raised nothing; `false` at the first sign
