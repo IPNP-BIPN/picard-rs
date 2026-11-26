@@ -114,6 +114,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         file.flush()?;
     }
 
+    if !verdict.bad_names.is_empty() {
+        picard_analysis::vcf_io::log_error(
+            "CheckDuplicateMarking",
+            &format!(
+                "Found {} records that do not agree on their duplicate flag.",
+                verdict.bad_names.len()
+            ),
+        );
+    }
     // `return numBadRecords > 0 ? 1 : 0`, which is the count's sign and never the count.
     std::process::exit(verdict.exit_code());
 }
