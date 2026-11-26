@@ -85,12 +85,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
         }
     }
-    if !output.ends_with(".vcf")
-        && !is_compressed_vcf(&output)
-        && !picard_analysis::vcf_io::is_bcf(&output)
-    {
-        return Err("only a .vcf, .vcf.gz or .bcf OUTPUT is ported".into());
-    }
 
     // Read through `SamReaderFactory`, as a SAM header: a `.dict`'s `@SQ` lines.
     let mut dictionary: Option<Vec<Sequence>> = match &sequence_dictionary {
@@ -155,6 +149,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         dictionary.as_deref()
     } else {
         None
+    };
+    // `builder.build()`, once every input was opened and checked: a stream is written as plain
+    // text with no index, and a name of no known type is refused.
+    let index_dictionary = match output_type(&output) {
+        Some(OutputType::File) => index_dictionary,
+        Some(OutputType::Stream) => None,
+        None => fail_all(
+            &mut files,
+            "java.lang.IllegalArgumentException: Output format type is not set, or could not be \
+             inferred from the output path. If a path was used, does it have a valid VCF extension \
+             (.vcf, .vcf.gz, .vcf.bgz, .bcf)?",
+        ),
     };
     let mut writer =
         VcfWriter::create(&output, &header, index_dictionary, MissingFields::default())
@@ -247,4 +253,41 @@ fn admit(
         ));
     }
     Ok(())
+}
+
+/// What `VariantContextWriterBuilder.determineOutputTypeFromFile` makes of `path`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum OutputType {
+    /// A VCF, a compressed VCF or a BCF, by its name.
+    File,
+    /// `VCF_STREAM`: an existing path that is neither a regular file nor a directory, such as
+    /// `/dev/null`, whose name says nothing.
+    Stream,
+}
+
+fn output_type(path: &str) -> Option<OutputType> {
+    if path.ends_with(".vcf") || is_compressed_vcf(path) || picard_analysis::vcf_io::is_bcf(path) {
+        return Some(OutputType::File);
+    }
+    // A link is typed by what it points to.
+    if let Ok(real) = std::fs::canonicalize(path) {
+        if let Some(real) = real.to_str().filter(|real| *real != path) {
+            return output_type(real);
+        }
+    }
+    let metadata = std::fs::metadata(path).ok()?;
+    (!metadata.is_file() && !metadata.is_dir()).then_some(OutputType::Stream)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_device_is_a_stream_and_an_unknown_name_has_no_type() {
+        assert_eq!(output_type("out.vcf.gz"), Some(OutputType::File));
+        assert_eq!(output_type("/dev/null"), Some(OutputType::Stream));
+        assert_eq!(output_type("/dev/null/blah"), None);
+        assert_eq!(output_type("no-such-file.txt"), None);
+    }
 }
