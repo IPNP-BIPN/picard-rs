@@ -322,6 +322,27 @@ pub fn main_for(tool: Tool) {
     let lengths: Vec<i32> = header.sequences.iter().map(|s| s.length).collect();
     let intervals = intervals_path.as_ref().map(|path| {
         let text = std::fs::read_to_string(path).unwrap_or_else(|e| fail(&format!("{e}")));
+        // `AbstractLocusIterator`'s constructor: `SequenceUtil.assertSequenceDictionariesEqual`
+        // of the interval list's dictionary and the input's.
+        let listed = crate::vcf_io::parse_sam_dictionary(&text);
+        let same = listed.len() == header.sequences.len()
+            && listed.iter().zip(&header.sequences).all(|(l, s)| {
+                let input = crate::vcf_io::Sequence {
+                    name: s.name.clone(),
+                    length: i64::from(s.length),
+                    assembly: None,
+                    md5: s.attributes.get("M5").map(str::to_string),
+                };
+                crate::vcf_io::is_same_sequence(l, &input)
+            });
+        if !same {
+            thrown(&format!(
+                "htsjdk.samtools.util.SequenceUtil$SequenceListsDifferException: The sequence \
+                 dictionary of the interval list file differs from the sequence dictionary of the \
+                 input SAM file: (data=FILE:{};index=null)",
+                absolute(&input)
+            ));
+        }
         let list = IntervalList::parse_body(names.clone(), &text)
             .unwrap_or_else(|e| fail(&format!("{e:?}")));
         let triples = list
@@ -346,7 +367,12 @@ pub fn main_for(tool: Tool) {
                 .zip(&header.sequences)
                 .all(|(c, s)| c.name == s.name && c.bases.len() as i32 == s.length);
         if !same {
-            fail("the input's sequence dictionary differs from the reference's");
+            thrown(&format!(
+                "picard.PicardException: Sequence dictionary for ({}) does not match sequence \
+                 dictionary for ({})",
+                absolute(&input),
+                absolute(&reference)
+            ));
         }
     }
     if coverage_cap <= 0 {
@@ -487,4 +513,9 @@ pub fn main_for(tool: Tool) {
     }
     // The non-zero tool then draws its chart through R. The chart is a rendering of the file
     // just written and is not ported; the metrics are the tool's answer.
+}
+
+/// `File.getAbsolutePath`: the path against the working directory, not resolved further.
+fn absolute(path: &str) -> String {
+    std::path::absolute(path).map_or_else(|_| path.to_string(), |p| p.display().to_string())
 }
