@@ -27,8 +27,13 @@ const CRAM_MEMORY: u64 = 16 << 30;
 /// and 112 MiB BAMs (SortSam, chr20 downsampled).
 pub const PER_BAM_BYTE_OUT: u64 = 25;
 
-/// Peak memory per byte of a CRAM input: 196 and 192 measured on 12 and 23 MiB CRAMs.
-pub const PER_CRAM_BYTE_IN: u64 = 200;
+/// Peak memory per byte of a CRAM input: 76 measured on a 23 MiB CRAM (CollectQualityYieldMetrics
+/// and MeanQualityByCycle), each record decoded once.
+pub const PER_CRAM_BYTE_IN: u64 = 80;
+
+/// The same for SortSam, which decodes the CRAM, re-encodes it as a BAM and decodes that again:
+/// 196 and 192 measured on 12 and 23 MiB CRAMs.
+pub const PER_CRAM_BYTE_SORTED: u64 = 200;
 
 fn cram_memory() -> u64 {
     static MAX: std::sync::OnceLock<u64> = std::sync::OnceLock::new();

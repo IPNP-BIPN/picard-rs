@@ -228,6 +228,13 @@ fn read_serially(
         Box<dyn Iterator<Item = Result<BamRecord, String>>>,
     ) = if picard_analysis::cram_input::is_cram(head) {
         // shortcut: a CRAM is decoded whole, then validated as the BAM it decodes to.
+        let length = std::fs::metadata(input)?.len();
+        let per_byte = picard_analysis::cram_output::PER_CRAM_BYTE_SORTED;
+        picard_analysis::cram_output::refuse_past_the_cram_limit(
+            "the CRAM input",
+            length,
+            per_byte,
+        );
         let raw = picard_analysis::cram_input::uncram(std::fs::read(input)?);
         let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
         let reader =
