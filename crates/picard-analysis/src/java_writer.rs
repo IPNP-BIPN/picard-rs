@@ -312,15 +312,15 @@ mod tests {
     fn a_bam_cut_in_place_is_the_one_bam_on_disk_gives() {
         let path = std::env::temp_dir().join(format!("bam-on-disk-{}.bam", std::process::id()));
         let path = path.to_str().unwrap();
-        // Blocks that deflate to sizes on both sides of the buffer's arithmetic, and none.
+        // Blocks that hardly deflate, so a few fill the 128 KiB buffer; and none.
+        let mut state = 1u64;
         for blocks in [0usize, 1, 2, 5, 23] {
             let payload: Vec<u8> = (0..blocks * DEFAULT_UNCOMPRESSED_BLOCK_SIZE + 999)
-                .map(|i| {
-                    if i % 3 == 0 {
-                        (i * 7919 % 251) as u8
-                    } else {
-                        b'a'
-                    }
+                .map(|_| {
+                    state = state
+                        .wrapping_mul(6364136223846793005)
+                        .wrapping_add(1442695040888963407);
+                    (state >> 56) as u8
                 })
                 .collect();
             let mut writer = htsjdk_bgzf::BgzfWriter::new(Vec::new());
@@ -328,11 +328,10 @@ mod tests {
             let finished = writer.into_inner().unwrap();
             std::fs::write(path, &finished).unwrap();
             cut_bam_on_disk(path).unwrap();
-            assert_eq!(
-                std::fs::read(path).unwrap(),
-                bam_on_disk(&finished),
-                "{blocks}"
-            );
+            let expected = bam_on_disk(&finished);
+            assert_eq!(std::fs::read(path).unwrap(), expected, "{blocks}");
+            // Two blocks still fit the buffer together; five do not.
+            assert_eq!(expected.is_empty(), blocks < 5, "{blocks}");
         }
         std::fs::remove_file(path).unwrap();
     }
