@@ -17,18 +17,18 @@
 
 use htsjdk_bam::reader::BamReader;
 
-/// The memory a CRAM may take, unless `PICARD_RS_CRAM_MEMORY` (bytes) says otherwise. The CRAM
-/// writer and reader take the whole file at once and hold it decoded, so past this a run would
-/// exhaust the memory rather than finish.
+/// The memory a CRAM may take where the machine's cannot be read (no `/proc`, as on macOS). The
+/// CRAM writer and reader take the whole file at once and hold it decoded, so past the memory a
+/// run would be killed rather than finish.
 /// shortcut: a refusal, not a CRAM; lift it once the CRAM writer and reader stream.
 const CRAM_MEMORY: u64 = 16 << 30;
 
 /// Peak memory per byte of the BAM a CRAM output is written from: 24.7 and 23.6 measured on 62
-/// and 112 MiB BAMs (SortSam, chr20 downsampled).
-pub const PER_BAM_BYTE_OUT: u64 = 25;
+/// and 112 MiB BAMs (SortSam, chr20 downsampled), 31 on the whole 923 MiB chr20 BAM.
+pub const PER_BAM_BYTE_OUT: u64 = 32;
 
 /// Peak memory per byte of a CRAM input: 76 measured on a 23 MiB CRAM (CollectQualityYieldMetrics
-/// and MeanQualityByCycle), each record decoded once.
+/// and MeanQualityByCycle), 60 on the whole 288 MiB chr20 CRAM, each record decoded once.
 pub const PER_CRAM_BYTE_IN: u64 = 80;
 
 /// The same for SortSam, which decodes the CRAM, re-encodes it as a BAM and decodes that again:
@@ -41,8 +41,31 @@ fn cram_memory() -> u64 {
         std::env::var("PICARD_RS_CRAM_MEMORY")
             .ok()
             .and_then(|value| value.parse().ok())
+            .or_else(|| {
+                let read = |path| std::fs::read_to_string(path).ok();
+                memory_from(
+                    read("/sys/fs/cgroup/memory.max"),
+                    read("/sys/fs/cgroup/memory/memory.limit_in_bytes"),
+                    read("/proc/meminfo"),
+                )
+            })
             .unwrap_or(CRAM_MEMORY)
     })
+}
+
+/// The memory this process may use: the container's limit (cgroup v2 `memory.max`, else v1
+/// `memory.limit_in_bytes`) where it is below the machine's `MemTotal`. A container's
+/// `/proc/meminfo` shows the host's memory, so the cgroup is what a `--memory` limit sets.
+/// shortcut: reads the cgroup at the root of `/sys/fs/cgroup`, which is the process's own inside a
+/// container; outside one (a systemd slice with its own limit) `MemTotal` is used.
+fn memory_from(v2: Option<String>, v1: Option<String>, meminfo: Option<String>) -> Option<u64> {
+    let limit = |text: Option<String>| text.and_then(|t| t.trim().parse::<u64>().ok());
+    let total = meminfo.and_then(|text| {
+        let line = text.lines().find(|line| line.starts_with("MemTotal:"))?;
+        let kib: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+        Some(kib * 1024)
+    });
+    [limit(v2), limit(v1), total].into_iter().flatten().min()
 }
 
 /// Exits, before memory runs out, when `what`, `bytes` long at `per_byte` bytes of memory each,
@@ -251,5 +274,29 @@ mod limit_tests {
         );
         assert!(message.contains("past the 10.0 GiB"), "{message}");
         assert!(message.contains("PICARD_RS_CRAM_MEMORY"), "{message}");
+    }
+
+    #[test]
+    fn the_memory_is_the_container_limit_below_the_machine() {
+        let meminfo = || Some("MemTotal:       113626944 kB\nMemFree: 1 kB\n".to_string());
+        let host = 113626944 * 1024;
+        // `docker --memory 24g` on cgroup v2; v1's unlimited is a near-u64::MAX number.
+        assert_eq!(
+            memory_from(Some("25769803776\n".into()), None, meminfo()),
+            Some(24 << 30)
+        );
+        assert_eq!(
+            memory_from(Some("max\n".into()), None, meminfo()),
+            Some(host)
+        );
+        assert_eq!(
+            memory_from(None, Some("9223372036854771712\n".into()), meminfo()),
+            Some(host)
+        );
+        assert_eq!(
+            memory_from(None, Some("6442450944".into()), meminfo()),
+            Some(6 << 30)
+        );
+        assert_eq!(memory_from(None, None, None), None);
     }
 }
