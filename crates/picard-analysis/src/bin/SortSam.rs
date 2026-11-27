@@ -132,6 +132,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
 
+    if picard_analysis::cram_output::is_cram(&output) {
+        // Before the sort, not after it: the BAM the CRAM is written from is about the input's size.
+        let length = std::fs::metadata(&input)?.len();
+        let per_byte = picard_analysis::cram_output::PER_BAM_BYTE_OUT;
+        picard_analysis::cram_output::refuse_past_the_cram_limit("INPUT", length, per_byte);
+    }
     let mut head = Vec::new();
     std::fs::File::open(&input)?
         .take(4)
@@ -179,10 +185,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if picard_analysis::cram_output::is_cram(&output) {
-        let mut writer = EncodedBamWriter::new(Vec::new(), &header, false)?;
+        let buffer = picard_analysis::cram_output::CramBuffer::default();
+        let mut writer = EncodedBamWriter::new(buffer, &header, false)?;
         sorting.for_each_sorted(|encoded| write(&mut writer, encoded))?;
         let (bam, _) = writer.finish()?;
-        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
+        picard_analysis::cram_output::write_from_bam(&output, &bam.0, create_index)?;
         return Ok(());
     }
 

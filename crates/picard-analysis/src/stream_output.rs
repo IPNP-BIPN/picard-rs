@@ -14,6 +14,7 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::writer::BamWriter;
 
+use crate::cram_output::CramBuffer;
 use crate::sort_sam::encoded::EncodedBamWriter;
 
 use crate::java_writer;
@@ -120,7 +121,7 @@ enum Sink {
     IndexedBam(EncodedBamWriter<BufWriter<File>>),
     /// shortcut: a CRAM is still encoded from the whole BAM at the end, as before; stream it once
     /// a CRAM output on a large input matters.
-    Cram(BamWriter<Vec<u8>>),
+    Cram(BamWriter<CramBuffer>),
 }
 
 /// `SAMFileWriterFactory.makeWriter`: SAM for a `.sam` name, CRAM for a CRAM one, BAM otherwise.
@@ -218,7 +219,7 @@ impl Output {
             if opened_first {
                 File::create(path)?;
             }
-            Sink::Cram(crate::output::bam_writer(Vec::new(), header)?)
+            Sink::Cram(crate::output::bam_writer(CramBuffer::default(), header)?)
         } else if sam {
             let mut out = BufWriter::new(File::create(path)?);
             let text = header.encode();
@@ -351,7 +352,7 @@ impl Output {
             }
             // The whole-file writer wrote the partial BAM under the CRAM's name.
             Sink::Cram(writer) => {
-                std::fs::write(&self.path, java_writer::bam_on_disk(&writer.finish()?))
+                std::fs::write(&self.path, java_writer::bam_on_disk(&writer.finish()?.0))
             }
         }
     }
@@ -392,7 +393,7 @@ impl Output {
                 }
             }
             Sink::Cram(writer) => {
-                crate::cram_output::write_from_bam(&self.path, &writer.finish()?, create_index)?
+                crate::cram_output::write_from_bam(&self.path, &writer.finish()?.0, create_index)?
             }
         }
         Ok(())

@@ -17,6 +17,75 @@
 
 use htsjdk_bam::reader::BamReader;
 
+/// The memory a CRAM may take, unless `PICARD_RS_CRAM_MEMORY` (bytes) says otherwise. The CRAM
+/// writer and reader take the whole file at once and hold it decoded, so past this a run would
+/// exhaust the memory rather than finish.
+/// shortcut: a refusal, not a CRAM; lift it once the CRAM writer and reader stream.
+const CRAM_MEMORY: u64 = 16 << 30;
+
+/// Peak memory per byte of the BAM a CRAM output is written from: 24.7 and 23.6 measured on 62
+/// and 112 MiB BAMs (SortSam, chr20 downsampled).
+pub const PER_BAM_BYTE_OUT: u64 = 25;
+
+/// Peak memory per byte of a CRAM input: 196 and 192 measured on 12 and 23 MiB CRAMs.
+pub const PER_CRAM_BYTE_IN: u64 = 200;
+
+fn cram_memory() -> u64 {
+    static MAX: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+    *MAX.get_or_init(|| {
+        std::env::var("PICARD_RS_CRAM_MEMORY")
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(CRAM_MEMORY)
+    })
+}
+
+/// Exits, before memory runs out, when `what`, `bytes` long at `per_byte` bytes of memory each,
+/// would take more than a CRAM may. Picard streams a CRAM and has no such limit, so this is
+/// picard-rs's own refusal, not one of Picard's exceptions.
+pub fn refuse_past_the_cram_limit(what: &str, bytes: u64, per_byte: u64) {
+    if let Some(message) = past_the_cram_limit(what, bytes, per_byte, cram_memory()) {
+        eprintln!("{message}");
+        std::process::exit(1);
+    }
+}
+
+fn past_the_cram_limit(what: &str, bytes: u64, per_byte: u64, memory: u64) -> Option<String> {
+    let needs = bytes.saturating_mul(per_byte);
+    (needs > memory).then(|| {
+        let gib = |b: u64| b as f64 / (1u64 << 30) as f64;
+        format!(
+            "picard-rs cannot hold this CRAM in memory: {what} is {bytes} bytes, which needs about \
+             {:.1} GiB ({per_byte} times its size), past the {:.1} GiB a CRAM may take. picard-rs \
+             reads and writes a CRAM whole until its CRAM writer and reader stream. Write a BAM \
+             instead, or set PICARD_RS_CRAM_MEMORY (bytes) higher on a machine with the memory.",
+            gib(needs),
+            gib(memory)
+        )
+    })
+}
+
+/// The BAM a CRAM output is built from, in memory, refused once it outgrows the CRAM limit.
+#[derive(Default)]
+pub struct CramBuffer(pub Vec<u8>);
+
+impl std::io::Write for CramBuffer {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let total = (self.0.len() + bytes.len()) as u64;
+        refuse_past_the_cram_limit(
+            "the BAM a CRAM output is written from",
+            total,
+            PER_BAM_BYTE_OUT,
+        );
+        self.0.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 /// `CRAM_TYPE.hasValidFileExtension`: the name ends in `.cram`.
 pub fn is_cram(path: &str) -> bool {
     path.ends_with(".cram")
@@ -111,6 +180,12 @@ pub fn write_records(
 /// indexed by `CRAMBAIIndexer` into `<output>.bai`, which refuses a header that is not
 /// coordinate-sorted where a BAM writer would quietly skip the index.
 pub fn write_from_bam(path: &str, bam: &[u8], create_index: bool) -> std::io::Result<()> {
+    let bytes = bam.len() as u64;
+    refuse_past_the_cram_limit(
+        "the BAM a CRAM output is written from",
+        bytes,
+        PER_BAM_BYTE_OUT,
+    );
     let plain =
         crate::bgzf::decompress_all(bam).map_err(|e| std::io::Error::other(format!("{e:?}")))?;
     let reader = BamReader::new(&plain).map_err(|e| std::io::Error::other(format!("{e:?}")))?;
@@ -154,5 +229,22 @@ pub fn write_records_indexed(
             std::fs::write(path, [])?;
             crate::metrics_cli::thrown(&line)
         }
+    }
+}
+
+#[cfg(test)]
+mod limit_tests {
+    use super::*;
+
+    #[test]
+    fn a_cram_past_the_limit_is_refused_with_its_size() {
+        assert_eq!(past_the_cram_limit("INPUT", 5 << 30, 2, 10 << 30), None);
+        let message = past_the_cram_limit("INPUT", 6 << 30, 2, 10 << 30).unwrap();
+        assert!(
+            message.contains("INPUT is 6442450944 bytes, which needs about 12.0 GiB (2 times"),
+            "{message}"
+        );
+        assert!(message.contains("past the 10.0 GiB"), "{message}");
+        assert!(message.contains("PICARD_RS_CRAM_MEMORY"), "{message}");
     }
 }
