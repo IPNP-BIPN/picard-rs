@@ -28,6 +28,7 @@
 //! `picard.sam.markduplicates.util.ReadEndsForMateCigar` at tag 3.4.0.
 
 use std::cmp::Ordering;
+use std::collections::{BTreeMap, HashSet};
 
 use crate::mark_duplicates::{
     duplicate_score_with, optical_flags, orientation_byte, Location, Options, ReadEnds, Record,
@@ -71,19 +72,22 @@ impl End {
     }
 }
 
-/// `MarkQueue.MarkQueueComparator`: the comparator BOTH sets are keyed on, and the reason the
-/// queue holds one end per position. It stops at the coordinates: two ends that differ only in
-/// score are the same key, which is what makes "is there already a comparable record here?" mean
-/// "is this position taken?".
-fn compare_queue(left: &End, right: &End) -> Ordering {
-    left.library_id
-        .cmp(&right.library_id)
-        .then(left.read1_reference_index.cmp(&right.read1_reference_index))
-        .then(left.read1_coordinate.cmp(&right.read1_coordinate))
-        // Reversed, to get pairs first, on the order `ReadEnds` defines.
-        .then(right.orientation.cmp(&left.orientation))
-        .then(left.read2_reference_index.cmp(&right.read2_reference_index))
-        .then(left.read2_coordinate.cmp(&right.read2_coordinate))
+/// `MarkQueue.MarkQueueComparator`: the key BOTH sets are kept in, and the reason the queue
+/// holds one end per position. It stops at the coordinates: two ends that differ only in score
+/// are the same key, which is what makes "is there already a comparable record here?" mean "is
+/// this position taken?". The orientation is reversed, to get pairs first, on the order
+/// `ReadEnds` defines.
+type QueueKey = (i32, i32, i32, std::cmp::Reverse<u8>, i32, i32);
+
+fn queue_key(end: &End) -> QueueKey {
+    (
+        end.library_id,
+        end.read1_reference_index,
+        end.read1_coordinate,
+        std::cmp::Reverse(end.orientation),
+        end.read2_reference_index,
+        end.read2_coordinate,
+    )
 }
 
 /// `MarkQueue.ReadEndsMCComparator`: NOT a key, only a verdict. It is what `MarkQueue.add` calls
@@ -149,53 +153,38 @@ fn compare_ends(left: &End, right: &End, scoring: ScoringStrategy, records: &[Re
     Ordering::Equal
 }
 
-/// A `TreeSet` under a comparator: a sorted vector whose keys are unique under that comparator, so
-/// that "contains" and "the one comparable entry" mean what they mean in the Java.
+/// A `TreeSet` under [`queue_key`]: one entry per key, so that "contains" and "the one comparable
+/// entry" mean what they mean in the Java.
 struct SortedEnds {
-    entries: Vec<End>,
+    entries: BTreeMap<QueueKey, End>,
 }
 
 impl SortedEnds {
     fn new() -> Self {
         SortedEnds {
-            entries: Vec::new(),
+            entries: BTreeMap::new(),
         }
     }
 
-    fn find(&self, wanted: &End, compare: &dyn Fn(&End, &End) -> Ordering) -> Result<usize, usize> {
-        self.entries
-            .binary_search_by(|entry| compare(entry, wanted))
+    fn get(&self, wanted: &End) -> Option<&End> {
+        self.entries.get(&queue_key(wanted))
     }
 
-    fn get(&self, wanted: &End, compare: &dyn Fn(&End, &End) -> Ordering) -> Option<&End> {
-        self.find(wanted, compare).ok().map(|at| &self.entries[at])
+    fn insert(&mut self, end: End) {
+        // `TreeSet.add` on an entry the comparator calls equal keeps the one already there.
+        self.entries.entry(queue_key(&end)).or_insert(end);
     }
 
-    fn insert(&mut self, end: End, compare: &dyn Fn(&End, &End) -> Ordering) {
-        match self.find(&end, compare) {
-            // `TreeSet.add` on an entry the comparator calls equal keeps the one already there.
-            Ok(_) => {}
-            Err(at) => self.entries.insert(at, end),
-        }
-    }
-
-    fn remove(&mut self, wanted: &End, compare: &dyn Fn(&End, &End) -> Ordering) -> Option<End> {
-        match self.find(wanted, compare) {
-            Ok(at) => Some(self.entries.remove(at)),
-            Err(_) => None,
-        }
+    fn remove(&mut self, wanted: &End) -> Option<End> {
+        self.entries.remove(&queue_key(wanted))
     }
 
     fn poll_first(&mut self) -> Option<End> {
-        if self.entries.is_empty() {
-            None
-        } else {
-            Some(self.entries.remove(0))
-        }
+        self.entries.pop_first().map(|(_, end)| end)
     }
 
     fn first(&self) -> Option<&End> {
-        self.entries.first()
+        self.entries.first_key_value().map(|(_, end)| end)
     }
 
     fn is_empty(&self) -> bool {
@@ -209,7 +198,7 @@ impl SortedEnds {
 #[derive(Default)]
 struct LocationSet {
     ends: Vec<End>,
-    locations: Vec<(i32, i32, i16, i32, i32)>,
+    locations: HashSet<(i32, i32, i16, i32, i32)>,
 }
 
 impl LocationSet {
@@ -224,18 +213,16 @@ impl LocationSet {
 
     fn add(&mut self, end: &End) {
         let location = Self::location(end);
-        if !self.locations.contains(&location) {
+        if self.locations.insert(location) {
             self.ends.push(end.clone());
-            self.locations.push(location);
         }
     }
 
     /// The location goes whether or not this very end was the one kept for it.
     fn remove(&mut self, end: &End) {
         let location = Self::location(end);
-        if self.locations.contains(&location) {
+        if self.locations.remove(&location) {
             self.ends.retain(|entry| entry.index != end.index);
-            self.locations.retain(|other| *other != location);
         }
     }
 }
@@ -472,15 +459,15 @@ fn add(
     let mut add_to_location_set = true;
     let mut found_duplicate: Option<End> = None;
 
-    if let Some(current) = non_duplicate.get(&other, &compare_queue).cloned() {
+    if let Some(current) = non_duplicate.get(&other).cloned() {
         // The position is taken. Which of the two ends keeps it is the fine comparator's verdict.
         let comparison = better(&current, &other);
         if current.name == other.name {
             // The two ends of one pair at one position: keep the better, remember the other.
             if comparison == Ordering::Greater {
-                non_duplicate.remove(&current, &compare_queue);
-                non_duplicate.insert(other.clone(), &compare_queue);
-                other_end.insert(current.clone(), &compare_queue);
+                non_duplicate.remove(&current);
+                non_duplicate.insert(other.clone());
+                other_end.insert(current.clone());
                 if should_be_in_locations(&other) {
                     if let Some(set) = current.location_set {
                         // `replace`: the set stays, its identifier changes.
@@ -494,7 +481,7 @@ fn add(
                     }
                 }
             } else {
-                other_end.insert(other.clone(), &compare_queue);
+                other_end.insert(other.clone());
                 if should_be_in_locations(&current) {
                     location_set = current.location_set;
                     add_to_location_set = false;
@@ -514,12 +501,12 @@ fn add(
             });
             other.location_set = Some(set);
             location_set = Some(set);
-            non_duplicate.remove(&current, &compare_queue);
-            non_duplicate.insert(other.clone(), &compare_queue);
+            non_duplicate.remove(&current);
+            non_duplicate.insert(other.clone());
 
             // The loser's own pair, if it was being held, is not a duplicate.
-            if let Some(pair) = other_end.get(&current, &compare_queue).cloned() {
-                other_end.remove(&current, &compare_queue);
+            if let Some(pair) = other_end.get(&current).cloned() {
+                other_end.remove(&current);
                 duplicate[pair.index] = true;
             }
             found_duplicate = Some(current);
@@ -538,7 +525,7 @@ fn add(
             other.location_set = Some(set);
             location_set = Some(set);
         }
-        non_duplicate.insert(other.clone(), &compare_queue);
+        non_duplicate.insert(other.clone());
     }
 
     if other.paired && other.has_unmapped == 0 && add_to_location_set {
@@ -587,7 +574,7 @@ fn drain(
 
         if polled.is_paired() {
             // Its own other end, if held, is not a duplicate either.
-            other_end.remove(&polled, &compare_queue);
+            other_end.remove(&polled);
 
             // "Remove from the set fragments and unpaired, which only have two possible
             // orientations": a mapped pair leaving the queue takes them with it.
@@ -601,9 +588,9 @@ fn drain(
             };
             // The probe stands for a position, not a record, so it must not win the score
             // tie-break against what is there.
-            if let Some(found) = non_duplicate.get(&probe, &compare_queue).cloned() {
+            if let Some(found) = non_duplicate.get(&probe).cloned() {
                 duplicate[found.index] = true;
-                non_duplicate.remove(&probe, &compare_queue);
+                non_duplicate.remove(&probe);
             }
         }
 
