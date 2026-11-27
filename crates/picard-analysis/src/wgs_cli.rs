@@ -289,9 +289,9 @@ pub fn main_for(tool: Tool) {
     let read_length = int_arg(&args, "READ_LENGTH", None, 150) as i32;
     let intervals_path = optional_path(&args, "INTERVALS", None);
 
-    let (header, records) = crate::bam_stream::Input::open(&input)
-        .unwrap_or_else(|e| fail(&e.message()))
-        .into_parts();
+    let opened = crate::bam_stream::Input::open(&input).unwrap_or_else(|e| fail(&e.message()));
+    let streams = opened.streams();
+    let (header, records) = opened.into_parts();
     let indexed = !is_sam(&input) && has_index(&input);
 
     // CollectWgsMetricsWithNonZeroCoverage builds its collector up front, so the collector's own
@@ -371,6 +371,16 @@ pub fn main_for(tool: Tool) {
             intervals: list,
             indexed,
         },
+    };
+    // `queryOverlapping` on an indexed BAM reads the regions' chunks alone. A file the stream
+    // could not take is read as before, whole, for the answer the whole-file read gives.
+    let queried = match &intervals {
+        Some(list) if indexed && streams => crate::bam_query::Query::open(&input, &header, list),
+        _ => None,
+    };
+    let records: Box<dyn Iterator<Item = htsjdk_bam::record::BamRecord>> = match queried {
+        Some(query) => Box::new(query),
+        None => Box::new(records),
     };
     let result =
         walk(records, &references, &lengths, source, &options).unwrap_or_else(|e| thrown(&e));
