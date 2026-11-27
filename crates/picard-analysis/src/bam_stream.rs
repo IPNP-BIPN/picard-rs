@@ -718,6 +718,17 @@ pub fn clean_header(path: &str) -> Option<SamHeader> {
     (!blocks.damaged && blocks.declared == inflated).then_some(header)
 }
 
+/// The header of a BAM, read from its first blocks alone, the way `SamReader.getFileHeader` reads
+/// it: a damaged or truncated block after the header changes nothing, as it changes nothing for
+/// htsjdk. `None` when the header itself does not read, for the caller's whole-file read to give
+/// the refusal it gave.
+pub fn header_only(path: &str) -> Option<SamHeader> {
+    let file = File::open(path).ok()?;
+    RecordStream::new(htsjdk_bgzf::BgzfReader::new(BufReader::new(file)))
+        .header()
+        .ok()
+}
+
 /// A BAM decoded in one pass, for a tool that can throw away what it made of the records: the
 /// header to `on_header`, then each record, validated, to `on_record`. `true` when the whole-file
 /// read would have handed over the same records and raised nothing; `false` at the first sign
@@ -1155,6 +1166,31 @@ mod tests {
 
     fn block_end(file: &[u8], at: usize) -> usize {
         at + u16::from_le_bytes([file[at + 16], file[at + 17]]) as usize + 1
+    }
+
+    /// The header alone is read, so a damaged or truncated block after it changes nothing, and a
+    /// file whose header does not read is left to the caller.
+    #[test]
+    fn the_header_alone_reads_past_damage_after_it() {
+        let (plain, _) = plain_bam(20_000);
+        let file = bgzf(&plain);
+        let second = block_end(&file, 0);
+        let mut flipped = file.clone();
+        flipped[block_end(&file, second) + 40] ^= 0xff;
+        let truncated = file[..block_end(&file, second) + 40].to_vec();
+        let expected = BamReader::new(&plain).unwrap().header.text.clone();
+        let path = std::env::temp_dir().join(format!("header_only.{}.bam", std::process::id()));
+        let path_str = path.to_str().unwrap();
+        for case in [&file, &flipped, &truncated] {
+            std::fs::write(&path, case).unwrap();
+            assert_eq!(
+                header_only(path_str).map(|h| h.encode()),
+                Some(expected.encode())
+            );
+        }
+        std::fs::write(&path, &file[..20]).unwrap();
+        assert!(header_only(path_str).is_none());
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]

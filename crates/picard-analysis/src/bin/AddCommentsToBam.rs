@@ -66,9 +66,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         std::process::exit(1);
     }
-    // `reheaderBamFile` copies BGZF blocks, and a CRAM has none: the termination check refuses it,
-    // naming the input by its URI.
-    if picard_analysis::cram_input::is_cram(&head) {
+    // `reheaderBamFile` asserts the file is not defective before it copies a block (a CRAM has no
+    // BGZF tail at all), naming the input by its URI. The blocks it then copies are not inflated, so
+    // a damaged block after the header is copied as it is.
+    let defective =
+        htsjdk_bgzf::check_termination(&picard_analysis::check_terminator_block::tail(&input)?)
+            == htsjdk_bgzf::FileTermination::Defective;
+    if picard_analysis::cram_input::is_cram(&head) || defective {
         eprintln!(
             "Exception in thread \"main\" htsjdk.samtools.SAMException: \
              {} does not have a valid GZIP block at the end of the file.",
