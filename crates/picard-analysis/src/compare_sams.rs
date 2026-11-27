@@ -517,7 +517,7 @@ fn compare_headers(
 /// A record as the duplicate comparator reads it.
 fn duplicate_record(header: &SamHeader, rec: &BamRecord) -> crate::mark_duplicates::Record {
     use htsjdk_bam::tag::{Tag, TagValue};
-    let group = match rec.tags.get(Tag::new(b"RG")) {
+    let group = match rec.tags.find(Tag::new(b"RG")).as_deref() {
         Some(TagValue::Str(id)) => header.read_groups.iter().position(|g| &g.id == id),
         _ => None,
     };
@@ -538,7 +538,7 @@ fn duplicate_record(header: &SamHeader, rec: &BamRecord) -> crate::mark_duplicat
         read_group: group.map_or(-1, |index| index as i32),
         barcode: None,
         existing_dt: None,
-        mate_span: match rec.tags.get(Tag::new(b"MC")) {
+        mate_span: match rec.tags.find(Tag::new(b"MC")).as_deref() {
             Some(TagValue::Str(text)) => htsjdk_bam::text_parse::parse_cigar(text)
                 .ok()
                 .as_ref()

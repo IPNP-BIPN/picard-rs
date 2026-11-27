@@ -24,7 +24,7 @@ use htsjdk_bam::sam_file::read_sam_with;
 use htsjdk_bam::text_parse::{ParseError, ValidationStringency};
 use htsjdk_bgzf::BgzfError;
 use std::fs::File;
-use std::io::{self, BufReader, Read};
+use std::io::{self, BufRead, BufReader, Read};
 use std::num::NonZeroUsize;
 use std::os::unix::fs::FileExt;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -418,7 +418,7 @@ fn records_in(batch: &[u8]) -> usize {
 /// every block clean, and as many bytes inflated as the blocks declared.
 fn ended_clean(stream: FileStream) -> bool {
     let mut inflater = stream.into_inner();
-    if io::copy(&mut inflater, &mut io::sink()).is_err() {
+    if inflater.drain().is_err() {
         return false;
     }
     let inflated = inflater.count;
@@ -626,7 +626,7 @@ pub fn header_if_clean(path: &str) -> Option<SamHeader> {
     let mut stream = RecordStream::new(inflater(Blocks::new(BufReader::new(file))));
     let header = stream.header().ok()?;
     let mut inflater = stream.into_inner();
-    io::copy(&mut inflater, &mut io::sink()).ok()?;
+    inflater.drain().ok()?;
     let inflated = inflater.count;
     let mut blocks = inflater.inner.finish().ok()?;
     io::copy(&mut blocks, &mut io::sink()).ok()?;
@@ -711,7 +711,7 @@ pub fn clean_header(path: &str) -> Option<SamHeader> {
     let mut stream = RecordStream::new(inflater(Blocks::new(BufReader::new(file))));
     let header = stream.header().ok()?;
     let mut inflater = stream.into_inner();
-    io::copy(&mut inflater, &mut io::sink()).ok()?;
+    inflater.drain().ok()?;
     let inflated = inflater.count;
     let mut blocks = inflater.inner.finish().ok()?;
     io::copy(&mut blocks, &mut io::sink()).ok()?;
@@ -744,7 +744,7 @@ pub fn one_pass(
         }
     }
     let mut inflater = stream.into_inner();
-    if io::copy(&mut inflater, &mut io::sink()).is_err() {
+    if inflater.drain().is_err() {
         return false;
     }
     let inflated = inflater.count;
@@ -798,6 +798,21 @@ fn inflater_of<R: Read + Send + 'static>(workers: usize, inner: R) -> Multithrea
     MultithreadedInflater {
         inner: noodles_bgzf::io::MultithreadedReader::with_worker_count(workers, inner),
         count: 0,
+    }
+}
+
+impl<R: Read + Send + 'static> MultithreadedInflater<R> {
+    /// Reads to the end of the stream, for a caller that wants only the count and any failure: it
+    /// takes each inflated block where it lies rather than a copy.
+    fn drain(&mut self) -> io::Result<()> {
+        loop {
+            let n = self.inner.fill_buf()?.len();
+            if n == 0 {
+                return Ok(());
+            }
+            self.inner.consume(n);
+            self.count += n as u64;
+        }
     }
 }
 

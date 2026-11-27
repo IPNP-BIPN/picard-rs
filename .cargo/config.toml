@@ -1,0 +1,4 @@
+# Every function on a cache line. Without this a change anywhere moves the others and with them the
+# cycles of tools it did not touch, by up to 3%, with the same instructions.
+[build]
+rustflags = ["-C", "llvm-args=-align-all-functions=6"]

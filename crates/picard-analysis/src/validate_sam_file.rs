@@ -305,7 +305,7 @@ fn validate_header(header: &SamHeader, rep: &mut Report) {
 /// `SamFileValidator.validateReadGroup`: the record's read group is unknown if it has no `RG` tag or
 /// the tag's id is not in the header.
 fn read_group_present(header: &SamHeader, rec: &BamRecord) -> bool {
-    match rec.tags.get(Tag::new(b"RG")) {
+    match rec.tags.find(Tag::new(b"RG")).as_deref() {
         Some(htsjdk_bam::tag::TagValue::Str(id)) => {
             header.read_groups.iter().any(|rg| rg.id == *id)
         }
@@ -332,7 +332,7 @@ struct PairEndInfo {
 
 impl PairEndInfo {
     fn new(rec: &BamRecord, record_number: i64) -> Self {
-        let mate_cigar = match rec.tags.get(Tag::new(b"MC")) {
+        let mate_cigar = match rec.tags.find(Tag::new(b"MC")).as_deref() {
             Some(htsjdk_bam::tag::TagValue::Str(s)) => Some(s.clone()),
             _ => None,
         };
@@ -527,7 +527,7 @@ fn is_valid_record(header: &SamHeader, rec: &BamRecord, record_number: i64, rep:
     }
 
     // The RG ID, when present, must resolve in the header.
-    if let Some(htsjdk_bam::tag::TagValue::Str(id)) = rec.tags.get(Tag::new(b"RG")) {
+    if let Some(htsjdk_bam::tag::TagValue::Str(id)) = rec.tags.find(Tag::new(b"RG")).as_deref() {
         if !header.read_groups.iter().any(|rg| rg.id == *id) {
             rep.add(
                 ERROR,
@@ -794,7 +794,7 @@ fn validate_inner(
         // validateNmTag: the tag must be present (MISSING_TAG_NM) and, when a reference is given,
         // must equal the value recomputed from the reference (INVALID_TAG_NM).
         if !unmapped {
-            match rec.tags.get(Tag::new(b"NM")) {
+            match rec.tags.find(Tag::new(b"NM")).as_deref() {
                 None => rep.add(
                     WARNING,
                     "MISSING_TAG_NM",

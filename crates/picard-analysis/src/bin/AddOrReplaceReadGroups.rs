@@ -207,7 +207,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .sort_order()
                     .expect("coordinate and queryname both sort");
                 // Stable, so records equal under the comparator keep input order (decision 0021).
-                records.sort_by(sort.comparator());
+                picard_analysis::sort_sam::sort_records(&mut records, sort.comparator())?;
                 let mut out = Output::create(&output, &header, false)?;
                 for record in &records {
                     out.write(record)?;

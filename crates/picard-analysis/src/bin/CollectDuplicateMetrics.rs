@@ -97,7 +97,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     let library_of = |record: &BamRecord| -> String {
-        match record.tags.get(Tag::new(b"RG")) {
+        match record.tags.find(Tag::new(b"RG")).as_deref() {
             Some(TagValue::Str(id)) => header
                 .read_groups
                 .iter()

@@ -41,7 +41,7 @@ struct Scanned {
 
 /// `new VCFFileReader(path, false)` and its first record, or the exception that read gave.
 fn scan(path: &str) -> Result<Scanned, String> {
-    let mut reader = VcfReader::open(path)?;
+    let mut reader = VcfReader::open_deferred(path)?;
     let first = reader.try_next().transpose()?;
     Ok(Scanned {
         file: reader.file,
@@ -234,7 +234,7 @@ fn write_conventionally(
     let mut last_file: Option<&String> = None;
     for path in paths {
         // Opened once already, so a failure now is the file changing underneath.
-        let mut reader = VcfReader::open(path).unwrap_or_else(|exception| die(&exception));
+        let mut reader = VcfReader::open_deferred(path).unwrap_or_else(|exception| die(&exception));
         let mut next = reader.try_next().transpose().map_err(Failure::Caught)?;
         if let (Some(last_context), Some(first)) = (&last, &next) {
             if compare(comparator, &first.variant, &last_context.variant)? <= 0 {

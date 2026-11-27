@@ -8,7 +8,8 @@
 //! timestamp, so the output is comparable raw. The records are then sorted by the chosen order's
 //! comparator: `SAMRecordCoordinateComparator` for `coordinate`, `SAMRecordQueryNameComparator` for
 //! `queryname`. Both comparators treat records that agree on every field as equal, so the sort must
-//! be **stable** to be byte-identical (decision 0021); Rust's `sort_by` is.
+//! be **stable** to be byte-identical (decision 0021); Rust's `sort_by` is. Where the queryname
+//! comparator is not an order at all, [`sort_records`] sorts as Java does.
 //!
 //! This ports the `coordinate` and `queryname` orders, and the precondition the `duplicate` order
 //! is refused on. A duplicate sort compares records by, among other things, their MATE's unclipped
@@ -184,7 +185,8 @@ pub fn sort_sam(input_sam: &str, order: SortOrder) -> Result<String, ParseError>
     let (mut header, mut records) = read_sam(input_sam)?;
     header.set_sort_order(order.name());
     // A stable sort so equal records keep input order (decision 0021).
-    records.sort_by(order.comparator());
+    sort_records(&mut records, order.comparator())
+        .expect("the conformance inputs are ordered by the comparator");
     Ok(write_sam(&header, &records).expect("records that parsed re-encode as SAM text"))
 }
 
@@ -195,7 +197,8 @@ pub fn sort_sam(input_sam: &str, order: SortOrder) -> Result<String, ParseError>
 pub fn sort_sam_to_bam(input_sam: &str, order: SortOrder) -> Result<Vec<u8>, ParseError> {
     let (mut header, mut records) = read_sam(input_sam)?;
     header.set_sort_order(order.name());
-    records.sort_by(order.comparator());
+    sort_records(&mut records, order.comparator())
+        .expect("the conformance inputs are ordered by the comparator");
 
     let mut writer =
         crate::output::bam_writer(Vec::new(), &header).expect("in-memory BAM writer never fails");
@@ -220,6 +223,22 @@ pub const DEFAULT_MAX_RECORDS_IN_RAM: usize = 500_000;
 const MAX_OPEN_RUNS: usize = 256;
 
 type Compare = fn(&BamRecord, &BamRecord) -> Ordering;
+
+/// `Arrays.parallelSort`, which is all a `SortingCollection` does to the records in RAM: any stable
+/// sort while the comparator orders them, Java's own once a record's flags mean it may not.
+pub fn sort_records(
+    records: &mut Vec<BamRecord>,
+    compare: Compare,
+) -> Result<(), crate::java_sort::ContractViolated> {
+    if records
+        .iter()
+        .any(|record| crate::java_sort::orders_loosely(record.flags))
+    {
+        return crate::java_sort::sort(records, compare);
+    }
+    records.sort_by(compare);
+    Ok(())
+}
 
 /// htsjdk's `SortingCollection` of records, spilling to disk as `BAMRecordCodec` encodes them.
 pub struct SortingCollection {
@@ -273,7 +292,7 @@ impl SortingCollection {
 
     fn spill(&mut self) -> io::Result<()> {
         // Stable, so equal records keep input order within a run (decision 0021).
-        self.ram.sort_by(self.compare);
+        sort_records(&mut self.ram, self.compare)?;
         let run = write_run(&self.tmp_dir, self.ram.drain(..).map(Ok))?;
         self.runs.push(run);
         if self.runs.len() == MAX_OPEN_RUNS {
@@ -287,7 +306,7 @@ impl SortingCollection {
     /// `doneAdding` and `iterator`: the records in order, from RAM when nothing spilled.
     pub fn into_sorted(mut self) -> io::Result<Sorted> {
         if self.runs.is_empty() {
-            self.ram.sort_by(self.compare);
+            sort_records(&mut self.ram, self.compare)?;
             return Ok(Sorted::Ram(self.ram.into_iter()));
         }
         if !self.ram.is_empty() {
