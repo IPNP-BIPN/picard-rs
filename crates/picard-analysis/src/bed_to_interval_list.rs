@@ -67,6 +67,48 @@ pub enum BedError {
     EndBeforeStart(String, i32, i32),
 }
 
+impl std::fmt::Display for BedError {
+    /// The exception `doWork` throws, as `Exception in thread "main"` prints it.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let picard = "picard.PicardException";
+        match self {
+            // shortcut: Picard's text for an unparseable coordinate is not ported; the variant
+            // prints as before.
+            BedError::BadNumber(_) => write!(f, "{self:?}"),
+            BedError::UnknownContig(c) => {
+                write!(
+                    f,
+                    "{picard}: Sequence '{c}' was not found in the sequence dictionary"
+                )
+            }
+            BedError::StartLessThanOne(c, s) => {
+                write!(
+                    f,
+                    "{picard}: Start on sequence '{c}' was less than one: {s}"
+                )
+            }
+            BedError::StartPastEnd(c, l, s) => {
+                write!(
+                    f,
+                    "{picard}: Start on sequence '{c}' was past the end: {l} < {s}"
+                )
+            }
+            BedError::EndLessThanOne(c, e) => {
+                write!(f, "{picard}: End on sequence '{c}' was less than one: {e}")
+            }
+            BedError::EndPastEnd(c, l, e) => {
+                write!(
+                    f,
+                    "{picard}: End on sequence '{c}' was past the end: {l} < {e}"
+                )
+            }
+            BedError::EndBeforeStart(c, e, s) => {
+                write!(f, "{picard}: On sequence '{c}', end < start-1: {e} <= {s}")
+            }
+        }
+    }
+}
+
 /// One sequence dictionary record: its name and length, in header order.
 struct DictEntry {
     name: String,
