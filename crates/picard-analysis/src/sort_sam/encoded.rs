@@ -750,7 +750,8 @@ impl<W: Write> EncodedBamWriter<W> {
         let addresses = Rc::new(RefCell::new(Addresses::default()));
         let mut bgzf = crate::output::bgzf_writer(Logged {
             inner,
-            addresses: Rc::clone(&addresses),
+            // Only an index needs them.
+            addresses: index.then(|| Rc::clone(&addresses)),
         });
         bgzf.write_all(&text)?;
         let reference_lengths: Vec<i32> = header.sequences.iter().map(|s| s.length).collect();
@@ -853,13 +854,15 @@ impl<W: Write> EncodedBamWriter<W> {
 /// The stream under a [`BgzfWriter`], noting where each block starts as its header goes by.
 struct Logged<W> {
     inner: W,
-    addresses: Rc<RefCell<Addresses>>,
+    addresses: Option<Rc<RefCell<Addresses>>>,
 }
 
 impl<W: Write> Write for Logged<W> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         let n = self.inner.write(bytes)?;
-        self.addresses.borrow_mut().saw(&bytes[..n]);
+        if let Some(addresses) = &self.addresses {
+            addresses.borrow_mut().saw(&bytes[..n]);
+        }
         Ok(n)
     }
 
