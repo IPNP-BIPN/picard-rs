@@ -215,9 +215,28 @@ pub mod encoded;
 pub const DEFAULT_MAX_RECORDS_IN_RAM: usize = 500_000;
 
 /// How many runs are merged at once. htsjdk opens every run together and fails on a file-descriptor
-/// limit a whole genome reaches; merging the runs so far into one run first writes the same records
-/// in the same order, since they are all earlier than the runs still to come.
+/// limit a whole genome reaches; merging consecutive runs into one first writes the same records
+/// in the same order, since the merge is stable and breaks ties by run.
 const MAX_OPEN_RUNS: usize = 256;
+
+/// Merges the last [`MAX_OPEN_RUNS`] runs into one a level up whenever they are all of one level,
+/// as a counter carries: each record is rewritten once per level (log base 256 of the runs), not
+/// once per 256 runs, and the runs stay in input order.
+fn carry<R>(
+    runs: &mut Vec<(u32, R)>,
+    mut merge: impl FnMut(Vec<R>) -> io::Result<R>,
+) -> io::Result<()> {
+    while let Some(tail) = runs.len().checked_sub(MAX_OPEN_RUNS) {
+        let level = runs[tail].0;
+        // Levels never rise along the runs, so the oldest of the tail decides.
+        if runs[runs.len() - 1].0 != level {
+            break;
+        }
+        let merged = merge(runs.drain(tail..).map(|(_, run)| run).collect())?;
+        runs.push((level + 1, merged));
+    }
+    Ok(())
+}
 
 type Compare = fn(&BamRecord, &BamRecord) -> Ordering;
 
@@ -227,7 +246,8 @@ pub struct SortingCollection {
     max_records_in_ram: usize,
     tmp_dir: PathBuf,
     ram: Vec<BamRecord>,
-    runs: Vec<File>,
+    /// The runs on disk, in input order, each with how many merges it has been through.
+    runs: Vec<(u32, File)>,
 }
 
 impl SortingCollection {
@@ -275,13 +295,11 @@ impl SortingCollection {
         // Stable, so equal records keep input order within a run (decision 0021).
         self.ram.sort_by(self.compare);
         let run = write_run(&self.tmp_dir, self.ram.drain(..).map(Ok))?;
-        self.runs.push(run);
-        if self.runs.len() == MAX_OPEN_RUNS {
-            let merged = Merge::new(self.compare, std::mem::take(&mut self.runs))?;
-            let run = write_run(&self.tmp_dir, merged)?;
-            self.runs.push(run);
-        }
-        Ok(())
+        self.runs.push((0, run));
+        let (compare, tmp_dir) = (self.compare, &self.tmp_dir);
+        carry(&mut self.runs, |runs| {
+            write_run(tmp_dir, Merge::new(compare, runs)?)
+        })
     }
 
     /// `doneAdding` and `iterator`: the records in order, from RAM when nothing spilled.
@@ -293,7 +311,8 @@ impl SortingCollection {
         if !self.ram.is_empty() {
             self.spill()?;
         }
-        Ok(Sorted::Merge(Merge::new(self.compare, self.runs)?))
+        let runs = self.runs.into_iter().map(|(_, file)| file).collect();
+        Ok(Sorted::Merge(Merge::new(self.compare, runs)?))
     }
 }
 
@@ -488,6 +507,36 @@ mod tests {
                 assert_eq!(spilled, whole, "{order:?} with MAX_RECORDS_IN_RAM={max}");
             }
         }
+    }
+
+    #[test]
+    fn runs_carry_a_level_up_in_input_order() {
+        // Each run is the input positions it holds; a merge of consecutive runs concatenates them.
+        let n = MAX_OPEN_RUNS * MAX_OPEN_RUNS * 2 + 7;
+        let (mut runs, mut rewritten, mut most) = (Vec::new(), 0, 0);
+        for i in 0..n {
+            runs.push((0, vec![i]));
+            carry(&mut runs, |group: Vec<Vec<usize>>| {
+                assert_eq!(group.len(), MAX_OPEN_RUNS);
+                let merged: Vec<usize> = group.concat();
+                rewritten += merged.len();
+                Ok(merged)
+            })
+            .unwrap();
+            most = most.max(runs.len());
+        }
+        let levels: Vec<u32> = runs.iter().map(|(level, _)| *level).collect();
+        assert!(levels.windows(2).all(|w| w[0] >= w[1]), "{levels:?}");
+        assert_eq!(levels.iter().filter(|&&l| l == 2).count(), 2);
+        assert_eq!(
+            runs.into_iter()
+                .flat_map(|(_, run)| run)
+                .collect::<Vec<_>>(),
+            (0..n).collect::<Vec<_>>()
+        );
+        // Every record rewritten once per level it climbed, never once per 256 runs.
+        assert_eq!(rewritten, 2 * MAX_OPEN_RUNS * MAX_OPEN_RUNS * 2);
+        assert!(most <= MAX_OPEN_RUNS * 2, "{most}");
     }
 
     #[test]

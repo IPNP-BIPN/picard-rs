@@ -22,7 +22,7 @@ use htsjdk_bam::writer::WriteError;
 use htsjdk_bgzf::BgzfWriter;
 use rayon::prelude::*;
 
-use super::{SortOrder, MAX_OPEN_RUNS};
+use super::{carry, SortOrder};
 
 const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
@@ -237,7 +237,8 @@ pub struct SortingCollection {
     /// [`EncodedBatch`] added.
     arenas: Vec<Vec<u8>>,
     entries: Vec<Entry>,
-    runs: Vec<File>,
+    /// The runs on disk, in input order, each with how many merges it has been through.
+    runs: Vec<(u32, File)>,
     /// The last batch spilled, still being written on its own thread while the next one fills.
     writing: Option<std::thread::JoinHandle<io::Result<File>>>,
 }
@@ -329,22 +330,22 @@ impl SortingCollection {
             }
             run.finish()
         }));
-        if self.runs.len() + 1 == MAX_OPEN_RUNS {
-            self.wait_for_run()?;
-            let runs = std::mem::take(&mut self.runs).into_iter().map(Run::file);
-            let mut merged = Merge::new(self.compare, self.parallel, runs.collect())?;
-            let mut run = RunWriter::create(&self.tmp_dir)?;
+        // The run just written joined the runs at the top of this spill.
+        let (compare, parallel, tmp_dir) = (self.compare, self.parallel, &self.tmp_dir);
+        carry(&mut self.runs, |runs| {
+            let mut merged =
+                Merge::new(compare, parallel, runs.into_iter().map(Run::file).collect())?;
+            let mut run = RunWriter::create(tmp_dir)?;
             merged.for_each(|record| run.push(record))?;
-            self.runs.push(run.finish()?);
-        }
-        Ok(())
+            run.finish()
+        })
     }
 
     /// Adds the run being written to the runs, once it is written.
     fn wait_for_run(&mut self) -> io::Result<()> {
         if let Some(writing) = self.writing.take() {
             let run = writing.join().expect("the run writer does not panic")?;
-            self.runs.push(run);
+            self.runs.push((0, run));
         }
         Ok(())
     }
@@ -365,7 +366,11 @@ impl SortingCollection {
         // The last batch is merged from RAM, as the run it would have been spilled to: the last.
         self.sort();
         self.wait_for_run()?;
-        let mut runs: Vec<Run> = self.runs.into_iter().map(Run::file).collect();
+        let mut runs: Vec<Run> = self
+            .runs
+            .into_iter()
+            .map(|(_, file)| Run::file(file))
+            .collect();
         if !self.entries.is_empty() {
             runs.push(Run::Ram {
                 arenas: self.arenas,
@@ -782,7 +787,7 @@ pub fn bin_zero(reference_lengths: &[i32], reference_index: i32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sort_sam::DEFAULT_MAX_RECORDS_IN_RAM;
+    use crate::sort_sam::{DEFAULT_MAX_RECORDS_IN_RAM, MAX_OPEN_RUNS};
     use htsjdk_bam::sam_file::read_sam;
 
     /// Sorts through a collection holding `max` records at most.
