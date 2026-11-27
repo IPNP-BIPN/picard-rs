@@ -514,13 +514,6 @@ impl ContextAccumulator {
         }
     }
 
-    /// `countRecord`: a context the accumulator does not know is ignored.
-    pub fn count(&mut self, context: &str, called: u8, negative: bool, paired: bool, second: bool) {
-        if let (Some(accumulators), Some(i)) = (self.map.get_mut(context), base_index(called)) {
-            accumulators[i].count(negative, paired, second);
-        }
-    }
-
     fn merge(into: &mut [Alignment; 4], from: &[Alignment; 4]) {
         for (a, b) in into.iter_mut().zip(from) {
             a.r1_pos += b.r1_pos;
@@ -610,6 +603,9 @@ pub struct ArtifactCounter {
     zero: ContextAccumulator,
     leading: HashSet<String>,
     trailing: HashSet<String>,
+    /// `full`'s counters by context read as a base-4 number (A, C, G, T): the order its sorted
+    /// keys come in, so they are folded into it at `finish` without a lookup per base.
+    dense: Vec<[Alignment; 4]>,
 }
 
 /// What `ArtifactCounter.finish` leaves behind, in the order its getters hand it out.
@@ -652,13 +648,36 @@ impl ArtifactCounter {
             full: ContextAccumulator::new(&full, tandem),
             half: ContextAccumulator::new(&half, tandem),
             zero: ContextAccumulator::new(&zero, tandem),
+            dense: vec![[Alignment::default(); 4]; full.len()],
             leading,
             trailing,
         }
     }
 
-    pub fn count(&mut self, context: &str, called: u8, negative: bool, paired: bool, second: bool) {
-        self.full.count(context, called, negative, paired, second);
+    /// `countRecord`: a context of another length or with a base outside A, C, G, T is no key
+    /// of `full`, and is ignored.
+    pub fn count(
+        &mut self,
+        context: &[u8],
+        called: u8,
+        negative: bool,
+        paired: bool,
+        second: bool,
+    ) {
+        let Some(i) = base_index(called) else {
+            return;
+        };
+        if context.len() != 2 * self.context_size + 1 {
+            return;
+        }
+        let mut code = 0;
+        for &b in context {
+            let Some(k) = base_index(b) else {
+                return;
+            };
+            code = code * 4 + k;
+        }
+        self.dense[code][i].count(negative, paired, second);
     }
 
     /// `getWorstMetrics`: the first strictly-worst of each kind, chosen independently.
@@ -694,6 +713,9 @@ impl ArtifactCounter {
 
     /// `finish`: the detail metrics of every alternate transition, and a summary row for each.
     pub fn finish(mut self) -> CounterMetrics {
+        for (into, from) in self.full.map.values_mut().zip(&self.dense) {
+            ContextAccumulator::merge(into, from);
+        }
         let details = self.full.calculate(&self.sample_alias, &self.library);
         // getSummaryMetrics recomputes the full metrics; they are the same rows.
         self.half.fill_half(&self.full, self.context_size);
@@ -784,4 +806,39 @@ pub fn error_summaries(details: &[PreAdapterDetail]) -> Vec<ErrorSummary> {
         entry.alt_count += m.counts.pro_alt + m.counts.con_alt;
     }
     by_error.into_values().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Each context counted lands on the key it spells, and only a key of `full` is counted.
+    #[test]
+    fn dense_counts_fold_into_the_keys_they_spell() {
+        for context_size in [0, 1, 2] {
+            let mut counter = ArtifactCounter::new("s", "l", context_size, false);
+            let keys: Vec<String> = counter.full.map.keys().cloned().collect();
+            for (n, key) in keys.iter().enumerate().step_by(7) {
+                for _ in 0..=n % 5 {
+                    counter.count(key.as_bytes(), b"ACGT"[n % 4], n % 2 == 0, true, n % 3 == 0);
+                }
+            }
+            counter.count(b"ANA", b'A', false, false, false);
+            counter.count(b"acg", b'A', false, false, false);
+            counter.count(b"AAAAAAAAAAA", b'A', false, false, false);
+            counter.count(keys[0].as_bytes(), b'N', false, false, false);
+            for (into, from) in counter.full.map.values_mut().zip(&counter.dense) {
+                ContextAccumulator::merge(into, from);
+            }
+            for (n, key) in keys.iter().enumerate() {
+                let mut expected = [Alignment::default(); 4];
+                if n % 7 == 0 {
+                    for _ in 0..=n % 5 {
+                        expected[n % 4].count(n % 2 == 0, true, n % 3 == 0);
+                    }
+                }
+                assert_eq!(counter.full.map[key], expected, "{key}");
+            }
+        }
+    }
 }

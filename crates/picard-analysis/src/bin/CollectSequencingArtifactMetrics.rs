@@ -228,11 +228,12 @@ fn main() {
             }
             let reference_bases = &upper.as_ref().expect("reference").1;
             let contig_name = &contigs[index as usize].name;
-            let quals = if use_oq {
-                original_qualities(record).unwrap_or_else(|| record.base_qualities.clone())
+            let original = if use_oq {
+                original_qualities(record)
             } else {
-                record.base_qualities.clone()
+                None
             };
+            let quals = original.as_deref().unwrap_or(&record.base_qualities);
             let counter = &mut counters
                 .iter_mut()
                 .find(|(l, _)| l == library)
@@ -278,7 +279,6 @@ fn main() {
                     if !matches!(read_base, b'A' | b'C' | b'G' | b'T' | b'N') {
                         continue;
                     }
-                    let context = std::str::from_utf8(context).unwrap_or("");
                     counter.count(context, read_base, negative, paired, second);
                 }
             }
