@@ -143,13 +143,14 @@ impl Input {
         File::open(path)
             .and_then(|f| f.take(4).read_to_end(&mut head))
             .map_err(InputError::Io)?;
-        // A CRAM is decoded whole, against the reference, as htsjdk's reader would hand it over.
+        // A CRAM is decoded a container at a time, against the reference, as htsjdk's reader
+        // hands it over.
         if crate::cram_input::is_cram(&head) {
             let raw = std::fs::read(path).map_err(InputError::Io)?;
-            let (header, records) = crate::cram_input::decode_or_exit(&raw);
+            let (header, records) = crate::cram_input::stream(raw);
             return Ok(Input {
                 header,
-                records: Records::Decoded(records.into_iter(), None),
+                records: Records::Cram(Box::new(records)),
             });
         }
         head.truncate(2);
@@ -195,6 +196,7 @@ impl Input {
     pub fn unvalidated(mut self) -> Input {
         match &mut self.records {
             Records::Stream(_, validator) | Records::Decoded(_, validator) => *validator = None,
+            Records::Cram(_) => {}
         }
         self
     }
@@ -218,6 +220,8 @@ impl IntoIterator for Input {
 pub enum Records {
     Stream(Box<Streaming>, Option<Validator>),
     Decoded(std::vec::IntoIter<BamRecord>, Option<Validator>),
+    /// A CRAM's records, which htsjdk's CRAM reader does not validate.
+    Cram(Box<crate::cram_input::CramStream>),
 }
 
 /// The inflated stream of a BAM file, as every pass over one reads it.
@@ -444,6 +448,7 @@ impl Records {
         // throw nothing and print nothing.
         let (record, passed) = match self {
             Records::Decoded(records, _) => (records.next(), false),
+            Records::Cram(records) => return Ok(records.next()),
             Records::Stream(streaming, validator) => match streaming.next() {
                 Ok(Some((record, passed))) => (Some(record), passed),
                 Ok(None) => (None, false),
@@ -454,7 +459,9 @@ impl Records {
                     let validator = validator.take();
                     let mut rest = match whole(&streaming.path)?.records {
                         Records::Decoded(rest, _) => rest,
-                        Records::Stream(..) => unreachable!("the whole-file read decodes"),
+                        Records::Stream(..) | Records::Cram(_) => {
+                            unreachable!("the whole-file read decodes")
+                        }
                     };
                     if handed > 0 {
                         rest.nth(handed - 1);
@@ -466,6 +473,7 @@ impl Records {
         };
         let validator = match self {
             Records::Stream(_, validator) | Records::Decoded(_, validator) => validator.as_mut(),
+            Records::Cram(_) => None,
         };
         if let (Some(rec), Some(validator)) = (&record, validator) {
             if passed {

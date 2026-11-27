@@ -220,16 +220,23 @@ fn read_serially(
         SamHeader,
         Box<dyn Iterator<Item = Result<BamRecord, String>>>,
     ) = if picard_analysis::cram_input::is_cram(head) {
-        // shortcut: a CRAM is decoded whole, then validated as the BAM it decodes to.
-        let raw = picard_analysis::cram_input::uncram(std::fs::read(input)?);
-        let plain = picard_analysis::bgzf::decompress_owned(raw).map_err(|e| format!("{e:?}"))?;
-        let reader =
-            picard_analysis::record_validation::reader(&plain).map_err(|e| format!("{e:?}"))?;
-        let header = reader.header.text.clone();
-        let records = reader
-            .map(|r| r.map_err(|e| format!("{e:?}")))
-            .collect::<Vec<_>>();
-        (header, Box::new(records.into_iter()))
+        // A CRAM is decoded a container at a time and validated as the BAM it decodes to, whose
+        // binary dictionary is the header's.
+        let (header, cram) = picard_analysis::cram_input::stream(std::fs::read(input)?);
+        let dictionary: Vec<(String, i32)> = header
+            .sequences
+            .iter()
+            .map(|s| (s.name.clone(), s.length))
+            .collect();
+        let mut validator =
+            picard_analysis::record_validation::Validator::new(&header, &dictionary);
+        let records = cram.map(move |record| {
+            if let Err(message) = validator.check(&record) {
+                picard_analysis::metrics_cli::thrown(&message);
+            }
+            Ok(record)
+        });
+        (header, Box::new(records))
     } else if head.starts_with(&[0x1f, 0x8b]) {
         // A clean BAM streams through the shared reader, inflating on every core. Its first pass
         // lets a BGZF error outrank a record that fails validation earlier, which this stream does
