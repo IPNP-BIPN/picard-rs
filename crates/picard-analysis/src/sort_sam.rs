@@ -216,7 +216,8 @@ pub const DEFAULT_MAX_RECORDS_IN_RAM: usize = 500_000;
 
 /// How many runs are merged at once. htsjdk opens every run together and fails on a file-descriptor
 /// limit a whole genome reaches; merging consecutive runs into one first writes the same records
-/// in the same order, since the merge is stable and breaks ties by run.
+/// in the same order, since the merge is stable and breaks ties by run. Up to this many runs less
+/// one stay open per level: 255 below 256 runs, 510 below 65,536, 765 below 16.7 million.
 const MAX_OPEN_RUNS: usize = 256;
 
 /// Merges the last [`MAX_OPEN_RUNS`] runs into one a level up whenever they are all of one level,
