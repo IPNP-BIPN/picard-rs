@@ -1512,7 +1512,7 @@ fn vc_probs(
         return added;
     };
     let snp = snp.clone();
-    // `subsetVCToMatchSnp`, for a biallelic site.
+    // `AlleleSubsettingUtils.subsetVCToMatchSnp`.
     if ctx.is_filtered() || ctx.alleles[0].len() != 1 {
         return added;
     }
@@ -1528,22 +1528,35 @@ fn vc_probs(
     } else {
         snp.allele1
     };
+    // The SNP's other allele among the alternates, or else `<NON_REF>`, which `swapAlleles`
+    // replaces by it. A site with more alleles is cut down to the reference and that one.
+    let non_ref = |a: &htsjdk_vcf::allele::Allele| a.display_string() == "<NON_REF>";
     let alts = &ctx.alleles[1..];
-    let matching = alts
+    let (kept, swapped) = match alts
         .iter()
-        .any(|a| a.len() == 1 && a.base_string().as_bytes()[0].eq_ignore_ascii_case(&other));
-    if !matching || alts.len() != 1 {
+        .position(|a| a.len() == 1 && a.base_string().as_bytes()[0].eq_ignore_ascii_case(&other))
+    {
+        Some(i) => (i + 1, false),
+        None => match alts.iter().position(non_ref) {
+            Some(i) => (i + 1, true),
+            None => return added,
+        },
+    };
+    let subset = ctx.alleles.len() != 2;
+    let first = ctx.alleles[0].base_string().as_bytes()[0];
+    let second = if swapped {
+        other
+    } else {
+        ctx.alleles[kept].base_string().as_bytes()[0]
+    };
+    if [first, second]
+        .iter()
+        .any(|b| *b != snp.allele1 && *b != snp.allele2)
+    {
         return added;
     }
-    for allele in &ctx.alleles {
-        let bases = allele.base_string();
-        let b = bases.as_bytes();
-        if b.len() > 1 || (b[0] != snp.allele1 && b[0] != snp.allele2) {
-            return added;
-        }
-    }
-    let first = ctx.alleles[0].base_string().as_bytes()[0];
-    let second = ctx.alleles[1].base_string().as_bytes()[0];
+    // `subsettedPLIndices` for the reference and the kept allele, at ploidy two.
+    let kept_pl = [0, kept * (kept + 1) / 2, kept * (kept + 1) / 2 + kept];
     // The first genotype of each sample, found by name rather than by a scan per sample.
     let mut by_sample: foldhash::HashMap<&str, &_> = foldhash::HashMap::default();
     for g in ctx.genotypes.iter().rev() {
@@ -1553,7 +1566,35 @@ fn vc_probs(
         let Some(&genotype) = by_sample.get(sample.as_str()) else {
             return added;
         };
-        if let Some(pl) = &genotype.pl {
+        // `subsetAlleles(GenotypesContext)`: a genotype keeps its PLs at the kept indices, less
+        // their minimum, and one without them, or with only three, becomes a no-call.
+        let subset_pl = if subset {
+            if genotype.alleles.len() != 2 {
+                // shortcut: htsjdk throws "only implemented for ploidy 2" here; such a site is
+                // left out instead, until a haploid gVCF needs Picard's failure.
+                return added;
+            }
+            match &genotype.pl {
+                Some(pl) if pl.len() != 3 => {
+                    let Some(picked) = kept_pl
+                        .iter()
+                        .map(|&i| pl.get(i).copied())
+                        .collect::<Option<Vec<i32>>>()
+                    else {
+                        return added;
+                    };
+                    let min = *picked.iter().min().expect("three");
+                    Some(picked.iter().map(|v| v - min).collect::<Vec<i32>>())
+                }
+                _ => None,
+            }
+        } else {
+            genotype.pl.clone()
+        };
+        if subset && subset_pl.is_none() {
+            continue;
+        }
+        if let Some(pl) = &subset_pl {
             if pl.len() != 3 {
                 return added;
             }
@@ -1582,7 +1623,12 @@ fn vc_probs(
                 continue;
             }
             let hom = genotype.is_hom();
-            let allele = genotype.alleles[0].base_string().as_bytes()[0].to_ascii_uppercase();
+            let allele = if non_ref(&genotype.alleles[0]) {
+                other
+            } else {
+                genotype.alleles[0].base_string().as_bytes()[0]
+            }
+            .to_ascii_uppercase();
             let half = error_rate / 2.0;
             let accuracy = 1.0 - error_rate;
             let likelihoods = [
