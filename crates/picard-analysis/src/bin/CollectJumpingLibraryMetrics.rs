@@ -13,9 +13,7 @@ use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::MetricsFile;
 use picard_analysis::args::arg;
 use picard_analysis::jumping_library;
-use picard_analysis::jumping_library::{
-    collect_files, main_pass_reaches, outward_pass_reaches, unsorted_message, Arguments, Pair,
-};
+use picard_analysis::jumping_library::{unsorted_message, Arguments, Pair, Tally};
 
 const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
@@ -51,9 +49,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // Every file is read before anything is refused, as when the pairs were held: a file that does
+    // not decode is answered first. Each is read once; what the two passes would have met is noted
+    // on the way (`Tally`, `FileReads`).
+    let mut tally = Tally::new(inputs.len());
     let read = inputs
         .iter()
-        .map(|input| pairs_of(input))
+        .map(|input| read_file(input, &mut tally, &arguments))
         .collect::<Result<Vec<_>, _>>()?;
     // `getFirstOfPairFlag()` throws for a read that is not paired, and both passes ask it of every
     // record they reach: `getOutieMode` over every file first, then the counting pass, file by
@@ -65,13 +67,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         std::process::exit(1);
     };
-    let per_file = picard_analysis::jumping_library::SAMPLE_FOR_MODE / read.len().max(1);
-    for file in &read {
-        if let Some(before) = file.unpaired_at {
-            if outward_pass_reaches(&file.pairs, before, per_file, &arguments) {
-                unpaired();
-            }
-        }
+    if read.iter().any(|file| file.outward_reaches_unpaired) {
+        unpaired();
     }
     // Every file is read in order into one set of counters; the first that is not coordinate
     // sorted is the refusal.
@@ -83,15 +80,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             std::process::exit(1);
         }
-        if file
-            .unpaired_at
-            .is_some_and(|before| main_pass_reaches(&file.pairs, before))
-        {
+        if file.main_reaches_unpaired {
             unpaired();
         }
     }
-    let files: Vec<&[(Pair, bool)]> = read.iter().map(|file| file.pairs.as_slice()).collect();
-    let metrics = collect_files(&files, &arguments);
+    let metrics = tally.finish(&arguments);
     let mut file = MetricsFile::new();
     for header in picard_analysis::command_line::default_headers("CollectJumpingLibraryMetrics") {
         file.add_header(&header);
@@ -101,57 +94,63 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// One file as the passes read it: its name and whether it is coordinate sorted, its first ends
-/// in file order, each with whether its mate lies to the right, and how many of them come before
-/// its first read that is not paired.
+/// One file as the passes would have read it: its name, whether it is coordinate sorted, and
+/// whether the sampling pass and the counting pass reach its first read that is not paired.
 struct FileReads {
     name: String,
     sorted: bool,
-    pairs: Vec<(Pair, bool)>,
-    unpaired_at: Option<usize>,
+    outward_reaches_unpaired: bool,
+    main_reaches_unpaired: bool,
 }
 
-fn pairs_of(input: &str) -> Result<FileReads, Box<dyn std::error::Error>> {
+fn read_file(
+    input: &str,
+    tally: &mut Tally,
+    arguments: &Arguments,
+) -> Result<FileReads, Box<dyn std::error::Error>> {
     let (header, records) = picard_analysis::bam_stream::Input::open(input)?.into_parts();
-    let mut unpaired_at = None;
-    let mut first_ends = 0usize;
-    // "We're getting all our info from the first of each pair."
-    let pairs = records
-        .into_iter()
-        .filter(|rec| {
-            if rec.flags & READ_PAIRED == 0 {
-                unpaired_at.get_or_insert(first_ends);
-                return false;
-            }
-            let first = rec.flags & FIRST_OF_PAIR != 0;
-            first_ends += usize::from(first);
-            first
-        })
-        .map(|rec| {
-            let mate_quality = match rec.tags.get(Tag::new(b"MQ")) {
-                Some(TagValue::Int(value)) => Some(*value as i32),
-                _ => None,
-            };
-            let pair = Pair {
-                reference_index: rec.reference_index,
-                mate_reference_index: rec.mate_reference_index,
-                reverse: rec.flags & READ_REVERSE != 0,
-                mate_reverse: rec.flags & MATE_REVERSE != 0,
-                insert_size: rec.inferred_insert_size as i64,
-                duplicate: rec.flags & DUPLICATE != 0,
-                mate_quality,
-                mapping_quality: rec.mapping_quality as i32,
-                unmapped: rec.flags & READ_UNMAPPED != 0,
-                mate_unmapped: rec.flags & MATE_UNMAPPED != 0,
-            };
-            let mate_is_to_the_right = jumping_library::mate_is_to_the_right(&rec);
-            (pair, mate_is_to_the_right)
-        })
-        .collect();
+    tally.start_file();
+    let mut unpaired = None;
+    // Whether a first end before the current record is unmapped at both ends with no reference,
+    // which is where the counting pass stops.
+    let mut main_stopped = false;
+    for rec in records {
+        if rec.flags & READ_PAIRED == 0 {
+            unpaired.get_or_insert((tally.sampling_reaches(), !main_stopped));
+            continue;
+        }
+        // "We're getting all our info from the first of each pair."
+        if rec.flags & FIRST_OF_PAIR == 0 {
+            continue;
+        }
+        let mate_quality = match rec.tags.get(Tag::new(b"MQ")) {
+            Some(TagValue::Int(value)) => Some(*value as i32),
+            _ => None,
+        };
+        let pair = Pair {
+            reference_index: rec.reference_index,
+            mate_reference_index: rec.mate_reference_index,
+            reverse: rec.flags & READ_REVERSE != 0,
+            mate_reverse: rec.flags & MATE_REVERSE != 0,
+            insert_size: rec.inferred_insert_size as i64,
+            duplicate: rec.flags & DUPLICATE != 0,
+            mate_quality,
+            mapping_quality: rec.mapping_quality as i32,
+            unmapped: rec.flags & READ_UNMAPPED != 0,
+            mate_unmapped: rec.flags & MATE_UNMAPPED != 0,
+        };
+        main_stopped |= pair.unmapped && pair.mate_unmapped && pair.reference_index < 0;
+        tally.add(
+            &pair,
+            jumping_library::mate_is_to_the_right(&rec),
+            arguments,
+        );
+    }
+    let (outward, main) = unpaired.unwrap_or((false, false));
     Ok(FileReads {
         name: input.rsplit('/').next().unwrap_or(input).to_string(),
         sorted: header.attributes.get("SO") == Some("coordinate"),
-        pairs,
-        unpaired_at,
+        outward_reaches_unpaired: outward,
+        main_reaches_unpaired: main,
     })
 }

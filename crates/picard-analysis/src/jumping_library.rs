@@ -490,59 +490,270 @@ pub fn collect_files(files: &[&[(Pair, bool)]], arguments: &Arguments) -> Jumpin
             }
         }
     }
-    let jump_trimmed = trim_by_tail_limit(&jump_histogram, arguments.tail_limit);
-    let nonjump_trimmed = trim_by_tail_limit(&nonjump_histogram, arguments.tail_limit);
-    let total = (jumps + nonjumps + chimeras) as f64;
-    JumpingLibraryMetrics {
-        jump_pairs: jumps,
-        jump_duplicate_pairs: jump_duplicates,
-        jump_duplicate_pct: if jumps != 0 {
-            jump_duplicates as f64 / jumps as f64
-        } else {
-            0.0
-        },
-        jump_library_size: if jumps > 0 && jump_duplicates > 0 {
-            estimate_library_size(jumps, jumps - jump_duplicates).unwrap_or(0)
-        } else {
-            0
-        },
-        jump_mean_insert_size: histogram_mean(&jump_trimmed),
-        jump_stdev_insert_size: histogram_standard_deviation(&jump_trimmed),
-        nonjump_pairs: nonjumps,
-        nonjump_duplicate_pairs: nonjump_duplicates,
-        nonjump_duplicate_pct: if nonjumps != 0 {
-            nonjump_duplicates as f64 / nonjumps as f64
-        } else {
-            0.0
-        },
-        nonjump_library_size: if nonjumps > 0 && nonjump_duplicates > 0 {
-            estimate_library_size(nonjumps, nonjumps - nonjump_duplicates).unwrap_or(0)
-        } else {
-            0
-        },
-        nonjump_mean_insert_size: histogram_mean(&nonjump_trimmed),
-        nonjump_stdev_insert_size: histogram_standard_deviation(&nonjump_trimmed),
-        chimeric_pairs: chimeras,
+    Counts {
+        jumps,
+        nonjumps,
+        chimeras,
         fragments,
-        pct_jumps: if total != 0.0 {
-            jumps as f64 / total
-        } else {
-            0.0
-        },
-        pct_nonjumps: if total != 0.0 {
-            nonjumps as f64 / total
-        } else {
-            0.0
-        },
-        pct_chimeras: if total != 0.0 {
-            chimeras as f64 / total
-        } else {
-            0.0
-        },
+        jump_duplicates,
+        nonjump_duplicates,
+        jump_histogram,
+        nonjump_histogram,
+    }
+    .metrics(arguments)
+}
+
+/// What the counting pass leaves: the buckets' sizes and the two insert-size histograms.
+struct Counts {
+    jumps: i64,
+    nonjumps: i64,
+    chimeras: i64,
+    fragments: i64,
+    jump_duplicates: i64,
+    nonjump_duplicates: i64,
+    jump_histogram: BTreeMap<i64, i64>,
+    nonjump_histogram: BTreeMap<i64, i64>,
+}
+
+impl Counts {
+    /// The arithmetic on top of the buckets.
+    fn metrics(self, arguments: &Arguments) -> JumpingLibraryMetrics {
+        let Counts {
+            jumps,
+            nonjumps,
+            chimeras,
+            fragments,
+            jump_duplicates,
+            nonjump_duplicates,
+            jump_histogram,
+            nonjump_histogram,
+        } = self;
+        let jump_trimmed = trim_by_tail_limit(&jump_histogram, arguments.tail_limit);
+        let nonjump_trimmed = trim_by_tail_limit(&nonjump_histogram, arguments.tail_limit);
+        let total = (jumps + nonjumps + chimeras) as f64;
+        JumpingLibraryMetrics {
+            jump_pairs: jumps,
+            jump_duplicate_pairs: jump_duplicates,
+            jump_duplicate_pct: if jumps != 0 {
+                jump_duplicates as f64 / jumps as f64
+            } else {
+                0.0
+            },
+            jump_library_size: if jumps > 0 && jump_duplicates > 0 {
+                estimate_library_size(jumps, jumps - jump_duplicates).unwrap_or(0)
+            } else {
+                0
+            },
+            jump_mean_insert_size: histogram_mean(&jump_trimmed),
+            jump_stdev_insert_size: histogram_standard_deviation(&jump_trimmed),
+            nonjump_pairs: nonjumps,
+            nonjump_duplicate_pairs: nonjump_duplicates,
+            nonjump_duplicate_pct: if nonjumps != 0 {
+                nonjump_duplicates as f64 / nonjumps as f64
+            } else {
+                0.0
+            },
+            nonjump_library_size: if nonjumps > 0 && nonjump_duplicates > 0 {
+                estimate_library_size(nonjumps, nonjumps - nonjump_duplicates).unwrap_or(0)
+            } else {
+                0
+            },
+            nonjump_mean_insert_size: histogram_mean(&nonjump_trimmed),
+            nonjump_stdev_insert_size: histogram_standard_deviation(&nonjump_trimmed),
+            chimeric_pairs: chimeras,
+            fragments,
+            pct_jumps: if total != 0.0 {
+                jumps as f64 / total
+            } else {
+                0.0
+            },
+            pct_nonjumps: if total != 0.0 {
+                nonjumps as f64 / total
+            } else {
+                0.0
+            },
+            pct_chimeras: if total != 0.0 {
+                chimeras as f64 / total
+            } else {
+                0.0
+            },
+        }
+    }
+}
+
+/// [`collect_files`] in one pass, holding no pair: the files are fed in order, a first end at a
+/// time, and the chimera threshold, which needs the sampling pass's mode, is applied at the end.
+/// It can wait because the threshold only ever turns a would-be jump or non-jump into a chimera on
+/// its absolute insert size, so those pairs are kept as counts per (insert size, bucket,
+/// duplicate) rather than as pairs.
+pub struct Tally {
+    per_file: usize,
+    sampled: usize,
+    sampling: bool,
+    counting: bool,
+    outward: BTreeMap<i64, i64>,
+    pending: BTreeMap<(i64, bool, bool), i64>,
+    chimeras: i64,
+    fragments: i64,
+}
+
+impl Tally {
+    /// A run over `files` inputs.
+    pub fn new(files: usize) -> Tally {
+        Tally {
+            per_file: SAMPLE_FOR_MODE / files.max(1),
+            sampled: 0,
+            sampling: true,
+            counting: true,
+            outward: BTreeMap::new(),
+            pending: BTreeMap::new(),
+            chimeras: 0,
+            fragments: 0,
+        }
+    }
+
+    /// The next file starts: its own sample, and its own unmapped tail.
+    pub fn start_file(&mut self) {
+        self.sampled = 0;
+        self.sampling = true;
+        self.counting = true;
+    }
+
+    /// Whether the sampling pass over this file reads on past what it has been given so far.
+    pub fn sampling_reaches(&self) -> bool {
+        self.sampling && self.sampled < self.per_file
+    }
+
+    /// One first end, in file order.
+    pub fn add(&mut self, pair: &Pair, mate_is_to_the_right: bool, arguments: &Arguments) {
+        if self.sampling {
+            if self.sampled >= self.per_file || (pair.unmapped && pair.reference_index < 0) {
+                self.sampling = false;
+            } else if !(pair.unmapped || pair.mate_unmapped)
+                && passes_quality(pair, arguments)
+                && pair.mate_reverse != pair.reverse
+                && pair.mate_reference_index == pair.reference_index
+                && orientation(pair.reverse, pair.mate_reverse, mate_is_to_the_right)
+                    == Orientation::Rf
+            {
+                *self.outward.entry(pair.insert_size.abs()).or_insert(0) += 1;
+                self.sampled += 1;
+            }
+        }
+        if !self.counting {
+            return;
+        }
+        match classify(pair, f64::INFINITY, mate_is_to_the_right, arguments) {
+            Bucket::Terminator => self.counting = false,
+            Bucket::Fragment => self.fragments += 1,
+            Bucket::Chimera => self.chimeras += 1,
+            bucket @ (Bucket::Jump | Bucket::NonJump) => {
+                let key = (
+                    pair.insert_size.abs(),
+                    bucket == Bucket::Jump,
+                    pair.duplicate,
+                );
+                *self.pending.entry(key).or_insert(0) += 1;
+            }
+            Bucket::Skipped => {}
+        }
+    }
+
+    /// The metrics [`collect_files`] answers for the same pairs.
+    pub fn finish(self, arguments: &Arguments) -> JumpingLibraryMetrics {
+        let threshold = chimera_threshold(mode(&self.outward), arguments);
+        let mut counts = Counts {
+            jumps: 0,
+            nonjumps: 0,
+            chimeras: self.chimeras,
+            fragments: self.fragments,
+            jump_duplicates: 0,
+            nonjump_duplicates: 0,
+            jump_histogram: BTreeMap::new(),
+            nonjump_histogram: BTreeMap::new(),
+        };
+        for ((absolute, jump, duplicate), n) in self.pending {
+            if absolute as f64 > threshold {
+                counts.chimeras += n;
+            } else if jump {
+                counts.jumps += n;
+                *counts.jump_histogram.entry(absolute).or_insert(0) += n;
+                counts.jump_duplicates += if duplicate { n } else { 0 };
+            } else {
+                counts.nonjumps += n;
+                *counts.nonjump_histogram.entry(absolute).or_insert(0) += n;
+                counts.nonjump_duplicates += if duplicate { n } else { 0 };
+            }
+        }
+        counts.metrics(arguments)
     }
 }
 
 /// The refusal a file that is not coordinate-sorted produces, misspelling and all.
 pub fn unsorted_message(name: &str) -> String {
     format!("SAM file must {name} must be sorted in coordintate order")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A deterministic spread of pairs over every branch `classify` has, a small sample so the
+    /// sampling pass stops inside a file, and a terminator partway through the last file.
+    fn pairs(seed: u64, n: usize, terminator_at: Option<usize>) -> Vec<(Pair, bool)> {
+        let mut x = seed;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        (0..n)
+            .map(|i| {
+                let r = next();
+                let mut pair = Pair {
+                    reference_index: (r % 7 == 0) as i32,
+                    mate_reference_index: (r % 11 == 0) as i32,
+                    reverse: r & 2 != 0,
+                    mate_reverse: r & 4 != 0,
+                    insert_size: ((r >> 8) % 3000) as i64 - 1500,
+                    duplicate: r & 8 != 0,
+                    mate_quality: (r & 16 != 0).then_some(((r >> 20) % 60) as i32),
+                    mapping_quality: ((r >> 30) % 60) as i32,
+                    unmapped: r % 13 == 0,
+                    mate_unmapped: r % 17 == 0,
+                };
+                if Some(i) == terminator_at {
+                    pair.unmapped = true;
+                    pair.mate_unmapped = true;
+                    pair.reference_index = -1;
+                }
+                (pair, r & 32 != 0)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_one_pass_tally_answers_as_collect_files() {
+        let arguments = Arguments {
+            minimum_mapping_quality: 20,
+            ..Arguments::default()
+        };
+        let files = [
+            pairs(1, 200_000, None),
+            pairs(2, 5_000, None),
+            pairs(3, 90_000, Some(70_000)),
+        ];
+        for count in 1..=files.len() {
+            let held: Vec<&[(Pair, bool)]> = files[..count].iter().map(Vec::as_slice).collect();
+            let mut tally = Tally::new(count);
+            for file in &held {
+                tally.start_file();
+                for (pair, right) in *file {
+                    tally.add(pair, *right, &arguments);
+                }
+            }
+            assert_eq!(tally.finish(&arguments), collect_files(&held, &arguments));
+        }
+    }
 }
