@@ -120,6 +120,11 @@ pub fn smart_merge_header_lines(lines: &[HeaderLine]) -> Result<Vec<HeaderLine>,
         .collect())
 }
 
+/// The comparator's exception for a record on a contig the dictionary lacks.
+pub const UNKNOWN_CONTIG: &str = "java.lang.NullPointerException: Cannot invoke \
+     \"java.lang.Integer.intValue()\" because the return value of \
+     \"java.util.Map.get(Object)\" is null";
+
 /// Sort by `VariantContextComparator`: the contig's index, then the start; stable.
 ///
 /// A record on a contig the header does not have is the comparator's `NullPointerException`, and
@@ -133,10 +138,7 @@ pub fn sort_records<'a, T>(
     if records.len() > 1 {
         for record in records.iter() {
             if index_of(key(record).0).is_none() {
-                return Err("java.lang.NullPointerException: Cannot invoke \
-                     \"java.lang.Integer.intValue()\" because the return value of \
-                     \"java.util.Map.get(Object)\" is null"
-                    .to_string());
+                return Err(UNKNOWN_CONTIG.to_string());
             }
         }
     }

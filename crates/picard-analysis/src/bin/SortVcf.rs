@@ -16,9 +16,11 @@
 use htsjdk_vcf::header::VcfHeader;
 use htsjdk_vcf::merge::{smart_merge_headers, Source};
 use picard_analysis::args::arg;
-use picard_analysis::sort_vcf::{smart_merge_header_lines, sort_records};
+use picard_analysis::liftover_vcf::LineSpool;
+use picard_analysis::sort_sam::DEFAULT_MAX_RECORDS_IN_RAM;
+use picard_analysis::sort_vcf::{smart_merge_header_lines, UNKNOWN_CONTIG};
 use picard_analysis::vcf_io::{
-    assert_same_dictionary, die, fail_all, header_dictionary, parse_sam_dictionary,
+    assert_same_dictionary, die, fail_all, header_dictionary, is_bcf, parse_sam_dictionary,
     sample_names_in_order, set_sequence_dictionary, thrown, Kept, VcfReader, VcfWriter,
 };
 
@@ -37,6 +39,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let create_index = arg(&args, "CREATE_INDEX=")
         .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(true);
+    let max_records_in_ram = arg(&args, "MAX_RECORDS_IN_RAM=")
+        .map(|value| value.parse::<i64>())
+        .transpose()?
+        .unwrap_or(DEFAULT_MAX_RECORDS_IN_RAM as i64)
+        .max(1) as usize;
+    // shortcut: the first TMP_DIR only, where htsjdk picks the one with the most free space.
+    let tmp_dir = arg(&args, "TMP_DIR=")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {
             return Err(format!("unknown VALIDATION_STRINGENCY: {stringency}").into());
@@ -134,23 +145,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let output_dictionary = header_dictionary(&header).unwrap_or_default();
     let contigs: Vec<String> = output_dictionary.iter().map(|s| s.name.clone()).collect();
-    // Each record is held as its line and sorted by its contig and start, then decoded again on
-    // its way out: the input's size in memory rather than its decoded records'.
-    // `sortInputs`: every input's records, in input order, into one sort.
-    let mut records: Vec<(usize, i64, usize, Kept)> = Vec::new();
+    // `sortInputs`: every input's records, in input order, into one `SortingCollection` that
+    // spills past MAX_RECORDS_IN_RAM. A text record is held as its line, decoded again on its way
+    // out; a BCF record, which the reader holds whole already, is held whole and spooled by index.
+    let mut spool = LineSpool::new(true, max_records_in_ram, tmp_dir);
+    let mut whole: Vec<Option<Kept>> = Vec::new();
+    let (mut count, mut unknown_contig) = (0usize, false);
     for (input, vcf) in files.iter_mut().enumerate() {
         while let Some(record) = vcf.try_next() {
             let record = record.unwrap_or_else(|exception| die(&exception));
             let variant = &record.variant;
             let contig = contigs.iter().position(|c| *c == variant.contig);
+            unknown_contig |= contig.is_none();
+            count += 1;
             let start = variant.start;
-            records.push((contig.unwrap_or(usize::MAX), start, input, vcf.keep(record)));
+            let mut held = (input as u32).to_le_bytes().to_vec();
+            match vcf.keep(record) {
+                Kept::Line(line) => held.extend_from_slice(&line),
+                record => {
+                    held.extend_from_slice(&whole.len().to_le_bytes());
+                    whole.push(Some(record));
+                }
+            }
+            spool.add(contig.unwrap_or(0) as u32, start, &held)?;
         }
     }
-    if let Err(message) = sort_records(&mut records, &contigs, |record| {
-        (contigs.get(record.0).map_or("", String::as_str), record.1)
-    }) {
-        die(&message);
+    // A record on a contig the dictionary lacks fails any comparison, as in `sort_records`.
+    if count > 1 && unknown_contig {
+        die(UNKNOWN_CONTIG);
     }
 
     let index_dictionary = if create_index {
@@ -160,7 +182,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let mut writer = VcfWriter::create(&output, &header, index_dictionary, Default::default())
         .or_else(thrown)?;
-    for (_, _, input, kept) in records {
+    for held in spool.into_lines()? {
+        let held = held?;
+        let input = u32::from_le_bytes(held[..4].try_into().expect("four bytes")) as usize;
+        let kept = if !is_bcf(&inputs[input]) {
+            Kept::Line(held[4..].into())
+        } else {
+            let at = usize::from_le_bytes(held[4..].try_into().expect("an index"));
+            whole[at].take().expect("each held once")
+        };
         writer.add(&files[input].restore(kept)).or_else(thrown)?;
     }
     writer.finish().or_else(thrown)?;
