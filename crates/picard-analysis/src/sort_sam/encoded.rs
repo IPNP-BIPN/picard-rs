@@ -1269,45 +1269,50 @@ mod tests {
         assert_ne!(at % DEFAULT_UNCOMPRESSED_BLOCK_SIZE, 0);
         assert!(at > 10 * DEFAULT_UNCOMPRESSED_BLOCK_SIZE, "several blocks");
         // Blocks in flight, which a pointer per record would have waited for.
-        assert!(rayon::current_num_threads() > 1);
-
-        let (_, records) = read_sam(&sam).unwrap();
-        let mut sorting =
-            SortingCollection::new(SortOrder::Coordinate, 1 << 20, std::env::temp_dir());
-        for record in &records {
-            sorting.add(record, false).unwrap();
-        }
-        let mut ours = EncodedBamWriter::new(Vec::new(), &header, true).unwrap();
-        let mut cut_after = 0;
-        sorting
-            .for_each_sorted(|encoded| {
-                ours.write(encoded)?;
-                cut_after += (ours.written % DEFAULT_UNCOMPRESSED_BLOCK_SIZE as u64 == 0) as usize;
-                Ok::<(), io::Error>(())
-            })
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(4)
+            .build()
             .unwrap();
-        assert_eq!(cut_after, on_boundary);
-        assert_eq!(ours.written as usize, at);
-        let (bam, index) = ours.finish().unwrap();
+        pool.install(|| {
+            let (_, records) = read_sam(&sam).unwrap();
+            let mut sorting =
+                SortingCollection::new(SortOrder::Coordinate, 1 << 20, std::env::temp_dir());
+            for record in &records {
+                sorting.add(record, false).unwrap();
+            }
+            let mut ours = EncodedBamWriter::new(Vec::new(), &header, true).unwrap();
+            let mut cut_after = 0;
+            sorting
+                .for_each_sorted(|encoded| {
+                    ours.write(encoded)?;
+                    cut_after +=
+                        (ours.written % DEFAULT_UNCOMPRESSED_BLOCK_SIZE as u64 == 0) as usize;
+                    Ok::<(), io::Error>(())
+                })
+                .unwrap();
+            assert_eq!(cut_after, on_boundary);
+            assert_eq!(ours.written as usize, at);
+            let (bam, index) = ours.finish().unwrap();
 
-        let mut theirs = crate::output::bam_writer(Vec::new(), &header)
-            .unwrap()
-            .with_index();
-        for record in &records {
-            theirs.write(record).unwrap();
-        }
-        let (their_bam, their_index) = theirs.finish_with_index().unwrap();
-        assert_eq!(bam, their_bam);
-        let index = index.unwrap();
-        assert_eq!(index, their_index);
+            let mut theirs = crate::output::bam_writer(Vec::new(), &header)
+                .unwrap()
+                .with_index();
+            for record in &records {
+                theirs.write(record).unwrap();
+            }
+            let (their_bam, their_index) = theirs.finish_with_index().unwrap();
+            assert_eq!(bam, their_bam);
+            let index = index.unwrap();
+            assert_eq!(index, their_index);
 
-        // The same from decoded records, as `StreamOutput` writes them.
-        let mut decoded = EncodedBamWriter::new(Vec::new(), &header, true).unwrap();
-        for record in &records {
-            decoded.write_record(record).unwrap();
-        }
-        let (decoded_bam, decoded_index) = decoded.finish().unwrap();
-        assert_eq!(decoded_bam, bam);
-        assert_eq!(decoded_index.unwrap(), index);
+            // The same from decoded records, as `StreamOutput` writes them.
+            let mut decoded = EncodedBamWriter::new(Vec::new(), &header, true).unwrap();
+            for record in &records {
+                decoded.write_record(record).unwrap();
+            }
+            let (decoded_bam, decoded_index) = decoded.finish().unwrap();
+            assert_eq!(decoded_bam, bam);
+            assert_eq!(decoded_index.unwrap(), index);
+        });
     }
 }
