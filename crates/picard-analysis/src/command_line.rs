@@ -277,6 +277,11 @@ fn heap_dependent_default(tool: &str, option: &str) -> Option<String> {
     if tool != "EstimateLibraryComplexity" || option != "MAX_RECORDS_IN_RAM" {
         return None;
     }
+    Some(library_complexity_records_in_ram(default_max_memory()?).to_string())
+}
+
+/// `Runtime.maxMemory()` without a `-Xmx`: a quarter of physical memory.
+pub fn default_max_memory() -> Option<i64> {
     // SAFETY: `sysconf` only reads system configuration.
     let (pages, page_size) = unsafe {
         (
@@ -288,8 +293,28 @@ fn heap_dependent_default(tool: &str, option: &str) -> Option<String> {
         return None;
     }
     // `c_long` is 64 bits on every target the release builds.
-    let max_memory: i64 = pages * page_size / 4;
-    Some(library_complexity_records_in_ram(max_memory).to_string())
+    Some(pages * page_size / 4)
+}
+
+/// [`default_max_memory`] as a container-aware JVM sees it: a quarter of the cgroup's memory
+/// limit when that is lower than physical memory.
+pub fn container_max_memory() -> Option<i64> {
+    let limit = [
+        "/sys/fs/cgroup/memory.max",
+        "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+    ]
+    .iter()
+    .find_map(|path| {
+        std::fs::read_to_string(path)
+            .ok()?
+            .trim()
+            .parse::<i64>()
+            .ok()
+    });
+    match (default_max_memory(), limit) {
+        (Some(physical), Some(limit)) => Some(physical.min(limit / 4)),
+        (physical, _) => physical,
+    }
 }
 
 /// One scalar option of `tool` as `args` set it: `None` when unset, `Some(None)` when set to

@@ -22,7 +22,7 @@ use picard_analysis::args::arg;
 use picard_analysis::bam_stream::{Input, Records};
 use picard_analysis::mark_duplicates::{
     barcode_key, base_quality_score, Flags, Options, ReadEndsBuilder, Record, ScoringStrategy,
-    Span, TaggingPolicy, Tally,
+    Span, Spill, TaggingPolicy, Tally,
 };
 use picard_analysis::stream_output::Output;
 use std::sync::Arc;
@@ -376,7 +376,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         marked
     };
-    let mut ends = ReadEndsBuilder::new(&options, header_order == "queryname");
+    // `buildSortedReadEndLists`' `maxInMemory`: the ratio of the heap, in read ends. The heap is
+    // the one a JVM would get here; an end is the 64 bytes the pass keeps of it.
+    let ratio = arg(&args, "SORTING_COLLECTION_SIZE_RATIO=")
+        .map(|v| v.parse::<f64>())
+        .transpose()?
+        .unwrap_or(0.25);
+    let max_memory = picard_analysis::command_line::container_max_memory().unwrap_or(i64::MAX);
+    let max_in_ram = ((max_memory as f64 * ratio) / 64.0).min(f64::from(i32::MAX - 32)) as usize;
+    // shortcut: the first TMP_DIR only, as SortSam's collection takes it.
+    let tmp_dir = arg(&args, "TMP_DIR=")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    let mut ends = ReadEndsBuilder::new(&options, header_order == "queryname").spilling(Spill {
+        max_in_ram,
+        tmp_dir,
+    });
     for record in records {
         let id = string_tag(&record, b"PG");
         if !seen.contains(&id) {
@@ -396,9 +411,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             std::process::exit(1);
         }
-        ends.push(&summary(&record));
+        ends.push(&summary(&record))?;
     }
-    let mut decisions = ends.decide();
+    let mut decisions = ends.decide()?;
 
     // `createOutHeader`: assuming queryname says the file is queryname GROUPED, which is not a
     // sort order, so the output says so.

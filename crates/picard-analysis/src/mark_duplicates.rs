@@ -46,7 +46,12 @@
 //! `picard.sam.DuplicationMetrics` and `htsjdk.samtools.DuplicateScoringStrategy` in Picard 3.4.0.
 
 use foldhash::{HashMap, HashMapExt};
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
+use std::fs::File;
 use std::hash::BuildHasher;
+use std::io::{self, BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use htsjdk_bam::cigar::{Cigar, Op};
@@ -883,8 +888,11 @@ pub fn mark(records: &[Record], options: &Options) -> Marking {
 /// [`ReadEndsBuilder`] over the first pass, [`Flags`] and [`Tally`] over the second.
 pub fn mark_sorted(records: &[Record], options: &Options, queryname: bool) -> Marking {
     let mut ends = ReadEndsBuilder::new(options, queryname);
-    records.iter().for_each(|record| ends.push(record));
-    let mut decisions = ends.decide();
+    // Nothing spills without `spilling`, and only a spill does I/O.
+    for record in records {
+        ends.push(record).expect("an in-memory pass does no I/O");
+    }
+    let mut decisions = ends.decide().expect("an in-memory pass does no I/O");
     let optical_pairs = std::mem::take(&mut decisions.optical_pairs);
     let (all_sets, optical_sets, non_optical_sets) = (
         std::mem::take(&mut decisions.all_sets),
@@ -933,6 +941,279 @@ struct Packed {
 }
 
 const _: () = assert!(std::mem::size_of::<Packed>() == 64);
+
+/// [`Packed::order`]: the chunk's key, then the order inside a chunk.
+type Order = (
+    u32,
+    u32,
+    i32,
+    i32,
+    u8,
+    i32,
+    i32,
+    (i32, i32, i32),
+    usize,
+    usize,
+);
+
+impl Packed {
+    /// `ReadEndsMDComparator`: library, barcode, read1, orientation, read2, the physical location
+    /// and the indexes in the file. Equal keys are next to one another, each chunk in the order
+    /// [`chunks`] sorts one into; the libraries and barcodes go by their numbers, which only
+    /// changes the order the chunks come in.
+    fn order(&self) -> Order {
+        let l = self.location;
+        let location = if l.known {
+            (i32::from(l.tile), l.x, l.y)
+        } else {
+            (-1, -1, -1)
+        };
+        (
+            self.library,
+            self.barcode,
+            self.read1_reference_index,
+            self.read1_coordinate,
+            self.orientation,
+            self.read2_reference_index,
+            self.read2_coordinate,
+            location,
+            self.read1_index_in_file,
+            self.read2_index_in_file,
+        )
+    }
+
+    /// The bytes of one end in a spilled run.
+    const BYTES: usize = 59;
+
+    fn write_to(&self, out: &mut impl Write) -> io::Result<()> {
+        let mut bytes = [0u8; Self::BYTES];
+        let mut at = 0;
+        let mut put = |field: &[u8]| {
+            bytes[at..at + field.len()].copy_from_slice(field);
+            at += field.len();
+        };
+        put(&(self.read1_index_in_file as u64).to_le_bytes());
+        put(&(self.read2_index_in_file as u64).to_le_bytes());
+        put(&self.read1_reference_index.to_le_bytes());
+        put(&self.read1_coordinate.to_le_bytes());
+        put(&self.read2_reference_index.to_le_bytes());
+        put(&self.read2_coordinate.to_le_bytes());
+        put(&self.read_group.to_le_bytes());
+        put(&self.library.to_le_bytes());
+        put(&self.barcode.to_le_bytes());
+        put(&self.location.tile.to_le_bytes());
+        put(&self.location.x.to_le_bytes());
+        put(&self.location.y.to_le_bytes());
+        put(&[u8::from(self.location.known)]);
+        put(&self.score.to_le_bytes());
+        put(&[self.orientation, self.orientation_for_optical_duplicates]);
+        out.write_all(&bytes)
+    }
+
+    /// The next end of a run, `None` at its end.
+    fn read_from(input: &mut BufReader<File>) -> io::Result<Option<Packed>> {
+        if input.fill_buf()?.is_empty() {
+            return Ok(None);
+        }
+        let mut bytes = [0u8; Self::BYTES];
+        input.read_exact(&mut bytes)?;
+        let mut at = 0;
+        let mut take = |n: usize| {
+            at += n;
+            &bytes[at - n..at]
+        };
+        let u64_at = |b: &[u8]| u64::from_le_bytes(b.try_into().expect("8 bytes")) as usize;
+        let i32_at = |b: &[u8]| i32::from_le_bytes(b.try_into().expect("4 bytes"));
+        let read1_index_in_file = u64_at(take(8));
+        let read2_index_in_file = u64_at(take(8));
+        let read1_reference_index = i32_at(take(4));
+        let read1_coordinate = i32_at(take(4));
+        let read2_reference_index = i32_at(take(4));
+        let read2_coordinate = i32_at(take(4));
+        let read_group = i32_at(take(4));
+        let library = i32_at(take(4)) as u32;
+        let barcode = i32_at(take(4)) as u32;
+        let tile = i16::from_le_bytes(take(2).try_into().expect("2 bytes"));
+        let x = i32_at(take(4));
+        let y = i32_at(take(4));
+        let known = take(1)[0] != 0;
+        let score = i16::from_le_bytes(take(2).try_into().expect("2 bytes"));
+        let orientations = take(2);
+        Ok(Some(Packed {
+            read1_index_in_file,
+            read2_index_in_file,
+            read1_reference_index,
+            read1_coordinate,
+            read2_reference_index,
+            read2_coordinate,
+            read_group,
+            library,
+            barcode,
+            location: Location { tile, x, y, known },
+            score,
+            orientation: orientations[0],
+            orientation_for_optical_duplicates: orientations[1],
+        }))
+    }
+}
+
+/// Where the read ends go once RAM holds `max_in_ram` of a list: Picard's `SortingCollection`
+/// of `ReadEndsForMarkDuplicates`, whose `maxInMemory` the caller works out.
+///
+/// It mirrors `sort_sam::SortingCollection` rather than calling it, as this module needs nothing
+/// but std and the crates it already names.
+#[derive(Debug, Clone)]
+pub struct Spill {
+    pub max_in_ram: usize,
+    pub tmp_dir: PathBuf,
+}
+
+/// How many runs are merged at once, as in SortSam: merging the runs so far into one run first
+/// gives the same order, since they all come before the runs still to come.
+const MAX_OPEN_RUNS: usize = 256;
+
+/// One list of read ends, the pairs or the fragments: in RAM, and in sorted runs on disk.
+#[derive(Default)]
+struct EndList {
+    ram: Vec<Packed>,
+    runs: Vec<File>,
+    /// How many ends have gone to disk, so that an end's place in the list is still a number.
+    spilled: usize,
+}
+
+impl EndList {
+    fn len(&self) -> usize {
+        self.spilled + self.ram.len()
+    }
+
+    /// `add`: spill first when RAM is already full, as `SortingCollection` does.
+    fn push(&mut self, ends: Packed, spill: Option<&Spill>) -> io::Result<()> {
+        if let Some(spill) = spill {
+            if self.ram.len() >= spill.max_in_ram.max(1) {
+                self.spill(&spill.tmp_dir)?;
+            }
+        }
+        self.ram.push(ends);
+        Ok(())
+    }
+
+    fn spill(&mut self, dir: &Path) -> io::Result<()> {
+        // Stable, so ends that tie keep the order they came in, as they do in [`chunks`].
+        self.ram.sort_by_key(Packed::order);
+        self.spilled += self.ram.len();
+        let run = write_run(dir, self.ram.drain(..).map(Ok))?;
+        self.runs.push(run);
+        if self.runs.len() == MAX_OPEN_RUNS {
+            let merged = Merge::new(std::mem::take(&mut self.runs))?;
+            let run = write_run(dir, merged)?;
+            self.runs.push(run);
+        }
+        Ok(())
+    }
+
+    /// The chunks of this list, from RAM when nothing spilled and from a merge of the runs when
+    /// something did.
+    fn chunks<'a>(
+        &'a mut self,
+        strings: &'a Strings,
+        compare_read2: bool,
+        spill: Option<&Spill>,
+    ) -> io::Result<Box<dyn Iterator<Item = io::Result<Vec<ReadEnds>>> + 'a>> {
+        if self.runs.is_empty() {
+            return Ok(Box::new(chunks(&self.ram, strings, compare_read2).map(Ok)));
+        }
+        if !self.ram.is_empty() {
+            let dir = &spill.expect("a list with runs was given a spill").tmp_dir;
+            self.spill(dir)?;
+        }
+        let mut merge = Merge::new(std::mem::take(&mut self.runs))?.peekable();
+        Ok(Box::new(std::iter::from_fn(move || {
+            let first = match merge.next()? {
+                Ok(first) => first,
+                Err(e) => return Some(Err(e)),
+            };
+            let key = strings.key(&first, compare_read2);
+            let mut chunk = vec![strings.unpack(&first)];
+            while let Some(Ok(next)) = merge.peek() {
+                if strings.key(next, compare_read2) != key {
+                    break;
+                }
+                chunk.push(strings.unpack(next));
+                merge.next();
+            }
+            if let Some(Err(_)) = merge.peek() {
+                if let Some(Err(e)) = merge.next() {
+                    return Some(Err(e));
+                }
+            }
+            Some(Ok(chunk))
+        })))
+    }
+}
+
+/// Writes ends to a fresh file in `dir`, unlinked at once so nothing is left behind, and rewound
+/// for reading.
+fn write_run(dir: &Path, ends: impl Iterator<Item = io::Result<Packed>>) -> io::Result<File> {
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = dir.join(format!("readends.{}.{n}.tmp", std::process::id()));
+    let file = File::options()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&path)?;
+    // shortcut: unlinking an open file keeps it readable on Unix only; Windows is not a target.
+    std::fs::remove_file(&path)?;
+    let mut out = BufWriter::new(file);
+    for ends in ends {
+        ends?.write_to(&mut out)?;
+    }
+    let mut file = out.into_inner().map_err(|e| e.into_error())?;
+    file.seek(SeekFrom::Start(0))?;
+    Ok(file)
+}
+
+/// A k-way merge of sorted runs. Of two ends that tie, the one from the earlier run comes first,
+/// which is the order they were added in.
+struct Merge {
+    runs: Vec<BufReader<File>>,
+    heads: Vec<Option<Packed>>,
+    heap: BinaryHeap<Reverse<(Order, usize)>>,
+}
+
+impl Merge {
+    fn new(files: Vec<File>) -> io::Result<Merge> {
+        let mut merge = Merge {
+            heads: vec![None; files.len()],
+            runs: files.into_iter().map(BufReader::new).collect(),
+            heap: BinaryHeap::new(),
+        };
+        for run in 0..merge.runs.len() {
+            merge.refill(run)?;
+        }
+        Ok(merge)
+    }
+
+    fn refill(&mut self, run: usize) -> io::Result<()> {
+        if let Some(ends) = Packed::read_from(&mut self.runs[run])? {
+            self.heap.push(Reverse((ends.order(), run)));
+            self.heads[run] = Some(ends);
+        }
+        Ok(())
+    }
+}
+
+impl Iterator for Merge {
+    type Item = io::Result<Packed>;
+
+    fn next(&mut self) -> Option<io::Result<Packed>> {
+        let Reverse((_, run)) = self.heap.pop()?;
+        let ends = self.heads[run]
+            .take()
+            .expect("a run on the heap has a head");
+        Some(self.refill(run).map(|()| ends))
+    }
+}
 
 /// The libraries and barcodes the packed ends point at, each held once.
 #[derive(Debug, Default)]
@@ -1041,13 +1322,16 @@ impl Strings {
 pub struct ReadEndsBuilder<'o> {
     options: &'o Options,
     queryname: bool,
-    pairs: Vec<Packed>,
-    fragments: Vec<Packed>,
+    pairs: EndList,
+    fragments: EndList,
     strings: Strings,
     // `tmp`, the map from a read group and a name to the first end of a pair seen. A key is in it
     // at most once: its second record takes it out. The end itself is the fragment already pushed,
     // so the map holds its place in `fragments`: a whole end per slot was most of its memory.
-    pending: HashMap<(i32, Box<str>), u32>,
+    pending: HashMap<(i32, Box<str>), usize>,
+    // The pending ends whose fragment went to disk, kept by their place in `fragments`.
+    spilled_pending: HashMap<usize, Packed>,
+    spill: Option<Spill>,
     // The name of the current run, and `duplicateIndex`, the index of its first record.
     run_name: String,
     run_start: usize,
@@ -1059,18 +1343,42 @@ impl<'o> ReadEndsBuilder<'o> {
         ReadEndsBuilder {
             options,
             queryname,
-            pairs: Vec::new(),
-            fragments: Vec::new(),
+            pairs: EndList::default(),
+            fragments: EndList::default(),
             strings: Strings::default(),
             pending: HashMap::new(),
+            spilled_pending: HashMap::new(),
+            spill: None,
             run_name: String::new(),
             run_start: 0,
             records: 0,
         }
     }
 
-    /// The next record of the file.
-    pub fn push(&mut self, record: &Record) {
+    /// Spill each list to `spill.tmp_dir` once `spill.max_in_ram` of its ends are in RAM.
+    pub fn spilling(mut self, spill: Spill) -> Self {
+        self.spill = Some(spill);
+        self
+    }
+
+    /// A fragment end, the pending ends it would take to disk kept aside first.
+    fn push_fragment(&mut self, fragment: Packed) -> io::Result<()> {
+        if let Some(spill) = &self.spill {
+            if self.fragments.ram.len() >= spill.max_in_ram.max(1) {
+                let base = self.fragments.spilled;
+                for &at in self.pending.values() {
+                    if at >= base {
+                        self.spilled_pending
+                            .insert(at, self.fragments.ram[at - base]);
+                    }
+                }
+            }
+        }
+        self.fragments.push(fragment, self.spill.as_ref())
+    }
+
+    /// The next record of the file. Only a spill to disk can fail.
+    pub fn push(&mut self, record: &Record) -> io::Result<()> {
         let options = self.options;
         let record_index = self.records;
         self.records += 1;
@@ -1086,25 +1394,31 @@ impl<'o> ReadEndsBuilder<'o> {
             record_index
         };
         if record.unmapped() || record.secondary_or_supplementary() {
-            return;
+            return Ok(());
         }
         let fragment = self.strings.pack(build_read_ends(record, index, options));
         if !record.paired() || record.mate_unmapped() {
-            self.fragments.push(fragment);
-            return;
+            return self.push_fragment(fragment);
         }
         // The read group's id and the name: one name in two groups is two templates.
         let name = (record.read_group, Box::from(record.name.as_str()));
         match self.pending.remove(&name) {
             None => {
-                self.pending.insert(name, self.fragments.len() as u32);
-                self.fragments.push(fragment);
+                let at = self.fragments.len();
+                self.push_fragment(fragment)?;
+                self.pending.insert(name, at);
             }
             Some(first) => {
-                let mut paired = self.fragments[first as usize];
+                let mut paired = match first.checked_sub(self.fragments.spilled) {
+                    Some(at) => self.fragments.ram[at],
+                    None => self
+                        .spilled_pending
+                        .remove(&first)
+                        .expect("a pending end that went to disk was kept aside"),
+                };
                 let mates_reference_index = fragment.read1_reference_index;
                 let mates_coordinate = fragment.read1_coordinate;
-                self.fragments.push(fragment);
+                self.push_fragment(fragment)?;
                 // The optical orientation goes by the FIRST end of the pair whatever order the
                 // file put them in, and it is set before the orientation below is rewritten.
                 paired.orientation_for_optical_duplicates = if record.first_of_pair() {
@@ -1149,15 +1463,27 @@ impl<'o> ReadEndsBuilder<'o> {
                         record.first_of_pair(),
                     );
                 }
-                self.pairs.push(paired);
+                self.pairs.push(paired, self.spill.as_ref())?;
             }
         }
+        Ok(())
     }
 
-    /// `generateDuplicateIndexes`: the sets, cut from the ends the pass gathered.
-    pub fn decide(self) -> Decisions {
-        let options = self.options;
-        drop(self.pending);
+    /// `generateDuplicateIndexes`: the sets, cut from the ends the pass gathered. Only reading
+    /// back what spilled can fail.
+    pub fn decide(self) -> io::Result<Decisions> {
+        let ReadEndsBuilder {
+            options,
+            mut pairs,
+            mut fragments,
+            strings,
+            pending,
+            spilled_pending,
+            spill,
+            ..
+        } = self;
+        drop(pending);
+        drop(spilled_pending);
         let mut decisions = Decisions::default();
         let Decisions {
             duplicate_indexes,
@@ -1170,7 +1496,8 @@ impl<'o> ReadEndsBuilder<'o> {
         } = &mut decisions;
 
         // The pairs first. A set of one is a singleton and nothing is marked.
-        for chunk in chunks(&self.pairs, &self.strings, true) {
+        for chunk in pairs.chunks(&strings, true, spill.as_ref())? {
+            let chunk = chunk?;
             if chunk.len() == 1 {
                 // `addSingletonToCount`: a pair nobody duplicated is a set of one in two of the
                 // three histograms and in neither counter.
@@ -1237,11 +1564,12 @@ impl<'o> ReadEndsBuilder<'o> {
                 increment(optical_sets, optical_count + 1.0, 1.0);
             }
         }
-        drop(self.pairs);
+        drop(pairs);
 
         // Then the fragments, whose chunk is cut on read1 alone. A chunk that holds a pair marks
         // every fragment in it, and one that holds none keeps its best.
-        for chunk in chunks(&self.fragments, &self.strings, false) {
+        for chunk in fragments.chunks(&strings, false, spill.as_ref())? {
+            let chunk = chunk?;
             let contains_pairs = chunk.iter().any(ReadEnds::is_paired);
             let contains_fragments = chunk.iter().any(|ends| !ends.is_paired());
             if chunk.len() < 2 || !contains_fragments {
@@ -1262,7 +1590,7 @@ impl<'o> ReadEndsBuilder<'o> {
                 }
             }
         }
-        decisions
+        Ok(decisions)
     }
 }
 
@@ -1445,6 +1773,12 @@ fn chunks<'a>(
     strings: &'a Strings,
     compare_read2: bool,
 ) -> impl Iterator<Item = Vec<ReadEnds>> + 'a {
+    // A list past `u32` indexes is one a [`Spill`] would have put on disk.
+    assert!(
+        u32::try_from(list.len()).is_ok(),
+        "{} read ends in RAM",
+        list.len()
+    );
     let state = foldhash::fast::RandomState::default();
     let key_of = |index: u32| strings.key(&list[index as usize], compare_read2);
     let mut group_of: Vec<u32> = Vec::with_capacity(list.len());
@@ -1888,6 +2222,97 @@ mod tests {
             out.2.push(set);
         }
         out
+    }
+
+    /// Pairs and fragments piled on a few positions, in two libraries, with parsed locations.
+    fn crowded(queryname: bool) -> Vec<Record> {
+        let mut seed = 7u64;
+        let mut next = |n: u64| {
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (seed >> 33) % n
+        };
+        let mut records = Vec::new();
+        for template in 0..150 {
+            let name = format!("A:1:FC:1:{}:{}:{}", 1101 + next(2), next(40), next(40));
+            let library: Arc<str> = Arc::from(["lib1", "lib2"][next(2) as usize]);
+            let read_group = i32::from(library.as_ref() == "lib2");
+            let read = |flags: u16, start: i32, mate_start: i32, quality: u64| Record {
+                alignment_start: start,
+                mate_alignment_start: mate_start,
+                mate_reference_index: if flags & 0x1 != 0 { 0 } else { -1 },
+                base_quality_score: quality as i16,
+                library: library.clone(),
+                read_group,
+                ..named(&name, flags)
+            };
+            let (start, mate_start) = (1 + next(6) as i32, 1 + next(6) as i32);
+            if template % 5 == 0 {
+                let strand = if next(2) == 0 { 0 } else { 0x10 };
+                records.push(read(strand, start, 0, next(30)));
+            } else {
+                let strands = if next(2) == 0 {
+                    (0x20, 0x10)
+                } else {
+                    (0x10, 0x20)
+                };
+                records.push(read(0x1 | 0x40 | strands.0, start, mate_start, next(30)));
+                records.push(read(0x1 | 0x80 | strands.1, mate_start, start, next(30)));
+            }
+        }
+        if queryname {
+            records.sort_by(|a, b| a.name.cmp(&b.name));
+        } else {
+            records.sort_by_key(|record| record.alignment_start);
+        }
+        records
+    }
+
+    /// What `decide` answers, in an order the spill cannot change.
+    fn decided(records: &[Record], queryname: bool, spill: Option<Spill>) -> Decisions {
+        let options = Options::default();
+        let mut ends = ReadEndsBuilder::new(&options, queryname);
+        if let Some(spill) = spill {
+            ends = ends.spilling(spill);
+        }
+        for record in records {
+            ends.push(record).unwrap();
+        }
+        let mut decisions = ends.decide().unwrap();
+        decisions.duplicate_indexes.sort_unstable();
+        decisions.optical_indexes.sort_unstable();
+        decisions.representatives.sort_unstable();
+        decisions.optical_pairs.sort();
+        for histogram in [
+            &mut decisions.all_sets,
+            &mut decisions.optical_sets,
+            &mut decisions.non_optical_sets,
+        ] {
+            histogram.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        }
+        decisions
+    }
+
+    #[test]
+    fn spilled_read_ends_decide_what_read_ends_in_ram_decide() {
+        for queryname in [false, true] {
+            let records = crowded(queryname);
+            let whole = decided(&records, queryname, None);
+            assert!(!whole.duplicate_indexes.is_empty() && !whole.optical_indexes.is_empty());
+            for max_in_ram in [1, 2, 7, 64] {
+                let spill = Spill {
+                    max_in_ram,
+                    tmp_dir: std::env::temp_dir(),
+                };
+                let spilled = decided(&records, queryname, Some(spill));
+                assert_eq!(
+                    format!("{spilled:?}"),
+                    format!("{whole:?}"),
+                    "queryname={queryname} max_in_ram={max_in_ram}"
+                );
+            }
+        }
     }
 
     #[test]
