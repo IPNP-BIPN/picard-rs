@@ -71,6 +71,8 @@ const Q2: f64 = 0.546_421_308_604_229_653_601_6e-01;
 const Q3: f64 = 0.495_683_009_382_588_731_202_0e-02;
 const Q4: f64 = 0.269_236_946_618_636_119_287_6e-03;
 const C: f64 = -0.422_784_335_098_467_139_393_487_909_917_598e+00;
+// commons-math3's own literal, kept as written rather than swapped for `EULER_GAMMA`.
+#[allow(clippy::approx_constant)]
 const C0: f64 = 0.577_215_664_901_532_860_606_512_090_082_402e+00;
 const C1: f64 = -0.655_878_071_520_253_881_077_019_515_145_390e+00;
 const C2: f64 = -0.420_026_350_340_952_355_290_039_348_754_298e-01;
@@ -345,7 +347,7 @@ impl MersenneTwister {
 
     /// `BitsStreamGenerator.nextInt(int n)`.
     pub fn next_int(&mut self, n: i32) -> i32 {
-        if n & -n == n {
+        if n.isolate_lowest_one() == n {
             return ((i64::from(n) * i64::from(self.next_bits(31))) >> 31) as i32;
         }
         loop {
