@@ -2004,4 +2004,59 @@ mod tests {
             assert_ne!(fast.lod, 0.0);
         }
     }
+
+    #[test]
+    fn a_gvcf_site_reads_as_its_subset() {
+        // `subsetVCToMatchSnp` on HaplotypeCaller's records (PLs from Picard's NA12891.g.vcf): a
+        // variant with `<NON_REF>` after it, the same with the alternates swapped, and a reference
+        // block. Each must read as the biallelic record Picard cuts it down to.
+        let dir = std::env::temp_dir().join(format!("fp-gvcf-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let map_path = dir.join("map.txt");
+        std::fs::write(
+            &map_path,
+            "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:1000\n\
+             chr1\t10\ts10\tC\tT\t0.3\nchr1\t50\ts50\tA\tG\t0.2\nchr1\t90\ts90\tC\tT\t0.4\n",
+        )
+        .unwrap();
+        let map = HaplotypeMap::load(map_path.to_str().unwrap()).unwrap();
+        let blocks = |name: &str, records: &[&str]| {
+            let path = dir.join(name);
+            let mut text = "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=1000>\n\
+                ##ALT=<ID=NON_REF,Description=\"any\">\n\
+                ##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n\
+                ##FORMAT=<ID=PL,Number=G,Type=Integer,Description=\"Likelihoods\">\n\
+                #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\ts1\n"
+                .to_string();
+            for record in records {
+                text.push_str(record);
+                text.push('\n');
+            }
+            std::fs::write(&path, text).unwrap();
+            let fingerprints =
+                load_vcf_fingerprints(path.to_str().unwrap(), &map, None, 0.01).unwrap();
+            assert_eq!(fingerprints.len(), 1);
+            format!("{:?}", fingerprints[0].1.blocks)
+        };
+        let gvcf = blocks(
+            "g.vcf",
+            &[
+                "chr1\t10\t.\tC\tT,<NON_REF>\t.\t.\t.\tGT:PL\t0/1:767,0,649,847,730,1577",
+                "chr1\t50\t.\tA\t<NON_REF>\t.\t.\t.\tGT:PL\t0/0:0,120,1800",
+                "chr1\t90\t.\tC\t<NON_REF>,T\t.\t.\t.\tGT:PL\t0/2:767,0,649,847,730,1577",
+            ],
+        );
+        // The swapped record keeps PL indices 0, 3 and 5, less their minimum.
+        let subset = blocks(
+            "s.vcf",
+            &[
+                "chr1\t10\t.\tC\tT\t.\t.\t.\tGT:PL\t0/1:767,0,649",
+                "chr1\t50\t.\tA\tG\t.\t.\t.\tGT:PL\t0/0:0,120,1800",
+                "chr1\t90\t.\tC\tT\t.\t.\t.\tGT:PL\t0/1:0,80,810",
+            ],
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(gvcf, subset);
+        assert_eq!(gvcf.matches("GenotypeLikelihoods").count(), 3);
+    }
 }
