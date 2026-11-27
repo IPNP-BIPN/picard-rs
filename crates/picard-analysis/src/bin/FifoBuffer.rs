@@ -38,6 +38,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let buffer = number(&args, "BUFFER_SIZE=", 512 * 1024 * 1024);
     let io = number(&args, "IO_SIZE=", 64 * 1024);
     let _debug_frequency = number(&args, "DEBUG_FREQUENCY=", 0);
+    if buffer > 0 && io < 0 {
+        // Both Fifo threads die on `new byte[IO_SIZE]` and each logs it; they race, and the
+        // reference prints either first. This is its order when the input thread, started first,
+        // wins; the fuzzer counts a raced case by the answers the reference gives across runs.
+        for thread in ["Input", "Output"] {
+            picard_analysis::vcf_io::log_error(
+                "FifoBuffer",
+                &format!("Exception caught on thread Fifo {thread} Thread"),
+            );
+            eprintln!("java.lang.NegativeArraySizeException: {io}");
+        }
+        eprintln!(
+            "Exception in thread \"main\" picard.PicardException: Exception on input thread."
+        );
+        eprintln!("Caused by: java.lang.NegativeArraySizeException: {io}");
+        std::process::exit(1);
+    }
     if buffer <= 0 || io <= 0 {
         // `new byte[n]` with a negative `n` is a NegativeArraySizeException on a Fifo thread, and
         // a zero is a loop that never ends; neither is an answer a comparison can hold.

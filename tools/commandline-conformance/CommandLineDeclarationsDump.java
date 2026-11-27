@@ -23,8 +23,17 @@ import org.broadinstitute.barclay.argparser.NamedArgumentDefinition;
  * for a required one is refused), and the type `constructFromString` builds the value with (an
  * enum takes one of its constants, a number refuses what its `String` constructor refuses).
  *
+ * What Barclay's parser refuses before the tool runs is the `required` rows, in the order
+ * `NamedArgumentDefinition.validateValues` walks them: every argument that is not `optional`,
+ * whether or not it has a default. Barclay calls it missing when it was never set (a collection:
+ * when its value is empty, so a default element satisfies it), unless one of its mutex targets was
+ * set. `ViewSam`'s ALIGNMENT_STATUS has a default and is required all the same, where the legacy
+ * parser, which counts a default as optional, runs the tool.
+ *
  * Rows: `legacy <tool> <key> <long name>`, `barclay <tool> <name>`,
- * `option <tool> <long name> <collection> <optional> <type> <enum constants>`, and
+ * `option <tool> <long name> <collection> <optional> <type> <enum constants>`,
+ * `required <tool> <long name> <collection> <has default elements> <mutex long names> <mutex set>`
+ * (the last field as the message prints it), and
  * `positional <tool> <min> <max>` for a tool that takes positional words.
  */
 public class CommandLineDeclarationsDump {
@@ -57,6 +66,17 @@ public class CommandLineDeclarationsDump {
                     + "\t" + Declarations.read(definition, "optional") + "\t" + type.getName() + "\t" + constants);
             }
             for (final NamedArgumentDefinition definition : named) {
+                if (!definition.isOptional() && !definition.isControlledByPlugin()) {
+                    final List<String> mutex = new java.util.ArrayList<>();
+                    for (final String target : definition.getMutexTargetList()) {
+                        mutex.add(named.stream().filter(d -> d.getFullName().equals(target) || d.getShortName().equals(target))
+                            .findFirst().map(NamedArgumentDefinition::getLongName).orElse(target));
+                    }
+                    final Object value = definition.getArgumentValue();
+                    System.out.println("required\t" + tool + "\t" + definition.getLongName() + "\t" + definition.isCollection()
+                        + "\t" + (definition.isCollection() && value != null && !((java.util.Collection<?>) value).isEmpty())
+                        + "\t" + String.join(",", mutex) + "\t" + definition.getMutexTargetList());
+                }
                 System.out.println("barclay\t" + tool + "\t" + definition.getFullName());
                 if (!definition.getShortName().isEmpty()) {
                     System.out.println("barclay\t" + tool + "\t" + definition.getShortName());

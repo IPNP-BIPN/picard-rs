@@ -609,6 +609,10 @@ fn main() {
         }
     }
     let sets = duplicate_sets(&set_records, &Options::default());
+    // `ProgressLogger.record` on the first set takes the count modulo the interval.
+    if args.int("PROGRESS_STEP_INTERVAL", 100_000) == 0 && !sets.is_empty() {
+        thrown("java.lang.ArithmeticException: / by zero");
+    }
 
     let mut confusion: BTreeMap<(String, String), f64> = BTreeMap::new();
     let mut confusion_distance: BTreeMap<(String, String), f64> = BTreeMap::new();

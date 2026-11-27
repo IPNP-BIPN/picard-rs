@@ -233,6 +233,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let marking = match mark_with_mate_cigar(&marked_records, order, &mate_options) {
         Ok(marking) => marking,
+        Err(picard_analysis::mate_cigar_duplicates::Refusal::TooClose(close)) => {
+            // Both records are read again, by their index, to be printed whole.
+            let nth = |i: usize| {
+                open(Some(streamed))
+                    .ok()
+                    .and_then(|(_, mut records, _)| records.nth(i))
+                    .expect("the record read the first time")
+            };
+            let other = nth(close.other);
+            // `getSAMString` ends the line.
+            let other_line = picard_analysis::view_sam::sam_string(&header, &other) + "\n";
+            let spliced = other
+                .cigar
+                .elements
+                .iter()
+                .any(|e| e.op == htsjdk_bam::cigar::Op::N);
+            if !spliced {
+                let current =
+                    picard_analysis::view_sam::sam_string(&header, &nth(close.current)) + "\n";
+                eprint!("record #1: {other_line}record #2: {current}");
+            }
+            eprintln!(
+                "Exception in thread \"main\" picard.PicardException: {}",
+                picard_analysis::mate_cigar_duplicates::too_close_message(
+                    &close,
+                    spliced,
+                    &other_line
+                )
+            );
+            std::process::exit(1);
+        }
         Err(refusal) => {
             eprintln!(
                 "Exception in thread \"main\" {}: {}",

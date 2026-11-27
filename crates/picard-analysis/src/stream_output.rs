@@ -49,13 +49,24 @@ pub fn assert_directory_is_writable(dir: &str) {
         format!("Directory does not exist: {uri}")
     } else if !path.is_dir() {
         format!("Cannot write to directory because it is not a directory: {uri}")
-    } else if std::fs::metadata(path).is_ok_and(|m| m.permissions().readonly()) {
+    } else if !writable(path) {
         format!("Directory exists but is not writable: {uri}/")
     } else {
         return;
     };
     eprintln!("Exception in thread \"main\" htsjdk.samtools.SAMException: {message}");
     std::process::exit(1);
+}
+
+/// `Files.isWritable`: whether this process may write `path`, which `access(2)` answers for the
+/// user it runs as, where the mode bits alone do not (a root-owned 755 directory reads as writable).
+fn writable(path: &std::path::Path) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    let Ok(c) = std::ffi::CString::new(path.as_os_str().as_bytes()) else {
+        return false;
+    };
+    // SAFETY: `c` is a valid NUL-terminated path for the duration of the call.
+    unsafe { libc::access(c.as_ptr(), libc::W_OK) == 0 }
 }
 
 /// An output directory the tool creates, removed again with everything in it if the run fails

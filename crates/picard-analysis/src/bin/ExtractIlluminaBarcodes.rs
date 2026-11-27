@@ -101,12 +101,7 @@ fn main() {
     }
 
     // `doWork` opens with `assertDirectoryIsWritable(OUTPUT_DIR)`.
-    if !output_dir.is_dir() {
-        thrown(&format!(
-            "htsjdk.samtools.SAMException: Directory does not exist: {}",
-            picard_analysis::fingerprint::file_uri(&output_dir.display().to_string())
-        ));
-    }
+    picard_analysis::stream_output::assert_directory_is_writable(&output_dir.display().to_string());
     let minimum = args.int("MINIMUM_BASE_QUALITY", 0) as i32;
     let mode = Distance::parse(args.get("DISTANCE_MODE"));
     let no_match_seqs: Vec<String> = lengths.iter().map(|l| "N".repeat(*l)).collect();

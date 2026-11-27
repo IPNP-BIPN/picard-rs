@@ -344,8 +344,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .collect();
         // File order, not the SortingCollection's: the merging iterator asks each stream's
-        // records in turn, so the first record that needs a mate cigar is the one named.
-        let order: Vec<usize> = (0..checks.len()).collect();
+        // records in turn, so the first record that needs a mate cigar is the one named. One
+        // stream is never compared by the merge: a presorted writer's order check compares each
+        // record with the one before (the first named), the SortingCollection of the other
+        // branch the second with the first, as SortSam's does.
+        let streams = parsed
+            .iter()
+            .filter(|(_, records)| !records.is_empty())
+            .count();
+        let order: Vec<usize> = if streams == 1 && !presorted {
+            picard_analysis::sort_sam::touch_order(checks.len())
+        } else {
+            (0..checks.len()).collect()
+        };
         if let Some(message) = mate_cigar_refusal_in_order(&checks, &order) {
             eprintln!("Exception in thread \"main\" htsjdk.samtools.SAMException: {message}");
             std::process::exit(1);

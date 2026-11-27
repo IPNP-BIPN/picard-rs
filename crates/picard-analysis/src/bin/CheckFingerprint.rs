@@ -254,9 +254,13 @@ fn main() {
         if let Err(e) = genotype_vcf.check() {
             thrown(&e);
         }
-        eprintln!(
-            "WARN\t{TOOL}\tSample {} where fingerprint was expected not found in {genotypes}",
-            expected_sample.as_deref().unwrap_or("null")
+        picard_analysis::vcf_io::log(
+            "WARNING",
+            TOOL,
+            &format!(
+                "Sample {} where fingerprint was expected not found in {genotypes}",
+                expected_sample.as_deref().unwrap_or("null")
+            ),
         );
         std::process::exit(not_found_code);
     }
