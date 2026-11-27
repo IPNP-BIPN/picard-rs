@@ -251,7 +251,8 @@ fn main() {
         picard_analysis::command_line::ProgramGroup::of("UmiAwareMarkDuplicatesWithMateCigar");
     let molecular_identifier_tag = args.get("MOLECULAR_IDENTIFIER_TAG").map(tag_of);
     // Opened before the first record, as `makeWriter` is, so a throw leaves it empty.
-    let mut out = Output::create(&output, &header, true).unwrap_or_else(|e| fail(&format!("{e:?}")));
+    let mut out =
+        Output::create(&output, &header, true).unwrap_or_else(|e| fail(&format!("{e:?}")));
     for (index, mut written) in open(Some(streamed)).1.enumerate() {
         if base.remove_duplicates && result.duplicate[index] {
             continue;
