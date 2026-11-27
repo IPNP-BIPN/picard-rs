@@ -106,3 +106,38 @@ fn the_spilled_queryname_sort_is_byte_identical_as_sam() {
         unescape(&payload("sam", "queryname-sam"))
     );
 }
+
+/// A read past 2^29 on a long reference: htsjdk 5.0.0's `BAMFileWriter` refuses to index it with
+/// this `SAMException` and leaves a 0-byte `.bai` (measured for htsjdk-rs #297 with GATK 4.7.0.0).
+#[test]
+fn a_read_past_the_bin_span_fails_the_index_as_htsjdk_does() {
+    let dir = std::env::temp_dir().join(format!("sort-sam-binspan-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let input = dir.join("in.sam");
+    let output = dir.join("out.bam");
+    std::fs::write(
+        &input,
+        "@HD\tVN:1.6\tSO:unsorted\n@SQ\tSN:big\tLN:600000000\n\
+         r0\t0\tbig\t550000000\t60\t10M\t*\t0\t0\tACGTACGTAC\tIIIIIIIIII\n",
+    )
+    .unwrap();
+    let run = Command::new(env!("CARGO_BIN_EXE_SortSam"))
+        .arg(format!("I={}", input.display()))
+        .arg(format!("O={}", output.display()))
+        .arg("SORT_ORDER=coordinate")
+        .arg("CREATE_INDEX=true")
+        .output()
+        .unwrap();
+    let bai = std::fs::read(dir.join("out.bai"));
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(run.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&run.stderr).contains(
+            "Exception in thread \"main\" htsjdk.samtools.SAMException: Exception when processing \
+             alignment for BAM index r0\t0\tbig\t550000000\t60\t10M\t*\t0\t0\tACGTACGTAC\tIIIIIIIIII"
+        ),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert_eq!(bai.unwrap(), Vec::<u8>::new(), "a 0-byte .bai");
+}
