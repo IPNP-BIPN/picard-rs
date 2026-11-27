@@ -251,7 +251,7 @@ pub fn answer(tool: &str, args: &[String]) -> Option<Answer> {
     let declared = declared(tool)?;
     let dashed = args.iter().any(|a| a.starts_with('-'));
     if legacy_words(args) && !dashed {
-        return legacy(tool, &declared, args);
+        return legacy(tool, &declared, args).or_else(|| validate(tool, args));
     }
     if !dashed {
         // No `-` word and no `NAME=value`: Barclay's parser, and only bare words are left for it to
@@ -445,4 +445,62 @@ fn barclay(tool: &str, declared: &Declared, args: &[String]) -> Option<Answer> {
         stdout: recorded.stdout,
         stderr: format!("{warning}{}", recorded.stderr),
     })
+}
+
+/// `CommandLineArgumentParser.validateArguments`, from the `validate` rows: per definition in the
+/// parser's order, an argument given together with a mutex partner, then a required one not given
+/// (a collection: left empty) with none of its partners given. The covering arrays run the
+/// reference in Barclay syntax, so this is Barclay's answer even to a `NAME=value` line.
+fn validate(tool: &str, args: &[String]) -> Option<Answer> {
+    // Each full name given, and for a collection whether `null` left it empty.
+    let mut given: Vec<(&'static str, bool)> = Vec::new();
+    for arg in args {
+        let Some((name, value)) = arg.split_once('=') else {
+            continue;
+        };
+        if let Some(full) = full_name(tool, &name.to_uppercase()) {
+            given.retain(|(n, _)| *n != full);
+            given.push((full, value == "null"));
+        }
+    }
+    let set = |name: &str| given.iter().find(|(n, _)| *n == name);
+    for line in gunzip(DECLARATIONS).lines() {
+        let f: Vec<&str> = line.split('\t').collect();
+        if f.len() != 7 || f[0] != "validate" || f[1] != tool {
+            continue;
+        }
+        let (name, collection, optional, starts_empty) = (f[2], f[3] == "true", f[4] == "true", f[5] == "true");
+        let mutex: Vec<&str> = f[6].split(',').filter(|m| !m.is_empty()).collect();
+        let provided: Vec<&str> = mutex.iter().copied().filter(|m| set(m).is_some()).collect();
+        let message = if set(name).is_some() && !provided.is_empty() {
+            format!(
+                "Argument '{name}' cannot be used in conjunction with argument(s) {}",
+                provided.join(" ")
+            )
+        } else {
+            let missing = match set(name) {
+                None => !collection || starts_empty,
+                Some((_, emptied)) => collection && *emptied,
+            };
+            if optional || !missing || !provided.is_empty() {
+                continue;
+            }
+            let why = if mutex.is_empty() {
+                format!("Argument '{name}' is required")
+            } else {
+                format!(
+                    "Argument '{name}' is required unless one of {{[{}]}} are provided",
+                    mutex.join(", ")
+                )
+            };
+            format!("Argument {name} was missing: {why}")
+        };
+        // What `metrics_cli::refuse_validation` prints, the form every binary used for this.
+        return Some(Answer {
+            exit: 1,
+            stdout: String::new(),
+            stderr: format!("USAGE: {tool} [arguments]\n\n{message}\n"),
+        });
+    }
+    None
 }

@@ -2,6 +2,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import org.broadinstitute.barclay.argparser.Argument;
 import org.broadinstitute.barclay.argparser.LegacyCommandLineArgumentParser;
 import org.broadinstitute.barclay.argparser.NamedArgumentDefinition;
 
@@ -23,8 +24,15 @@ import org.broadinstitute.barclay.argparser.NamedArgumentDefinition;
  * for a required one is refused), and the type `constructFromString` builds the value with (an
  * enum takes one of its constants, a number refuses what its `String` constructor refuses).
  *
+ * What Barclay's parser checks once every word is read is the `validate` rows, one per
+ * definition that is required or names a mutex partner, in `getNamedArgumentDefinitions` order,
+ * which is the order `validateArguments` reports the first failure in: an argument given with a
+ * mutex partner, or a required one not given (a collection: left empty) with none of its partners
+ * given. The partners are the annotation's own list, in its order, because the message prints it.
+ *
  * Rows: `legacy <tool> <key> <long name>`, `barclay <tool> <name>`,
- * `option <tool> <long name> <collection> <optional> <type> <enum constants>`, and
+ * `option <tool> <long name> <collection> <optional> <type> <enum constants>`,
+ * `validate <tool> <full name> <collection> <optional> <starts empty> <mutex,...>`, and
  * `positional <tool> <min> <max>` for a tool that takes positional words.
  */
 public class CommandLineDeclarationsDump {
@@ -61,6 +69,16 @@ public class CommandLineDeclarationsDump {
                 if (!definition.getShortName().isEmpty()) {
                     System.out.println("barclay\t" + tool + "\t" + definition.getShortName());
                 }
+            }
+            for (final NamedArgumentDefinition definition : named) {
+                final Argument annotation = definition.getUnderlyingField().getAnnotation(Argument.class);
+                final String[] mutex = annotation == null ? new String[0] : annotation.mutex();
+                if (definition.isControlledByPlugin() || (definition.isOptional() && mutex.length == 0)) continue;
+                final Object value = definition.getArgumentValue();
+                final boolean empty = definition.isCollection()
+                    && (value == null || ((java.util.Collection<?>) value).isEmpty());
+                System.out.println("validate\t" + tool + "\t" + definition.getLongName() + "\t" + definition.isCollection()
+                    + "\t" + definition.isOptional() + "\t" + empty + "\t" + String.join(",", mutex));
             }
             if (Declarations.takesPositional(parser)) {
                 System.out.println("positional\t" + tool + "\t" + Declarations.read(parser, "minPositionalArguments")
