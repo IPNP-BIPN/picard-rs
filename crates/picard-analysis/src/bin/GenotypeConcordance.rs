@@ -109,16 +109,7 @@ fn records(
     let records: Box<dyn Iterator<Item = VariantContext>> = if merged.is_empty() {
         Box::new(streamed)
     } else {
-        let overlapping: Vec<VariantContext> = streamed
-            .filter(|record| {
-                merged.iter().any(|interval| {
-                    record.contig == interval.contig
-                        && record.start <= interval.end
-                        && record.stop >= interval.start
-                })
-            })
-            .collect();
-        Box::new(within_intervals(&overlapping, merged).into_iter())
+        Box::new(within_intervals(streamed, merged).into_iter())
     };
     records.peekable()
 }
@@ -160,12 +151,10 @@ fn read_intervals(text: &str) -> (Vec<String>, Vec<Interval>) {
             end: fields[2].parse().unwrap_or(0),
         });
     }
-    let order = |contig: &str| {
-        contigs
-            .iter()
-            .position(|name| name == contig)
-            .unwrap_or(usize::MAX)
-    };
+    let order = |contig: &str| contigs.iter().position(|name| name == contig);
+    // `IntervalListCodec`: "Ignoring interval for unknown reference", so each contig's intervals
+    // end up consecutive once sorted.
+    intervals.retain(|interval| order(&interval.contig).is_some());
     intervals.sort_by(|a, b| {
         order(&a.contig)
             .cmp(&order(&b.contig))
@@ -187,23 +176,34 @@ fn read_intervals(text: &str) -> (Vec<String>, Vec<Interval>) {
 
 /// `ByIntervalListVariantContextIterator`: the records of each interval in turn, minus the ones
 /// the PREVIOUS interval already returned.
-fn within_intervals(records: &[VariantContext], intervals: &[Interval]) -> Vec<VariantContext> {
-    let overlaps = |record: &VariantContext, interval: &Interval| {
-        record.contig == interval.contig
-            && record.start <= interval.end
-            && record.stop >= interval.start
-    };
-    let mut kept = Vec::new();
-    let mut previous: Option<&Interval> = None;
-    for interval in intervals {
-        for record in records {
-            if overlaps(record, interval) && !previous.is_some_and(|last| overlaps(record, last)) {
-                kept.push(record.clone());
-            }
-        }
-        previous = Some(interval);
+///
+/// The merged intervals neither overlap nor abut, so those a record overlaps are consecutive, and
+/// it is returned once, by the first of them: the records in the order of that interval, in file
+/// order within it. The first is found by binary search among its contig's intervals.
+fn within_intervals(
+    records: impl Iterator<Item = VariantContext>,
+    intervals: &[Interval],
+) -> Vec<VariantContext> {
+    let mut by_contig: std::collections::HashMap<&str, std::ops::Range<usize>> =
+        std::collections::HashMap::new();
+    for (at, interval) in intervals.iter().enumerate() {
+        by_contig
+            .entry(interval.contig.as_str())
+            .and_modify(|range| range.end = at + 1)
+            .or_insert(at..at + 1);
     }
-    kept
+    let first_overlap = |record: &VariantContext| {
+        let range = by_contig.get(record.contig.as_str())?.clone();
+        let on_contig = &intervals[range.clone()];
+        let at = on_contig.partition_point(|interval| interval.end < record.start);
+        let interval = on_contig.get(at)?;
+        (interval.start <= record.stop).then_some(range.start + at)
+    };
+    let mut kept: Vec<(usize, VariantContext)> = records
+        .filter_map(|record| Some((first_overlap(&record)?, record)))
+        .collect();
+    kept.sort_by_key(|(at, _)| *at);
+    kept.into_iter().map(|(_, record)| record).collect()
 }
 
 /// `subContextFromSample`, which is a subset AND a rederivation.
@@ -987,4 +987,71 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let _ = is_var;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The reference's walk: every interval against every record.
+    fn scan(records: &[VariantContext], intervals: &[Interval]) -> Vec<VariantContext> {
+        let overlaps = |record: &VariantContext, interval: &Interval| {
+            record.contig == interval.contig
+                && record.start <= interval.end
+                && record.stop >= interval.start
+        };
+        let mut kept = Vec::new();
+        let mut previous: Option<&Interval> = None;
+        for interval in intervals {
+            for record in records {
+                if overlaps(record, interval)
+                    && !previous.is_some_and(|last| overlaps(record, last))
+                {
+                    kept.push(record.clone());
+                }
+            }
+            previous = Some(interval);
+        }
+        kept
+    }
+
+    #[test]
+    fn the_walk_answers_as_the_scan() {
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = |bound: u64| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state % bound
+        };
+        for _ in 0..200 {
+            let mut text = String::from("@HD\tVN:1.6\n@SQ\tSN:c1\tLN:999\n@SQ\tSN:c2\tLN:999\n");
+            for _ in 0..next(12) {
+                let contig = ["c1", "c2", "c3"][next(3) as usize];
+                let start = 1 + next(300) as i64;
+                // `IntervalListCodec` refuses a start past end + 1.
+                let end = start + next(40) as i64 - 1;
+                text.push_str(&format!("{contig}\t{start}\t{end}\t+\tx\n"));
+            }
+            let (_, merged) = read_intervals(&text);
+            // Unsorted, on contigs the list lacks, long, and ending before they start.
+            let records: Vec<VariantContext> = (0..next(60))
+                .map(|i| {
+                    let contig = ["c2", "c1", "c3"][next(3) as usize];
+                    let mut record = VariantContext::new(contig, 1 + next(330) as i64, Vec::new());
+                    record.stop = record.start + next(80) as i64 - 5;
+                    record.id = i.to_string();
+                    record
+                })
+                .collect();
+            let ids = |records: Vec<VariantContext>| -> Vec<String> {
+                records.into_iter().map(|r| r.id).collect()
+            };
+            assert_eq!(
+                ids(within_intervals(records.clone().into_iter(), &merged)),
+                ids(scan(&records, &merged)),
+                "{text}"
+            );
+        }
+    }
 }
