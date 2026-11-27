@@ -726,6 +726,8 @@ pub struct EncodedBamWriter<W: Write> {
     written: u64,
     /// Records written whose index entry waits for the address of a block still being deflated.
     pending: VecDeque<Pending>,
+    /// The bytes of the record [`Self::write_record`] encodes, reused.
+    scratch: Vec<u8>,
 }
 
 /// What [`BamIndexer::process`] takes for one record, its chunk as inflated positions.
@@ -759,6 +761,7 @@ impl<W: Write> EncodedBamWriter<W> {
             addresses,
             written: text.len() as u64,
             pending: VecDeque::new(),
+            scratch: Vec::new(),
         })
     }
 
@@ -816,6 +819,25 @@ impl<W: Write> EncodedBamWriter<W> {
             self.pending.pop_front();
         }
         addresses.forget_before(self.pending.front().map_or(self.written, |p| p.from));
+    }
+
+    /// `BamWriter::write`, from the record: its bytes, its index entry and its error.
+    pub fn write_record(&mut self, record: &BamRecord) -> Result<(), WriteError> {
+        let mut bytes = std::mem::take(&mut self.scratch);
+        bytes.clear();
+        let zero = bin_zero(&self.reference_lengths, record.reference_index);
+        let written = match push_encoded(record, zero, &mut bytes) {
+            Ok(entry) => self
+                .write(Encoded {
+                    bytes: &bytes,
+                    hit: entry.hit,
+                    end: entry.end,
+                })
+                .map_err(WriteError::Io),
+            Err(error) => Err(WriteError::Encode(error)),
+        };
+        self.scratch = bytes;
+        written
     }
 
     /// Closes the stream with its terminator block, and the BAI when one was built.
@@ -1273,6 +1295,16 @@ mod tests {
         }
         let (their_bam, their_index) = theirs.finish_with_index().unwrap();
         assert_eq!(bam, their_bam);
-        assert_eq!(index.unwrap(), their_index);
+        let index = index.unwrap();
+        assert_eq!(index, their_index);
+
+        // The same from decoded records, as `StreamOutput` writes them.
+        let mut decoded = EncodedBamWriter::new(Vec::new(), &header, true).unwrap();
+        for record in &records {
+            decoded.write_record(record).unwrap();
+        }
+        let (decoded_bam, decoded_index) = decoded.finish().unwrap();
+        assert_eq!(decoded_bam, bam);
+        assert_eq!(decoded_index.unwrap(), index);
     }
 }
