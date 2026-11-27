@@ -5,7 +5,8 @@
 //!
 //! Every failure inside the run is caught, logged as the exception's `toString` and answered with
 //! exit code 1, and the `.adpc.bin` keeps whatever records were written before it: the writer is
-//! closed on the way out. The samples and markers files are written only at the end.
+//! closed on the way out. Each sample's records go to it once that sample is read, so one sample
+//! is in memory at a time. The samples and markers files are written only at the end.
 
 use htsjdk_vcf::variant::Value;
 use picard_analysis::fingerprint::reference_path;
@@ -14,6 +15,7 @@ use picard_analysis::vcf_io::{log_error, unroll_paths, VcfReader};
 use picard_analysis::vcf_to_adpc::{
     illumina_genotype, markers_file, samples_file, write_record, IlluminaGenotype, Record, HEADER,
 };
+use std::io::Write;
 
 fn text(value: &Value) -> String {
     match value {
@@ -34,9 +36,9 @@ fn float(s: &str) -> Result<f32, String> {
 }
 
 /// One sample of `path`'s records, each through a fresh iterator as `vcfFileReader.iterator()` is,
-/// appended to `out` once the pass is over: a read failure leaves none of them, as the whole-file
+/// written to `out` once the pass is over: a read failure leaves none of them, as the whole-file
 /// read did, and so does a refusal the rest of the file outranks.
-fn sample_records(path: &str, n: usize, out: &mut Vec<u8>) -> Result<usize, String> {
+fn sample_records(path: &str, n: usize, out: &mut impl Write) -> Result<usize, String> {
     let mut vcf = VcfReader::open(path)?;
     let mut records = Vec::new();
     let mut count = 0;
@@ -47,7 +49,7 @@ fn sample_records(path: &str, n: usize, out: &mut Vec<u8>) -> Result<usize, Stri
         }
         count += 1;
     }
-    out.extend(records);
+    out.write_all(&records).map_err(|e| e.to_string())?;
     Ok(count)
 }
 
@@ -111,7 +113,7 @@ fn sample_record(
     Ok(())
 }
 
-fn run(vcfs: &[String], out: &mut Vec<u8>) -> Result<(Vec<String>, usize), String> {
+fn run(vcfs: &[String], out: &mut impl Write) -> Result<(Vec<String>, usize), String> {
     let mut samples: Vec<String> = Vec::new();
     let mut loci: Option<usize> = None;
     for path in vcfs {
@@ -147,11 +149,18 @@ fn main() {
     let output = args.required("OUTPUT");
     let samples_path = args.required("SAMPLES_FILE");
     let markers_path = args.required("NUM_MARKERS_FILE");
-    let mut out = HEADER.to_vec();
-    let result = run(&vcfs, &mut out);
-    let written = std::fs::write(&output, &out);
+    let result = std::fs::File::create(&output)
+        .map_err(|e| e.to_string())
+        .and_then(|file| {
+            let mut out = std::io::BufWriter::new(file);
+            out.write_all(HEADER).map_err(|e| e.to_string())?;
+            let result = run(&vcfs, &mut out);
+            let written = out.flush();
+            let result = result?;
+            written.map_err(|e| e.to_string())?;
+            Ok(result)
+        });
     let result = result.and_then(|(samples, loci)| {
-        written.map_err(|e| e.to_string())?;
         let names: Vec<&str> = samples.iter().map(String::as_str).collect();
         std::fs::write(&samples_path, samples_file(&names)).map_err(|e| e.to_string())?;
         std::fs::write(&markers_path, markers_file(loci)).map_err(|e| e.to_string())
