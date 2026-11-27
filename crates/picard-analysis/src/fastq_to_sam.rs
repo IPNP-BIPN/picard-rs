@@ -221,6 +221,161 @@ pub fn fastq_to_bam_full(
     Ok(w.finish().expect("finish never fails on a Vec"))
 }
 
+/// The exception `FastqReader.error` throws for `error`, raised while reading the record that
+/// starts at `line` (htsjdk counts four lines a record, skipped blank lines aside). Picard opens
+/// its readers with no `File`, so the message ends `in fastq ` and a space.
+pub fn fastq_exception(error: &FastqError, line: usize) -> String {
+    // shortcut: htsjdk-rs's checkLine names the line kinds by their enum constants, not by
+    // `LineType.toString`; drop the renaming once htsjdk-rs prints the printable names.
+    let message = error
+        .0
+        .replace("SequenceLine", "Sequence Line")
+        .replace("QualityHeader", "Quality Header")
+        .replace("QualityLine", "Quality Line");
+    format!("htsjdk.samtools.SAMException: {message} at line {line} in fastq ")
+}
+
+/// `htsjdk.samtools.fastq.FastqReader` as Picard drives it: the constructor and every `next()`
+/// read one record ahead, so a malformed record throws when the record before it is taken.
+pub struct ReadAhead<'a> {
+    reader: htsjdk_bam::fastq::FastqReader<'a>,
+    read: usize,
+    next: Option<htsjdk_bam::fastq::FastqRecord>,
+}
+
+impl<'a> ReadAhead<'a> {
+    /// The constructor, which reads the first record.
+    pub fn open(text: &'a str, skip_blank_lines: bool) -> Result<Self, String> {
+        let mut reader = ReadAhead {
+            reader: htsjdk_bam::fastq::FastqReader::new(text, skip_blank_lines),
+            read: 0,
+            next: None,
+        };
+        reader.advance()?;
+        Ok(reader)
+    }
+
+    fn advance(&mut self) -> Result<(), String> {
+        let line = 1 + 4 * self.read;
+        self.next = self
+            .reader
+            .next_record()
+            .map_err(|e| fastq_exception(&e, line))?;
+        self.read += usize::from(self.next.is_some());
+        Ok(())
+    }
+
+    pub fn has_next(&self) -> bool {
+        self.next.is_some()
+    }
+
+    /// `next()`: the record read ahead, once the one after it is read.
+    pub fn next_record(&mut self) -> Result<htsjdk_bam::fastq::FastqRecord, String> {
+        let record = self.next.take().expect("next() called when !hasNext()");
+        self.advance()?;
+        Ok(record)
+    }
+}
+
+/// `QualityEncodingDetector.DEFAULT_MAX_RECORDS_TO_ITERATE`.
+const MAX_RECORDS_TO_ITERATE: usize = 10_000;
+
+/// `FastqToSam.determineQualityFormat`: the quality characters of the first 10000 records, the
+/// readers taken in turn, and `generateBestGuess(FASTQ, expected)` over them. A record the
+/// readers throw on in that window is thrown from here.
+pub fn determine_quality_format(
+    readers: Vec<ReadAhead<'_>>,
+    expected: Option<&str>,
+) -> Result<&'static str, String> {
+    let mut queue: std::collections::VecDeque<_> = readers.into();
+    let mut seen = [false; 256];
+    let mut count = 0;
+    loop {
+        while queue.front().is_some_and(|r| !r.has_next()) {
+            queue.pop_front();
+        }
+        let Some(mut reader) = queue.pop_front() else {
+            break;
+        };
+        if count == MAX_RECORDS_TO_ITERATE {
+            break;
+        }
+        count += 1;
+        let record = reader.next_record()?;
+        for &b in record.quality_string.as_deref().unwrap_or("").as_bytes() {
+            seen[usize::from(b)] = true;
+        }
+        queue.push_back(reader);
+    }
+    best_guess(&seen, expected)
+}
+
+/// `generateCandidateQualities` and `generateBestGuess` for a FASTQ, over the set of quality
+/// characters seen.
+fn best_guess(seen: &[bool; 256], expected: Option<&str>) -> Result<&'static str, String> {
+    let exception = |m: &str| format!("htsjdk.samtools.SAMException: {m}");
+    if !seen.iter().any(|&s| s) {
+        return Err(exception(
+            "Cannot determine candidate qualities: no qualities found.",
+        ));
+    }
+    // `QualityScheme`, in `FastqQualityFormat`'s order: the ASCII range every quality must fall
+    // in, and the range at least one must fall in when that is checked.
+    type Range = std::ops::RangeInclusive<usize>;
+    let schemes: [(&'static str, Range, Option<Range>); 3] = [
+        ("Solexa", 59..=126, None),
+        ("Illumina", 64..=126, None),
+        ("Standard", 33..=126, Some(33..=58)),
+    ];
+    let candidates = |check_expected: bool| -> Vec<&'static str> {
+        schemes
+            .iter()
+            .filter(|(_, range, wanted)| {
+                (0..256).all(|q| !seen[q] || range.contains(&q))
+                    && !(check_expected
+                        && wanted.as_ref().is_some_and(|w| !w.clone().any(|q| seen[q])))
+            })
+            .map(|(name, ..)| *name)
+            .collect()
+    };
+    if let Some(expected) = expected {
+        return candidates(false)
+            .into_iter()
+            .find(|c| *c == expected)
+            .ok_or_else(|| {
+                exception(&format!(
+                    "The quality values do not fall in the range appropriate for the expected \
+                     quality of {expected}."
+                ))
+            });
+    }
+    match candidates(true).as_slice() {
+        [one] => Ok(one),
+        // {Solexa, Illumina} and, for a FASTQ, {Illumina, Standard} are Illumina.
+        ["Solexa", "Illumina"] | ["Illumina", "Standard"] => Ok("Illumina"),
+        ["Solexa", "Standard"] => Ok("Standard"),
+        [] => Err(exception(
+            "The quality format cannot be determined: all formats were excluded.",
+        )),
+        _ => Err(exception(
+            "The quality format cannot be determined: no formats were excluded.",
+        )),
+    }
+}
+
+/// `IOUtil.openFileForBufferedReading`: a `.gz`, `.gzip` or `.bfq` name is gunzipped.
+pub fn read_fastq(path: &str) -> std::io::Result<String> {
+    use std::io::Read;
+    let file = std::fs::File::open(path)?;
+    let mut text = String::new();
+    if [".gz", ".gzip", ".bfq"].iter().any(|e| path.ends_with(e)) {
+        flate2::read::MultiGzDecoder::new(file).read_to_string(&mut text)?;
+    } else {
+        std::io::BufReader::new(file).read_to_string(&mut text)?;
+    }
+    Ok(text)
+}
+
 /// [`fastq_to_bam_full`]'s records in the order the FASTQs give them, built one at a time. Each
 /// file is parsed through first, so a parse failure anywhere outranks a record's, as reading them
 /// whole did.
@@ -237,7 +392,7 @@ pub fn fastq_records<'a>(
         let mut count = 0;
         while reader
             .next_record()
-            .map_err(|e| format!("htsjdk.samtools.SAMException: {e}"))?
+            .map_err(|e| fastq_exception(&e, 1 + 4 * count))?
             .is_some()
         {
             count += 1;
@@ -336,6 +491,40 @@ pub fn fastq_records<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn guess(qualities: &str, expected: Option<&str>) -> Result<&'static str, String> {
+        let text = format!("@r\n{}\n+\n{qualities}\n", "A".repeat(qualities.len()));
+        determine_quality_format(vec![ReadAhead::open(&text, false).unwrap()], expected)
+    }
+
+    #[test]
+    fn the_detector_guesses_as_generate_best_guess_does() {
+        // '#' (35) is in Standard's expected range 33..=58 and below Solexa's and Illumina's.
+        assert_eq!(guess("#I", None), Ok("Standard"));
+        // 'h' (104) fits all three, and nothing falls in 33..=58: Solexa and Illumina, so Illumina.
+        assert_eq!(guess("h", None), Ok("Illumina"));
+        // ';' (59) excludes Illumina and is not in 33..=58: Solexa alone.
+        assert_eq!(guess(";h", None), Ok("Solexa"));
+        // A claim is checked against the ranges only.
+        assert_eq!(guess("h", Some("Standard")), Ok("Standard"));
+        assert!(guess("#", Some("Illumina"))
+            .unwrap_err()
+            .ends_with("the expected quality of Illumina."));
+        assert!(guess("\u{7f}", None)
+            .unwrap_err()
+            .ends_with("all formats were excluded."));
+    }
+
+    #[test]
+    fn a_malformed_record_throws_with_its_line_when_the_one_before_is_taken() {
+        let text = "@a\nA\n+\nI\n@b\nA\n+\n";
+        let mut reader = ReadAhead::open(text, false).unwrap();
+        assert_eq!(
+            reader.next_record().unwrap_err(),
+            "htsjdk.samtools.SAMException: File is too short - missing Quality Line at line 5 \
+             in fastq "
+        );
+    }
 
     #[test]
     fn the_header_has_no_program_record_and_is_queryname_sorted() {

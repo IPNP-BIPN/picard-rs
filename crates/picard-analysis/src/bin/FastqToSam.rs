@@ -4,10 +4,9 @@
 //! read group built from every field the command line gives, the comments, the quality range
 //! `MIN_Q..MAX_Q` checked read by read, and the sort order. Before any of that, two refusals:
 //!
-//! * `QUALITY_FORMAT` is a CLAIM about the file, and htsjdk checks it. The corpus is
-//!   Standard-encoded, so claiming Illumina or Solexa is refused by `FastqQualityFormat`'s range
-//!   check before a record is written -- the message names the format that was claimed, not the
-//!   one that was found;
+//! * `QUALITY_FORMAT`, when given, is a CLAIM about the file, and `QualityEncodingDetector`
+//!   checks it against the first 10000 records; left out, the detector picks the format, as it
+//!   does for a regular file only (a pipe must name one);
 //! * `USE_SEQUENTIAL_FASTQS` reads the FASTQ's NAME rather than its content: the file must end in
 //!   `_001` and one of five extensions so that the next file in the series can be found. The
 //!   corpus's `reads_1.fastq` does not, and the refusal quotes the whole list it expected.
@@ -16,24 +15,11 @@ use htsjdk_bam::query_name;
 use htsjdk_bam::record::BamRecord;
 use picard_analysis::add_or_replace_read_groups::iso8601;
 use picard_analysis::args::arg;
-use picard_analysis::fastq_to_sam::{fastq_records, full_header, FullOptions};
+use picard_analysis::fastq_to_sam::{
+    determine_quality_format, fastq_records, full_header, read_fastq, FullOptions, ReadAhead,
+};
 use picard_analysis::sort_sam::SortingCollection;
 use picard_analysis::stream_output::Output;
-
-/// `FastqQualityFormat`'s range check, as `QualityEncodingDetector` applies it: a Standard file
-/// read as Illumina or Solexa has quality bytes below those encodings' floor.
-fn quality_out_of_range<'a>(lines: impl Iterator<Item = &'a str>, format: &str) -> bool {
-    // Standard is 33-based, Illumina and Solexa 64-based, so any character below `;` (59) proves
-    // the file is not in a 64-based encoding.
-    if format == "Standard" {
-        return false;
-    }
-    lines
-        .skip(3)
-        .step_by(4)
-        .flat_map(str::bytes)
-        .any(|byte| byte < b';')
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("FastqToSam");
@@ -75,38 +61,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("MAX_Q must be <= 93");
         std::process::exit(1);
     }
-    let text = std::fs::read_to_string(&fastq)?;
     let second = arg(&args, "FASTQ2=").or_else(|| arg(&args, "F2="));
+    let format = arg(&args, "QUALITY_FORMAT=");
+    if let Some(format) = &format {
+        if !matches!(format.as_str(), "Standard" | "Illumina" | "Solexa") {
+            return Err(format!("unknown QUALITY_FORMAT: {format}").into());
+        }
+    }
+    // `PicardHtsPath.isOther`: neither a regular file nor a directory, such as a pipe.
+    let other =
+        |path: &str| std::fs::metadata(path).is_ok_and(|m| !m.file_type().is_file() && !m.is_dir());
+    let regular = !other(&fastq) && !second.as_deref().is_some_and(other);
+    if format.is_none() && !regular {
+        eprintln!(
+            "QUALITY_FORMAT must be specified when either of FASTQ or FASTQ2 is not a regular file"
+        );
+        std::process::exit(1);
+    }
+    let text = read_fastq(&fastq)?;
     let second_text = match &second {
-        Some(path) => Some(std::fs::read_to_string(path)?),
+        Some(path) => Some(read_fastq(path)?),
         None => None,
     };
-    let format = arg(&args, "QUALITY_FORMAT=").unwrap_or_else(|| "Standard".to_string());
-    if !matches!(format.as_str(), "Standard" | "Illumina" | "Solexa") {
-        return Err(format!("unknown QUALITY_FORMAT: {format}").into());
-    }
-    let empty = text.trim().is_empty();
-    if empty && !flag("ALLOW_EMPTY_FASTQ=", false) {
-        eprintln!(
-            "Exception in thread \"main\" picard.PicardException: Input fastq is empty. Set ALLOW_EMPTY_FASTQ if you still want to write out a file with no reads."
-        );
+    let skip_blank_lines = flag("ALLOW_AND_IGNORE_EMPTY_LINES=", false);
+    let refuse = |thrown: String| -> ! {
+        eprintln!("Exception in thread \"main\" {thrown}");
         std::process::exit(1);
-    }
-    // The two files' lines, as the check read them from the one text the two made together.
-    let second_lines = second_text.as_deref().unwrap_or("").lines();
-    let out_of_range = if text.is_empty() || text.ends_with('\n') {
-        quality_out_of_range(text.lines().chain(second_lines), &format)
-    } else {
-        let both = format!("{text}{}", second_text.as_deref().unwrap_or(""));
-        quality_out_of_range(both.lines(), &format)
     };
-    if !empty && out_of_range {
-        eprintln!(
-            "Exception in thread \"main\" htsjdk.samtools.SAMException: The quality values do not \
-             fall in the range appropriate for the expected quality of {format}."
-        );
-        std::process::exit(1);
-    }
+    // `doWork`: the first reader is opened, and a non-empty regular input's quality format is
+    // determined (or checked) before a record is converted.
+    let reader1 = ReadAhead::open(&text, skip_blank_lines).unwrap_or_else(|t| refuse(t));
+    let format = if !reader1.has_next() {
+        if !flag("ALLOW_EMPTY_FASTQ=", false) {
+            refuse(
+                "picard.PicardException: Input fastq is empty. Set ALLOW_EMPTY_FASTQ if you \
+                 still want to write out a file with no reads."
+                    .to_string(),
+            );
+        }
+        format
+    } else if regular {
+        let mut readers = vec![reader1];
+        if let Some(text2) = &second_text {
+            readers.push(ReadAhead::open(text2, skip_blank_lines).unwrap_or_else(|t| refuse(t)));
+        }
+        Some(
+            determine_quality_format(readers, format.as_deref())
+                .unwrap_or_else(|t| refuse(t))
+                .to_string(),
+        )
+    } else {
+        format
+    };
+    // An empty input never reads a quality, so the format it is converted with does not matter.
+    let format = format.unwrap_or_else(|| "Standard".to_string());
 
     // `getSequentialFileList`, which reads the NAME rather than the content. It is checked
     // AFTER the quality format, which is why a row that gets both wrong is refused for the
@@ -171,11 +179,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         min_q,
         max_q,
         quality_format: format,
-        allow_and_ignore_empty_lines: flag("ALLOW_AND_IGNORE_EMPTY_LINES=", false),
-    };
-    let refuse = |thrown: String| -> ! {
-        eprintln!("Exception in thread \"main\" {thrown}");
-        std::process::exit(1);
+        allow_and_ignore_empty_lines: skip_blank_lines,
     };
     let records = fastq_records(&text, second_text.as_deref(), &options)
         .unwrap_or_else(|thrown| refuse(thrown));
