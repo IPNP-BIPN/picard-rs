@@ -90,7 +90,7 @@ pub fn sam_on_disk(text: &[u8], header_len: usize) -> &[u8] {
 pub fn bam_on_disk(finished: &[u8]) -> Vec<u8> {
     // The full blocks, in order: every block but the last data block and the terminator holds
     // exactly one uncompressed block's worth.
-    let mut writes = Vec::new();
+    let mut sizes = Vec::new();
     let mut p = 0;
     while p + BLOCK_HEADER_LENGTH <= finished.len() {
         // Bytes 16 and 17 of a BGZF header are `BSIZE`, the block's total size minus one
@@ -107,11 +107,46 @@ pub fn bam_on_disk(finished: &[u8]) -> Vec<u8> {
         if isize != DEFAULT_UNCOMPRESSED_BLOCK_SIZE {
             break;
         }
-        writes.push(BLOCK_HEADER_LENGTH);
-        writes.push(size - BLOCK_HEADER_LENGTH - BLOCK_FOOTER_LENGTH);
-        writes.push(BLOCK_FOOTER_LENGTH);
+        sizes.push(size);
         p += size;
     }
+    finished[..through_the_buffer(&sizes)].to_vec()
+}
+
+/// [`bam_on_disk`] in place, for the finished BAM at `path`: the file cut to what the unclosed
+/// writer leaves, reading only the blocks' headers and footers.
+pub fn cut_bam_on_disk(path: &str) -> std::io::Result<()> {
+    use std::os::unix::fs::FileExt;
+    let file = std::fs::File::options().read(true).write(true).open(path)?;
+    let length = file.metadata()?.len();
+    let mut sizes = Vec::new();
+    let (mut p, mut header, mut footer) = (0u64, [0u8; BLOCK_HEADER_LENGTH], [0u8; 4]);
+    while p + BLOCK_HEADER_LENGTH as u64 <= length {
+        file.read_exact_at(&mut header, p)?;
+        let size = u16::from_le_bytes([header[16], header[17]]) as usize + 1;
+        if p + size as u64 > length {
+            break;
+        }
+        file.read_exact_at(&mut footer, p + size as u64 - 4)?;
+        if u32::from_le_bytes(footer) as usize != DEFAULT_UNCOMPRESSED_BLOCK_SIZE {
+            break;
+        }
+        sizes.push(size);
+        p += size as u64;
+    }
+    file.set_len(through_the_buffer(&sizes) as u64)
+}
+
+/// How much of blocks of these sizes, each written as its header, payload and footer, reaches the
+/// file through the 128 KiB `BufferedOutputStream` before the writer is abandoned.
+fn through_the_buffer(sizes: &[usize]) -> usize {
+    let writes = sizes.iter().flat_map(|&size| {
+        [
+            BLOCK_HEADER_LENGTH,
+            size - BLOCK_HEADER_LENGTH - BLOCK_FOOTER_LENGTH,
+            BLOCK_FOOTER_LENGTH,
+        ]
+    });
     // `BufferedOutputStream.write`: a write that does not fit flushes what is buffered first, and
     // one at least as large as the buffer goes straight through.
     let (mut on_disk, mut buffered) = (0, 0);
@@ -126,8 +161,7 @@ pub fn bam_on_disk(finished: &[u8]) -> Vec<u8> {
             buffered += len;
         }
     }
-    // `to_vec` copies the prefix out into a new owned byte vector.
-    finished[..on_disk].to_vec()
+    on_disk
 }
 
 /// `SAMFileWriterImpl.assertPresorted` over records in the order they are added: the index of the
@@ -272,5 +306,34 @@ mod tests {
         let mut writer = htsjdk_bgzf::BgzfWriter::new(Vec::new());
         std::io::Write::write_all(&mut writer, b"BAM\x01 a header and a record").unwrap();
         assert!(bam_on_disk(&writer.into_inner().unwrap()).is_empty());
+    }
+
+    #[test]
+    fn a_bam_cut_in_place_is_the_one_bam_on_disk_gives() {
+        let path = std::env::temp_dir().join(format!("bam-on-disk-{}.bam", std::process::id()));
+        let path = path.to_str().unwrap();
+        // Blocks that deflate to sizes on both sides of the buffer's arithmetic, and none.
+        for blocks in [0usize, 1, 2, 5, 23] {
+            let payload: Vec<u8> = (0..blocks * DEFAULT_UNCOMPRESSED_BLOCK_SIZE + 999)
+                .map(|i| {
+                    if i % 3 == 0 {
+                        (i * 7919 % 251) as u8
+                    } else {
+                        b'a'
+                    }
+                })
+                .collect();
+            let mut writer = htsjdk_bgzf::BgzfWriter::new(Vec::new());
+            std::io::Write::write_all(&mut writer, &payload).unwrap();
+            let finished = writer.into_inner().unwrap();
+            std::fs::write(path, &finished).unwrap();
+            cut_bam_on_disk(path).unwrap();
+            assert_eq!(
+                std::fs::read(path).unwrap(),
+                bam_on_disk(&finished),
+                "{blocks}"
+            );
+        }
+        std::fs::remove_file(path).unwrap();
     }
 }
