@@ -58,6 +58,8 @@ pub struct Converter {
     pub extractor: Option<Extractor>,
     /// The declared barcodes' metrics, which the extractor counts into.
     pub metrics: Vec<Metric>,
+    /// Each metric's index by its barcode without dashes, the first one declared winning.
+    metric_at: foldhash::HashMap<String, usize>,
 }
 
 pub struct Options<'a> {
@@ -119,6 +121,10 @@ impl Converter {
                 kinds.push(s.kind);
             }
         }
+        let mut metric_at: foldhash::HashMap<String, usize> = Default::default();
+        for (at, m) in o.metrics.iter().enumerate() {
+            metric_at.entry(m.barcode.replace('-', "")).or_insert(at);
+        }
         Converter {
             runs,
             tiles,
@@ -130,6 +136,7 @@ impl Converter {
             barcodes_from: if wants_barcodes { o.barcodes_dir } else { None },
             extractor: o.extractor,
             metrics: o.metrics,
+            metric_at,
         }
     }
 
@@ -250,9 +257,9 @@ impl Converter {
         let m = ex.find(&read, Some(&quals), true);
         if m.matched {
             if let Some(t) = self
-                .metrics
-                .iter_mut()
-                .find(|x| x.barcode.replace('-', "") == m.barcode)
+                .metric_at
+                .get(&m.barcode)
+                .map(|&at| &mut self.metrics[at])
             {
                 t.reads += 1;
                 if data.pf {
