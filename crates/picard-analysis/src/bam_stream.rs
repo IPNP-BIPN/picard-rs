@@ -754,9 +754,9 @@ pub fn one_pass(
     io::copy(&mut blocks, &mut io::sink()).is_ok() && !blocks.damaged && blocks.declared == inflated
 }
 
-/// noodles' multithreaded reader, counting what it inflates.
+/// A BGZF stream inflated a few blocks ahead on several threads, counting what it inflates.
 pub struct MultithreadedInflater<R> {
-    inner: noodles_bgzf::io::MultithreadedReader<R>,
+    inner: BlockInflater<R>,
     count: u64,
 }
 
@@ -796,7 +796,7 @@ fn inflater<R: Read + Send + 'static>(inner: R) -> MultithreadedInflater<R> {
 fn inflater_of<R: Read + Send + 'static>(workers: usize, inner: R) -> MultithreadedInflater<R> {
     let workers = NonZeroUsize::new(workers).unwrap_or(NonZeroUsize::MIN);
     MultithreadedInflater {
-        inner: noodles_bgzf::io::MultithreadedReader::with_worker_count(workers, inner),
+        inner: BlockInflater::new(workers.get(), inner),
         count: 0,
     }
 }
@@ -806,6 +806,208 @@ impl<R: Read + Send + 'static> Read for MultithreadedInflater<R> {
         let n = self.inner.read(buf)?;
         self.count += n as u64;
         Ok(n)
+    }
+}
+
+/// How many blocks one inflating job takes: about 256 KiB inflated. Sixteen cut CPU as much but
+/// doubled peak RSS (CollectQualityYieldMetrics on chr20, 79 to 159 MB); one gave back the CPU.
+const JOB_BLOCKS: usize = 4;
+
+/// What an inflating job answers: the bytes of its blocks up to the first that did not inflate, in
+/// order, and why that one did not. The bytes before a bad block are handed over before its error,
+/// as a reader inflating one block at a time hands them.
+type Inflated = (Vec<u8>, Option<io::Error>);
+
+/// A job for an inflating thread: the compressed blocks, and where to answer.
+type InflateJob = (Vec<Vec<u8>>, mpsc::SyncSender<Inflated>);
+
+/// Where to send blocks to be inflated. The threads are the process's, sleep on a channel between
+/// jobs and are as many as [`inflate_workers`]: noodles' reader ran one job per 64 KiB block on a
+/// rayon pool of its own, whose idle workers spun through their yields between blocks. On 16
+/// cores, chr20 30x, that spinning cost CollectQualityYieldMetrics 20.6 s of CPU against 18.8 s here
+/// and ValidateSamFile 23.7 s against 22.3 s, at the same peak RSS.
+fn inflaters() -> &'static mpsc::Sender<InflateJob> {
+    static INFLATERS: OnceLock<mpsc::Sender<InflateJob>> = OnceLock::new();
+    INFLATERS.get_or_init(|| {
+        let (jobs, queue) = mpsc::channel::<InflateJob>();
+        let queue = Arc::new(Mutex::new(queue));
+        for _ in 0..inflate_workers() {
+            let queue = Arc::clone(&queue);
+            std::thread::spawn(move || {
+                let mut decompressor = libdeflater::Decompressor::new();
+                loop {
+                    let job = queue.lock().unwrap().recv();
+                    let Ok((blocks, answer)) = job else { return };
+                    let _ = answer.send(inflate_blocks(&mut decompressor, &blocks));
+                }
+            });
+        }
+        jobs
+    })
+}
+
+/// The blocks' bytes, with the checks noodles' `frame::inflate` made: the inflated length is the
+/// declared ISIZE and its CRC32 the declared one.
+fn inflate_blocks(decompressor: &mut libdeflater::Decompressor, blocks: &[Vec<u8>]) -> Inflated {
+    let total: usize = blocks.iter().map(|b| declared_size(b) as usize).sum();
+    let mut out = vec![0u8; total];
+    let mut at = 0;
+    for block in blocks {
+        if let Err(e) = inflate_block(decompressor, block, &mut out[at..]) {
+            out.truncate(at);
+            return (out, Some(e));
+        }
+        at += declared_size(block) as usize;
+    }
+    (out, None)
+}
+
+/// One block into the head of `out`, which holds at least its declared size.
+fn inflate_block(
+    decompressor: &mut libdeflater::Decompressor,
+    block: &[u8],
+    out: &mut [u8],
+) -> io::Result<()> {
+    let invalid = |what: &str| io::Error::new(io::ErrorKind::InvalidData, what.to_string());
+    let size = declared_size(block) as usize;
+    let footer = &block[block.len() - FOOTER..];
+    let crc = u32::from_le_bytes([footer[0], footer[1], footer[2], footer[3]]);
+    let target = &mut out[..size];
+    let n = decompressor
+        .deflate_decompress(&block[HEADER..block.len() - FOOTER], target)
+        .map_err(|_| invalid("invalid deflate data"))?;
+    if n != size {
+        return Err(invalid("block size mismatch"));
+    }
+    let mut sum = libdeflater::Crc::new();
+    sum.update(target);
+    if sum.sum() != crc {
+        return Err(invalid("block data checksum mismatch"));
+    }
+    Ok(())
+}
+
+/// The ISIZE a whole block's footer declares.
+fn declared_size(block: &[u8]) -> u32 {
+    let f = &block[block.len() - 4..];
+    u32::from_le_bytes([f[0], f[1], f[2], f[3]])
+}
+
+/// The jobs of one stream, in its order, a bounded number ahead of the reader, cut by a thread of
+/// its own that owns the compressed stream until [`BlockInflater::finish`] takes it back.
+pub struct BlockInflater<R> {
+    results: Option<mpsc::Receiver<mpsc::Receiver<Inflated>>>,
+    cutter: Option<std::thread::JoinHandle<R>>,
+    current: Vec<u8>,
+    at: usize,
+    /// The error to raise once `current` is handed over.
+    failed: Option<io::Error>,
+}
+
+impl<R: Read + Send + 'static> BlockInflater<R> {
+    fn new(workers: usize, mut inner: R) -> Self {
+        let (send, results) = mpsc::sync_channel(2 * workers.max(1));
+        let cutter = std::thread::spawn(move || {
+            loop {
+                let mut blocks = Vec::with_capacity(JOB_BLOCKS);
+                let mut failed = None;
+                while blocks.len() < JOB_BLOCKS {
+                    match next_raw_block(&mut inner) {
+                        Ok(Some(block)) => blocks.push(block),
+                        Ok(None) => break,
+                        Err(e) => {
+                            failed = Some(e);
+                            break;
+                        }
+                    }
+                }
+                let ended = blocks.len() < JOB_BLOCKS;
+                if !blocks.is_empty() {
+                    let (answer, result) = mpsc::sync_channel(1);
+                    if inflaters().send((blocks, answer)).is_err() || send.send(result).is_err() {
+                        break;
+                    }
+                }
+                if let Some(e) = failed {
+                    let (answer, result) = mpsc::sync_channel(1);
+                    let _ = answer.send((Vec::new(), Some(e)));
+                    let _ = send.send(result);
+                }
+                if ended {
+                    break;
+                }
+            }
+            inner
+        });
+        BlockInflater {
+            results: Some(results),
+            cutter: Some(cutter),
+            current: Vec::new(),
+            at: 0,
+            failed: None,
+        }
+    }
+
+    /// The compressed stream back, where the cutting thread left it.
+    pub fn finish(mut self) -> io::Result<R> {
+        self.results = None;
+        self.cutter
+            .take()
+            .expect("finished once")
+            .join()
+            .map_err(|_| io::Error::other("the cutting thread panicked"))
+    }
+}
+
+/// One whole block as it is on the disk, header to footer, or `None` at the end of the stream.
+fn next_raw_block<R: Read>(inner: &mut R) -> io::Result<Option<Vec<u8>>> {
+    let mut block = Vec::with_capacity(MAX_BLOCK);
+    let got = read_up_to(inner, &mut block, HEADER)?;
+    if got == 0 {
+        return Ok(None);
+    }
+    let length = (got == HEADER)
+        .then(|| block_length(&block))
+        .flatten()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid BGZF header"))?;
+    if read_up_to(inner, &mut block, length - HEADER)? < length - HEADER {
+        return Err(io::ErrorKind::UnexpectedEof.into());
+    }
+    Ok(Some(block))
+}
+
+impl<R> Read for BlockInflater<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        loop {
+            if self.at < self.current.len() {
+                let n = (self.current.len() - self.at).min(buf.len());
+                buf[..n].copy_from_slice(&self.current[self.at..self.at + n]);
+                self.at += n;
+                return Ok(n);
+            }
+            if let Some(e) = self.failed.take() {
+                self.results = None;
+                return Err(e);
+            }
+            let Some(results) = &self.results else {
+                return Ok(0);
+            };
+            let Ok(result) = results.recv() else {
+                self.results = None;
+                return Ok(0);
+            };
+            match result.recv() {
+                Ok((bytes, failed)) => {
+                    self.current = bytes;
+                    self.at = 0;
+                    self.failed = failed;
+                }
+                Err(_) => {
+                    self.results = None;
+                    return Err(io::Error::other("an inflating thread stopped"));
+                }
+            }
+        }
     }
 }
 
