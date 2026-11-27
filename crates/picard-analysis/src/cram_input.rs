@@ -14,13 +14,15 @@
 //!
 //! Without a reference, htsjdk falls back to `CRAMLazyReferenceSource`, which has nothing, and the
 //! first mapped slice fails with `Failure getting reference bases for sequence <name>`. The header
-//! reads; unmapped records decode. The failure is raised here, before the tool has written
-//! anything, with the line htsjdk's uncaught exception prints and Picard's exit status.
+//! reads; unmapped records decode. The failure is raised when the tool reaches that slice, as
+//! htsjdk's iterator raises it, with the line its uncaught exception prints and Picard's exit
+//! status.
 
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_cram::reader::{CramError, CramReader, FastaReference, NoReference, ReferenceSource};
 use std::io::Write;
+use std::sync::mpsc;
 
 /// The four bytes a CRAM begins with.
 pub const CRAM_MAGIC: &[u8; 4] = b"CRAM";
@@ -100,11 +102,61 @@ pub fn decode(raw: &[u8]) -> Result<(SamHeader, String, Vec<BamRecord>), CramErr
     Ok((reader.header.clone(), reader.header_text.clone(), records))
 }
 
-/// [`decode`], failing as an uncaught exception does.
-pub fn decode_or_exit(raw: &[u8]) -> (SamHeader, Vec<BamRecord>) {
-    match decode(raw) {
-        Ok((header, _, records)) => (header, records),
-        Err(error) => fail(&error),
+/// A CRAM's header, and its records decoded a container at a time as they are taken, as htsjdk's
+/// `CRAMIterator` hands them over: memory holds the file and a few containers, not every record.
+/// A failure is raised, as an uncaught exception, when the container that meets it is reached.
+pub fn stream(raw: Vec<u8>) -> (SamHeader, CramStream) {
+    let (header_tx, header_rx) = mpsc::sync_channel(1);
+    // One container decoding while the tool works through the one before.
+    let (batch_tx, batch_rx) = mpsc::sync_channel(1);
+    std::thread::spawn(move || {
+        let mut reader = match CramReader::new(&raw) {
+            Ok(reader) => reader,
+            Err(error) => return drop(header_tx.send(Err(error))),
+        };
+        if header_tx.send(Ok(reader.header.clone())).is_err() {
+            return;
+        }
+        let mut source = reference_source();
+        // A send fails once the tool has dropped the stream: nothing is left to decode for.
+        while let Some(batch) = reader.next_container(source.as_mut()).transpose() {
+            let failed = batch.is_err();
+            if batch_tx.send(batch).is_err() || failed {
+                return;
+            }
+        }
+    });
+    let header = header_rx
+        .recv()
+        .expect("the CRAM thread sends the header or its error")
+        .unwrap_or_else(|error| fail(&error));
+    let stream = CramStream {
+        batches: batch_rx,
+        batch: Vec::new().into_iter(),
+    };
+    (header, stream)
+}
+
+/// The records of a CRAM [`stream`] decodes.
+pub struct CramStream {
+    batches: mpsc::Receiver<Result<Vec<BamRecord>, CramError>>,
+    batch: std::vec::IntoIter<BamRecord>,
+}
+
+impl Iterator for CramStream {
+    type Item = BamRecord;
+
+    fn next(&mut self) -> Option<BamRecord> {
+        loop {
+            if let Some(record) = self.batch.next() {
+                return Some(record);
+            }
+            // The thread hangs up after the last container.
+            match self.batches.recv().ok()? {
+                Ok(batch) => self.batch = batch.into_iter(),
+                Err(error) => fail(&error),
+            }
+        }
     }
 }
 
@@ -161,4 +213,34 @@ pub fn as_bgzf_bam(header: &SamHeader, text: &str, records: &[BamRecord]) -> Vec
         .expect("an in-memory BGZF writer never fails");
     bgzf.into_inner()
         .expect("an in-memory BGZF writer never fails")
+}
+
+#[cfg(test)]
+mod stream_tests {
+    use super::*;
+
+    #[test]
+    fn a_streamed_cram_hands_over_every_container_in_order() {
+        // Unmapped reads need no reference; 25,000 of them make three containers of 10,000.
+        let mut sam = String::from("@HD\tVN:1.6\tSO:unsorted\n");
+        for i in 0..25_000 {
+            sam.push_str(&format!("r{i}\t4\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n"));
+        }
+        let (header, records) = htsjdk_bam::sam_file::read_sam(&sam).unwrap();
+        let cram =
+            htsjdk_cram::writer::write_cram(&header, &records, "x.cram", &mut NoReference).unwrap();
+        let mut reader = CramReader::new(&cram).unwrap();
+        let mut containers = 0;
+        while reader.next_container(&mut NoReference).unwrap().is_some() {
+            containers += 1;
+        }
+        assert!(containers > 1, "{containers}");
+
+        let (whole_header, _, whole) = decode(&cram).unwrap();
+        let (streamed_header, streamed) = stream(cram);
+        assert_eq!(streamed_header, whole_header);
+        let streamed: Vec<BamRecord> = streamed.collect();
+        assert_eq!(streamed.len(), 25_000);
+        assert_eq!(streamed, whole);
+    }
 }
