@@ -88,6 +88,48 @@ pub struct Panel {
     pub target_gc: Option<Vec<f64>>,
 }
 
+/// Spans by contig and start, for the overlap queries each read makes: the same answers as a scan
+/// of the whole list, in its order, without the scan.
+#[derive(Debug, Clone, Default)]
+pub struct SpanIndex {
+    /// Per contig: `(start, end, index in the list)` by start, and the longest `end - start`.
+    contigs: std::collections::HashMap<i32, ContigSpans>,
+}
+
+/// One contig's `(start, end, index in the list)` by start, and its longest `end - start`.
+type ContigSpans = (Vec<(i32, i32, usize)>, i64);
+
+impl SpanIndex {
+    pub fn new(spans: &[Span]) -> Self {
+        let mut contigs: std::collections::HashMap<i32, ContigSpans> = Default::default();
+        for (i, s) in spans.iter().enumerate() {
+            let entry = contigs.entry(s.0).or_default();
+            entry.0.push((s.1, s.2, i));
+            entry.1 = entry.1.max(i64::from(s.2) - i64::from(s.1));
+        }
+        for (list, _) in contigs.values_mut() {
+            list.sort_unstable();
+        }
+        SpanIndex { contigs }
+    }
+
+    /// The list indices, ascending, of the spans on `contig` with `start <= hi` and `end >= lo`.
+    pub fn overlapping(&self, contig: i32, lo: i64, hi: i64) -> Vec<usize> {
+        let Some((list, longest)) = self.contigs.get(&contig) else {
+            return Vec::new();
+        };
+        let from = list.partition_point(|&(start, _, _)| i64::from(start) < lo - longest);
+        let mut found: Vec<usize> = list[from..]
+            .iter()
+            .take_while(|&&(start, _, _)| i64::from(start) <= hi)
+            .filter(|&&(_, end, _)| i64::from(end) >= lo)
+            .map(|&(_, _, i)| i)
+            .collect();
+        found.sort_unstable();
+        found
+    }
+}
+
 /// `TargetMetrics`, before its conversion.
 #[derive(Debug, Clone, Default)]
 pub struct TargetMetrics {
@@ -323,6 +365,7 @@ impl Unit {
         &mut self,
         record: &BamRecord,
         panel: &Panel,
+        index: &(SpanIndex, SpanIndex),
         options: &Options,
         adapter: &AdapterUtility,
     ) {
@@ -373,18 +416,19 @@ impl Unit {
         let read_start = record.alignment_start;
         let read_end = record.alignment_start + reference_length(&record.cigar) - 1;
         let sequence = record.reference_index;
-        let targets: Vec<usize> = panel
-            .targets
-            .iter()
-            .enumerate()
-            .filter(|(_, t)| t.0 == sequence && t.1 <= read_end && t.2 >= read_start)
-            .map(|(i, _)| i)
-            .collect();
-        let near = options.near_distance;
-        let probes: Vec<&Span> = panel
-            .probes
-            .iter()
-            .filter(|p| p.0 == sequence && p.1 - near <= read_end && p.2 + near >= read_start)
+        let targets = index
+            .0
+            .overlapping(sequence, i64::from(read_start), i64::from(read_end));
+        let near = i64::from(options.near_distance);
+        let probes: Vec<&Span> = index
+            .1
+            .overlapping(
+                sequence,
+                i64::from(read_start) - near,
+                i64::from(read_end) + near,
+            )
+            .into_iter()
+            .map(|i| &panel.probes[i])
             .collect();
 
         if !supplementary
@@ -711,6 +755,10 @@ pub fn collect(
     options: &Options,
 ) -> Result<Outcome, Thrown> {
     let adapter = AdapterUtility::with_defaults();
+    let index = (
+        SpanIndex::new(&panel.targets),
+        SpanIndex::new(&panel.probes),
+    );
     let mut distributors: Vec<Distributor> = Vec::new();
     for level in [
         Level::AllReads,
@@ -753,7 +801,7 @@ pub fn collect(
         let group = group_of(record).map(|i| &groups[i]);
         for d in distributors.iter_mut() {
             if d.level == Level::AllReads {
-                d.units[0].accept(record, panel, options, &adapter);
+                d.units[0].accept(record, panel, &index, options, &adapter);
                 continue;
             }
             let key = group
@@ -782,7 +830,7 @@ pub fn collect(
                     d.units.len() - 1
                 }
             };
-            d.units[at].accept(record, panel, options, &adapter);
+            d.units[at].accept(record, panel, &index, options, &adapter);
         }
     }
 
@@ -875,4 +923,39 @@ pub fn calculate_gc(bases: &[u8]) -> f64 {
         .filter(|&&b| matches!(b, b'C' | b'G' | b'c' | b'g'))
         .count();
     gcs as f64 / bases.len() as f64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_index_answers_as_the_scan() {
+        // A small LCG: spans of every shape, some longer than others, some reversed.
+        let mut x: u64 = 7;
+        let mut next = |m: u64| {
+            x = x
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            ((x >> 33) % m) as i32
+        };
+        let spans: Vec<Span> = (0..500)
+            .map(|_| {
+                let start = next(10_000);
+                (next(3), start, start + next(400) - 20)
+            })
+            .collect();
+        let index = SpanIndex::new(&spans);
+        for _ in 0..2000 {
+            let (contig, lo) = (next(4), i64::from(next(10_500)) - 200);
+            let hi = lo + i64::from(next(300));
+            let scan: Vec<usize> = (0..spans.len())
+                .filter(|&i| {
+                    let s = spans[i];
+                    s.0 == contig && i64::from(s.1) <= hi && i64::from(s.2) >= lo
+                })
+                .collect();
+            assert_eq!(index.overlapping(contig, lo, hi), scan);
+        }
+    }
 }
