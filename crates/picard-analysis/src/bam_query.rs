@@ -10,7 +10,7 @@ use htsjdk_bam::index::{read_bai, BamIndex, Chunk};
 use htsjdk_bam::record::BamRecord;
 use noodles_bgzf::VirtualPosition;
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::{BufRead, BufReader, Read};
 
 /// `GenomicIndexUtil.regionToBins` for a 1-based inclusive region: the bins that may hold a record
 /// overlapping it.
@@ -104,7 +104,10 @@ impl Query {
     }
 
     fn next_record(&mut self) -> std::io::Result<Option<BamRecord>> {
-        while u64::from(self.reader.virtual_position()) >= self.end {
+        // A chunk also ends where the data does, should an index point past the last record.
+        while u64::from(self.reader.virtual_position()) >= self.end
+            || self.reader.fill_buf()?.is_empty()
+        {
             let Some(chunk) = self.chunks.next() else {
                 return Ok(None);
             };
@@ -153,5 +156,86 @@ mod tests {
             vec![0, 1, 9, 73, 585, 4681, 4682]
         );
         assert_eq!(region_bins(10, 5), Vec::<i32>::new());
+    }
+
+    #[test]
+    fn the_query_reads_what_a_scan_keeps() {
+        // Two contigs, reads at pseudo-random starts (some unmapped at a placed position): many
+        // BGZF blocks, bins on every level and chunks to merge.
+        let mut state = 11u64;
+        let mut next = |n: u64| {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (state >> 33) % n
+        };
+        let mut sam = String::from(
+            "@HD\tVN:1.6\tSO:unsorted\n@SQ\tSN:c1\tLN:2000000\n@SQ\tSN:c2\tLN:500000\n",
+        );
+        let (bases, quals) = ("ACGT".repeat(25), "I".repeat(100));
+        for i in 0..6000 {
+            let (contig, length) = if i % 3 == 0 {
+                ("c2", 500_000)
+            } else {
+                ("c1", 2_000_000)
+            };
+            let pos = 1 + next(length - 100);
+            let (flag, mapq, cigar) = if i % 50 == 0 {
+                (4, 0, "*")
+            } else {
+                (0, 60, "100M")
+            };
+            sam.push_str(&format!(
+                "r{i}\t{flag}\t{contig}\t{pos}\t{mapq}\t{cigar}\t*\t0\t0\t{bases}\t{quals}\n"
+            ));
+        }
+        let bam =
+            crate::sort_sam::sort_sam_to_bam(&sam, crate::sort_sam::SortOrder::Coordinate).unwrap();
+        let bai = crate::build_bam_index::build_bam_index(&bam).unwrap();
+        let dir = std::env::temp_dir().join(format!("bam-query-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("q.bam");
+        std::fs::write(&path, &bam).unwrap();
+        std::fs::write(dir.join("q.bai"), &bai).unwrap();
+        let path = path.to_str().unwrap();
+        let (header, records) = crate::bam_stream::Input::open(path).unwrap().into_parts();
+        let all: Vec<BamRecord> = records.collect();
+        let mut read = 0;
+        for trial in 0..30 {
+            let mut intervals = Vec::new();
+            for _ in 0..1 + trial % 6 {
+                let sequence = next(2) as i32;
+                let start = 1 + next(if sequence == 0 { 2_000_000 } else { 500_000 }) as i32;
+                intervals.push((sequence, start, start + next(40_000) as i32));
+            }
+            let intervals = crate::wgs_walk::uniqued(intervals);
+            // `wgs_walk`'s overlap rule: an unmapped read ends where it starts.
+            let keep = |r: &BamRecord| {
+                let end = if r.flags & 0x4 != 0 {
+                    r.alignment_start
+                } else {
+                    r.alignment_end()
+                };
+                r.reference_index >= 0
+                    && intervals.iter().any(|&(s, a, b)| {
+                        s == r.reference_index && b >= r.alignment_start && end >= a
+                    })
+            };
+            let scan: Vec<&str> = all
+                .iter()
+                .filter(|r| keep(r))
+                .map(|r| r.read_name.as_str())
+                .collect();
+            let query: Vec<String> = Query::open(path, &header, &intervals)
+                .unwrap()
+                .filter(|r| keep(r))
+                .map(|r| r.read_name)
+                .collect();
+            assert_eq!(query, scan, "intervals {intervals:?}");
+            read += Query::open(path, &header, &intervals).unwrap().count();
+        }
+        // And it skips: the 30 queries decode less than a third of 30 whole scans.
+        assert!(read < all.len() * 10, "{read} records decoded");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
