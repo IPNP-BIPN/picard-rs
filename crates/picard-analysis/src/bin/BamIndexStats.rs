@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         std::process::exit(1);
     };
-    let out = match picard_analysis::bam_stream::clean_header(&input) {
+    let out = match picard_analysis::bam_stream::header_only(&input) {
         Some(header) => index_stats(&header.sequences, &bai),
         None => bam_index_stats_with_index(&std::fs::read(&input)?, &bai),
     }
