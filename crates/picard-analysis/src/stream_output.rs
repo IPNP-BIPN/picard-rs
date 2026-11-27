@@ -104,20 +104,26 @@ pub fn untrack(path: &str) {
 }
 
 /// Takes `path` off the open list: whether it was on it, and how a failure leaves it.
+/// `path` no longer open: a failure leaves it as it is.
+pub fn forget(path: &str) {
+    close(path);
+}
+
 fn close(path: &str) -> Option<bool> {
     let mut open = OPEN.lock().ok()?;
     let at = open.iter().position(|(p, _)| p == path)?;
     Some(open.remove(at).1)
 }
 
+// One per open output, so the BAM writer's size does not matter.
+#[allow(clippy::large_enum_variant)]
 enum Sink {
     /// The text writer, and the header length that [`java_writer::sam_on_disk`] keeps.
     Sam(BufWriter<File>, SamHeader, usize),
     /// The writer, and whether it builds its index as it writes.
     Bam(BamWriter<BufWriter<File>>, bool),
-    /// shortcut: a CRAM is still encoded from the whole BAM at the end, as before; stream it once
-    /// a CRAM output on a large input matters.
-    Cram(BamWriter<Vec<u8>>),
+    /// Written as each container completes.
+    Cram(crate::cram_output::CramFile),
 }
 
 /// `SAMFileWriterFactory.makeWriter`: SAM for a `.sam` name, CRAM for a CRAM one, BAM otherwise.
@@ -212,10 +218,7 @@ impl Output {
     fn open(path: &str, header: &SamHeader, opened_first: bool, sam: bool) -> io::Result<Output> {
         let coordinate = header.attributes.get("SO") == Some("coordinate");
         let sink = if crate::cram_output::is_cram(path) {
-            if opened_first {
-                File::create(path)?;
-            }
-            Sink::Cram(crate::output::bam_writer(Vec::new(), header)?)
+            Sink::Cram(crate::cram_output::CramFile::create(path, header)?)
         } else if sam {
             let mut out = BufWriter::new(File::create(path)?);
             let text = header.encode();
@@ -233,11 +236,9 @@ impl Output {
                 Sink::Bam(writer, false)
             }
         };
-        if !matches!(sink, Sink::Cram(_)) {
-            OPEN.lock()
-                .expect("not poisoned")
-                .push((path.to_string(), opened_first));
-        }
+        OPEN.lock()
+            .expect("not poisoned")
+            .push((path.to_string(), opened_first));
         Ok(Output {
             path: path.to_string(),
             sink: Some(sink),
@@ -289,7 +290,7 @@ impl Output {
                 Ok(()) => return Ok(()),
                 Err(e) => format!("{e:?}"),
             },
-            Sink::Cram(writer) => return writer.write(record).map_err(|e| format!("{e:?}").into()),
+            Sink::Cram(writer) => return Ok(writer.write(record.clone())?),
         };
         self.abandon();
         Err(failed.into())
@@ -338,10 +339,9 @@ impl Output {
                 let finished = std::fs::read(&self.path)?;
                 std::fs::write(&self.path, java_writer::bam_on_disk(&finished))
             }
-            // The whole-file writer wrote the partial BAM under the CRAM's name.
-            Sink::Cram(writer) => {
-                std::fs::write(&self.path, java_writer::bam_on_disk(&writer.finish()?))
-            }
+            // shortcut: the containers completed so far, all of them; `CRAMFileWriter`'s buffer
+            // would hold back up to its last 128 KiB. Model it if a test reaches it.
+            Sink::Cram(writer) => writer.leave_unclosed(),
         }
     }
 
@@ -377,9 +377,7 @@ impl Output {
                     std::fs::write(index_path(&self.path), index)?;
                 }
             }
-            Sink::Cram(writer) => {
-                crate::cram_output::write_from_bam(&self.path, &writer.finish()?, create_index)?
-            }
+            Sink::Cram(writer) => writer.finish(create_index)?,
         }
         Ok(())
     }

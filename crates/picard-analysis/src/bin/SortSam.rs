@@ -25,7 +25,7 @@ use htsjdk_bgzf::read::BgzfReader;
 use picard_analysis::args::arg;
 use picard_analysis::record_validation::Validator;
 use picard_analysis::sort_sam::encoded::{
-    bin_zero, read_in_parallel, Encoded, EncodedBamWriter, SortingCollection,
+    bin_zero, read_in_parallel, EncodedBamWriter, SortingCollection,
 };
 use picard_analysis::sort_sam::{
     mate_cigar_refusal, MateCigarCheck, RequestedOrder, DEFAULT_MAX_RECORDS_IN_RAM,
@@ -35,16 +35,6 @@ const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
 const MATE_UNMAPPED: u16 = 0x8;
 const FIRST_OF_PAIR: u16 = 0x40;
-
-/// `BamWriter::write`'s bytes, and its error.
-fn write<W: Write>(
-    writer: &mut EncodedBamWriter<W>,
-    encoded: Encoded,
-) -> Result<(), Box<dyn std::error::Error>> {
-    writer
-        .write(encoded)
-        .map_err(|e| format!("{:?}", WriteError::Io(e)).into())
-}
 
 /// The name htsjdk gives the index it writes beside an output.
 fn index_path(output: &str) -> String {
@@ -179,10 +169,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if picard_analysis::cram_output::is_cram(&output) {
-        let mut writer = EncodedBamWriter::new(Vec::new(), &header, false)?;
-        sorting.for_each_sorted(|encoded| write(&mut writer, encoded))?;
-        let (bam, _) = writer.finish()?;
-        picard_analysis::cram_output::write_from_bam(&output, &bam, create_index)?;
+        let mut cram = picard_analysis::cram_output::CramFile::create(&output, &header)?;
+        sorting.for_each_sorted(|encoded| {
+            let Ok(Some((record, _))) = BamRecord::decode(encoded.bytes) else {
+                unreachable!("the collection decodes what it encoded");
+            };
+            cram.write(record)
+        })?;
+        cram.finish(create_index)?;
         return Ok(());
     }
 

@@ -121,6 +121,115 @@ pub fn write_from_bam(path: &str, bam: &[u8], create_index: bool) -> std::io::Re
     write_records_indexed(path, &header, &records, create_index)
 }
 
+/// A CRAM written to its file as each container completes, as `CRAMFileWriter` writes it: memory
+/// holds the container being filled, not the file.
+pub struct CramFile {
+    writer: htsjdk_cram::writer::CramWriter<'static>,
+    file: std::io::BufWriter<std::fs::File>,
+    path: String,
+    coordinate: bool,
+    md5: Option<md5::Md5>,
+}
+
+impl CramFile {
+    /// Creates `path` for `header`, as the BAM writer would have stamped it.
+    pub fn create(path: &str, header: &htsjdk_bam::header::SamHeader) -> std::io::Result<CramFile> {
+        use md5::Digest;
+        // The header the whole-file path read back from the BAM it wrote.
+        let header = htsjdk_bam::reader::parse_header_text(&header.encode());
+        // shortcut: the reference source lives until exit, as `CramWriter` borrows it; one per
+        // CRAM output.
+        let source = Box::leak(writer_reference());
+        let coordinate = crate::metrics_cli::sort_order(&header) == "coordinate";
+        let mut writer = htsjdk_cram::writer::CramWriter::new(&header, &file_id(path), source);
+        // Indexed as it goes whenever it can be, the index kept only when `CREATE_INDEX` asks.
+        if coordinate {
+            writer = writer.with_index();
+        }
+        Ok(CramFile {
+            writer,
+            file: std::io::BufWriter::new(std::fs::File::create(path)?),
+            path: path.to_string(),
+            coordinate,
+            md5: boolean_argument("CREATE_MD5_FILE=").then(md5::Md5::new),
+        })
+    }
+
+    /// Writes `record`, and the container it completes; a record the CRAM cannot carry fails the
+    /// run as the whole-file write did.
+    pub fn write(&mut self, record: htsjdk_bam::record::BamRecord) -> std::io::Result<()> {
+        if let Err(error) = self.writer.write(record) {
+            self.fail(&error.java_line());
+        }
+        let bytes = self.writer.take_output();
+        self.put(&bytes)
+    }
+
+    fn put(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        use md5::Digest;
+        if let Some(md5) = &mut self.md5 {
+            md5.update(bytes);
+        }
+        std::io::Write::write_all(&mut self.file, bytes)
+    }
+
+    /// The last container, the EOF container, and with `create_index` the `.bai`, which
+    /// `CRAMBAIIndexer` refuses for a header that is not coordinate-sorted.
+    pub fn finish(self, create_index: bool) -> std::io::Result<()> {
+        use md5::Digest;
+        let CramFile {
+            writer,
+            mut file,
+            path,
+            coordinate,
+            md5,
+        } = self;
+        if create_index && !coordinate {
+            fail(
+                &mut file,
+                &path,
+                "htsjdk.samtools.SAMException: CRAM file mut be coordinate-sorted for indexing.",
+            );
+        }
+        let (rest, index) = writer
+            .finish()
+            .unwrap_or_else(|error| fail(&mut file, &path, &error.java_line()));
+        std::io::Write::write_all(&mut file, &rest)?;
+        std::io::Write::flush(&mut file)?;
+        if let Some(mut md5) = md5 {
+            md5.update(&rest);
+            let digest: String = md5.finalize().iter().map(|b| format!("{b:02x}")).collect();
+            std::fs::write(format!("{path}.md5"), digest)?;
+        }
+        if create_index {
+            std::fs::write(format!("{path}.bai"), index.unwrap_or_default())?;
+        }
+        Ok(())
+    }
+
+    /// The file as an unclosed writer leaves it: the containers completed so far.
+    pub fn leave_unclosed(mut self) -> std::io::Result<()> {
+        std::io::Write::flush(&mut self.file)
+    }
+
+    fn fail(&mut self, line: &str) -> ! {
+        fail(&mut self.file, &self.path, line)
+    }
+}
+
+/// What a CRAM that cannot be written leaves: the file there and empty, and with `CREATE_INDEX`
+/// the index's too, then the uncaught exception.
+fn fail(file: &mut std::io::BufWriter<std::fs::File>, path: &str, line: &str) -> ! {
+    let _ = std::io::Write::flush(file);
+    let _ = file.get_ref().set_len(0);
+    if create_index_argument() {
+        let _ = std::fs::write(format!("{path}.bai"), []);
+    }
+    // Left empty, not removed as a failing output is.
+    crate::stream_output::forget(path);
+    crate::metrics_cli::thrown(line)
+}
+
 /// [`write_records`], with `CREATE_INDEX`.
 pub fn write_records_indexed(
     path: &str,
@@ -154,5 +263,42 @@ pub fn write_records_indexed(
             std::fs::write(path, [])?;
             crate::metrics_cli::thrown(&line)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_cram_written_as_it_goes_is_the_one_encoded_whole() {
+        // Unplaced reads need no reference; 25,000 of them make three containers.
+        let mut sam = String::from("@HD\tVN:1.6\tSO:unsorted\n");
+        for i in 0..25_000 {
+            sam.push_str(&format!("r{i}\t4\t*\t0\t0\t*\t*\t0\t0\tACGTN\tIIIII\n"));
+        }
+        let (header, records) = htsjdk_bam::sam_file::read_sam(&sam).unwrap();
+        let dir = std::env::temp_dir().join(format!("cram-file-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("x.cram").display().to_string();
+        let whole = encode(
+            &path,
+            &htsjdk_bam::reader::parse_header_text(&header.encode()),
+            &records,
+        )
+        .unwrap();
+
+        let mut cram = CramFile::create(&path, &header).unwrap();
+        let mut sizes = Vec::new();
+        for record in records {
+            cram.write(record).unwrap();
+            sizes.push(std::fs::metadata(&path).unwrap().len());
+        }
+        cram.finish(false).unwrap();
+        let streamed = std::fs::read(&path).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(streamed, whole);
+        // The file grew before the end: containers reached it as they completed.
+        assert!(sizes.last().unwrap() > &0, "{:?}", sizes.last());
     }
 }
