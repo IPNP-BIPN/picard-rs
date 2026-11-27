@@ -388,6 +388,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tmp_dir = arg(&args, "TMP_DIR=")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
+    // `CommandLineProgram` makes each missing TMP_DIR, and goes on if it can't.
+    let _ = std::fs::create_dir_all(&tmp_dir);
     let mut ends = ReadEndsBuilder::new(&options, header_order == "queryname").spilling(Spill {
         max_in_ram,
         tmp_dir,

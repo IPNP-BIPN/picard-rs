@@ -1762,8 +1762,10 @@ pub fn sets_by_position(records: &[Record], options: &Options) -> Vec<Vec<usize>
     groups
 }
 
-/// The chunks `generateDuplicateIndexes` cuts, which are the runs of an equal key: in the order
-/// their keys first appear, each in the list's order.
+/// The chunks `generateDuplicateIndexes` cuts, which are the runs of an equal key: in the order of
+/// their keys, as the reference's sorted list gives them, each in the order [`Packed::order`] puts
+/// one in. The order of the chunks shows where one index is in two of them: a queryname run of
+/// two pairs, whose `DI`/`DS` are the last set's.
 ///
 /// The grouping is a group number per end, found in a table that holds each group's first end
 /// rather than its key, and a counting sort of the indexes by it, so only the chunk being looked
@@ -1821,7 +1823,10 @@ fn chunks<'a>(
         order[fill[group as usize] as usize] = index as u32;
         fill[group as usize] += 1;
     }
-    (0..bounds.len() - 1).map(move |group| {
+    // Each group's first end stands for its key, which no other group shares.
+    let mut groups: Vec<usize> = (0..bounds.len() - 1).collect();
+    groups.sort_unstable_by_key(|&group| list[order[bounds[group] as usize] as usize].order());
+    groups.into_iter().map(move |group| {
         let mut chunk: Vec<ReadEnds> = order[bounds[group] as usize..bounds[group + 1] as usize]
             .iter()
             .map(|&index| strings.unpack(&list[index as usize]))
@@ -2234,8 +2239,12 @@ mod tests {
             (seed >> 33) % n
         };
         let mut records = Vec::new();
+        let mut name = String::new();
         for template in 0..150 {
-            let name = format!("A:1:FC:1:{}:{}:{}", 1101 + next(2), next(40), next(40));
+            // Some names hold two pairs, so under queryname one index is in two sets.
+            if template % 7 != 3 {
+                name = format!("A:1:FC:1:{}:{}:{}", 1101 + next(2), next(40), next(40));
+            }
             let library: Arc<str> = Arc::from(["lib1", "lib2"][next(2) as usize]);
             let read_group = i32::from(library.as_ref() == "lib2");
             let read = |flags: u16, start: i32, mate_start: i32, quality: u64| Record {
@@ -2282,7 +2291,11 @@ mod tests {
         let mut decisions = ends.decide().unwrap();
         decisions.duplicate_indexes.sort_unstable();
         decisions.optical_indexes.sort_unstable();
-        decisions.representatives.sort_unstable();
+        // Stable, on the index alone, as `Flags` reads them: the order of one index's entries is
+        // the order of the sets, which is what decides its `DI`/`DS`.
+        decisions
+            .representatives
+            .sort_by_key(|&(index, _, _)| index);
         decisions.optical_pairs.sort();
         for histogram in [
             &mut decisions.all_sets,
