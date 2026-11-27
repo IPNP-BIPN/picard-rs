@@ -241,14 +241,14 @@ pub fn calculate_all_gcs(
 ///
 /// `GcBiasUtils.java:70-92`; `to_ascii_uppercase` is `StringUtil.toUpperCase(refBases)` made on
 /// a copy rather than in place.
-pub fn calculate_ref_windows_by_gc(
+pub fn calculate_ref_windows_by_gc<B: AsRef<[u8]>>(
     windows: usize,
-    contigs: &[Vec<u8>],
+    contigs: &[B],
     window_size: usize,
 ) -> Vec<i32> {
     let mut windows_by_gc = vec![0i32; windows];
     for contig in contigs {
-        let ref_bases: Vec<u8> = contig.to_ascii_uppercase();
+        let ref_bases: Vec<u8> = contig.as_ref().to_ascii_uppercase();
         // Java's `refLength - windowSize` goes negative for a short contig and the loop runs
         // zero times. `usize` cannot go negative (the subtraction would underflow), so the short
         // contig is skipped before subtracting; the windows counted are the same, none.
