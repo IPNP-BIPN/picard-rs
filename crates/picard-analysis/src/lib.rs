@@ -18,6 +18,7 @@ pub mod args;
 pub mod argument_check;
 pub mod bait_designer;
 pub mod bam_index_stats;
+pub mod bam_query;
 pub mod bam_stream;
 pub mod bam_to_bfq;
 pub mod barcode_extractor;

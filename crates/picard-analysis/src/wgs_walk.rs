@@ -266,9 +266,14 @@ fn interval_base<'a>(
             } else {
                 record.alignment_end()
             };
-            intervals.iter().any(|&(seq, start, stop)| {
-                seq == record.reference_index && stop >= record.alignment_start && end >= start
-            })
+            // The intervals are `uniqued`: sorted and disjoint, so the first one ending at or after
+            // the record's start is the only one that can overlap it.
+            let at = intervals.partition_point(|&(seq, _, stop)| {
+                (seq, stop) < (record.reference_index, record.alignment_start)
+            });
+            intervals
+                .get(at)
+                .is_some_and(|&(seq, start, _)| seq == record.reference_index && end >= start)
         }));
     }
     // `StopAfterFilteringIterator` over an `IntervalFilter`.
