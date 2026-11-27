@@ -6,12 +6,14 @@
 //! decoded collection in the parent module encodes it again for every run it goes to and for the
 //! output. The other tools that sort keep that collection, with its comparators on decoded records.
 
+use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::binary_heap::PeekMut;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, VecDeque};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use htsjdk_bam::bin;
 use htsjdk_bam::header::SamHeader;
@@ -19,7 +21,8 @@ use htsjdk_bam::index::{BamIndexer, Chunk};
 use htsjdk_bam::record::{BamRecord, EncodeError};
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::writer::WriteError;
-use htsjdk_bgzf::BgzfWriter;
+use htsjdk_bgzf::vfp::make_file_pointer;
+use htsjdk_bgzf::{BgzfWriter, DEFAULT_UNCOMPRESSED_BLOCK_SIZE};
 use rayon::prelude::*;
 
 use super::{SortOrder, MAX_OPEN_RUNS};
@@ -714,9 +717,26 @@ pub fn read_in_parallel(
 /// [`crate::output::bam_writer`] writes, and each record's bytes and index entry are what its
 /// `write` makes of the record they were encoded from.
 pub struct EncodedBamWriter<W: Write> {
-    bgzf: BgzfWriter<W>,
+    bgzf: BgzfWriter<Logged<W>>,
     reference_lengths: Vec<i32>,
     indexer: Option<BamIndexer>,
+    /// Where each block reached the file, read off the stream under the writer.
+    addresses: Rc<RefCell<Addresses>>,
+    /// Inflated bytes written so far, header included.
+    written: u64,
+    /// Records written whose index entry waits for the address of a block still being deflated.
+    pending: VecDeque<Pending>,
+}
+
+/// What [`BamIndexer::process`] takes for one record, its chunk as inflated positions.
+struct Pending {
+    reference: i32,
+    alignment_start: i32,
+    end: i32,
+    index_bin: i32,
+    unmapped: bool,
+    from: u64,
+    to: u64,
 }
 
 impl<W: Write> EncodedBamWriter<W> {
@@ -725,25 +745,33 @@ impl<W: Write> EncodedBamWriter<W> {
         let block = crate::output::bam_writer(Vec::new(), header)?.finish()?;
         let text =
             crate::bgzf::decompress_owned(block).map_err(|e| io::Error::other(format!("{e:?}")))?;
-        let mut bgzf = crate::output::bgzf_writer(inner);
+        let addresses = Rc::new(RefCell::new(Addresses::default()));
+        let mut bgzf = crate::output::bgzf_writer(Logged {
+            inner,
+            addresses: Rc::clone(&addresses),
+        });
         bgzf.write_all(&text)?;
         let reference_lengths: Vec<i32> = header.sequences.iter().map(|s| s.length).collect();
         Ok(EncodedBamWriter {
             bgzf,
             indexer: index.then(|| BamIndexer::new(reference_lengths.clone())),
             reference_lengths,
+            addresses,
+            written: text.len() as u64,
+            pending: VecDeque::new(),
         })
     }
 
     /// `BamWriter::write`, from the record's bytes.
     pub fn write(&mut self, record: Encoded) -> io::Result<()> {
-        // Only an indexing writer asks for pointers, which wait for every block in flight.
-        let Some(indexer) = &mut self.indexer else {
-            return self.bgzf.write_all(record.bytes);
-        };
-        let start = self.bgzf.file_pointer()?;
         self.bgzf.write_all(record.bytes)?;
-        let stop = self.bgzf.file_pointer()?;
+        let from = self.written;
+        self.written += record.bytes.len() as u64;
+        if self.indexer.is_none() {
+            return Ok(());
+        }
+        // `file_pointer` before and after the record would wait for every block in flight, so
+        // the chunk is kept as inflated positions until the blocks they fall in are written.
         let (reference, alignment_start) = (record.reference_index(), record.alignment_start());
         let index_bin = if bin_zero(&self.reference_lengths, reference)
             || alignment_start == bin::NO_ALIGNMENT_START
@@ -752,21 +780,141 @@ impl<W: Write> EncodedBamWriter<W> {
         } else {
             bin::compute_indexing_bin(alignment_start, record.end).unwrap_or(0)
         };
-        indexer.process(
+        self.pending.push_back(Pending {
             reference,
             alignment_start,
-            record.end,
+            end: record.end,
             index_bin,
-            record.has(READ_UNMAPPED),
-            Chunk { start, end: stop },
-        );
+            unmapped: record.has(READ_UNMAPPED),
+            from,
+            to: self.written,
+        });
+        self.replay();
         Ok(())
     }
 
+    /// Hands the indexer, in order, every waiting record whose blocks have been written.
+    fn replay(&mut self) {
+        let Some(indexer) = &mut self.indexer else {
+            return;
+        };
+        let mut addresses = self.addresses.borrow_mut();
+        while let Some(next) = self.pending.front() {
+            let (Some(start), Some(end)) =
+                (addresses.pointer(next.from), addresses.pointer(next.to))
+            else {
+                break;
+            };
+            indexer.process(
+                next.reference,
+                next.alignment_start,
+                next.end,
+                next.index_bin,
+                next.unmapped,
+                Chunk { start, end },
+            );
+            self.pending.pop_front();
+        }
+        addresses.forget_before(self.pending.front().map_or(self.written, |p| p.from));
+    }
+
     /// Closes the stream with its terminator block, and the BAI when one was built.
-    pub fn finish(self) -> io::Result<(W, Option<Vec<u8>>)> {
+    pub fn finish(mut self) -> io::Result<(W, Option<Vec<u8>>)> {
+        self.bgzf.finish()?;
+        self.replay();
+        assert!(self.pending.is_empty(), "every block is written");
         let index = self.indexer.map(BamIndexer::finish);
-        Ok((self.bgzf.into_inner()?, index))
+        Ok((self.bgzf.into_inner()?.inner, index))
+    }
+}
+
+/// The stream under a [`BgzfWriter`], noting where each block starts as its header goes by.
+struct Logged<W> {
+    inner: W,
+    addresses: Rc<RefCell<Addresses>>,
+}
+
+impl<W: Write> Write for Logged<W> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        let n = self.inner.write(bytes)?;
+        self.addresses.borrow_mut().saw(&bytes[..n]);
+        Ok(n)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+/// The compressed address of each block from `first` on, read from the block headers: blocks
+/// are cut every [`DEFAULT_UNCOMPRESSED_BLOCK_SIZE`] inflated bytes, nothing flushing between, so
+/// an inflated position names its block, and the block's address is what `file_pointer` gives.
+struct Addresses {
+    /// The address of block `first + i`; the last is that of the block whose header is next.
+    known: VecDeque<u64>,
+    first: u64,
+    /// Compressed bytes seen, where the block they are in starts, and its header so far.
+    at: u64,
+    block: u64,
+    header: [u8; BGZF_HEADER],
+}
+
+/// A BGZF block header's length; the block's own length, less one, is in its last two bytes.
+const BGZF_HEADER: usize = 18;
+
+impl Default for Addresses {
+    fn default() -> Self {
+        Addresses {
+            known: VecDeque::from([0]),
+            first: 0,
+            at: 0,
+            block: 0,
+            header: [0; BGZF_HEADER],
+        }
+    }
+}
+
+impl Addresses {
+    fn saw(&mut self, mut bytes: &[u8]) {
+        while !bytes.is_empty() {
+            let into = (self.at - self.block) as usize;
+            let n = if into < BGZF_HEADER {
+                let n = (BGZF_HEADER - into).min(bytes.len());
+                self.header[into..into + n].copy_from_slice(&bytes[..n]);
+                if into + n == BGZF_HEADER {
+                    let length = u16::from_le_bytes([self.header[16], self.header[17]]) as u64 + 1;
+                    self.known.push_back(self.block + length);
+                }
+                n
+            } else {
+                let next = *self.known.back().expect("never empty");
+                ((next - self.at) as usize).min(bytes.len())
+            };
+            self.at += n as u64;
+            bytes = &bytes[n..];
+            if Some(&self.at) == self.known.back() && self.at - self.block > BGZF_HEADER as u64 {
+                self.block = self.at;
+            }
+        }
+    }
+
+    /// `file_pointer` at inflated position `at`, once the address of its block is known.
+    fn pointer(&self, at: u64) -> Option<u64> {
+        let block = at / DEFAULT_UNCOMPRESSED_BLOCK_SIZE as u64;
+        let address = *self
+            .known
+            .get(usize::try_from(block.checked_sub(self.first)?).ok()?)?;
+        let offset = (at % DEFAULT_UNCOMPRESSED_BLOCK_SIZE as u64) as u32;
+        Some(make_file_pointer(address, offset).expect("a BAM's addresses fit"))
+    }
+
+    /// Drops the addresses of blocks before the one inflated position `at` falls in.
+    fn forget_before(&mut self, at: u64) {
+        let block = at / DEFAULT_UNCOMPRESSED_BLOCK_SIZE as u64;
+        while self.first < block && self.known.len() > 1 {
+            self.known.pop_front();
+            self.first += 1;
+        }
     }
 }
 
@@ -1053,5 +1201,78 @@ mod tests {
         }
         let (spilled, _) = sorted_names(&sam, SortOrder::Coordinate, 1);
         assert_eq!(spilled, sorted_decoded(&sam, SortOrder::Coordinate));
+    }
+
+    #[test]
+    fn the_index_is_the_one_a_pointer_per_record_gives() {
+        let header_text = "@HD\tVN:1.6\tSO:coordinate\n@SQ\tSN:chr1\tLN:200000000\n";
+        let (header, _) = read_sam(header_text).unwrap();
+        let line = |i: usize, pad: usize| {
+            format!(
+                "r{i}\t0\tchr1\t{}\t60\t10M\t*\t0\t0\tACGTACGTAC\tIIIIIIIIII\tZZ:Z:{}\n",
+                // A linear-index window each, so every start reaches the index as it is.
+                1 + i * 20_000,
+                "x".repeat(pad)
+            )
+        };
+        let size = |i: usize, pad: usize| {
+            let (_, records) = read_sam(&format!("{header_text}{}", line(i, pad))).unwrap();
+            records[0].encode().unwrap().len()
+        };
+        // The header's inflated bytes come first; then records, some of them sized to end exactly
+        // where a block is cut, and the last ending mid-block.
+        let block = crate::output::bam_writer(Vec::new(), &header)
+            .unwrap()
+            .finish()
+            .unwrap();
+        let mut at = crate::bgzf::decompress_owned(block).unwrap().len();
+        let mut sam = String::from(header_text);
+        let mut on_boundary = 0;
+        for i in 0..6000 {
+            let base = size(i, 0);
+            let to_cut = DEFAULT_UNCOMPRESSED_BLOCK_SIZE - at % DEFAULT_UNCOMPRESSED_BLOCK_SIZE;
+            let pad = if i % 3 == 0 && (base..base + 400).contains(&to_cut) {
+                on_boundary += 1;
+                to_cut - base
+            } else {
+                (i * 37) % 300
+            };
+            at += size(i, pad);
+            sam.push_str(&line(i, pad));
+        }
+        assert!(on_boundary >= 5, "{on_boundary}");
+        assert_ne!(at % DEFAULT_UNCOMPRESSED_BLOCK_SIZE, 0);
+        assert!(at > 10 * DEFAULT_UNCOMPRESSED_BLOCK_SIZE, "several blocks");
+        // Blocks in flight, which a pointer per record would have waited for.
+        assert!(rayon::current_num_threads() > 1);
+
+        let (_, records) = read_sam(&sam).unwrap();
+        let mut sorting =
+            SortingCollection::new(SortOrder::Coordinate, 1 << 20, std::env::temp_dir());
+        for record in &records {
+            sorting.add(record, false).unwrap();
+        }
+        let mut ours = EncodedBamWriter::new(Vec::new(), &header, true).unwrap();
+        let mut cut_after = 0;
+        sorting
+            .for_each_sorted(|encoded| {
+                ours.write(encoded)?;
+                cut_after += (ours.written % DEFAULT_UNCOMPRESSED_BLOCK_SIZE as u64 == 0) as usize;
+                Ok::<(), io::Error>(())
+            })
+            .unwrap();
+        assert_eq!(cut_after, on_boundary);
+        assert_eq!(ours.written as usize, at);
+        let (bam, index) = ours.finish().unwrap();
+
+        let mut theirs = crate::output::bam_writer(Vec::new(), &header)
+            .unwrap()
+            .with_index();
+        for record in &records {
+            theirs.write(record).unwrap();
+        }
+        let (their_bam, their_index) = theirs.finish_with_index().unwrap();
+        assert_eq!(bam, their_bam);
+        assert_eq!(index.unwrap(), their_index);
     }
 }
