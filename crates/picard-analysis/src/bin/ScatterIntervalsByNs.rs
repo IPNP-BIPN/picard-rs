@@ -33,12 +33,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("ScatterIntervalsByNs");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let reference = arg(&args, "REFERENCE=")
-        .or_else(|| arg(&args, "R="))
-        .ok_or("REFERENCE= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let reference = arg(&args, "REFERENCE=").ok_or("REFERENCE= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let opts = Options {
         output_type: match arg(&args, "OUTPUT_TYPE=").as_deref() {
             None | Some("BOTH") => OutputType::Both,

@@ -22,12 +22,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("RenameSampleInVcf");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let new_sample_name = arg(&args, "NEW_SAMPLE_NAME=").ok_or("NEW_SAMPLE_NAME= is required")?;
     // Barclay reads the value `null` as no value, which is this argument's default.
     let old_sample_name = arg(&args, "OLD_SAMPLE_NAME=").filter(|value| value != "null");

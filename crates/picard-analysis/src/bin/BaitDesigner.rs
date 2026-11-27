@@ -11,6 +11,7 @@
 use std::io::Write;
 
 use htsjdk_bam::interval::{Interval, IntervalList};
+use jmath::to_string::double_to_string as java_double_to_string;
 use picard_analysis::bait_designer::{
     design_target, masked_base_count, prepare_targets, reverse_complement, Bait, Options, Strategy,
     Target,
@@ -21,44 +22,6 @@ use picard_analysis::metrics_cli::{
 
 const USAGE_SUMMARY: &str = "Designs oligonucleotide baits for hybrid selection reactions.";
 const USAGE_DETAILS: &str = "<p>This tool is used to design custom bait sets for hybrid selection experiments. The following files are input into BaitDesigner: a (TARGET) interval list indicating the sequences of interest, e.g. exons with their respective coordinates, a reference sequence, and a unique identifier string (DESIGN_NAME). </p><p>The tool will output interval_list files of both bait and target sequences as well as the actual bait sequences in FastA format. At least two baits are output for each target sequence, with greater numbers for larger intervals. Although the default values for both bait size  (120 bases) nd offsets (80 bases) are suitable for most applications, these values can be customized. Offsets represent the distance between sequential baits on a contiguous stretch of target DNA sequence. </p><p>The tool will also output a pooled set of 55,000 (default) oligonucleotides representing all of the baits redundantly. This redundancy achieves a uniform concentration of oligonucleotides for synthesis by a vendor as well as equal numbersof each bait to prevent bias during the hybrid selection reaction. </p><h4>Usage example:</h4><pre>java -jar picard.jar BaitDesigner \\<br />      TARGET=targets.interval_list \\<br />      DESIGN_NAME=new_baits \\<br />      R=reference_sequence.fasta </pre> <hr />";
-
-/// `Double.toString`: plain between 10^-3 and 10^7, computerized scientific notation outside.
-fn java_double_to_string(value: f64) -> String {
-    if value.is_nan() {
-        return "NaN".to_string();
-    }
-    if value.is_infinite() {
-        return if value > 0.0 { "Infinity" } else { "-Infinity" }.to_string();
-    }
-    let sign = if value.is_sign_negative() { "-" } else { "" };
-    let magnitude = value.abs();
-    if magnitude == 0.0 {
-        return format!("{sign}0.0");
-    }
-    let scientific = format!("{magnitude:e}");
-    let (mantissa, exponent) = scientific.split_once('e').unwrap_or((&scientific, "0"));
-    let exponent: i32 = exponent.parse().unwrap_or(0);
-    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    if (1e-3..1e7).contains(&magnitude) {
-        if exponent >= 0 {
-            let whole_len = exponent as usize + 1;
-            let mut padded = digits.clone();
-            while padded.len() < whole_len {
-                padded.push('0');
-            }
-            let (whole, fraction) = padded.split_at(whole_len);
-            let fraction = if fraction.is_empty() { "0" } else { fraction };
-            format!("{sign}{whole}.{fraction}")
-        } else {
-            let zeros = "0".repeat((-exponent - 1) as usize);
-            format!("{sign}0.{zeros}{digits}")
-        }
-    } else {
-        let (first, rest) = digits.split_at(1);
-        let rest = if rest.is_empty() { "0" } else { rest };
-        format!("{sign}{first}.{rest}E{exponent}")
-    }
-}
 
 /// The header of an interval list as `SAMTextHeaderCodec` writes it back: `@HD` with the CURRENT
 /// version first and the other attributes after it, every `@SQ` as `SN`, `LN` and then the rest.

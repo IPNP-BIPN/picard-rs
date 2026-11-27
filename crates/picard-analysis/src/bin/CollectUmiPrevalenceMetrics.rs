@@ -23,28 +23,14 @@ use picard_analysis::collect_umi_prevalence_metrics::{
 };
 use picard_analysis::duplicate_set::duplicate_sets;
 use picard_analysis::mark_duplicates::{base_quality_score, Options, Record as SetRecord, Span};
-
-fn string_tag(record: &BamRecord, name: &str) -> Option<String> {
-    let bytes = name.as_bytes();
-    if bytes.len() != 2 {
-        return None;
-    }
-    match record.tags.get(Tag::new(&[bytes[0], bytes[1]])) {
-        Some(TagValue::Str(value)) => Some(value.clone()),
-        _ => None,
-    }
-}
+use picard_analysis::metrics_cli::string_tag;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CollectUmiPrevalenceMetrics");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let number = |key: &str, default: i32| -> i32 {
         arg(&args, key)
             .and_then(|value| value.parse().ok())

@@ -27,13 +27,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let inputs = picard_analysis::args::inputs(&args)?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     // Barclay reads the value `null` as no value, which is this argument's default.
-    let sequence_dictionary = arg(&args, "SEQUENCE_DICTIONARY=")
-        .or_else(|| arg(&args, "SD="))
-        .filter(|value| value != "null");
+    let sequence_dictionary = arg(&args, "SEQUENCE_DICTIONARY=").filter(|value| value != "null");
     let create_index = arg(&args, "CREATE_INDEX=")
         .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(true);

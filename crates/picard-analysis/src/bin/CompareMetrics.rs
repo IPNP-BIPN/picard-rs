@@ -32,6 +32,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use htsjdk_metrics::file::{MetricBean, MetricsFile as MetricsWriter, Value as CellValue};
 use htsjdk_metrics::format::{format_double, format_long};
+use jmath::to_string::double_to_string as java_double_to_string;
 use picard_analysis::java_hash_map::string_hash_code;
 use picard_analysis::metrics_cli::{absolute, refuse_validation, thrown};
 
@@ -129,44 +130,6 @@ impl Value {
             (Value::Double(a), Value::Double(b)) => a.to_bits() == b.to_bits(),
             _ => self == other,
         }
-    }
-}
-
-/// `Double.toString`: plain between 10^-3 and 10^7, computerized scientific notation outside.
-fn java_double_to_string(value: f64) -> String {
-    if value.is_nan() {
-        return "NaN".to_string();
-    }
-    if value.is_infinite() {
-        return if value > 0.0 { "Infinity" } else { "-Infinity" }.to_string();
-    }
-    let sign = if value.is_sign_negative() { "-" } else { "" };
-    let magnitude = value.abs();
-    if magnitude == 0.0 {
-        return format!("{sign}0.0");
-    }
-    let scientific = format!("{magnitude:e}");
-    let (mantissa, exponent) = scientific.split_once('e').unwrap_or((&scientific, "0"));
-    let exponent: i32 = exponent.parse().unwrap_or(0);
-    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    if (1e-3..1e7).contains(&magnitude) {
-        if exponent >= 0 {
-            let whole_len = exponent as usize + 1;
-            let mut padded = digits.clone();
-            while padded.len() < whole_len {
-                padded.push('0');
-            }
-            let (whole, fraction) = padded.split_at(whole_len);
-            let fraction = if fraction.is_empty() { "0" } else { fraction };
-            format!("{sign}{whole}.{fraction}")
-        } else {
-            let zeros = "0".repeat((-exponent - 1) as usize);
-            format!("{sign}0.{zeros}{digits}")
-        }
-    } else {
-        let (first, rest) = digits.split_at(1);
-        let rest = if rest.is_empty() { "0" } else { rest };
-        format!("{sign}{first}.{rest}E{exponent}")
     }
 }
 

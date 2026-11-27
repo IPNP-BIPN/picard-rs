@@ -25,12 +25,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("FastqToSam");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let fastq = arg(&args, "FASTQ=")
-        .or_else(|| arg(&args, "F1="))
-        .ok_or("FASTQ= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let fastq = arg(&args, "FASTQ=").ok_or("FASTQ= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let sample = arg(&args, "SAMPLE_NAME=").ok_or("SAMPLE_NAME= is required")?;
     let flag = |key: &str, default: bool| {
         arg(&args, key)
@@ -61,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("MAX_Q must be <= 93");
         std::process::exit(1);
     }
-    let second = arg(&args, "FASTQ2=").or_else(|| arg(&args, "F2="));
+    let second = arg(&args, "FASTQ2=");
     let format = arg(&args, "QUALITY_FORMAT=");
     if let Some(format) = &format {
         if !matches!(format.as_str(), "Standard" | "Illumina" | "Solexa") {
@@ -143,34 +139,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let sort_order = arg(&args, "SORT_ORDER=")
-        .or_else(|| arg(&args, "SO="))
-        .unwrap_or_else(|| "queryname".to_string());
+    let sort_order = arg(&args, "SORT_ORDER=").unwrap_or_else(|| "queryname".to_string());
     if !matches!(sort_order.as_str(), "queryname" | "coordinate" | "unsorted") {
         return Err(format!("unknown SORT_ORDER: {sort_order}").into());
     }
-    let run_date = match arg(&args, "RUN_DATE=").or_else(|| arg(&args, "DT=")) {
+    let run_date = match arg(&args, "RUN_DATE=") {
         Some(value) => Some(iso8601(&value).ok_or(format!("unreadable RUN_DATE: {value}"))?),
         None => None,
     };
     let options = FullOptions {
-        read_group_name: arg(&args, "READ_GROUP_NAME=")
-            .or_else(|| arg(&args, "RG="))
-            .unwrap_or_else(|| "A".to_string()),
+        read_group_name: arg(&args, "READ_GROUP_NAME=").unwrap_or_else(|| "A".to_string()),
         sample_name: sample,
         sort_order,
-        library_name: arg(&args, "LIBRARY_NAME=").or_else(|| arg(&args, "LB=")),
-        platform: arg(&args, "PLATFORM=").or_else(|| arg(&args, "PL=")),
-        platform_unit: arg(&args, "PLATFORM_UNIT=").or_else(|| arg(&args, "PU=")),
-        sequencing_center: arg(&args, "SEQUENCING_CENTER=").or_else(|| arg(&args, "CN=")),
+        library_name: arg(&args, "LIBRARY_NAME="),
+        platform: arg(&args, "PLATFORM="),
+        platform_unit: arg(&args, "PLATFORM_UNIT="),
+        sequencing_center: arg(&args, "SEQUENCING_CENTER="),
         predicted_insert_size: arg(&args, "PREDICTED_INSERT_SIZE=")
-            .or_else(|| arg(&args, "PI="))
             .map(|v| v.parse())
             .transpose()?,
-        description: arg(&args, "DESCRIPTION=").or_else(|| arg(&args, "DS=")),
+        description: arg(&args, "DESCRIPTION="),
         run_date,
-        platform_model: arg(&args, "PLATFORM_MODEL=").or_else(|| arg(&args, "PM=")),
-        program_group: arg(&args, "PROGRAM_GROUP=").or_else(|| arg(&args, "PG=")),
+        platform_model: arg(&args, "PLATFORM_MODEL="),
+        program_group: arg(&args, "PROGRAM_GROUP="),
         comments: args
             .iter()
             .filter_map(|a| a.strip_prefix("COMMENT=").or_else(|| a.strip_prefix("CO=")))

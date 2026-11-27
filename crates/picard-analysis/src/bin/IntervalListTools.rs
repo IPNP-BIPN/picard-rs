@@ -45,9 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let inputs = picard_analysis::args::inputs(&args)?;
-    let output_path = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let output_path = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     // Both are lists: each is padded, then reduced by the action's `reduceEach`.
     let second_inputs = picard_analysis::args::all(&args, "SECOND_INPUT=", "SI=");
     let flag = |key: &str, default: bool| {

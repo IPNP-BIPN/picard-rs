@@ -17,34 +17,15 @@
 //! an input with no contig lines is refused before anything is written -- unless `CREATE_INDEX` is
 //! false, in which case the same file is accepted.
 
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, collection};
 use picard_analysis::vcf_io::{die, header_dictionary, java_compare, VcfReader};
-
-/// A collection argument: every occurrence appends, and the value `null` empties it (Barclay).
-fn collection(args: &[String], keys: &[&str]) -> Vec<String> {
-    let mut values = Vec::new();
-    for a in args {
-        if let Some(value) = keys.iter().find_map(|key| a.strip_prefix(key)) {
-            if value == "null" {
-                values.clear();
-            } else {
-                values.push(value.to_string());
-            }
-        }
-    }
-    values
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("MakeSitesOnlyVcf");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let create_index = arg(&args, "CREATE_INDEX=")
         .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(true);

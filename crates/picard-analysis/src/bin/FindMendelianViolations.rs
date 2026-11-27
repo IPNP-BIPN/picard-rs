@@ -12,17 +12,11 @@
 //! its own, so a call whose `PL` disagrees with its `GQ` is judged on the `PL`.
 
 use htsjdk_metrics::file::{MetricBean, MetricsFile, Value};
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, every};
 use picard_analysis::find_mendelian_violations::{
     accumulate, metrics_for, Genotype, Interval, Metrics, Options, Outcome, Sex, Site, Trio,
 };
 use picard_analysis::vcf_io::{die, VcfReader};
-
-fn args_of(args: &[String], key: &str) -> Vec<String> {
-    args.iter()
-        .filter_map(|a| a.strip_prefix(key).map(str::to_string))
-        .collect()
-}
 
 const COLUMNS: [&str; 14] = [
     "FAMILY_ID",
@@ -296,20 +290,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("FindMendelianViolations");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
     let trios = arg(&args, "TRIOS=").ok_or("TRIOS= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let number = |key: &str, default: i32| -> i32 {
         arg(&args, key)
             .and_then(|value| value.parse().ok())
             .unwrap_or(default)
     };
     let list = |key: &str, default: &[&str]| -> Vec<String> {
-        let given = args_of(&args, key);
+        let given = every(&args, key);
         if given.is_empty() {
             default.iter().map(|value| (*value).to_string()).collect()
         } else {

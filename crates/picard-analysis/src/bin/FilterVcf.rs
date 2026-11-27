@@ -26,12 +26,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("FilterVcf");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let create_index = arg(&args, "CREATE_INDEX=")
         .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(true);
@@ -46,9 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut vcf = VcfReader::open(&input).unwrap_or_else(|exception| die(&exception));
     // `VariantContextJavascriptFilter`, made once the reader is open: the script is read and
     // compiled, and the filter is named for the file's base name.
-    let script = arg(&args, "JAVASCRIPT_FILE=")
-        .or_else(|| arg(&args, "JS="))
-        .filter(|path| path != "null");
+    let script = arg(&args, "JAVASCRIPT_FILE=").filter(|path| path != "null");
     let mut javascript = script.as_ref().map(|path| {
         let text = std::fs::read_to_string(path)
             .unwrap_or_else(|_| vcf.fail("picard.PicardException: javascript-related error"));

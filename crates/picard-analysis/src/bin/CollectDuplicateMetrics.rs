@@ -28,12 +28,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CollectDuplicateMetrics");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let metrics_file = arg(&args, "METRICS_FILE=")
-        .or_else(|| arg(&args, "M="))
-        .ok_or("METRICS_FILE= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let metrics_file = arg(&args, "METRICS_FILE=").ok_or("METRICS_FILE= is required")?;
     let assume_sorted = arg(&args, "ASSUME_SORTED=")
         .map(|v| picard_analysis::args::is_true(&v))
         .unwrap_or(false);

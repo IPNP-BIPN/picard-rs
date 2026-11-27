@@ -20,7 +20,7 @@
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{Histogram, MetricsFile};
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, every};
 use picard_analysis::mark_illumina_adapters::{
     read_bases_in_read_order, trim_paired_reads, trim_single_read, Adapter, ADAPTER_PAIRS,
     DEFAULT_ADAPTER_LENGTH, MAX_ERROR_RATE, MAX_PE_ERROR_RATE, MIN_MATCH_BASES, MIN_MATCH_PE_BASES,
@@ -30,13 +30,6 @@ const READ_PAIRED_FLAG: u16 = 0x1;
 const READ_STRAND_FLAG: u16 = 0x10;
 const FIRST_OF_PAIR_FLAG: u16 = 0x40;
 const SECOND_OF_PAIR_FLAG: u16 = 0x80;
-
-/// Every value given for a repeatable argument, in the order the command line gives them.
-fn args_of(args: &[String], key: &str) -> Vec<String> {
-    args.iter()
-        .filter_map(|a| a.strip_prefix(key).map(str::to_string))
-        .collect()
-}
 
 /// The reference throws rather than exiting, so its handler prints the class before the message.
 /// `AdapterMarker`'s pruning: once `threshold` adapter hits have been tallied, the list searched
@@ -146,14 +139,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("MarkIlluminaAdapters");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
     // OUTPUT is optional: "If output is not specified, just the metrics are generated".
-    let output = arg(&args, "OUTPUT=").or_else(|| arg(&args, "O="));
-    let metrics = arg(&args, "METRICS=")
-        .or_else(|| arg(&args, "M="))
-        .ok_or("METRICS= is required")?;
+    let output = arg(&args, "OUTPUT=");
+    let metrics = arg(&args, "METRICS=").ok_or("METRICS= is required")?;
 
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {
@@ -211,7 +200,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .map(|name| (*name).to_string())
         .collect();
-    for value in args_of(&args, "ADAPTERS=") {
+    for value in every(&args, "ADAPTERS=") {
         if value == "null" {
             names.clear();
         } else {

@@ -30,6 +30,7 @@ use picard_analysis::collect_independent_replicate_metrics::{
 };
 use picard_analysis::duplicate_set::duplicate_sets;
 use picard_analysis::mark_duplicates::{base_quality_score, Options, Record as SetRecord, Span};
+use picard_analysis::metrics_cli::string_tag;
 use picard_analysis::metrics_cli::{absolute, fail, open_input, thrown, Args};
 
 const TOOL: &str = "CollectIndependentReplicateMetrics";
@@ -348,17 +349,6 @@ impl Vcf {
                     genotypes,
                 }
             })
-    }
-}
-
-fn string_tag(record: &BamRecord, name: &str) -> Option<String> {
-    let bytes = name.as_bytes();
-    if bytes.len() != 2 {
-        return None;
-    }
-    match record.tags.get(Tag::new(&[bytes[0], bytes[1]])) {
-        Some(TagValue::Str(value)) => Some(value.clone()),
-        _ => None,
     }
 }
 

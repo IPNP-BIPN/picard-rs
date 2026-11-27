@@ -28,27 +28,17 @@
 
 use std::io::Write;
 
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, flag};
 use picard_analysis::bed_to_interval_list::{read, Options};
-
-/// A boolean argument, which the legacy parser builds as `new Boolean(value)`.
-fn flag(args: &[String], key: &str, default: bool) -> bool {
-    arg(args, key).map_or(default, |value| picard_analysis::args::is_true(&value))
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("BedToIntervalList");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
-    let dictionary = arg(&args, "SEQUENCE_DICTIONARY=")
-        .or_else(|| arg(&args, "SD="))
-        .ok_or("SEQUENCE_DICTIONARY= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
+    let dictionary =
+        arg(&args, "SEQUENCE_DICTIONARY=").ok_or("SEQUENCE_DICTIONARY= is required")?;
 
     let opts = Options {
         sort: flag(&args, "SORT=", true),

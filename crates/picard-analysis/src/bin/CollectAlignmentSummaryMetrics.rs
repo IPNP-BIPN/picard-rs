@@ -18,15 +18,8 @@
 
 use htsjdk_bam::fasta::read_fasta_file;
 use picard_analysis::alignment_summary::{LevelCollectors, Options};
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, every};
 use picard_analysis::insert_size::PairOrientation;
-
-/// Every value given for one argument, which is what a collection argument reads.
-fn args_all(args: &[String], key: &str) -> Vec<String> {
-    args.iter()
-        .filter_map(|a| a.strip_prefix(key).map(str::to_string))
-        .collect()
-}
 
 /// Coarse phase timing, printed to stderr when `PICARD_RS_TIMING=1`.
 ///
@@ -44,13 +37,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::output::install();
     let mut t = std::time::Instant::now();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
-    let reference = arg(&args, "REFERENCE_SEQUENCE=").or_else(|| arg(&args, "R="));
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
+    let reference = arg(&args, "REFERENCE_SEQUENCE=");
     // Picard 3.5.0 refuses a chart where there is no R.
     picard_analysis::metrics_cli::refuse_chart_without_r(
         "CollectAlignmentSummaryMetrics",
@@ -68,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         options.max_insert_size = value.parse()?;
     }
     // Appended to the default like every collection argument here; `null` empties it first.
-    for value in args_all(&args, "ADAPTER_SEQUENCE=") {
+    for value in every(&args, "ADAPTER_SEQUENCE=") {
         if value == "null" {
             options.adapter_sequence.clear();
         } else {
@@ -82,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // A collection argument is APPENDED to rather than replaced, so asking for TANDEM asks for FR
     // and TANDEM, and a pair the default already expected stays expected. That is why naming an
     // orientation does not move the chimera rate the way a reader would expect it to.
-    for name in args_all(&args, "EXPECTED_PAIR_ORIENTATIONS=") {
+    for name in every(&args, "EXPECTED_PAIR_ORIENTATIONS=") {
         let orientation = match name.as_str() {
             "FR" => PairOrientation::Fr,
             "RF" => PairOrientation::Rf,
@@ -95,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     // The levels are APPENDED to the default rather than replacing it, the way Picard's parser
     // treats a collection argument, so a row asking for LIBRARY asks for all reads as well.
-    let levels = args_all(&args, "METRIC_ACCUMULATION_LEVEL=");
+    let levels = every(&args, "METRIC_ACCUMULATION_LEVEL=");
     for level in &levels {
         if !matches!(
             level.as_str(),

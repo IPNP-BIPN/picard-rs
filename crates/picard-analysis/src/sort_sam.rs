@@ -100,6 +100,47 @@ pub struct MateCigarCheck {
     pub sam_string: String,
 }
 
+/// The reference bases a CIGAR covers.
+pub fn reference_span(cigar: &htsjdk_bam::cigar::Cigar) -> i32 {
+    cigar
+        .elements
+        .iter()
+        .filter(|element| element.op.consumes_reference_bases())
+        .map(|element| element.length as i32)
+        .sum()
+}
+
+/// What the mate-cigar precondition reads off `record`.
+pub fn mate_cigar_check(
+    record: &BamRecord,
+    header: &htsjdk_bam::header::SamHeader,
+) -> MateCigarCheck {
+    let reference = if record.reference_index >= 0 {
+        header
+            .sequences
+            .get(record.reference_index as usize)
+            .map(|sequence| sequence.name.clone())
+    } else {
+        None
+    };
+    MateCigarCheck {
+        read_name: record.read_name.clone(),
+        paired: record.flags & 0x1 != 0,
+        first_of_pair: record.flags & 0x40 != 0,
+        unmapped: record.flags & 0x4 != 0,
+        mate_unmapped: record.flags & 0x8 != 0,
+        read_length: record.read_bases.len(),
+        reference,
+        start: record.alignment_start,
+        end: record.alignment_start + reference_span(&record.cigar) - 1,
+        mate_cigar: match record.tags.get(htsjdk_bam::tag::Tag::new(b"MC")) {
+            Some(htsjdk_bam::tag::TagValue::Str(text)) => Some(text.to_string()),
+            _ => None,
+        },
+        sam_string: crate::view_sam::sam_string(header, record),
+    }
+}
+
 impl MateCigarCheck {
     /// `SAMRecord.toString()`, which is what the refusal names the record with: the whole SAM
     /// line under htsjdk 5.0.0.

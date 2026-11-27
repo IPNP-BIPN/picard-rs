@@ -9,24 +9,15 @@
 //! which ends the whole validation -- not just the printing -- and the catch prints one last line.
 //! The corpus raises 421 errors and warnings, so every verbose row ends there.
 
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, every};
 use picard_analysis::validate_sam_file::{validate_records, Options};
-
-/// Every occurrence of a repeatable argument, which is how `IGNORE` is given.
-fn args_all(args: &[String], key: &str) -> Vec<String> {
-    args.iter()
-        .filter_map(|a| a.strip_prefix(key).map(str::to_string))
-        .collect()
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("ValidateSamFile");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=").or_else(|| arg(&args, "O="));
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=");
     let flag = |key: &str, default: bool| {
         arg(&args, key)
             .map(|v| picard_analysis::args::is_true(&v))
@@ -47,16 +38,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    let mode = arg(&args, "MODE=")
-        .or_else(|| arg(&args, "M="))
-        .unwrap_or_else(|| "VERBOSE".to_string());
+    let mode = arg(&args, "MODE=").unwrap_or_else(|| "VERBOSE".to_string());
     let options = Options {
         verbose: match mode.as_str() {
             "VERBOSE" => true,
             "SUMMARY" => false,
             other => return Err(format!("unknown MODE: {other}").into()),
         },
-        ignore: args_all(&args, "IGNORE="),
+        ignore: every(&args, "IGNORE="),
         ignore_warnings: flag("IGNORE_WARNINGS=", false),
         skip_mate_validation: flag("SKIP_MATE_VALIDATION=", false),
         max_output: arg(&args, "MAX_OUTPUT=")
@@ -79,7 +68,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The reference is read only for the NM VALUE check; without an `NM` tag on a record there is
     // nothing to compare, which is the case for every read in this corpus.
     let reference = arg(&args, "REFERENCE_SEQUENCE=")
-        .or_else(|| arg(&args, "R="))
         .map(std::fs::read)
         .transpose()?;
 

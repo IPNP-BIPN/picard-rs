@@ -21,11 +21,6 @@ use picard_analysis::filter_sam_reads::{
 };
 use picard_analysis::stream_output::Output;
 
-/// An argument under its long name or its short one, as Barclay accepts either.
-fn named(args: &[String], long: &str, short: &str) -> Option<String> {
-    arg(args, &format!("{long}=")).or_else(|| arg(args, &format!("{short}=")))
-}
-
 /// `writeReadsFile`'s file: `<OUTPUT's directory>/<basename of the file>.reads`.
 fn reads_file_path(output: &str, file: &str) -> std::path::PathBuf {
     let name = std::path::Path::new(file)
@@ -99,17 +94,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("FilterSamReads");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let filter = arg(&args, "FILTER=").ok_or("FILTER= is required")?;
-    let read_list = named(&args, "READ_LIST_FILE", "RLF");
-    let interval_list = named(&args, "INTERVAL_LIST", "IL");
-    let javascript = named(&args, "JAVASCRIPT_FILE", "JS");
-    let tag = named(&args, "TAG", "T");
+    let read_list = arg(&args, "READ_LIST_FILE=");
+    let interval_list = arg(&args, "INTERVAL_LIST=");
+    let javascript = arg(&args, "JAVASCRIPT_FILE=");
+    let tag = arg(&args, "TAG=");
     let tag_values: Vec<String> = args
         .iter()
         .filter_map(|a| {
@@ -118,7 +109,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .map(str::to_string)
         .collect();
-    let write_reads_files = match named(&args, "WRITE_READS_FILES", "WRITE_READS_FILES") {
+    let write_reads_files = match arg(&args, "WRITE_READS_FILES=") {
         None => false,
         Some(value) => match value.to_ascii_lowercase().as_str() {
             "true" | "t" | "yes" | "y" => true,
@@ -209,7 +200,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         records
     };
-    let sort_order = named(&args, "SORT_ORDER", "SO");
+    let sort_order = arg(&args, "SORT_ORDER=");
 
     let list_text = read_list
         .as_ref()

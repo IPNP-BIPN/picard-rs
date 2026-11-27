@@ -26,29 +26,21 @@ use std::io::{Read, Write};
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::sam_file::read_sam_with;
 use htsjdk_bam::text_parse::{parse_line_with, ValidationStringency};
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, flag};
 use picard_analysis::view_sam::{keep, render, AlignmentStatus, Options, PfStatus};
 use rayon::prelude::*;
 
 /// How many records are rendered in parallel at a time.
 const CHUNK: usize = 16 * 1024;
 
-fn flag(args: &[String], key: &str) -> bool {
-    arg(args, key)
-        .map(|v| picard_analysis::args::is_true(&v))
-        .unwrap_or(false)
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("ViewSam");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
 
     // `customCommandLineValidation`, which runs before `doWork` and exits 1 with this message.
-    if flag(&args, "HEADER_ONLY=") && flag(&args, "RECORDS_ONLY=") {
+    if flag(&args, "HEADER_ONLY=", false) && flag(&args, "RECORDS_ONLY=", false) {
         eprintln!("Cannot specify both HEADER_ONLY=true and RECORDS_ONLY=true.");
         std::process::exit(1);
     }
@@ -66,8 +58,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some("NonPF") => PfStatus::NonPf,
             Some(other) => return Err(format!("unknown PF_STATUS: {other}").into()),
         },
-        header_only: flag(&args, "HEADER_ONLY="),
-        records_only: flag(&args, "RECORDS_ONLY="),
+        header_only: flag(&args, "HEADER_ONLY=", false),
+        records_only: flag(&args, "RECORDS_ONLY=", false),
     };
 
     // `SamReaderFactory` sniffs the stream rather than trusting the name, so a `.bam` and a `.sam`

@@ -24,17 +24,11 @@ use picard_analysis::mark_duplicates::{
     barcode_key, base_quality_score, Flags, Options, ReadEndsBuilder, Record, ScoringStrategy,
     Span, TaggingPolicy, Tally,
 };
+use picard_analysis::metrics_cli::string_tag;
 use picard_analysis::stream_output::Output;
 use std::sync::Arc;
 
 const DUPLICATE_READ: u16 = 0x400;
-
-fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
-    match record.tags.get(Tag::new(name)) {
-        Some(TagValue::Str(s)) => Some(s.clone()),
-        _ => None,
-    }
-}
 
 /// `UmiUtil.setMolecularIdentifier(rec, "", tag, duplex)`: the contig, the position of the end the
 /// pair shares, a `/`, no UMI, and with `DUPLEX_UMI` the strand, `/A` on top and `/B` below.
@@ -177,10 +171,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let inputs = picard_analysis::args::inputs(&args)?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
-    let metrics_file = arg(&args, "METRICS_FILE=").or_else(|| arg(&args, "M="));
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
+    let metrics_file = arg(&args, "METRICS_FILE=");
     let flag = |key: &str, default: bool| {
         arg(&args, key)
             .map(|v| picard_analysis::args::is_true(&v))
@@ -236,14 +228,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // below reads "the header", the header is already saying what it was told to say -- which is
     // why the refusal prints the assumed order twice.
     // `ASSUME_SORTED=true` is `ASSUME_SORT_ORDER=coordinate` by the time `openInputs` reads it.
-    let assumed = arg(&args, "ASSUME_SORT_ORDER=")
-        .or_else(|| arg(&args, "ASO="))
-        .or_else(|| {
-            arg(&args, "ASSUME_SORTED=")
-                .or_else(|| arg(&args, "AS="))
-                .is_some_and(|v| picard_analysis::args::is_true(&v))
-                .then(|| "coordinate".to_string())
-        });
+    let assumed = arg(&args, "ASSUME_SORT_ORDER=").or_else(|| {
+        arg(&args, "ASSUME_SORTED=")
+            .is_some_and(|v| picard_analysis::args::is_true(&v))
+            .then(|| "coordinate".to_string())
+    });
     // Read twice, as Picard reads it: once for the marking, which keeps only what it needs of each
     // record, and once for the writing. One input is streamed, and its first read checks the whole
     // file, so a damaged one is refused here as reading it whole refused it. Several are merged in

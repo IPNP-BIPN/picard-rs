@@ -21,18 +21,12 @@ use picard_analysis::mark_duplicates::{
     base_quality_score, Options, Record, ScoringStrategy, Span,
 };
 use picard_analysis::mate_cigar_duplicates::needs_mate_cigar;
+use picard_analysis::metrics_cli::string_tag;
 use picard_analysis::metrics_cli::{fail, read_input, thrown, Args};
 use picard_analysis::stream_output::Output;
 use picard_analysis::umi_aware::{run, UmiAwareOptions};
 
 const DUPLICATE_READ: u16 = 0x400;
-
-fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
-    match record.tags.get(Tag::new(name)) {
-        Some(TagValue::Str(s)) => Some(s.clone()),
-        _ => None,
-    }
-}
 
 fn tag_of(name: &str) -> Tag {
     let bytes = name.as_bytes();
@@ -197,7 +191,7 @@ fn main() {
                 },
                 mate_alignment_start: record.mate_alignment_start,
             };
-            (marked, string_tag(&record, &umi_tag_name))
+            (marked, string_tag(&record, umi_tag_name))
         })
         .unzip();
 

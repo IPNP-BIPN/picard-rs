@@ -17,28 +17,14 @@ use htsjdk_vcf::comparator::VariantContextComparator;
 use htsjdk_vcf::encoder::MissingFields;
 use htsjdk_vcf::header::{HeaderLine, VcfHeader};
 use htsjdk_vcf::merge::{smart_merge_headers, Source};
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, collection};
 use picard_analysis::merge_vcfs::{merge_streams, MergeFailure};
+use picard_analysis::metrics_cli::normalized_absolute;
 use picard_analysis::vcf_io::{
     add_other_meta_data_line, die, fail_all, header_dictionary, is_compressed_vcf,
     parse_sam_dictionary, sample_names_in_order, set_sequence_dictionary, unroll_paths, Record,
     Sequence, VcfReader, VcfWriter,
 };
-
-/// A collection argument: every occurrence appends, and the value `null` empties it (Barclay).
-fn collection(args: &[String], keys: &[&str]) -> Vec<String> {
-    let mut values = Vec::new();
-    for a in args {
-        if let Some(value) = keys.iter().find_map(|key| a.strip_prefix(key)) {
-            if value == "null" {
-                values.clear();
-            } else {
-                values.push(value.to_string());
-            }
-        }
-    }
-    values
-}
 
 const SEQ_DICT_REQUIRED: &str = "A sequence dictionary must be available (either through the \
                                  input file or by setting it explicitly).";
@@ -46,12 +32,6 @@ const SEQ_DICT_REQUIRED: &str = "A sequence dictionary must be available (either
 const NPE_UNKNOWN_CONTIG: &str = "java.lang.NullPointerException: Cannot invoke \
      \"java.lang.Integer.intValue()\" because the return value of \"java.util.Map.get(Object)\" \
      is null";
-
-fn absolute(path: &str) -> String {
-    std::path::absolute(path)
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| path.to_string())
-}
 
 fn contig_lines(header: &VcfHeader) -> Vec<HeaderLine> {
     header
@@ -70,12 +50,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if inputs.is_empty() {
         return Err("INPUT= is required".into());
     }
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
-    let sequence_dictionary = arg(&args, "SEQUENCE_DICTIONARY=")
-        .or_else(|| arg(&args, "D="))
-        .filter(|value| value != "null");
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
+    let sequence_dictionary = arg(&args, "SEQUENCE_DICTIONARY=").filter(|value| value != "null");
     let comments = collection(&args, &["COMMENT=", "CO="]);
     let create_index = arg(&args, "CREATE_INDEX=")
         .map(|value| picard_analysis::args::is_true(&value))
@@ -230,7 +206,7 @@ fn admit(
                 return Err(format!(
                     "java.lang.IllegalArgumentException: The contig entries in input path {} \
                      are not compatible with the others.",
-                    absolute(path)
+                    normalized_absolute(path)
                 ));
             }
         }
@@ -243,7 +219,7 @@ fn admit(
         return Err(format!(
             "java.lang.IllegalArgumentException: Input path {} has sample entries that don't \
              match the other files.",
-            absolute(path)
+            normalized_absolute(path)
         ));
     }
     Ok(())

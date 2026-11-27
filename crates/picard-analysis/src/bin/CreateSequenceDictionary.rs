@@ -111,9 +111,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CreateSequenceDictionary");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let reference = arg(&args, "REFERENCE=")
-        .or_else(|| arg(&args, "R="))
-        .ok_or("REFERENCE= is required")?;
+    let reference = arg(&args, "REFERENCE=").ok_or("REFERENCE= is required")?;
     // `FileExtensions.FASTA`: what the reference's name has to end in.
     const FASTA: [&str; 10] = [
         ".fasta",
@@ -135,7 +133,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let extension = FASTA.iter().find(|e| name.ends_with(*e));
     // `customCommandLineValidation`: no OUTPUT is the reference's own name with its FASTA
     // extension replaced by `.dict` (`getDefaultDictionaryForReferenceSequence`).
-    let output = match arg(&args, "OUTPUT=").or_else(|| arg(&args, "O=")) {
+    let output = match arg(&args, "OUTPUT=") {
         Some(output) => output,
         None => {
             let Some(extension) = extension else {
@@ -211,7 +209,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let dict = create_sequence_dictionary_with(std::fs::File::open(&reference)?, &uri, &options)
         .map_err(|e| format!("{e:?}"))?;
-    let dict = match arg(&args, "ALT_NAMES=").or_else(|| arg(&args, "AN=")) {
+    let dict = match arg(&args, "ALT_NAMES=") {
         Some(path) => with_alt_names(&dict, &std::fs::read_to_string(&path)?, &path),
         None => dict,
     };

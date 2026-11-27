@@ -101,10 +101,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("RevertSam");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=").or_else(|| arg(&args, "O="));
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=");
     let output_map = arg(&args, "OUTPUT_MAP=");
     let flag = |key: &str, default: bool| {
         arg(&args, key)
@@ -175,8 +173,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (mut header, records) = picard_analysis::bam_stream::Input::open(&input)?.into_parts();
 
     // `validateHeaderOverrides`: an override needs every read group to agree on the field.
-    let sample_alias = arg(&args, "SAMPLE_ALIAS=").or_else(|| arg(&args, "ALIAS="));
-    let library_name = arg(&args, "LIBRARY_NAME=").or_else(|| arg(&args, "LIB="));
+    let sample_alias = arg(&args, "SAMPLE_ALIAS=");
+    let library_name = arg(&args, "LIBRARY_NAME=");
     let field = |group: &htsjdk_bam::header::ReadGroup, key: &str| {
         group.attributes.get(key).map(str::to_string)
     };

@@ -24,7 +24,7 @@
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{Histogram as OutHistogram, MetricsFile};
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, every};
 use picard_analysis::collect_duplicate_metrics::DuplicationMetrics;
 use picard_analysis::estimate_library_complexity::{
     metrics, passes_quality_check, same_group, search_duplicates, LibraryHistograms, PairSorter,
@@ -40,12 +40,6 @@ const FIRST_OF_PAIR_FLAG: u16 = 0x40;
 const SECOND_OF_PAIR_FLAG: u16 = 0x80;
 const SECONDARY_FLAG: u16 = 0x100;
 const SUPPLEMENTARY_FLAG: u16 = 0x800;
-
-fn args_of(args: &[String], key: &str) -> Vec<String> {
-    args.iter()
-        .filter_map(|a| a.strip_prefix(key).map(str::to_string))
-        .collect()
-}
 
 /// The `@RG` lines of one header, as `(id, library)` in the order they were written.
 fn read_groups(header: &htsjdk_bam::header::SamHeader) -> Vec<(String, Option<String>)> {
@@ -88,16 +82,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let inputs = {
-        let mut inputs = args_of(&args, "INPUT=");
-        inputs.extend(args_of(&args, "I="));
+        let mut inputs = every(&args, "INPUT=");
+        inputs.extend(every(&args, "I="));
         inputs
     };
     if inputs.is_empty() {
         return Err("INPUT= is required".into());
     }
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let number = |key: &str, default: i64| -> i64 {
         arg(&args, key)
             .and_then(|value| value.parse().ok())

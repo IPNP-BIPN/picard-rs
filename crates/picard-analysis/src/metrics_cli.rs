@@ -374,3 +374,23 @@ impl DbSnpMask {
             .is_some_and(|spans| spans.iter().any(|&(s, e)| s <= position && position <= e))
     }
 }
+
+/// A record's `Z` tag by its two-letter name; `None` for a name that is not two letters, or a
+/// tag that is absent or of another type.
+pub fn string_tag(record: &BamRecord, name: impl AsRef<[u8]>) -> Option<String> {
+    let &[first, second] = name.as_ref() else {
+        return None;
+    };
+    match record.tags.get(Tag::new(&[first, second])) {
+        Some(TagValue::Str(value)) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+/// `std::path::absolute` as text: joined onto the working directory with `.` components dropped
+/// (unlike [`absolute`]), or `path` itself when that fails.
+pub fn normalized_absolute(path: &str) -> String {
+    std::path::absolute(path)
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| path.to_string())
+}
