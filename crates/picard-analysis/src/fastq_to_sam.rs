@@ -321,11 +321,8 @@ fn best_guess(seen: &[bool; 256], expected: Option<&str>) -> Result<&'static str
     }
     // `QualityScheme`, in `FastqQualityFormat`'s order: the ASCII range every quality must fall
     // in, and the range at least one must fall in when that is checked.
-    let schemes: [(
-        &'static str,
-        std::ops::RangeInclusive<usize>,
-        Option<std::ops::RangeInclusive<usize>>,
-    ); 3] = [
+    type Range = std::ops::RangeInclusive<usize>;
+    let schemes: [(&'static str, Range, Option<Range>); 3] = [
         ("Solexa", 59..=126, None),
         ("Illumina", 64..=126, None),
         ("Standard", 33..=126, Some(33..=58)),
