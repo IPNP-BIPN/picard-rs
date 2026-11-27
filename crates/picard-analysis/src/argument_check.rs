@@ -469,7 +469,8 @@ fn validate(tool: &str, args: &[String]) -> Option<Answer> {
         if f.len() != 7 || f[0] != "validate" || f[1] != tool {
             continue;
         }
-        let (name, collection, optional, starts_empty) = (f[2], f[3] == "true", f[4] == "true", f[5] == "true");
+        let (name, collection, optional, starts_empty) =
+            (f[2], f[3] == "true", f[4] == "true", f[5] == "true");
         let mutex: Vec<&str> = f[6].split(',').filter(|m| !m.is_empty()).collect();
         let provided: Vec<&str> = mutex.iter().copied().filter(|m| set(m).is_some()).collect();
         let message = if set(name).is_some() && !provided.is_empty() {
@@ -503,4 +504,37 @@ fn validate(tool: &str, args: &[String]) -> Option<Answer> {
         });
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn words(line: &[&str]) -> Vec<String> {
+        line.iter().map(|w| w.to_string()).collect()
+    }
+
+    #[test]
+    fn a_required_argument_missing_from_a_name_value_line() {
+        let answer = validate("RevertSam", &words(&["INPUT=in.bam"])).expect("refused");
+        assert_eq!(answer.exit, 1);
+        assert_eq!(
+            answer.stderr,
+            "USAGE: RevertSam [arguments]\n\nArgument OUTPUT was missing: Argument 'OUTPUT' is \
+             required unless one of {[OUTPUT_MAP]} are provided\n"
+        );
+    }
+
+    #[test]
+    fn a_mutex_partner_given_answers_for_the_required_one() {
+        assert!(validate("RevertSam", &words(&["INPUT=in.bam", "OUTPUT_MAP=m.tsv"])).is_none());
+        let both = validate(
+            "RevertSam",
+            &words(&["INPUT=a", "OUTPUT=b", "OUTPUT_MAP=c"]),
+        );
+        assert!(both
+            .expect("refused")
+            .stderr
+            .contains("cannot be used in conjunction with"));
+    }
 }

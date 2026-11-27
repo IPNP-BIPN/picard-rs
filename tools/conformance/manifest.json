@@ -1613,14 +1613,15 @@
         "legacy\tBedToIntervalList\tDROP_MISSING_CONTIGS\tDROP_MISSING_CONTIGS",
         "legacy\tCollectInsertSizeMetrics\tH\tHISTOGRAM_FILE",
         "barclay\tBuildBamIndex\thelp",
-        "positional\tCompareSAMs\t2\t2"
+        "positional\tCompareSAMs\t2\t2",
+        "validate\tRevertSam\tOUTPUT\tfalse\tfalse\tfalse\tOUTPUT_MAP"
       ],
-      "$expect_why": "Each phrase is a fact a wrong dump would lose: a hidden argument the legacy parser still takes, a short name that differs between the two parsers, a Barclay-only name, and the one tool with positional words.",
+      "$expect_why": "Each phrase is a fact a wrong dump would lose: a hidden argument the legacy parser still takes, a short name that differs between the two parsers, a Barclay-only name, the one tool with positional words, and a required argument with its mutex partner.",
       "cases": [
         {
           "dump": "CommandLineDeclarationsDump",
           "golden": "crates/picard-analysis/tests/data/command_line_declarations.txt.gz",
-          "why": "Frozen from the candidate artefact of run 38940205055 (real x86-64), byte for byte the local dump."
+          "why": "The local dump, now with the validate rows (each argument's collection, optional and mutex fields, as validateArguments reads them). The last freeze, from run 38940205055 (real x86-64), was byte for byte the local dump; this PR's candidate artefact re-freezes it if CI differs."
         }
       ]
     },
