@@ -233,13 +233,15 @@ fn read_serially(
     } else if head.starts_with(&[0x1f, 0x8b]) {
         // A clean BAM streams through the shared reader, inflating on every core. Its first pass
         // lets a BGZF error outrank a record that fails validation earlier, which this stream does
-        // not, so a file it refuses is answered by this stream instead.
-        match picard_analysis::bam_stream::Input::open(input) {
-            Ok(clean) => {
+        // not, so a file it refuses is answered by this stream instead. A file whose blocks are
+        // damaged (a truncated one) is one it refuses, so it is not asked.
+        let damaged = picard_analysis::bam_stream::structure_clean(input) == Some(false);
+        match (!damaged).then(|| picard_analysis::bam_stream::Input::open(input)) {
+            Some(Ok(clean)) => {
                 let (header, records) = clean.into_parts();
                 (header, Box::new(records.map(Ok)))
             }
-            Err(_) => {
+            _ => {
                 let (header, stream) = BamStream::open(input)?;
                 (header, Box::new(stream))
             }

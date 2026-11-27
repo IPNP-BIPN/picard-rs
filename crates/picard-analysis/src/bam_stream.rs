@@ -553,8 +553,9 @@ impl Batches {
 }
 
 /// Whether every block of the BAM at `path` passes the checks htsjdk's reader makes, read without
-/// inflating anything; `None` when the file cannot be read.
-fn structure_clean(path: &str) -> Option<bool> {
+/// inflating anything; `None` when the file cannot be read. `Some(false)` is a file that
+/// [`Input::open`] refuses.
+pub fn structure_clean(path: &str) -> Option<bool> {
     let file = File::open(path).ok()?;
     let metadata = file.metadata().ok()?;
     if !metadata.is_file() {
