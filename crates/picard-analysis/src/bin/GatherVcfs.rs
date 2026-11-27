@@ -277,17 +277,25 @@ fn block_compressed(path: &str) -> bool {
 /// `gatherWithBlockCopying`: the first file's blocks as they are, and of every later file the rest
 /// of the block its header ends in, deflated again as one new block, then its remaining blocks as
 /// they are. Each file's terminator is left out and one is written at the end.
-fn gather_with_block_copying(paths: &[String]) -> Result<Vec<u8>, Failure> {
+fn gather_with_block_copying(
+    paths: &[String],
+    out: &mut impl std::io::Write,
+) -> Result<(), Failure> {
     use htsjdk_bgzf::{check_termination, BgzfReader, FileTermination, EMPTY_GZIP_BLOCK};
-    use std::io::Write;
+    use std::io::{Read, Seek, SeekFrom, Write};
 
     let io = |e: std::io::Error| {
         Failure::Caught(format!("htsjdk.samtools.util.RuntimeIOException: {e}"))
     };
-    let mut out = Vec::new();
     for (i, path) in paths.iter().enumerate() {
-        let data = std::fs::read(path).map_err(io)?;
-        let termination = check_termination(&data);
+        let mut file = std::fs::File::open(path).map_err(io)?;
+        let size = file.metadata().map_err(io)?.len();
+        // `checkTermination` reads no more than the last block's largest size.
+        let tail_size = size.min(htsjdk_bgzf::MAX_COMPRESSED_BLOCK_SIZE as u64);
+        let mut tail = vec![0; tail_size as usize];
+        file.seek(SeekFrom::Start(size - tail_size)).map_err(io)?;
+        file.read_exact(&mut tail).map_err(io)?;
+        let termination = check_termination(&tail);
         if termination == FileTermination::Defective {
             return Err(Failure::Caught(format!(
                 "picard.PicardException: {} does not have a valid GZIP block at the end of the \
@@ -295,9 +303,10 @@ fn gather_with_block_copying(paths: &[String]) -> Result<Vec<u8>, Failure> {
                 absolute(path)
             )));
         }
+        file.seek(SeekFrom::Start(0)).map_err(io)?;
         let mut position = 0;
         if i > 0 {
-            let mut reader = BgzfReader::new(&data[..]);
+            let mut reader = BgzfReader::new(std::io::BufReader::new(&file));
             let mut last_byte_newline = true;
             // `blockIn.available()` reads the next block, and is zero at an empty one, which ends
             // the scan with the stream positioned after it.
@@ -305,7 +314,7 @@ fn gather_with_block_copying(paths: &[String]) -> Result<Vec<u8>, Failure> {
                 .next_block()
                 .map_err(|e| Failure::Caught(format!("htsjdk.samtools.SAMException: {e:?}")))?
             {
-                position = block.block_address as usize + block.block_compressed_size;
+                position = block.block_address + block.block_compressed_size as u64;
                 if block.data.is_empty() {
                     break;
                 }
@@ -318,23 +327,25 @@ fn gather_with_block_copying(paths: &[String]) -> Result<Vec<u8>, Failure> {
                 if let Some(first) = first {
                     let mut block_out = picard_analysis::output::bgzf_writer(Vec::new());
                     block_out.write_all(&block.data[first..]).map_err(io)?;
-                    out.extend(block_out.into_inner_without_terminator().map_err(io)?);
+                    out.write_all(&block_out.into_inner_without_terminator().map_err(io)?)
+                        .map_err(io)?;
                     break;
                 }
             }
         }
         let skip_last = if termination == FileTermination::HasTerminatorBlock {
-            EMPTY_GZIP_BLOCK.len()
+            EMPTY_GZIP_BLOCK.len() as u64
         } else {
             0
         };
-        let end = data.len() - skip_last;
+        let end = size - skip_last;
         if end > position {
-            out.extend_from_slice(&data[position..end]);
+            file.seek(SeekFrom::Start(position)).map_err(io)?;
+            std::io::copy(&mut (&file).take(end - position), out).map_err(io)?;
         }
     }
-    out.extend_from_slice(&EMPTY_GZIP_BLOCK);
-    Ok(out)
+    out.write_all(&EMPTY_GZIP_BLOCK).map_err(io)?;
+    Ok(())
 }
 
 /// What the `try` block produced: records to write, or the bytes the block copy assembled.
@@ -344,7 +355,7 @@ enum Gathered {
         VariantContextComparator,
         Vec<String>,
     ),
-    WithBlockCopying(Vec<u8>),
+    WithBlockCopying(Vec<String>),
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -398,7 +409,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                      block compressed VCFs."
                 );
             }
-            return gather_with_block_copying(&paths).map(Gathered::WithBlockCopying);
+            return Ok(Gathered::WithBlockCopying(paths));
         }
         // `gatherConventionally` builds its writer before it reads a record, and the builder
         // refuses a name it cannot place inside the `try`.
@@ -418,8 +429,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     })();
 
     match gathered {
-        Ok(Gathered::WithBlockCopying(bytes)) => {
-            std::fs::write(&output, bytes)?;
+        Ok(Gathered::WithBlockCopying(paths)) => {
+            let mut out = std::io::BufWriter::new(std::fs::File::create(&output)?);
+            if let Err(failure) = gather_with_block_copying(&paths, &mut out) {
+                drop(out);
+                fail(failure, &output);
+            }
+            std::io::Write::flush(&mut out)?;
             Ok(())
         }
         Ok(Gathered::Conventionally(header, comparator, paths)) => {
