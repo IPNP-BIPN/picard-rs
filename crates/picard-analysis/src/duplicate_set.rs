@@ -344,7 +344,7 @@ fn track_set(
     if !options.parse_read_names || !paired_and_both_mapped(head) || !head.first_of_pair() {
         return;
     }
-    let mut seen: Vec<&str> = Vec::new();
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
     let mut ends = Vec::new();
     let mut indices = Vec::new();
     for &index in sorted {
@@ -365,7 +365,7 @@ fn track_set(
         end.read_group = -1;
         ends.push(end);
         indices.push(index);
-        seen.push(record.name.as_str());
+        seen.insert(record.name.as_str());
     }
     if ends.len() < 2 {
         return;

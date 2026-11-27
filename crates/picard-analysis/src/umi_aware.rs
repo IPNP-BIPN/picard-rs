@@ -577,9 +577,14 @@ pub fn run(
         }
 
         // The statistics, over each subset in turn.
+        let position_of: HashMap<usize, usize> = sorted
+            .iter()
+            .enumerate()
+            .map(|(position, &index)| (index, position))
+            .collect();
         for subset in &subsets {
             for &index in subset {
-                let position = sorted.iter().position(|s| *s == index).unwrap_or(0);
+                let position = position_of.get(&index).copied().unwrap_or(0);
                 if options.allow_missing_umis && umi_of[position].is_empty() {
                     continue; // the tag was taken off, so the UMI reads as null
                 }
