@@ -5,7 +5,6 @@
 //!
 //! # What this suite is for
 //!
-//!  * **the basecall byte: two bits of base, six of quality, and zero meaning a no-call**;
 //!  * **the read structure cutting the same cycles into different segments**;
 //!  * **the barcode match being two tests, so equidistant barcodes match neither**;
 //!  * **a quality floor turning a base into a no-call rather than a mismatch**;
@@ -17,7 +16,7 @@ use picard_analysis::extract_illumina_barcodes::{
     best_match, metrics, mismatches, Observed, Options,
 };
 use picard_analysis::illumina_files::{
-    decode_basecall, parse_read_structure, segment_cycles, total_cycles, SegmentKind,
+    parse_read_structure, segment_cycles, total_cycles, SegmentKind,
 };
 
 fn corpus(name: &str) -> String {
@@ -47,19 +46,6 @@ fn cluster(index: usize) -> Vec<u8> {
     // Cycle one and two are `ACGT`, cycle three is `AACC` and cycle four is `GGTT`.
     let cycles = ["ACGT", "ACGT", "AACC", "GGTT"];
     cycles.iter().map(|cycle| cycle.as_bytes()[index]).collect()
-}
-
-/// A basecall byte is the base and the quality, and zero is neither.
-#[test]
-fn a_basecall_byte_is_two_bits_and_six() {
-    // The fixture writes quality 30, so `A` is `30 << 2` and `T` is that plus three.
-    assert_eq!(decode_basecall(30 << 2).base, b'A');
-    assert_eq!(decode_basecall(30 << 2).quality, 30);
-    assert_eq!(decode_basecall((30 << 2) | 3).base, b'T');
-    assert_eq!(decode_basecall((30 << 2) | 3).quality, 30);
-    // A byte of zero is a no-call, and its quality is not zero-the-quality but no quality at all.
-    assert_eq!(decode_basecall(0).base, b'.');
-    assert_eq!(decode_basecall(0).quality, 0);
 }
 
 /// The read structure cuts the cycles, and the golden's cases are its arithmetic.

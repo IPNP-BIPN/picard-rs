@@ -1,8 +1,9 @@
-//! Conformance for `CollectGcBiasMetrics` against Picard 3.4.0.
+//! Conformance for `CollectGcBiasMetrics` against Picard, through the port's own binary.
 //!
-//! Each case carries the input BAM, the reference FASTA, and **both** metrics files Picard
-//! produced: the detail file of 101 GC bins and the summary. Two outputs from one run, so both
-//! are compared rather than the convenient one.
+//! Each case carries the input BAM, the reference bases, and **both** metrics files Picard
+//! produced: the detail file of 101 GC bins and the summary. The binary runs on the same BAM and
+//! the same FASTA (with the `.fai` and `.dict` the dump wrote beside it) and both of its files are
+//! compared, two outputs from one run rather than the convenient one.
 //!
 //! The cases exist to hold the findings in `src/gc.rs` in place. `forward_and_reverse_same_bases`
 //! pins that the two strands are charged to different windows; `past_last_window_start` pins that
@@ -11,9 +12,7 @@
 
 use std::io::Read;
 
-use htsjdk_bam::reader::BamReader;
-use htsjdk_metrics::file::MetricsFile;
-use picard_analysis::gc::{GcBiasMetricsCollector, DEFAULT_SCAN_WINDOW_SIZE};
+use std::process::Command;
 
 fn corpus() -> String {
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/gc_bias.txt.gz");
@@ -95,43 +94,62 @@ fn every_detail_and_summary_file_matches_picards() {
         bams.len()
     );
 
+    let dir = std::env::temp_dir().join(format!("gcbias-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
     let mut failures = Vec::new();
     for (i, (name, bam_hex)) in bams.iter().enumerate() {
         let reference = &fastas[i].1;
-        let plain = htsjdk_bgzf::decompress_all(&from_hex(bam_hex)).unwrap();
-        let reader = BamReader::new(&plain).unwrap_or_else(|e| panic!("{name}: {e:?}"));
-
-        let contigs = vec![reference.as_bytes().to_vec()];
-        let mut collector = GcBiasMetricsCollector::new(&contigs, DEFAULT_SCAN_WINDOW_SIZE, false);
-        for record in reader {
-            let rec = record.unwrap_or_else(|e| panic!("{name}: {e:?}"));
-            collector.accept(&rec, reference.as_bytes());
+        let bam = dir.join(format!("{name}.bam"));
+        std::fs::write(&bam, from_hex(bam_hex)).unwrap();
+        // The FASTA, its `.fai` and its `.dict`, as `GcBiasDump.emit` writes them.
+        let fasta = dir.join(format!("{name}.fasta"));
+        let mut text = String::from(">chr1\n");
+        for line in reference.as_bytes().chunks(60) {
+            text.push_str(std::str::from_utf8(line).unwrap());
+            text.push('\n');
+        }
+        std::fs::write(&fasta, text).unwrap();
+        std::fs::write(
+            dir.join(format!("{name}.fasta.fai")),
+            format!("chr1\t{}\t6\t60\t61\n", reference.len()),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join(format!("{name}.dict")),
+            format!(
+                "@HD\tVN:1.6\tSO:unsorted\n@SQ\tSN:chr1\tLN:{}\n",
+                reference.len()
+            ),
+        )
+        .unwrap();
+        let detail = dir.join(format!("{name}.detail.txt"));
+        let summary = dir.join(format!("{name}.summary.txt"));
+        let ran = Command::new(env!("CARGO_BIN_EXE_CollectGcBiasMetrics"))
+            .arg(format!("INPUT={}", bam.display()))
+            .arg(format!("OUTPUT={}", detail.display()))
+            .arg(format!("SUMMARY_OUTPUT={}", summary.display()))
+            .arg(format!(
+                "CHART_OUTPUT={}",
+                dir.join(format!("{name}.pdf")).display()
+            ))
+            .arg(format!("REFERENCE_SEQUENCE={}", fasta.display()))
+            .arg("ASSUME_SORTED=true")
+            .output()
+            .unwrap();
+        if !ran.status.success() {
+            failures.push(format!(
+                "{name}: exit {:?}, Picard 0: {}",
+                ran.status.code(),
+                String::from_utf8_lossy(&ran.stderr)
+            ));
+            continue;
         }
 
-        let (our_detail, our_summary) = match collector.rows() {
-            Some(v) => v,
-            None => {
-                failures.push(format!("{name}: no rows, but Picard wrote a file"));
-                continue;
-            }
-        };
-
-        let mut detail_file = MetricsFile::new();
-        detail_file.add_header("CollectGcBiasMetrics <command line>");
-        detail_file.add_header("Started on: <timestamp>");
-        for row in &our_detail {
-            detail_file.add_metric(row);
-        }
-        let mut summary_file = MetricsFile::new();
-        summary_file.add_header("CollectGcBiasMetrics <command line>");
-        summary_file.add_header("Started on: <timestamp>");
-        summary_file.add_metric(&our_summary);
-
-        for (label, ours, theirs_raw) in [
-            ("detail", detail_file.write(), &details[i].1),
-            ("summary", summary_file.write(), &summaries[i].1),
+        for (label, path, theirs_raw) in [
+            ("detail", &detail, &details[i].1),
+            ("summary", &summary, &summaries[i].1),
         ] {
-            let ours = canonicalize(&ours);
+            let ours = canonicalize(&std::fs::read_to_string(path).unwrap_or_default());
             let theirs = canonicalize(&unescape(theirs_raw));
             if ours != theirs {
                 let at = ours
@@ -147,6 +165,7 @@ fn every_detail_and_summary_file_matches_picards() {
             }
         }
     }
+    let _ = std::fs::remove_dir_all(&dir);
     assert!(
         failures.is_empty(),
         "{} divergences over {} cases:\n{}",

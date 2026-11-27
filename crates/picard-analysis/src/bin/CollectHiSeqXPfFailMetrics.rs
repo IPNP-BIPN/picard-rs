@@ -120,6 +120,26 @@ fn main() {
         refuse_validation(TOOL, &errors);
     }
 
+    // `IlluminaDataProviderFactory` refuses data types with no file for the lane before it looks
+    // for tiles; the order is that of the golden's `HashSet`. Position is found via `s.locs`.
+    let lane_dir = basecalls.join(format!("L{lane:03}"));
+    let has_bcl = walk_has(&lane_dir, ".bcl") || walk_has(&lane_dir, ".bcl.gz");
+    let has_filter = walk_has(&lane_dir, ".filter");
+    let unmatched: Vec<&str> = [
+        ("QualityScores", has_bcl),
+        ("BaseCalls", has_bcl),
+        ("PF", has_filter),
+    ]
+    .iter()
+    .filter(|(_, found)| !found)
+    .map(|(name, _)| *name)
+    .collect();
+    if !unmatched.is_empty() {
+        thrown(&format!(
+            "picard.PicardException: Could not find a format with available files for the following data types: {}",
+            unmatched.join(", ")
+        ));
+    }
     let run = Run::new(&basecalls, lane);
     let tiles = run.available_tiles().unwrap_or_else(|e| thrown(&e));
     let read: Vec<i32> = (1..=24).collect();
@@ -204,4 +224,18 @@ fn main() {
     if let Err(e) = std::fs::write(format!("{output}.pffail_summary_metrics"), summary.write()) {
         thrown(&format!("htsjdk.samtools.SAMException: {e}"));
     }
+}
+
+/// Whether `dir` or a directory under it holds a file ending in `suffix` (BCLs sit in `C<n>.1/`).
+fn walk_has(dir: &std::path::Path, suffix: &str) -> bool {
+    std::fs::read_dir(dir).is_ok_and(|entries| {
+        entries.flatten().any(|e| {
+            let path = e.path();
+            if path.is_dir() {
+                walk_has(&path, suffix)
+            } else {
+                e.file_name().to_string_lossy().ends_with(suffix)
+            }
+        })
+    })
 }
