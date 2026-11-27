@@ -83,7 +83,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.98.0"
 
       - uses: Swatinem/rust-cache@v2
 
@@ -139,7 +139,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.98.0"
 
       - uses: Swatinem/rust-cache@v2
 
@@ -241,7 +241,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.98.0"
 
       - uses: Swatinem/rust-cache@v2
 
@@ -280,7 +280,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           # Pinned; must match rust-toolchain.toml.
-          toolchain: "1.97.1"
+          toolchain: "1.98.0"
           components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
@@ -324,7 +324,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.98.0"
 
       - uses: Swatinem/rust-cache@v2
 

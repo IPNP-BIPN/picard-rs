@@ -236,7 +236,7 @@ def coverage_job(manifest):
 
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.98.0"
 
       - uses: Swatinem/rust-cache@v2
 
