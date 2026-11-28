@@ -1,8 +1,13 @@
 //! GC content over a sliding window.
 //!
-//! Ported from `picard.analysis.GcBiasUtils` and its inner `CalculateGcState`, tag 3.4.0. This
+//! Ported from `picard.analysis.GcBiasUtils` and its inner `CalculateGcState`, Picard 3.5.0;
+//! `GcBiasUtils.java` is unchanged since 3.4.0. This
 //! is the core of `CollectGcBiasMetrics`, and it is a dense little function: five behaviours in
 //! thirty lines, four of which a reimplementation gets wrong by writing the obvious thing.
+//!
+//! The second half of the file is `picard.analysis.GcBiasMetricsCollector` and the two metric
+//! classes it fills, `GcBiasDetailMetrics` and `GcBiasSummaryMetrics`, all three also unchanged
+//! between Picard 3.4.0 and 3.5.0.
 //!
 //! ## The window range excludes both ends
 //!
@@ -23,21 +28,23 @@
 //!
 //! ## GC is truncating integer division
 //!
-//! `(gcCount * 100) / (endIndex - startIndex)`, in `int`. A window that is 50.9% GC bins as 50.
+//! `(state.gcCount * 100) / (endIndex - startIndex)` (`GcBiasUtils.java:63`), in `int`. A window
+//! that is 50.9% GC bins as 50.
 //!
-//! ## The no-call test is case-insensitive on three of its four uses
+//! ## The no-call test is case-insensitive on two of its three uses
 //!
 //! The initialising branch counts no-calls with `SequenceUtil.basesEqual(base, 'N')`, which folds
-//! case. The incremental branch counts the **incoming** base with a raw byte comparison:
+//! case (its javadoc: "returning true if they are equal (ignoring case)"). The incremental
+//! branch counts the **incoming** base with a raw byte comparison (`GcBiasUtils.java:56`):
 //!
 //! ```java
 //! else if (newBase == 'N') ++state.nCount;
 //! ```
 //!
-//! while still *decrementing* on the outgoing base with the case-insensitive test. So over a
-//! sequence containing lowercase `n`, no-calls are removed from the count that were never added,
-//! and `nCount` can go negative — after which a window that should be rejected is accepted and
-//! its GC value enters the histogram.
+//! while still *decrementing* on the outgoing base with the case-insensitive test (line 59). So
+//! over a sequence containing lowercase `n`, a no-call entering the window is never counted,
+//! and a window that should be rejected is accepted and its GC value enters the histogram. When
+//! those no-calls leave the window they are subtracted anyway, so `nCount` can go negative.
 //!
 //! **Measured in the oracle**, `tools/gcbias-conformance/GcAsymmetryProbe.java`, over a sequence
 //! with seven no-calls entering the window:
@@ -73,18 +80,40 @@
 //!
 //! A forward read is charged to the window at its alignment *start*, a reverse read to the one
 //! at its alignment *end* minus the window size. Two reads covering **the same reference bases**
-//! therefore land in different bins: over a pure-GC stretch the forward read reports `gc=99` and
-//! the reverse `gc=100`. riker's errata describes "a forward-strand window-binning fix", so this
-//! is a place an independent reimplementation chose to differ.
+//! are therefore charged to different windows: `gc` is indexed by 0-based window start and
+//! `pos` is a 1-based position, so for a 100M read and a 100-base window the forward read's
+//! window starts one base right of the read and the reverse read's window is exactly the read.
+//! Over a pure-GC stretch the forward read reports `gc=99` and the reverse `gc=100`. They land
+//! in different *bins* only when those two windows differ in GC: in the golden case
+//! `forward_and_reverse_same_bases` (`tests/data/gc_bias.txt.gz`, both reads 100M at 500) both
+//! count in the GC=25 row. riker's errata describes "a forward-strand window-binning fix", so
+//! this is a place an independent reimplementation chose to differ.
 //!
 //! And `if (pos > 0)` silently drops a reverse read near the contig start from the GC bins while
 //! still counting it in `totalAlignedReads`, so the per-bin read counts do not sum to the
 //! aligned-read total.
 //!
-//! Getting to the case asymmetry took two probes. The first put the no-calls at the start of the sequence,
-//! where they only ever *left* the window, so the buggy branch never ran and the two cases
-//! agreed. That probe proved nothing; the second one, with the no-calls entering, is the
-//! evidence.
+//! Getting to the case asymmetry took two probes. The first put the no-calls at the start of
+//! the sequence, where they only ever *left* the window, so the buggy branch never ran and the
+//! two cases agreed. That probe proved nothing; the second one, with the no-calls entering, is
+//! the evidence.
+//!
+//! ## Reading this file without reading Rust
+//!
+//! - `&[u8]` is a borrowed, read-only view of a `byte[]` (the caller keeps it); `&bases[a..b]`
+//!   is the sub-view of indices `a` to `b - 1`. `&mut T` is a writable reference, which is how
+//!   `calculate_gc` updates the caller's `CalculateGcState` as the Java mutates its object.
+//! - `x as i8`, `x as i32`, `x as usize`, `x as i64` are Java's primitive casts. Narrowing keeps
+//!   the low bits, as Java's does; `usize` is the unsigned index type Java lacks.
+//! - `Option<T>` is "a value or nothing" (`Some(v)` or `None`), Java's nullable reference
+//!   checked by the compiler. `rows` answers `None` where the Java adds no metric.
+//! - `impl Default for X` is the field initialisers of a Java class; `impl MetricBean for X` is
+//!   `X implements MetricBean`.
+//! - The last expression of a body, with no `;`, is its value: `if a { x } else { y }` at the
+//!   end of a function is `return a ? x : y;`.
+//! - `.iter().map(..).sum()` maps each element and adds them in order, one at a time: the same
+//!   additions as the Java's `for` loops (`sum(int[])` and the totals in
+//!   `calculateDropoutMetrics`), not a compensated stream sum.
 
 use htsjdk_bam::sequence::bases_equal;
 use htsjdk_metrics::file::{MetricBean, Value};
@@ -93,6 +122,18 @@ use htsjdk_metrics::file::{MetricBean, Value};
 ///
 /// The state is what makes the window incremental, and the whole asymmetry above lives in the
 /// difference between its first update and its later ones.
+///
+/// ```java
+/// class CalculateGcState {
+///     boolean init = true;
+///     int nCount;
+///     int gcCount;
+///     byte priorBase;
+/// }
+/// ```
+///
+/// `GcBiasUtils.java:116-121`. The `Default` below gives the same starting values: Java leaves
+/// the unset fields at zero.
 #[derive(Debug, Clone)]
 pub struct CalculateGcState {
     pub init: bool,
@@ -117,14 +158,19 @@ impl Default for CalculateGcState {
 /// Returns the GC percentage of `bases[start..end]`, or `-1` when the window holds more than
 /// four no-calls.
 ///
-/// `n_count` is `i32` rather than an unsigned type on purpose: htsjdk's is an `int` and the
-/// asymmetry above can drive it negative. A `u32` here would panic in debug and wrap in release,
-/// and either would be a different function.
+/// `n_count` is `i32` rather than an unsigned type on purpose: Picard's `CalculateGcState.nCount`
+/// is an `int` (`GcBiasUtils.java:118`) and the asymmetry above can drive it negative. A `u32`
+/// here would panic in debug and wrap in release, and either would be a different function.
+///
+/// `start..end` is half-open, as the Java's `startIndex` to `endIndex`: the first call counts
+/// the whole window, every later call assumes the window moved right by exactly one base.
 pub fn calculate_gc(bases: &[u8], start: usize, end: usize, state: &mut CalculateGcState) -> i32 {
     if state.init {
         state.init = false;
         state.gc_count = 0;
         state.n_count = 0;
+        // The Java's `for (int i = startIndex; i < endIndex; ++i)`; `&base` copies each byte
+        // out of the slice. `bases_equal` is `SequenceUtil.basesEqual`, which ignores case.
         for &base in &bases[start..end] {
             if bases_equal(base, b'G') || bases_equal(base, b'C') {
                 state.gc_count += 1;
@@ -141,6 +187,7 @@ pub fn calculate_gc(bases: &[u8], start: usize, end: usize, state: &mut Calculat
             state.n_count += 1;
         }
 
+        // The base that left the window: the previous call's first base, saved below.
         if bases_equal(state.prior_base, b'G') || bases_equal(state.prior_base, b'C') {
             state.gc_count -= 1;
         } else if bases_equal(state.prior_base, b'N') {
@@ -163,6 +210,10 @@ pub fn calculate_gc(bases: &[u8], start: usize, end: usize, state: &mut Calculat
 /// every index at or past `last_window_start` are left at zero rather than computed. Those zeros
 /// are indistinguishable from a genuine 0% GC window, which is why the range matters: a caller
 /// cannot tell the two apart afterwards.
+///
+/// `GcBiasUtils.java:97-111`. The `while` loop is the Java's
+/// `for (int i = 1; i < lastWindowStart; ++i)`, and `as i8` is its `(byte) windowGc`: the value
+/// is -1 or 0 to 100, so the narrowing never changes it.
 pub fn calculate_all_gcs(
     ref_bases: &[u8],
     last_window_start: usize,
@@ -185,14 +236,22 @@ pub fn calculate_all_gcs(
 /// **This one uppercases and `calculate_all_gcs` does not**, which is the whole of the
 /// difference between them. htsjdk's FASTA reader returns bases with their case intact, so a
 /// soft-masked reference arrives lowercase; this function folds it and the other does not.
-pub fn calculate_ref_windows_by_gc(
+/// (`calculate_all_gcs`'s one caller, the collector below, uppercases before calling it, as
+/// `GcBiasMetricsCollector.java:148` does.)
+///
+/// `GcBiasUtils.java:70-92`; `to_ascii_uppercase` is `StringUtil.toUpperCase(refBases)` made on
+/// a copy rather than in place.
+pub fn calculate_ref_windows_by_gc<B: AsRef<[u8]>>(
     windows: usize,
-    contigs: &[Vec<u8>],
+    contigs: &[B],
     window_size: usize,
 ) -> Vec<i32> {
     let mut windows_by_gc = vec![0i32; windows];
     for contig in contigs {
-        let ref_bases: Vec<u8> = contig.to_ascii_uppercase();
+        let ref_bases: Vec<u8> = contig.as_ref().to_ascii_uppercase();
+        // Java's `refLength - windowSize` goes negative for a short contig and the loop runs
+        // zero times. `usize` cannot go negative (the subtraction would underflow), so the short
+        // contig is skipped before subtracting; the windows counted are the same, none.
         if ref_bases.len() < window_size {
             continue;
         }
@@ -324,6 +383,9 @@ pub const BINS: usize = 101;
 /// `CollectGcBiasMetrics.SCAN_WINDOW_SIZE` default.
 pub const DEFAULT_SCAN_WINDOW_SIZE: i32 = 100;
 
+// SAM flag bits, standing for `getReadPairedFlag`, `getReadUnmappedFlag`,
+// `getReadNegativeStrandFlag` and `getFirstOfPairFlag`.
+
 const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
 const READ_REVERSE: u16 = 0x10;
@@ -338,7 +400,7 @@ const FIRST_OF_PAIR: u16 = 0x40;
 ///   * `Math.round(double)` is `floor(x + 0.5)`, **not** Rust's `f64::round`, which rounds half
 ///     away from zero. The two differ on negative halves: Java gives 0 for -0.5, Rust gives -1.
 ///     The argument here is non-negative whenever `errors <= observations`, so the difference is
-///     unreachable through this caller — but writing `.round()` would be a different function;
+///     unreachable through this caller, but writing `.round()` would be a different function;
 ///   * the cast to `int` truncates toward zero *after* the rounding, which for a non-negative
 ///     value is a no-op and is kept only so the shape matches.
 pub fn phred_score_from_obs_and_errors(observations: f64, errors: f64) -> i32 {
@@ -346,6 +408,9 @@ pub fn phred_score_from_obs_and_errors(observations: f64, errors: f64) -> i32 {
 }
 
 /// `GcBiasMetricsCollector.GcObject`: one accumulation level's counters.
+///
+/// `GcBiasMetricsCollector.java:366-373`, the same types (`long`, `int[]`, `long[]`, `long[]`),
+/// without its `String group`: only ALL_READS is collected, so the group is always "All Reads".
 #[derive(Debug, Clone)]
 pub struct GcObject {
     pub total_clusters: i64,
@@ -368,7 +433,11 @@ impl Default for GcObject {
 }
 
 /// `GcBiasDetailMetrics`, in declared field order with the inherited `MultilevelMetrics` fields
-/// last, as `Class.getFields()` returns them.
+/// last, as `Class.getFields()` returns them. The oracle's header row in
+/// `tests/data/gc_bias.txt.gz` is this order, `ACCUMULATION_LEVEL` to `READ_GROUP`.
+///
+/// `sample`, `library` and `read_group` are `Option` because the Java fields are `String`s left
+/// `null` at the ALL_READS level; `None` is written as the empty cell the goldens show.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GcBiasDetailMetrics {
     pub accumulation_level: String,
@@ -406,6 +475,8 @@ impl MetricBean for GcBiasDetailMetrics {
         DETAIL_COLUMNS
     }
     fn values(&self) -> Vec<Value> {
+        // A lambda turning a nullable string into a cell: `match` takes the branch that fits,
+        // and the compiler insists both `Some` and `None` are handled.
         let text = |o: &Option<String>| match o {
             Some(s) => Value::Str(s.clone()),
             None => Value::Null,
@@ -503,15 +574,20 @@ pub struct GcBiasMetricsCollector {
     bisulfite: bool,
     all_reads: GcObject,
     /// The reference windows by GC bin, computed once from the whole reference before any read
-    /// is seen. This is `calculate_ref_windows_by_gc`, which uppercases; the per-contig `gc`
-    /// array used for binning reads does not. See the module note.
+    /// is seen. This is `calculate_ref_windows_by_gc`, which uppercases inside; the per-contig
+    /// `gc` array comes from `calculate_all_gcs`, which does not, and is uppercased by `accept`
+    /// before the call, as the Java collector does. See the module note.
     windows_by_gc: Vec<i32>,
     /// The per-contig GC array from `calculate_all_gcs`, recomputed when the contig changes.
     gc: Vec<i8>,
+    /// The current contig's bases, uppercased: the Java's `refBases` after
+    /// `StringUtil.toUpperCase`, which `countMismatches` also reads.
     reference_bases: Vec<u8>,
 }
 
 impl GcBiasMetricsCollector {
+    /// `CollectGcBiasMetrics.setup` (`CollectGcBiasMetrics.java:175` and `:178`): the
+    /// reference windows are counted first, then handed to the collector.
     pub fn new(contigs: &[Vec<u8>], scan_window_size: i32, bisulfite: bool) -> Self {
         GcBiasMetricsCollector {
             scan_window_size,
@@ -528,8 +604,11 @@ impl GcBiasMetricsCollector {
     /// An unmapped read still bumps `totalClusters`, through `updateTotalClusters`, so the
     /// cluster count includes reads that never reach a GC bin.
     pub fn accept(&mut self, rec: &BamRecord, reference: &[u8]) {
-        // A read with `*` in SEQ is dropped with a warning and never counted at all, not even as
-        // a cluster.
+        // A read with `*` in SEQ is dropped here and never counted at all, not even as a
+        // cluster. The Java drops only while its warning counter is below 100
+        // (`GcBiasMetricsCollector.java:137`):
+        // `if (logCounter < 100 && rec.getReadBases().length == 0) {`
+        // so from the 101st such read on, Java no longer returns here and this port still does.
         if rec.read_bases.is_empty() {
             return;
         }
@@ -537,10 +616,18 @@ impl GcBiasMetricsCollector {
             self.update_total_clusters(rec);
             return;
         }
+        // The Java recomputes when `referenceIndex != rec.getReferenceIndex() || gc == null`.
+        // This compares the bases instead; two contigs with equal bases give equal `gc` arrays,
+        // so skipping the recomputation cannot change a bin. The stored copy is uppercased and
+        // `reference` is not, so a contig with any lowercase base recomputes on every record:
+        // slower, not different.
         if self.reference_bases != reference {
             // The collector uppercases here, which is what makes the lowercase asymmetry in
             // `calculate_gc` unreachable through this tool.
             self.reference_bases = reference.to_ascii_uppercase();
+            // `saturating_sub` stops at zero instead of going negative. Java's
+            // `refLength - scanWindowSize` may go negative; either way the loop in
+            // `calculate_all_gcs` runs zero times.
             let last_window_start = self
                 .reference_bases
                 .len()
@@ -554,6 +641,12 @@ impl GcBiasMetricsCollector {
         self.add_read(rec);
     }
 
+    /// `updateTotalClusters`: a cluster is an unpaired read or the first of a pair
+    /// (`GcBiasMetricsCollector.java:185`):
+    ///
+    /// ```java
+    /// if (!rec.getReadPairedFlag() || rec.getFirstOfPairFlag()) ++gcCur.totalClusters;
+    /// ```
     fn update_total_clusters(&mut self, rec: &BamRecord) {
         if rec.flags & READ_PAIRED == 0 || rec.flags & FIRST_OF_PAIR != 0 {
             self.all_reads.total_clusters += 1;
@@ -564,8 +657,12 @@ impl GcBiasMetricsCollector {
     ///
     /// The window a read is charged to depends on its strand: forward reads use their alignment
     /// start, reverse reads their alignment end minus the window size. Two reads over the same
-    /// bases therefore land in different bins. See the module note; this is measured, and it is
-    /// a place riker chose to differ.
+    /// bases are therefore charged to different windows, and land in different bins whenever
+    /// those windows differ in GC. See the module note; this is measured, and it is a place
+    /// riker chose to differ.
+    ///
+    /// `GcBiasMetricsCollector.java:379-396`; the strand choice is line 381, quoted in the
+    /// module note.
     fn add_read(&mut self, rec: &BamRecord) {
         self.update_total_clusters(rec);
         let pos = if rec.flags & READ_REVERSE != 0 {
@@ -582,11 +679,19 @@ impl GcBiasMetricsCollector {
         // `gc[pos]` is read without checking whether that entry was ever computed. Index 0 and
         // everything at or past lastWindowStart are still zero, so a read whose window falls
         // there is charged to GC bin 0.
+        //
+        // `.get(i)` is a bounds-checked read answering an `Option`; `unwrap_or(&0)` takes 0
+        // when `i` is past the end, and `*` reads the value out of the reference. Java's
+        // `gc[pos]` would throw `ArrayIndexOutOfBoundsException` there instead (the array is
+        // `refLength + 1` long, so only for a `pos` beyond the contig's last base).
         let window_gc = *self.gc.get(pos as usize).unwrap_or(&0);
         if window_gc >= 0 {
             let bin = window_gc as usize;
             self.all_reads.reads_by_gc[bin] += 1;
             self.all_reads.bases_by_gc[bin] += rec.read_bases.len() as i64;
+            // `SequenceUtil.countMismatches(rec, refBases, bisulfite)` is the overload that
+            // passes a reference offset of 0 (htsjdk `SequenceUtil.java:542`), and the strand
+            // the Java reads from the record is passed here explicitly.
             let blocks = alignment_blocks(&rec.cigar, rec.alignment_start);
             self.all_reads.errors_by_gc[bin] += count_mismatches(
                 &rec.read_bases,
@@ -602,7 +707,7 @@ impl GcBiasMetricsCollector {
     }
 
     /// `addGcDataToFile`: the 101 detail rows and the summary, or nothing at all when no read
-    /// aligned.
+    /// aligned (`if (totalAlignedReads > 0)`, `GcBiasMetricsCollector.java:256`).
     pub fn rows(&self) -> Option<(Vec<GcBiasDetailMetrics>, GcBiasSummaryMetrics)> {
         if self.all_reads.total_aligned_reads == 0 {
             return None;
@@ -673,6 +778,9 @@ impl GcBiasMetricsCollector {
     /// Bins with no reference windows are skipped from **both** the numerator and the window
     /// total, so reads in a GC bin the reference never reaches contribute nothing at all.
     fn gc_norm_coverage(&self, mean_reads_per_window: f64, start: usize, end: usize) -> f64 {
+        // The Java's `int windowsTotal = 0;` (`GcBiasMetricsCollector.java:315`) is 32-bit and
+        // this is 64-bit: the two agree until a GC range holds more than 2^31 - 1 windows,
+        // where the Java's would wrap.
         let mut windows_total = 0i64;
         let mut sum = 0.0;
         for i in start..=end {
@@ -690,6 +798,16 @@ impl GcBiasMetricsCollector {
 }
 
 /// `SAMRecord.getAlignmentEnd`: the last reference position the CIGAR covers.
+///
+/// htsjdk computes it from the CIGAR's whole reference length (`SAMRecord.java:632`):
+///
+/// ```java
+/// this.mAlignmentEnd = mAlignmentStart + getCigar().getReferenceLength() - 1;
+/// ```
+///
+/// This takes the end of the last alignment block (`M`, `=`, `X`) instead. The two agree unless
+/// the CIGAR ends in `D` or `N` (`50M10D`: htsjdk ends 10 bases later) or has no alignment
+/// block (`5I`: htsjdk answers `alignmentStart - 1`, this answers `alignmentStart`).
 fn alignment_end(rec: &BamRecord) -> i32 {
     let blocks = alignment_blocks(&rec.cigar, rec.alignment_start);
     match blocks.last() {
@@ -702,7 +820,12 @@ fn alignment_end(rec: &BamRecord) -> i32 {
 ///
 /// Only **positive** dropouts are summed; a bin with more reads than its window share
 /// contributes nothing rather than offsetting. And the split is `GC <= 50` for AT, so bin 50
-/// itself counts as AT.
+/// itself counts as AT (`GcBiasMetricsCollector.java:353-354`):
+///
+/// ```java
+/// if (dropout > 0) {
+///     if (detail.GC <= 50) atDropout += dropout;
+/// ```
 pub fn dropout_metrics(details: &[GcBiasDetailMetrics]) -> (f64, f64) {
     let total_reads: f64 = details.iter().map(|d| d.read_starts as f64).sum();
     let total_windows: f64 = details.iter().map(|d| d.windows as f64).sum();

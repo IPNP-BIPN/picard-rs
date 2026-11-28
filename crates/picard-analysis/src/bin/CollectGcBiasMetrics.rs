@@ -256,7 +256,7 @@ fn main() {
     check_coordinate_sorted(&input, &header, assume_sorted);
 
     // setup.
-    let bases: Vec<Vec<u8>> = contigs.iter().map(|c| c.bases.clone()).collect();
+    let bases: Vec<&[u8]> = contigs.iter().map(|c| c.bases.as_slice()).collect();
     let windows_by_gc = calculate_ref_windows_by_gc(BINS, &bases, window.max(0) as usize);
     let new_unit = |level: Level, name: &str| Unit {
         level,
