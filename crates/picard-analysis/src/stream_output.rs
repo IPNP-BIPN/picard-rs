@@ -14,6 +14,9 @@ use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::writer::BamWriter;
 
+use crate::cram_output::CramBuffer;
+use crate::sort_sam::encoded::EncodedBamWriter;
+
 use crate::java_writer;
 
 /// The outputs being written, each with whether a refusal leaves it empty rather than absent, for
@@ -113,11 +116,12 @@ fn close(path: &str) -> Option<bool> {
 enum Sink {
     /// The text writer, and the header length that [`java_writer::sam_on_disk`] keeps.
     Sam(BufWriter<File>, SamHeader, usize),
-    /// The writer, and whether it builds its index as it writes.
-    Bam(BamWriter<BufWriter<File>>, bool),
+    Bam(BamWriter<BufWriter<File>>),
+    /// A BAM that builds its index as it writes, without waiting for the blocks in flight.
+    IndexedBam(EncodedBamWriter<BufWriter<File>>),
     /// shortcut: a CRAM is still encoded from the whole BAM at the end, as before; stream it once
     /// a CRAM output on a large input matters.
-    Cram(BamWriter<Vec<u8>>),
+    Cram(BamWriter<CramBuffer>),
 }
 
 /// `SAMFileWriterFactory.makeWriter`: SAM for a `.sam` name, CRAM for a CRAM one, BAM otherwise.
@@ -215,7 +219,7 @@ impl Output {
             if opened_first {
                 File::create(path)?;
             }
-            Sink::Cram(crate::output::bam_writer(Vec::new(), header)?)
+            Sink::Cram(crate::output::bam_writer(CramBuffer::default(), header)?)
         } else if sam {
             let mut out = BufWriter::new(File::create(path)?);
             let text = header.encode();
@@ -223,14 +227,13 @@ impl Output {
             Sink::Sam(out, header.clone(), text.len())
         } else {
             let out = BufWriter::new(File::create(path)?);
-            let writer = crate::output::bam_writer(out, header)?;
             // `SAMFileWriterFactory` builds the index while it writes, for `CREATE_INDEX` and a
             // coordinate header: its chunks end where the record ends, not where the next block
             // starts, as an index read back from the file would have them.
             if crate::cram_output::create_index_argument() && coordinate {
-                Sink::Bam(writer.with_index(), true)
+                Sink::IndexedBam(EncodedBamWriter::new(out, header, true)?)
             } else {
-                Sink::Bam(writer, false)
+                Sink::Bam(crate::output::bam_writer(out, header)?)
             }
         };
         if !matches!(sink, Sink::Cram(_)) {
@@ -285,7 +288,11 @@ impl Output {
                 }
                 None => "records failed to re-encode as SAM".to_string(),
             },
-            Sink::Bam(writer, _) => match writer.write(record) {
+            Sink::Bam(writer) => match writer.write(record) {
+                Ok(()) => return Ok(()),
+                Err(e) => format!("{e:?}"),
+            },
+            Sink::IndexedBam(writer) => match writer.write_record(record) {
                 Ok(()) => return Ok(()),
                 Err(e) => format!("{e:?}"),
             },
@@ -333,14 +340,19 @@ impl Output {
                 let buffers = records / java_writer::BUFFER_SIZE * java_writer::BUFFER_SIZE;
                 file.set_len((header_len + buffers) as u64)
             }
-            Sink::Bam(writer, _) => {
+            Sink::Bam(writer) => {
                 writer.finish()?.flush()?;
+                let finished = std::fs::read(&self.path)?;
+                std::fs::write(&self.path, java_writer::bam_on_disk(&finished))
+            }
+            Sink::IndexedBam(writer) => {
+                writer.finish()?.0.flush()?;
                 let finished = std::fs::read(&self.path)?;
                 std::fs::write(&self.path, java_writer::bam_on_disk(&finished))
             }
             // The whole-file writer wrote the partial BAM under the CRAM's name.
             Sink::Cram(writer) => {
-                std::fs::write(&self.path, java_writer::bam_on_disk(&writer.finish()?))
+                std::fs::write(&self.path, java_writer::bam_on_disk(&writer.finish()?.0))
             }
         }
     }
@@ -363,12 +375,15 @@ impl Output {
         close(&self.path);
         match self.sink.take().expect("open until finished") {
             Sink::Sam(mut out, ..) => out.flush()?,
-            Sink::Bam(writer, true) if index_bam => {
-                let (mut out, index) = writer.finish_with_index()?;
+            Sink::IndexedBam(writer) => {
+                let (mut out, index) = writer.finish()?;
                 out.flush()?;
-                std::fs::write(index_path(&self.path), index)?;
+                if index_bam {
+                    let index = index.expect("an indexing writer");
+                    std::fs::write(index_path(&self.path), index)?;
+                }
             }
-            Sink::Bam(writer, _) => {
+            Sink::Bam(writer) => {
                 writer.finish()?.flush()?;
                 if index_bam {
                     // A tool that indexes a BAM whose header is not coordinate: read back.
@@ -378,7 +393,7 @@ impl Output {
                 }
             }
             Sink::Cram(writer) => {
-                crate::cram_output::write_from_bam(&self.path, &writer.finish()?, create_index)?
+                crate::cram_output::write_from_bam(&self.path, &writer.finish()?.0, create_index)?
             }
         }
         Ok(())

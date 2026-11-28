@@ -94,6 +94,12 @@ pub fn reference_source() -> Box<dyn ReferenceSource> {
 
 /// A CRAM's header and every record, decoded against this process's reference.
 pub fn decode(raw: &[u8]) -> Result<(SamHeader, String, Vec<BamRecord>), CramError> {
+    let bytes = raw.len() as u64;
+    crate::cram_output::refuse_past_the_cram_limit(
+        "the CRAM input",
+        bytes,
+        crate::cram_output::PER_CRAM_BYTE_IN,
+    );
     let mut reader = CramReader::new(raw)?;
     let mut source = reference_source();
     let records = reader.read_all(source.as_mut())?;
