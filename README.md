@@ -29,7 +29,7 @@ export PATH="$PWD/picard-rs-$VERSION-$TARGET/bin:$PATH"
 
 ### From source
 
-You need [rustup](https://rustup.rs). The toolchain (Rust 1.97.1) is pinned in
+You need [rustup](https://rustup.rs). The toolchain (Rust 1.98.0) is pinned in
 `rust-toolchain.toml` and installed on the first build.
 
 ```bash

@@ -857,6 +857,9 @@ impl Picker {
         let mut earliest = Vec::new();
         let mut earliest_base = i32::MAX;
         let mut best_mapq = -1;
+        // Indexed up to `num_hits()`, the larger of the two ends, as the Java does: an iterator over
+        // `first` alone would stop short where this panics.
+        #[allow(clippy::needless_range_loop)]
         for i in 0..hits.num_hits() {
             let rec = hits.first[i].as_ref().expect("a fragment hit");
             if flag(rec, PAIRED) {
@@ -1950,6 +1953,9 @@ fn merge_pass(
                     }
                 }
             } else {
+                // Indexed up to `num_hits()`, the larger of the two ends, as the Java does: an iterator over
+                // `first` alone would stop short where this panics.
+                #[allow(clippy::needless_range_loop)]
                 for i in 0..hits.num_hits() {
                     let fragment = hits.first[i].as_ref().expect("a fragment hit");
                     if flag(fragment, PAIRED) {

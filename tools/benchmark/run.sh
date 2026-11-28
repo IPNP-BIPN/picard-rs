@@ -19,7 +19,7 @@ docker run --rm --platform linux/amd64 \
    && java -cp .:\$PICARD_JAR MakeBenchmarkBam $READS /out/bench"
 
 echo "== cross-building the port for linux/amd64"
-docker run --rm --platform linux/amd64 -v "$PWD":/src -v "$OUT":/out -w /src rust:1.97-slim \
+docker run --rm --platform linux/amd64 -v "$PWD":/src -v "$OUT":/out -w /src rust:1.98-slim \
   bash -c 'cargo build --release --bin CollectAlignmentSummaryMetrics --bin AddOATag --target-dir /out/amd64 2>&1 | tail -1'
 
 cat > "$OUT/bench.sh" <<'INNER'

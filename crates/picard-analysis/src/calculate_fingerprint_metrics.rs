@@ -93,16 +93,14 @@ impl Haplotype {
     pub fn add_base(&mut self, base: u8, allele1: u8, allele2: u8, quality: u8) {
         let error = 10f64.powf(-f64::from(quality) / 10.0);
         if base == allele1 {
-            for genotype in 0..3 {
+            for (genotype, log_likelihood) in self.log_likelihoods.iter_mut().enumerate().take(3) {
                 let p_alt = genotype as f64 / 2.0;
-                self.log_likelihoods[genotype] +=
-                    ((1.0 - p_alt) * (1.0 - error) + p_alt * error).log10();
+                *log_likelihood += ((1.0 - p_alt) * (1.0 - error) + p_alt * error).log10();
             }
         } else if base == allele2 {
-            for genotype in 0..3 {
+            for (genotype, log_likelihood) in self.log_likelihoods.iter_mut().enumerate().take(3) {
                 let p_alt = 1.0 - genotype as f64 / 2.0;
-                self.log_likelihoods[genotype] +=
-                    ((1.0 - p_alt) * (1.0 - error) + p_alt * error).log10();
+                *log_likelihood += ((1.0 - p_alt) * (1.0 - error) + p_alt * error).log10();
             }
         }
     }
