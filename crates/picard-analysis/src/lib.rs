@@ -103,7 +103,8 @@ pub mod lift_over_haplotype_map;
 pub mod lift_over_interval_list;
 pub mod liftover_vcf;
 pub mod make_vcf_sample_name_map;
-pub mod mark_duplicates;
+// MarkDuplicates' core is a crate of its own, which gatk-rs depends on without the rest of this one.
+pub use picard_markduplicates as mark_duplicates;
 pub mod mark_illumina_adapters;
 pub mod mate_cigar_duplicates;
 pub mod mate_cigar_iterator;
@@ -117,7 +118,7 @@ pub mod merge_ped_into_vcf;
 pub mod merge_sam_files;
 pub mod merge_vcfs;
 pub mod metrics_cli;
-pub mod murmur3;
+pub use picard_markduplicates::murmur3;
 pub mod non_n_fasta_size;
 pub mod normalize_fasta;
 pub mod output;

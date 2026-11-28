@@ -281,7 +281,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `finalizeAndWriteMetrics`, shared with `MarkDuplicates`.
     if let Some(path) = metrics_file {
         let text = picard_analysis::mark_duplicates::duplication_metrics_text(
-            "SimpleMarkDuplicatesWithMateCigar",
+            &picard_analysis::command_line::default_headers("SimpleMarkDuplicatesWithMateCigar"),
             &marking.metrics,
             &header
                 .read_groups

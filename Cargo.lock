@@ -1158,7 +1158,19 @@ dependencies = [
  "md-5",
  "mimalloc",
  "noodles-bgzf",
+ "picard-markduplicates",
  "rayon",
+ "regex",
+]
+
+[[package]]
+name = "picard-markduplicates"
+version = "0.2.0"
+dependencies = [
+ "foldhash",
+ "hashbrown 0.17.1",
+ "htsjdk-bam",
+ "htsjdk-metrics",
  "regex",
 ]
 

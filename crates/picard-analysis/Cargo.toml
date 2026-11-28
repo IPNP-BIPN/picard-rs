@@ -7,6 +7,7 @@ repository.workspace = true
 description = "Port of Picard's analysis tools"
 
 [dependencies]
+picard-markduplicates = { path = "../picard-markduplicates" }
 htsjdk-bam.workspace = true
 htsjdk-metrics.workspace = true
 htsjdk-vcf.workspace = true
