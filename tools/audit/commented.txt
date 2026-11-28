@@ -9,7 +9,7 @@ crates/picard-analysis/src/fifo_buffer.rs 1.022
 crates/picard-analysis/src/gc.rs 0.633
 crates/picard-analysis/src/java_hash_map.rs 0.857
 crates/picard-analysis/src/java_writer.rs 1.467
-crates/picard-analysis/src/murmur3.rs 1.197
+crates/picard-markduplicates/src/murmur3.rs 1.197
 crates/picard-analysis/src/output.rs 0.755
 crates/picard-analysis/src/overlap.rs 1.905
 crates/picard-analysis/src/series_stats.rs 1.451
