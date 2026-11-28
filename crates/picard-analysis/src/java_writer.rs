@@ -116,31 +116,83 @@ pub fn bam_on_disk(finished: &[u8]) -> Vec<u8> {
 
 /// [`bam_on_disk`] in place, for the finished BAM at `path`: the file cut to what the unclosed
 /// writer leaves, reading only the blocks' headers and footers.
+///
+/// Why in place: `stream_output.rs` streams a BAM to its file as the records arrive, so a run that
+/// throws holds no copy of it in memory. Reading the file back whole to hand to [`bam_on_disk`]
+/// would cost as much RAM as the output is large, many gigabytes for a whole-genome BAM (#453).
+/// Here the file is walked a block at a time: 18 bytes of header and 4 of footer are read per
+/// block and the payload never is, so the memory held is the list of block sizes, one `usize` per
+/// block, however long the file.
+///
+/// It must give exactly the length [`bam_on_disk`] gives for the same bytes, and the test
+/// `a_bam_cut_in_place_is_the_one_bam_on_disk_gives` holds the two to each other. The walk is the
+/// same one: stop at the first block that does not hold a full uncompressed block's worth, then
+/// run the sizes found through [`through_the_buffer`].
+///
+/// The cut only ever shortens. The kept length is at most the bytes of the full blocks, which lie
+/// inside the file, so `set_len` never pads the file out with zeros.
+///
+/// `std::os::unix::fs::FileExt` gives `read_exact_at`, a read at an absolute offset (POSIX
+/// `pread`) that leaves no file position to keep in step. It ties this function to Unix, which is
+/// every platform the port builds for.
 pub fn cut_bam_on_disk(path: &str) -> std::io::Result<()> {
     use std::os::unix::fs::FileExt;
+    // Writable as well, for `set_len`, but not truncated on open: the walk reads what is there.
     let file = std::fs::File::options().read(true).write(true).open(path)?;
+    // Measured once: the writer was finished and flushed before this call, so nothing grows it.
     let length = file.metadata()?.len();
+    // One entry per full block, in file order: the input `through_the_buffer` takes.
     let mut sizes = Vec::new();
+    // `p` is the offset of the next block. `header` and `footer` are reused for every block, so the
+    // walk allocates nothing but `sizes`. Only `ISIZE`, the footer's last four bytes, is read: the
+    // CRC before it is not needed to tell a full block from the rest. Offsets are `u64`, a file's
+    // own width, since a BAM can outgrow a 32-bit `usize`; a block's size, at most 64 KiB, cannot.
     let (mut p, mut header, mut footer) = (0u64, [0u8; BLOCK_HEADER_LENGTH], [0u8; 4]);
+    // A tail shorter than a header cannot start another block.
     while p + BLOCK_HEADER_LENGTH as u64 <= length {
+        // A failed read leaves with the error and the file uncut: cutting on a guess could throw
+        // away bytes htsjdk would have left.
         file.read_exact_at(&mut header, p)?;
+        // `BSIZE`, bytes 16 and 17: the block's total size minus one, as `bam_on_disk` reads it.
         let size = u16::from_le_bytes([header[16], header[17]]) as usize + 1;
+        // A block that runs past the end cannot come from a file this crate just finished, but a
+        // damaged one must not make the walk read beyond it; `bam_on_disk`'s `get` stops there too.
         if p + size as u64 > length {
             break;
         }
         file.read_exact_at(&mut footer, p + size as u64 - 4)?;
+        // htsjdk deflates a block only once its uncompressed buffer is full
+        // (`BlockCompressedOutputStream.write` calls `deflateBlock` when `numUncompressedBytes`
+        // reaches `uncompressedBuffer.length`). The partial last block and the empty terminator
+        // come only from `flush` and `close`, which an abandoned writer never reaches, so the
+        // first block with any other `ISIZE` ends what the unclosed writer had emitted.
         if u32::from_le_bytes(footer) as usize != DEFAULT_UNCOMPRESSED_BLOCK_SIZE {
             break;
         }
         sizes.push(size);
         p += size as u64;
     }
+    // What the `BufferedOutputStream` had passed on stays; what it still held at the throw goes.
     file.set_len(through_the_buffer(&sizes) as u64)
 }
 
 /// How much of blocks of these sizes, each written as its header, payload and footer, reaches the
 /// file through the 128 KiB `BufferedOutputStream` before the writer is abandoned.
+///
+/// Shared by [`bam_on_disk`] and [`cut_bam_on_disk`] so the in-memory cut and the in-place one
+/// cannot drift apart: both only find the full blocks, and this alone decides the length.
+///
+/// The writes are modelled in the order `writeGzipBlock` issues them: header, deflated payload,
+/// footer, with the header and the footer as one write each (the module documentation says when
+/// that differs from htsjdk's twelve and two). `sizes` are whole block sizes, header and footer
+/// included, so a block's payload is what lies between them.
+///
+/// The result is a length from the start of the file and never more than the sum of `sizes`;
+/// whatever is still buffered when the writes run out is exactly what the throw loses.
 fn through_the_buffer(sizes: &[usize]) -> usize {
+    // A lazy iterator of write lengths, three per block, so no list of them is ever built. The
+    // subtraction cannot underflow: a block counted as full holds a whole uncompressed block's
+    // worth, so it is far larger than its header and footer together.
     let writes = sizes.iter().flat_map(|&size| {
         [
             BLOCK_HEADER_LENGTH,
@@ -153,15 +205,22 @@ fn through_the_buffer(sizes: &[usize]) -> usize {
     let (mut on_disk, mut buffered) = (0, 0);
     for len in writes {
         if len >= BUFFER_SIZE {
+            // Too big for the buffer: what it holds goes first, then this write, unbuffered. A
+            // BGZF payload is under 64 KiB, so a BAM never takes this branch; it is kept so the
+            // rule is the JDK's whole rule and not one that holds only for today's block size.
             on_disk += buffered + len;
             buffered = 0;
         } else if buffered + len > BUFFER_SIZE {
+            // It does not fit beside what is buffered: that is flushed, and this write starts the
+            // buffer afresh rather than topping the old one up to the brim.
             on_disk += buffered;
             buffered = len;
         } else {
+            // It fits, so it waits in the buffer and is lost unless a later write flushes it.
             buffered += len;
         }
     }
+    // Only the flushed bytes: `buffered` is what the unclosed writer never wrote.
     on_disk
 }
 
@@ -309,27 +368,42 @@ mod tests {
         assert!(bam_on_disk(&writer.into_inner().unwrap()).is_empty());
     }
 
+    // The in-place cut against the in-memory model the goldens already pin, over BAMs from no full
+    // block to several times what the buffer holds: if the two ever disagree, a streamed BAM that
+    // throws no longer ends where Picard's does.
     #[test]
     fn a_bam_cut_in_place_is_the_one_bam_on_disk_gives() {
+        // Named by the process id, so two test runs at once do not cut each other's file.
         let path = std::env::temp_dir().join(format!("bam-on-disk-{}.bam", std::process::id()));
         let path = path.to_str().unwrap();
         // Blocks that hardly deflate, so a few fill the 128 KiB buffer; and none.
+        // A fixed seed gives the same bytes on every run, so a failure reproduces.
         let mut state = 1u64;
+        // 0 full blocks: only a partial block and the terminator, so nothing is kept. 1 and 2:
+        // full blocks that are still in the buffer at the throw. 5 and 23: past 128 KiB, so the
+        // buffer flushes and a prefix is kept, ending mid-block where the last flush fell.
         for blocks in [0usize, 1, 2, 5, 23] {
+            // The extra 999 bytes leave a partial last block, the one the walk must stop at.
             let payload: Vec<u8> = (0..blocks * DEFAULT_UNCOMPRESSED_BLOCK_SIZE + 999)
                 .map(|_| {
+                    // Knuth's MMIX linear congruential step; the top byte is its best-mixed one,
+                    // and bytes this random are stored rather than deflated, near 64 KiB a block.
                     state = state
                         .wrapping_mul(6364136223846793005)
                         .wrapping_add(1442695040888963407);
                     (state >> 56) as u8
                 })
                 .collect();
+            // Finished as a real output is, with its partial last block and its terminator, so
+            // the walk meets both of the blocks it has to stop at.
             let mut writer = htsjdk_bgzf::BgzfWriter::new(Vec::new());
             std::io::Write::write_all(&mut writer, &payload).unwrap();
             let finished = writer.into_inner().unwrap();
+            // The file the in-place cut shortens, and the bytes the model says it must keep.
             std::fs::write(path, &finished).unwrap();
             cut_bam_on_disk(path).unwrap();
             let expected = bam_on_disk(&finished);
+            // Each assertion carries the block count, so a failure names the case that broke.
             assert_eq!(std::fs::read(path).unwrap(), expected, "{blocks}");
             // Two blocks still fit the buffer together; five do not.
             assert_eq!(expected.is_empty(), blocks < 5, "{blocks}");
