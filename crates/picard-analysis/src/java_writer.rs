@@ -110,6 +110,7 @@ pub fn bam_on_disk(finished: &[u8]) -> Vec<u8> {
         sizes.push(size);
         p += size;
     }
+    // `to_vec` copies the prefix out into a new owned byte vector.
     finished[..through_the_buffer(&sizes)].to_vec()
 }
 
