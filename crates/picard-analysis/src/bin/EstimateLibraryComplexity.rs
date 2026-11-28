@@ -131,7 +131,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => picard_analysis::estimate_library_complexity::DEFAULT_MAX_PAIRS_IN_RAM,
     };
     // `CommandLineProgram.instanceMain` makes every TMP_DIR that does not exist, unchecked.
-    for dir in args_of(&args, "TMP_DIR=") {
+    for dir in every(&args, "TMP_DIR=") {
         let _ = std::fs::create_dir_all(dir);
     }
     // shortcut: the first TMP_DIR only, where htsjdk picks the one with the most free space.
