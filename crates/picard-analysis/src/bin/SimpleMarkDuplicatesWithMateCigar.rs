@@ -246,7 +246,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let program_group =
         picard_analysis::command_line::ProgramGroup::of("SimpleMarkDuplicatesWithMateCigar");
     // Opened before the first record, as `makeWriter` is, so a throw leaves it empty.
-    let mut out = Output::bam(&output, &out_header, true)?;
+    let mut out = Output::create(&output, &out_header, true)?;
     for (index, mut written) in open(Some(streamed))?.1.enumerate() {
         if !marking.written[index] {
             continue;

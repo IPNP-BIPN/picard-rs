@@ -67,7 +67,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     // A BAM whatever the name, as the whole-file writer wrote it, and no file when a record fails.
-    let mut out = Output::bam(&output, &header, false)?;
+    let mut out = Output::create(&output, &header, false)?;
     for mut record in records {
         if record.reference_index >= 0 {
             let name = &header.sequences[record.reference_index as usize].name;

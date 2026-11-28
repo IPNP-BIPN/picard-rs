@@ -159,7 +159,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .map_or("*", |s| s.name.as_str())
         };
         let mut out = BufWriter::new(std::fs::File::create(&output)?);
-        out.write_all(header.encode().as_bytes())?;
+        out.write_all(header.encode_replacing_version().as_bytes())?;
         sorting.for_each_sorted(|encoded| -> Result<(), Box<dyn std::error::Error>> {
             let Ok(Some((record, _))) = BamRecord::decode(encoded.bytes) else {
                 unreachable!("the collection decodes what it encoded");

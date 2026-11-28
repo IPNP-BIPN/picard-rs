@@ -129,7 +129,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let records = picard_analysis::bam_stream::Input::reopen(&input, streamed)?
         .into_parts()
         .1;
-    let mut out = Output::bam(&output, &header, false)?;
+    let mut out = Output::create(&output, &header, false)?;
     for (mut record, keep_it) in records.zip(mask) {
         if !keep_it {
             continue;

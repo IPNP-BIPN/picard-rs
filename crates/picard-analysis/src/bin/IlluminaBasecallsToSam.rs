@@ -228,11 +228,7 @@ fn main() {
         let sam = host.extension().is_some_and(|e| e == "sam");
         let name = host.display().to_string();
         // The file is created here, so a run that fails later leaves it empty.
-        let out = if sam {
-            picard_analysis::stream_output::Output::create(&name, &header, true)
-        } else {
-            picard_analysis::stream_output::Output::bam(&name, &header, true)
-        };
+        let out = picard_analysis::stream_output::Output::create(&name, &header, true);
         let out = out.unwrap_or_else(|e| {
             thrown(&format!(
                 "htsjdk.samtools.SAMException: Cannot write file {}: {e}",
