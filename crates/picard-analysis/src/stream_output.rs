@@ -9,7 +9,7 @@ use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::sync::Mutex;
 
-use htsjdk_bam::build_index::build_bam_index;
+use crate::build_bam_index::build_bam_index_from;
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::writer::BamWriter;
@@ -335,8 +335,7 @@ impl Output {
             }
             Sink::Bam(writer, _) => {
                 writer.finish()?.flush()?;
-                let finished = std::fs::read(&self.path)?;
-                std::fs::write(&self.path, java_writer::bam_on_disk(&finished))
+                java_writer::cut_bam_on_disk(&self.path)
             }
             // The whole-file writer wrote the partial BAM under the CRAM's name.
             Sink::Cram(writer) => {
@@ -371,9 +370,10 @@ impl Output {
             Sink::Bam(writer, _) => {
                 writer.finish()?.flush()?;
                 if index_bam {
-                    // A tool that indexes a BAM whose header is not coordinate: read back.
-                    let bam = std::fs::read(&self.path)?;
-                    let index = build_bam_index(&bam).map_err(|e| format!("{e:?}"))?;
+                    // A tool that indexes a BAM whose header is not coordinate: read back, a
+                    // block at a time.
+                    let bam = io::BufReader::with_capacity(1 << 20, File::open(&self.path)?);
+                    let index = build_bam_index_from(bam).map_err(|e| format!("{e:?}"))?;
                     std::fs::write(index_path(&self.path), index)?;
                 }
             }
