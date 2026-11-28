@@ -25,12 +25,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("DownsampleSam");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let strategy = match arg(&args, "STRATEGY=").as_deref() {
         None | Some("ConstantMemory") => Strategy::ConstantMemory,
         Some("HighAccuracy") => Strategy::HighAccuracy,
@@ -49,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|v| v.parse())
         .transpose()?
         .unwrap_or(DEFAULT_SEED);
-    let metrics_file = arg(&args, "METRICS_FILE=").or_else(|| arg(&args, "M="));
+    let metrics_file = arg(&args, "METRICS_FILE=");
 
     // `SamReaderFactory` at LENIENT for a SAM; a BAM's records are validated as they are read.
     let opened = picard_analysis::bam_stream::Input::open_with(

@@ -54,14 +54,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SplitVcfs");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
     let snp_output = arg(&args, "SNP_OUTPUT=").ok_or("SNP_OUTPUT= is required")?;
     let indel_output = arg(&args, "INDEL_OUTPUT=").ok_or("INDEL_OUTPUT= is required")?;
-    let sequence_dictionary = arg(&args, "SEQUENCE_DICTIONARY=")
-        .or_else(|| arg(&args, "D="))
-        .filter(|value| value != "null");
+    let sequence_dictionary = arg(&args, "SEQUENCE_DICTIONARY=").filter(|value| value != "null");
     let strict = arg(&args, "STRICT=")
         .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(true);

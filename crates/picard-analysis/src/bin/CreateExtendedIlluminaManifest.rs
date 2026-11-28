@@ -15,6 +15,7 @@ use picard_analysis::create_extended_illumina_manifest::{
     process_snp, render_row, Flag, Record, Statistics, Strand, VERSION,
 };
 use picard_analysis::infinium::{check_utf8, text_lines, Egt, Reader};
+use picard_analysis::metrics_cli::normalized_absolute;
 use picard_analysis::metrics_cli::{refuse_validation, thrown, Args};
 use picard_analysis::vcf_io::VcfReader;
 use std::io::Write;
@@ -30,12 +31,6 @@ const EXTENDED: [&str; 7] = [
     "build37Rsid",
     "build37Flag",
 ];
-
-fn absolute(path: &str) -> String {
-    std::path::absolute(path)
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| path.to_string())
-}
 
 fn file_name(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
@@ -260,7 +255,7 @@ fn main() {
             .unwrap_or_else(|()| {
                 thrown(&format!(
                     "picard.PicardException: Error reading cluster file '{}'",
-                    absolute(&path)
+                    normalized_absolute(&path)
                 ))
             });
         let score = |name: &str| -> f32 {
@@ -294,7 +289,7 @@ fn main() {
         out.push_str(&header_line(width, &fields));
         out.push('\n');
     }
-    let reference_abs = absolute(&reference);
+    let reference_abs = normalized_absolute(&reference);
     for (key, value) in [
         (
             "CreateExtendedIlluminaManifest.version",
@@ -302,8 +297,8 @@ fn main() {
         ),
         ("Target Build", Some(target_build.clone())),
         ("Target Reference File", Some(reference_abs.clone())),
-        ("Cluster File", cluster.as_deref().map(absolute)),
-        ("dbSNP File", dbsnp.as_deref().map(absolute)),
+        ("Cluster File", cluster.as_deref().map(normalized_absolute)),
+        ("dbSNP File", dbsnp.as_deref().map(normalized_absolute)),
     ] {
         if let Some(v) = value {
             out.push_str(&header_line(width, &[key, &v]));
@@ -318,12 +313,15 @@ fn main() {
                 "Supported Reference File",
                 supported_references
                     .iter()
-                    .map(|path| absolute(path))
+                    .map(|path| normalized_absolute(path))
                     .collect(),
             ),
             (
                 "Supported Chain File",
-                supported_chains.iter().map(|path| absolute(path)).collect(),
+                supported_chains
+                    .iter()
+                    .map(|path| normalized_absolute(path))
+                    .collect(),
             ),
         ] {
             let mut fields: Vec<&str> = vec![label];
@@ -388,7 +386,7 @@ fn main() {
     if let Some(path) = &bad_path {
         let mut text = format!(
             "## The following assays were marked by CreateExtendedIlluminaManifest as Unparseable (input file: {})\n#IlmnId,Name,GenomeBuild,Chr,MapInfo,FailureFlag\n",
-            absolute(&input)
+            normalized_absolute(&input)
         );
         for line in &bad {
             text.push_str(line);
@@ -405,13 +403,13 @@ fn main() {
         "CreateExtendedIlluminaManifest (version: {VERSION}) Report For: {}\nGenerated on: {}\nUsing Illumina Manifest: {}\n",
         file_name(&output),
         picard_analysis::command_line::java_date_now(),
-        absolute(&input)
+        normalized_absolute(&input)
     );
     if flag_duplicates {
         r.push_str("Duplicates were flagged\n");
     }
     if let Some(c) = &cluster {
-        r.push_str(&format!("Using Illumina EGT: {}\n", absolute(c)));
+        r.push_str(&format!("Using Illumina EGT: {}\n", normalized_absolute(c)));
     }
     r.push('\n');
     let lines = [

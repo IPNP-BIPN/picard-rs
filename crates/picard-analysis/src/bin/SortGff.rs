@@ -27,6 +27,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Seek, SeekFrom, Write};
 use std::os::unix::fs::FileExt;
 
+use jmath::to_string::double_to_string as java_double_to_string;
 use picard_analysis::metrics_cli::{absolute, fail, thrown, Args};
 use picard_analysis::sort_gff::contig_ranks;
 use picard_analysis::vcf_io::extract_dictionary;
@@ -276,44 +277,6 @@ fn java_parse_double(text: &str) -> Option<f64> {
         return None;
     }
     numeric.parse::<f64>().ok()
-}
-
-/// `Double.toString`: plain between 10^-3 and 10^7, computerized scientific notation outside.
-fn java_double_to_string(value: f64) -> String {
-    if value.is_nan() {
-        return "NaN".to_string();
-    }
-    if value.is_infinite() {
-        return if value > 0.0 { "Infinity" } else { "-Infinity" }.to_string();
-    }
-    let sign = if value.is_sign_negative() { "-" } else { "" };
-    let magnitude = value.abs();
-    if magnitude == 0.0 {
-        return format!("{sign}0.0");
-    }
-    let scientific = format!("{magnitude:e}");
-    let (mantissa, exponent) = scientific.split_once('e').unwrap_or((&scientific, "0"));
-    let exponent: i32 = exponent.parse().unwrap_or(0);
-    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    if (1e-3..1e7).contains(&magnitude) {
-        if exponent >= 0 {
-            let whole_len = exponent as usize + 1;
-            let mut padded = digits.clone();
-            while padded.len() < whole_len {
-                padded.push('0');
-            }
-            let (whole, fraction) = padded.split_at(whole_len);
-            let fraction = if fraction.is_empty() { "0" } else { fraction };
-            format!("{sign}{whole}.{fraction}")
-        } else {
-            let zeros = "0".repeat((-exponent - 1) as usize);
-            format!("{sign}0.{zeros}{digits}")
-        }
-    } else {
-        let (first, rest) = digits.split_at(1);
-        let rest = if rest.is_empty() { "0" } else { rest };
-        format!("{sign}{first}.{rest}E{exponent}")
-    }
 }
 
 /// `URLDecoder.decode(s, "UTF-8")`.

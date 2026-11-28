@@ -24,10 +24,10 @@
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_metrics::file::{Histogram as OutHistogram, MetricsFile};
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, every};
 use picard_analysis::collect_duplicate_metrics::DuplicationMetrics;
 use picard_analysis::estimate_library_complexity::{
-    groups, metrics, passes_quality_check, search_duplicates, seed_order, LibraryHistograms,
+    metrics, passes_quality_check, same_group, search_duplicates, LibraryHistograms, PairSorter,
     PairedRead, DEFAULT_MAX_DIFF_RATE, DEFAULT_MAX_GROUP_RATIO, DEFAULT_MIN_GROUP_COUNT,
     DEFAULT_MIN_IDENTICAL_BASES, DEFAULT_MIN_MEAN_QUALITY,
 };
@@ -40,12 +40,6 @@ const FIRST_OF_PAIR_FLAG: u16 = 0x40;
 const SECOND_OF_PAIR_FLAG: u16 = 0x80;
 const SECONDARY_FLAG: u16 = 0x100;
 const SUPPLEMENTARY_FLAG: u16 = 0x800;
-
-fn args_of(args: &[String], key: &str) -> Vec<String> {
-    args.iter()
-        .filter_map(|a| a.strip_prefix(key).map(str::to_string))
-        .collect()
-}
 
 /// The `@RG` lines of one header, as `(id, library)` in the order they were written.
 fn read_groups(header: &htsjdk_bam::header::SamHeader) -> Vec<(String, Option<String>)> {
@@ -88,16 +82,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let inputs = {
-        let mut inputs = args_of(&args, "INPUT=");
-        inputs.extend(args_of(&args, "I="));
+        let mut inputs = every(&args, "INPUT=");
+        inputs.extend(every(&args, "I="));
         inputs
     };
     if inputs.is_empty() {
         return Err("INPUT= is required".into());
     }
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let number = |key: &str, default: i64| -> i64 {
         arg(&args, key)
             .and_then(|value| value.parse().ok())
@@ -132,7 +124,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // into that growing list, so the same group in two files is two entries unless the headers
     // agree.
     let mut all_read_groups: Vec<(String, Option<String>)> = Vec::new();
-    let mut pairs: Vec<PairedRead> = Vec::new();
+    let max_in_ram = match arg(&args, "MAX_RECORDS_IN_RAM=") {
+        Some(value) => value
+            .parse()
+            .map_err(|_| format!("MAX_RECORDS_IN_RAM is not an integer: {value}"))?,
+        None => picard_analysis::estimate_library_complexity::DEFAULT_MAX_PAIRS_IN_RAM,
+    };
+    // `CommandLineProgram.instanceMain` makes every TMP_DIR that does not exist, unchecked.
+    for dir in every(&args, "TMP_DIR=") {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    // shortcut: the first TMP_DIR only, where htsjdk picks the one with the most free space.
+    let tmp_dir = arg(&args, "TMP_DIR=")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    let mut pairs = PairSorter::new(seed, max_in_ram, tmp_dir);
     let mut records_read: i64 = 0;
 
     for input in &inputs {
@@ -238,21 +244,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .clone()
                         .unwrap_or_else(|| "Unknown".to_string())
                 };
-                pairs.push(PairedRead {
+                pairs.add(PairedRead {
                     read1: entry.read1.take().expect("read one"),
                     read2: entry.read2.take().expect("read two"),
                     library,
                     read_group: entry.read_group,
                     location: entry.location,
                     barcodes: entry.barcodes,
-                });
+                })?;
             }
         }
     }
 
     // `SortingCollection` with `PairedReadComparator`. Both sorts are stable, so templates whose
     // seeds are equal keep the order the file gave them.
-    pairs.sort_by(|left, right| seed_order(left, right, seed));
+    let mut sorted = pairs.into_sorted()?.peekable();
 
     // `meanGroupSize`, whose divisor is four to the power of twice the seed: a long seed makes the
     // expected group one and every real group suspicious.
@@ -262,8 +268,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let mut histograms: JavaHashMap<LibraryHistograms> = JavaHashMap::new();
-    for range in groups(&pairs, seed) {
-        let group = &pairs[range.clone()];
+    // The groups are runs of the sorted stream, each held alone, as `doWork`'s `group` list.
+    let mut group: Vec<PairedRead> = Vec::new();
+    while let Some(first) = sorted.next() {
+        group.clear();
+        group.push(first?);
+        while let Some(Ok(next)) = sorted.peek() {
+            if !same_group(
+                (&group[0].read1, &group[0].read2),
+                (&next.read1, &next.read2),
+                seed,
+            ) {
+                break;
+            }
+            group.push(sorted.next().expect("peeked")?);
+        }
         if group.len() as i64 > mean_group_size * max_group_ratio {
             // The reference warns and drops the group whole.
             continue;

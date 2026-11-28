@@ -203,7 +203,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Exception in thread \"main\" {exception}");
         std::process::exit(1);
     }
-    if let Some(output) = arg(&args, "OUTPUT=").or_else(|| arg(&args, "O=")) {
+    if let Some(output) = arg(&args, "OUTPUT=") {
         let mut file = MetricsFile::new();
         for header in picard_analysis::command_line::default_headers("CompareSAMs") {
             file.add_header(&header);

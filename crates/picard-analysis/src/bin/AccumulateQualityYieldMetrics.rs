@@ -26,9 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if inputs.is_empty() {
         return Err("INPUT= is required".into());
     }
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
 
     if let Some(stringency) = arg(&args, "VALIDATION_STRINGENCY=") {
         if !matches!(stringency.as_str(), "STRICT" | "LENIENT" | "SILENT") {

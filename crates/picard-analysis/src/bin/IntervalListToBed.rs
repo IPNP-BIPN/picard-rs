@@ -20,24 +20,15 @@
 
 use std::io::Write;
 
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, flag};
 use picard_analysis::interval_list_to_bed::{read, write, Options};
-
-/// A boolean argument, which the legacy parser builds as `new Boolean(value)`.
-fn flag(args: &[String], key: &str, default: bool) -> bool {
-    arg(args, key).map_or(default, |value| picard_analysis::args::is_true(&value))
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("IntervalListToBed");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let opts = Options {
         score: match arg(&args, "SCORE=") {
             Some(value) => value.parse().map_err(|_| format!("SCORE: {value}"))?,

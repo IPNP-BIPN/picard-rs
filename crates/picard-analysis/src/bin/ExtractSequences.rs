@@ -14,12 +14,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let interval_list = arg(&args, "INTERVAL_LIST=").ok_or("INTERVAL_LIST= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
-    let reference = arg(&args, "REFERENCE_SEQUENCE=")
-        .or_else(|| arg(&args, "R="))
-        .ok_or("REFERENCE_SEQUENCE= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
+    let reference = arg(&args, "REFERENCE_SEQUENCE=").ok_or("REFERENCE_SEQUENCE= is required")?;
     let options = Options {
         line_length: arg(&args, "LINE_LENGTH=")
             .map(|v| v.parse::<usize>())

@@ -23,12 +23,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SplitSamByNumberOfReads");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let prefix = arg(&args, "OUT_PREFIX=").unwrap_or_else(|| "shard".to_string());
     let number = |key: &str| -> Result<i64, Box<dyn std::error::Error>> {
         Ok(arg(&args, key)

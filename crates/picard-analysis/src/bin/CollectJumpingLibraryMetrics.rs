@@ -30,9 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let inputs = picard_analysis::args::inputs(&args)?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let number = |key: &str, default: i64| -> Result<i64, Box<dyn std::error::Error>> {
         Ok(arg(&args, key)
             .map(|v| v.parse::<i64>())

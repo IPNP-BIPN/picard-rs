@@ -99,6 +99,34 @@ pub fn inputs(args: &[String]) -> Result<Vec<String>, String> {
     Ok(inputs)
 }
 
+/// A `boolean` option: `default` when the word is absent or `null`, else [`is_true`] of it.
+pub fn flag(args: &[String], key: &str, default: bool) -> bool {
+    arg(args, key).map_or(default, |value| is_true(&value))
+}
+
+/// Every value of `key`, in command-line order, `null` included.
+pub fn every(args: &[String], key: &str) -> Vec<String> {
+    args.iter()
+        .filter_map(|a| a.strip_prefix(key).map(str::to_string))
+        .collect()
+}
+
+/// Every value of a list option under any of `keys`, in command-line order; `null` empties the
+/// list, as Barclay clears it.
+pub fn collection(args: &[String], keys: &[&str]) -> Vec<String> {
+    let mut values = Vec::new();
+    for a in args {
+        if let Some(value) = keys.iter().find_map(|key| a.strip_prefix(key)) {
+            if value == "null" {
+                values.clear();
+            } else {
+                values.push(value.to_string());
+            }
+        }
+    }
+    values
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

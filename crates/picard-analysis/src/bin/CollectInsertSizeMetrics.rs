@@ -25,12 +25,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("CollectInsertSizeMetrics");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     // Optional since Picard 3.5.0, which refuses it only where there is no R.
     picard_analysis::metrics_cli::refuse_chart_without_r(
         "CollectInsertSizeMetrics",
@@ -47,7 +43,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|v| v.parse::<i32>().ok())
     };
     let minimum_pct: f32 = arg(&args, "MINIMUM_PCT=")
-        .or_else(|| arg(&args, "M="))
         .and_then(|v| v.parse().ok())
         .unwrap_or(0.05);
     if !(0.0..=0.5).contains(&minimum_pct) {

@@ -695,9 +695,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let truth_vcf = arg(&args, "TRUTH_VCF=").ok_or("TRUTH_VCF= is required")?;
     let call_vcf = arg(&args, "CALL_VCF=").ok_or("CALL_VCF= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let flag = |key: &str, default: bool| {
         arg(&args, key)
             .map(|v| picard_analysis::args::is_true(&v))

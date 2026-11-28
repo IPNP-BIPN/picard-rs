@@ -21,11 +21,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("BuildBamIndex");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
     let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
         .filter(|value| value != "null")
         .unwrap_or_else(|| {
             let name = std::path::Path::new(&input)

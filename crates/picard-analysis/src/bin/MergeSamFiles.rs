@@ -41,29 +41,13 @@
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::text_parse::ValidationStringency;
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, every, flag};
 use picard_analysis::merge_sam_files::{merge_headers, merge_parsed, PriorityMerge};
+use picard_analysis::sort_sam::{mate_cigar_check, reference_span};
 use picard_analysis::sort_sam::{
     mate_cigar_refusal_in_order, MateCigarCheck, RequestedOrder, SortOrder,
 };
 use picard_analysis::stream_output::Output;
-
-const READ_PAIRED: u16 = 0x1;
-const READ_UNMAPPED: u16 = 0x4;
-const MATE_UNMAPPED: u16 = 0x8;
-const FIRST_OF_PAIR: u16 = 0x40;
-
-/// Every value given for a repeatable argument, in command-line order.
-fn args_all(args: &[String], key: &str) -> Vec<String> {
-    args.iter()
-        .filter_map(|a| a.strip_prefix(key).map(str::to_string))
-        .collect()
-}
-
-/// A boolean argument, which the legacy parser builds as `new Boolean(value)`.
-fn flag(args: &[String], key: &str, default: bool) -> bool {
-    arg(args, key).map_or(default, |value| picard_analysis::args::is_true(&value))
-}
 
 /// Opens one input, BAM or SAM, read as `read_one` read it whole: whether it streams, so that it
 /// can be read again, and its header.
@@ -156,58 +140,17 @@ fn has_index(path: &str) -> bool {
     }
 }
 
-fn reference_span(cigar: &htsjdk_bam::cigar::Cigar) -> i32 {
-    cigar
-        .elements
-        .iter()
-        .filter(|element| element.op.consumes_reference_bases())
-        .map(|element| element.length as i32)
-        .sum()
-}
-
-/// What the duplicate-order comparator asks a record for, and the refusal message names.
-fn check_of(record: &BamRecord, header: &SamHeader) -> MateCigarCheck {
-    let reference = if record.reference_index >= 0 {
-        header
-            .sequences
-            .get(record.reference_index as usize)
-            .map(|sequence| sequence.name.clone())
-    } else {
-        None
-    };
-    MateCigarCheck {
-        read_name: record.read_name.clone(),
-        paired: record.flags & READ_PAIRED != 0,
-        first_of_pair: record.flags & FIRST_OF_PAIR != 0,
-        unmapped: record.flags & READ_UNMAPPED != 0,
-        mate_unmapped: record.flags & MATE_UNMAPPED != 0,
-        read_length: record.read_bases.len(),
-        reference,
-        start: record.alignment_start,
-        end: record.alignment_start + reference_span(&record.cigar) - 1,
-        mate_cigar: match record.tags.get(htsjdk_bam::tag::Tag::new(b"MC")) {
-            Some(htsjdk_bam::tag::TagValue::Str(text)) => Some(text.to_string()),
-            _ => None,
-        },
-        sam_string: picard_analysis::view_sam::sam_string(header, record),
-    }
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("MergeSamFiles");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let mut inputs = args_all(&args, "INPUT=");
-    inputs.extend(args_all(&args, "I="));
+    let mut inputs = every(&args, "INPUT=");
+    inputs.extend(every(&args, "I="));
     if inputs.is_empty() {
         return Err("INPUT= is required".into());
     }
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
-    let sort_order = arg(&args, "SORT_ORDER=")
-        .or_else(|| arg(&args, "SO="))
-        .unwrap_or_else(|| "coordinate".to_string());
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
+    let sort_order = arg(&args, "SORT_ORDER=").unwrap_or_else(|| "coordinate".to_string());
     let assume_sorted = flag(&args, "ASSUME_SORTED=", false);
     let merge_dictionaries = flag(&args, "MERGE_SEQUENCE_DICTIONARIES=", false);
     // Accepted and ignored: it selects the writer's async I/O path, not its bytes.
@@ -227,7 +170,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    let intervals = match arg(&args, "INTERVALS=").or_else(|| arg(&args, "RGN=")) {
+    let intervals = match arg(&args, "INTERVALS=") {
         Some(path) => Some(read_intervals(&path)?),
         None => None,
     };
@@ -340,7 +283,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let checks: Vec<MateCigarCheck> = parsed
             .iter()
             .flat_map(|(header, records)| {
-                records.iter().map(move |record| check_of(record, header))
+                records
+                    .iter()
+                    .map(move |record| mate_cigar_check(record, header))
             })
             .collect();
         // File order, not the SortingCollection's: the merging iterator asks each stream's

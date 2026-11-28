@@ -8,14 +8,8 @@
 //! The path in the output is the argument, never a resolved or absolute one, so the same file
 //! named twice differently is two lines.
 
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, every};
 use picard_analysis::make_vcf_sample_name_map::{build, render, wrong_sample_count_message, Entry};
-
-fn args_all(args: &[String], key: &str) -> Vec<String> {
-    args.iter()
-        .filter_map(|a| a.strip_prefix(key).map(str::to_string))
-        .collect()
-}
 
 /// The `#CHROM` line's sample columns, which is `VCFHeader.getGenotypeSamples`.
 fn samples_of(text: &str) -> Vec<String> {
@@ -34,14 +28,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("MakeVcfSampleNameMap");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let mut inputs = args_all(&args, "INPUT=");
-    inputs.extend(args_all(&args, "I="));
+    let mut inputs = every(&args, "INPUT=");
+    inputs.extend(every(&args, "I="));
     if inputs.is_empty() {
         return Err("INPUT= is required".into());
     }
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
 
     let mut entries = Vec::with_capacity(inputs.len());
     for path in &inputs {

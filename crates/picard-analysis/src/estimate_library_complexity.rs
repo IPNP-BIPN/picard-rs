@@ -202,6 +202,216 @@ pub fn groups(pairs: &[PairedRead], seed: usize) -> Vec<std::ops::Range<usize>> 
     out
 }
 
+/// How many pairs [`PairSorter`] holds before it spills, when `MAX_RECORDS_IN_RAM` is not given.
+/// shortcut: a fixed count (about 1 GB of 2x150 pairs), where Picard sizes it from the heap; raise
+/// it when runs of this size are too many for a whole genome.
+pub const DEFAULT_MAX_PAIRS_IN_RAM: usize = 2_000_000;
+
+/// How many runs are merged at once; past it the runs so far are merged into one first, which keeps
+/// the order since they all precede the runs still to come (as `sort_sam`'s collection does).
+const MAX_OPEN_RUNS: usize = 256;
+
+/// The `SortingCollection<PairedReadSequence>` with `PairedReadComparator`: holds `max_in_ram`
+/// pairs, spills each full batch to `tmp_dir` as a stably sorted run, and merges the runs with
+/// equal pairs taken from the earliest run first. That is a stable sort of the whole input, so the
+/// order does not depend on the batch size.
+pub struct PairSorter {
+    seed: usize,
+    max_in_ram: usize,
+    tmp_dir: std::path::PathBuf,
+    ram: Vec<PairedRead>,
+    runs: Vec<std::fs::File>,
+}
+
+/// A pair's sort key: the first `seed` bases of each end, which compare as [`seed_order`] does.
+fn seed_key(pair: &PairedRead, seed: usize) -> Vec<u8> {
+    [&pair.read1[..seed], &pair.read2[..seed]].concat()
+}
+
+impl PairSorter {
+    pub fn new(seed: usize, max_in_ram: usize, tmp_dir: std::path::PathBuf) -> Self {
+        PairSorter {
+            seed,
+            max_in_ram: max_in_ram.max(1),
+            tmp_dir,
+            ram: Vec::new(),
+            runs: Vec::new(),
+        }
+    }
+
+    /// `add`: spill first when the buffer is already full.
+    pub fn add(&mut self, pair: PairedRead) -> std::io::Result<()> {
+        if self.ram.len() == self.max_in_ram {
+            self.spill()?;
+        }
+        self.ram.push(pair);
+        Ok(())
+    }
+
+    fn spill(&mut self) -> std::io::Result<()> {
+        let seed = self.seed;
+        self.ram.sort_by(|l, r| seed_order(l, r, seed));
+        let run = write_run(&self.tmp_dir, self.ram.drain(..).map(Ok))?;
+        self.runs.push(run);
+        if self.runs.len() == MAX_OPEN_RUNS {
+            let merged = PairMerge::new(seed, std::mem::take(&mut self.runs))?;
+            let run = write_run(&self.tmp_dir, merged)?;
+            self.runs.push(run);
+        }
+        Ok(())
+    }
+
+    /// `doneAdding` and `iterator`: the pairs in order, from RAM when nothing spilled.
+    pub fn into_sorted(
+        mut self,
+    ) -> std::io::Result<Box<dyn Iterator<Item = std::io::Result<PairedRead>>>> {
+        let seed = self.seed;
+        if self.runs.is_empty() {
+            self.ram.sort_by(|l, r| seed_order(l, r, seed));
+            return Ok(Box::new(self.ram.into_iter().map(Ok)));
+        }
+        if !self.ram.is_empty() {
+            self.spill()?;
+        }
+        Ok(Box::new(PairMerge::new(seed, self.runs)?))
+    }
+}
+
+/// Writes pairs to a fresh file in `dir`, unlinked at once so nothing is left behind, and rewound.
+fn write_run(
+    dir: &std::path::Path,
+    pairs: impl Iterator<Item = std::io::Result<PairedRead>>,
+) -> std::io::Result<std::fs::File> {
+    use std::io::{Seek, Write};
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = dir.join(format!(
+        "elc-sortingcollection.{}.{n}.tmp",
+        std::process::id()
+    ));
+    let file = std::fs::File::options()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&path)?;
+    // shortcut: unlinking an open file keeps it readable on Unix only; Windows is not a target.
+    std::fs::remove_file(&path)?;
+    let mut out = std::io::BufWriter::new(file);
+    for pair in pairs {
+        let p = pair?;
+        for bytes in [&p.read1, &p.read2, p.library.as_bytes()] {
+            out.write_all(&(bytes.len() as u32).to_le_bytes())?;
+            out.write_all(bytes)?;
+        }
+        out.write_all(&p.read_group.to_le_bytes())?;
+        out.write_all(&p.location.tile.to_le_bytes())?;
+        out.write_all(&p.location.x.to_le_bytes())?;
+        out.write_all(&p.location.y.to_le_bytes())?;
+        out.write_all(&[u8::from(p.location.known)])?;
+        for b in [p.barcodes.0, p.barcodes.1, p.barcodes.2] {
+            out.write_all(&b.to_le_bytes())?;
+        }
+    }
+    let mut file = out.into_inner().map_err(|e| e.into_error())?;
+    file.seek(std::io::SeekFrom::Start(0))?;
+    Ok(file)
+}
+
+/// One spilled run, read back pair by pair; `None` at its end.
+fn read_pair(reader: &mut impl std::io::BufRead) -> std::io::Result<Option<PairedRead>> {
+    if reader.fill_buf()?.is_empty() {
+        return Ok(None);
+    }
+    fn take<const N: usize>(r: &mut impl std::io::Read) -> std::io::Result<[u8; N]> {
+        let mut b = [0u8; N];
+        r.read_exact(&mut b)?;
+        Ok(b)
+    }
+    let mut bytes = || -> std::io::Result<Vec<u8>> {
+        let mut v = vec![0u8; u32::from_le_bytes(take(reader)?) as usize];
+        reader.read_exact(&mut v)?;
+        Ok(v)
+    };
+    let read1 = bytes()?;
+    let read2 = bytes()?;
+    let library = String::from_utf8(bytes()?).map_err(std::io::Error::other)?;
+    Ok(Some(PairedRead {
+        read1,
+        read2,
+        library,
+        read_group: i32::from_le_bytes(take(reader)?),
+        location: Location {
+            tile: i16::from_le_bytes(take(reader)?),
+            x: i32::from_le_bytes(take(reader)?),
+            y: i32::from_le_bytes(take(reader)?),
+            known: take::<1>(reader)?[0] != 0,
+        },
+        barcodes: (
+            i32::from_le_bytes(take(reader)?),
+            i32::from_le_bytes(take(reader)?),
+            i32::from_le_bytes(take(reader)?),
+        ),
+    }))
+}
+
+/// The runs merged; of equal pairs the one from the earliest run comes first
+/// (`MergingIterator`'s tie-break).
+struct PairMerge {
+    seed: usize,
+    runs: Vec<std::io::BufReader<std::fs::File>>,
+    heap: std::collections::BinaryHeap<std::cmp::Reverse<(Vec<u8>, usize, Slot)>>,
+}
+
+/// A pair in the heap, ignored by its ordering: the key and the run index decide.
+struct Slot(PairedRead);
+impl PartialEq for Slot {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+impl Eq for Slot {}
+impl PartialOrd for Slot {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for Slot {
+    fn cmp(&self, _: &Self) -> std::cmp::Ordering {
+        std::cmp::Ordering::Equal
+    }
+}
+
+impl PairMerge {
+    fn new(seed: usize, files: Vec<std::fs::File>) -> std::io::Result<Self> {
+        let mut merge = PairMerge {
+            seed,
+            runs: files.into_iter().map(std::io::BufReader::new).collect(),
+            heap: Default::default(),
+        };
+        for run in 0..merge.runs.len() {
+            merge.refill(run)?;
+        }
+        Ok(merge)
+    }
+
+    fn refill(&mut self, run: usize) -> std::io::Result<()> {
+        if let Some(pair) = read_pair(&mut self.runs[run])? {
+            let key = seed_key(&pair, self.seed);
+            self.heap.push(std::cmp::Reverse((key, run, Slot(pair))));
+        }
+        Ok(())
+    }
+}
+
+impl Iterator for PairMerge {
+    type Item = std::io::Result<PairedRead>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let std::cmp::Reverse((_, run, Slot(pair))) = self.heap.pop()?;
+        Some(self.refill(run).map(|()| pair))
+    }
+}
+
 /// What one library's search produced: how many groups of each size, and how many of those groups'
 /// members were optical duplicates.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -302,6 +512,48 @@ pub fn search_duplicates(
             if flag {
                 *histograms.optical.entry(size).or_insert(0) += 1;
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod sorter_tests {
+    use super::*;
+
+    #[test]
+    fn spilled_runs_come_back_in_the_in_memory_order() {
+        // Few distinct seeds, so most pairs tie and only stability orders them.
+        let mut state = 7u64;
+        let pairs: Vec<PairedRead> = (0..500)
+            .map(|i| {
+                state = state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                let base = |s: u64| b"ACGT"[(s % 4) as usize];
+                PairedRead {
+                    read1: vec![base(state >> 33), base(state >> 40), b'A', b'C'],
+                    read2: vec![base(state >> 50), b'T', b'G', b'G'],
+                    library: format!("lib{}", i % 3),
+                    read_group: i % 5,
+                    location: Location {
+                        tile: (i % 7) as i16,
+                        x: i,
+                        y: -i,
+                        known: i % 2 == 0,
+                    },
+                    barcodes: (i, i + 1, -i),
+                }
+            })
+            .collect();
+        let mut expected = pairs.clone();
+        expected.sort_by(|l, r| seed_order(l, r, 2));
+        for max_in_ram in [1, 7, 499, 500, 10_000] {
+            let mut sorter = PairSorter::new(2, max_in_ram, std::env::temp_dir());
+            for pair in pairs.clone() {
+                sorter.add(pair).unwrap();
+            }
+            let got: Vec<PairedRead> = sorter.into_sorted().unwrap().map(Result::unwrap).collect();
+            assert_eq!(got, expected, "max_in_ram {max_in_ram}");
         }
     }
 }

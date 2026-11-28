@@ -35,19 +35,14 @@
 
 use std::io::Read;
 
-use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::tag::{Tag, TagValue};
 use htsjdk_bam::text_parse::ValidationStringency;
 use picard_analysis::add_or_replace_read_groups::{replace_and_stamp, Options};
 use picard_analysis::args::arg;
+use picard_analysis::sort_sam::mate_cigar_check;
 use picard_analysis::sort_sam::{mate_cigar_refusal, MateCigarCheck, RequestedOrder};
 use picard_analysis::stream_output::Output;
-
-const READ_PAIRED: u16 = 0x1;
-const READ_UNMAPPED: u16 = 0x4;
-const MATE_UNMAPPED: u16 = 0x8;
-const FIRST_OF_PAIR: u16 = 0x40;
 
 /// The RG tag `replace_and_stamp` sets on every record.
 fn stamp(mut record: BamRecord, opts: &Options) -> BamRecord {
@@ -57,69 +52,18 @@ fn stamp(mut record: BamRecord, opts: &Options) -> BamRecord {
     record
 }
 
-fn reference_span(cigar: &htsjdk_bam::cigar::Cigar) -> i32 {
-    cigar
-        .elements
-        .iter()
-        .filter(|element| element.op.consumes_reference_bases())
-        .map(|element| element.length as i32)
-        .sum()
-}
-
-/// What the duplicate-order comparator asks a record for, and the refusal message names.
-fn check_of(record: &BamRecord, header: &SamHeader) -> MateCigarCheck {
-    let reference = if record.reference_index >= 0 {
-        header
-            .sequences
-            .get(record.reference_index as usize)
-            .map(|sequence| sequence.name.clone())
-    } else {
-        None
-    };
-    MateCigarCheck {
-        read_name: record.read_name.clone(),
-        paired: record.flags & READ_PAIRED != 0,
-        first_of_pair: record.flags & FIRST_OF_PAIR != 0,
-        unmapped: record.flags & READ_UNMAPPED != 0,
-        mate_unmapped: record.flags & MATE_UNMAPPED != 0,
-        read_length: record.read_bases.len(),
-        reference,
-        start: record.alignment_start,
-        end: record.alignment_start + reference_span(&record.cigar) - 1,
-        mate_cigar: match record.tags.get(htsjdk_bam::tag::Tag::new(b"MC")) {
-            Some(htsjdk_bam::tag::TagValue::Str(text)) => Some(text.to_string()),
-            _ => None,
-        },
-        sam_string: picard_analysis::view_sam::sam_string(header, record),
-    }
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("AddOrReplaceReadGroups");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let opts = Options {
-        rgid: arg(&args, "RGID=")
-            .or_else(|| arg(&args, "ID="))
-            .unwrap_or_else(|| "1".to_string()),
-        rglb: arg(&args, "RGLB=")
-            .or_else(|| arg(&args, "LB="))
-            .ok_or("RGLB= is required")?,
-        rgpl: arg(&args, "RGPL=")
-            .or_else(|| arg(&args, "PL="))
-            .ok_or("RGPL= is required")?,
-        rgpu: arg(&args, "RGPU=")
-            .or_else(|| arg(&args, "PU="))
-            .ok_or("RGPU= is required")?,
-        rgsm: arg(&args, "RGSM=")
-            .or_else(|| arg(&args, "SM="))
-            .ok_or("RGSM= is required")?,
+        rgid: arg(&args, "RGID=").unwrap_or_else(|| "1".to_string()),
+        rglb: arg(&args, "RGLB=").ok_or("RGLB= is required")?,
+        rgpl: arg(&args, "RGPL=").ok_or("RGPL= is required")?,
+        rgpu: arg(&args, "RGPU=").ok_or("RGPU= is required")?,
+        rgsm: arg(&args, "RGSM=").ok_or("RGSM= is required")?,
         optional: Vec::new(),
     };
     let mut opts = opts;
@@ -176,7 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .to_string();
     replace_and_stamp(&mut header, &mut [], &opts);
 
-    let requested = arg(&args, "SORT_ORDER=").or_else(|| arg(&args, "SO="));
+    let requested = arg(&args, "SORT_ORDER=");
     if let Some(order) = requested.as_deref() {
         header.set_sort_order(order);
     }
@@ -191,7 +135,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(RequestedOrder::Duplicate) => {
                 let checks: Vec<MateCigarCheck> = records
                     .iter()
-                    .map(|record| check_of(record, &header))
+                    .map(|record| mate_cigar_check(record, &header))
                     .collect();
                 if let Some(message) = mate_cigar_refusal(&checks) {
                     eprintln!(

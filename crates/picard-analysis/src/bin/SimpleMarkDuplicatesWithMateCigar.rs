@@ -19,16 +19,10 @@ use picard_analysis::mark_duplicates::{
 use picard_analysis::mate_cigar_duplicates::{
     simple_mark_with_mate_cigar, SortOrder as MateSortOrder,
 };
+use picard_analysis::metrics_cli::string_tag;
 use picard_analysis::stream_output::Output;
 
 const DUPLICATE_READ: u16 = 0x400;
-
-fn string_tag(record: &BamRecord, name: &[u8; 2]) -> Option<String> {
-    match record.tags.get(Tag::new(name)) {
-        Some(TagValue::Str(s)) => Some(s.clone()),
-        _ => None,
-    }
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SimpleMarkDuplicatesWithMateCigar");
@@ -46,10 +40,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
     let inputs = picard_analysis::args::inputs(&args)?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
-    let metrics_file = arg(&args, "METRICS_FILE=").or_else(|| arg(&args, "M="));
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
+    let metrics_file = arg(&args, "METRICS_FILE=");
     let flag = |key: &str, default: bool| {
         arg(&args, key)
             .map(|v| picard_analysis::args::is_true(&v))
@@ -102,14 +94,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // surely as the file does: a coordinate-sorted file assumed to be anything else is refused,
     // and the message says nothing about the assumption.
     // `ASSUME_SORTED=true` stands for `ASSUME_SORT_ORDER=coordinate`.
-    let assumed = arg(&args, "ASSUME_SORT_ORDER=")
-        .or_else(|| arg(&args, "ASO="))
-        .or_else(|| {
-            arg(&args, "ASSUME_SORTED=")
-                .or_else(|| arg(&args, "AS="))
-                .is_some_and(|v| picard_analysis::args::is_true(&v))
-                .then(|| "coordinate".to_string())
-        });
+    let assumed = arg(&args, "ASSUME_SORT_ORDER=").or_else(|| {
+        arg(&args, "ASSUME_SORTED=")
+            .is_some_and(|v| picard_analysis::args::is_true(&v))
+            .then(|| "coordinate".to_string())
+    });
     // Read twice, as MarkDuplicates reads it: once for the marking, which keeps only what it
     // needs of each record, and once for the writing. One input is streamed, and its first read
     // checks the whole file, so a damaged one is refused here as reading it whole refused it.

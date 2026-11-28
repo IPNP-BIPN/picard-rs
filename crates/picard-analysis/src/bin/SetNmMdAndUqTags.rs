@@ -22,15 +22,9 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SetNmMdAndUqTags");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
-    let reference = arg(&args, "REFERENCE_SEQUENCE=")
-        .or_else(|| arg(&args, "R="))
-        .ok_or("REFERENCE_SEQUENCE= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
+    let reference = arg(&args, "REFERENCE_SEQUENCE=").ok_or("REFERENCE_SEQUENCE= is required")?;
     let flag = |key: &str| {
         arg(&args, key)
             .map(|v| picard_analysis::args::is_true(&v))

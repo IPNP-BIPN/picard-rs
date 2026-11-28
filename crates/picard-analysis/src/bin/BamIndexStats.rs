@@ -30,9 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("BamIndexStats");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
 
     // Enough of the file to sniff it; the header is read on its own below.
     let mut bam = Vec::new();

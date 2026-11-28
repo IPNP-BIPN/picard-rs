@@ -26,7 +26,8 @@ use htsjdk_vcf::comparator::VariantContextComparator;
 use htsjdk_vcf::encoder::MissingFields;
 use htsjdk_vcf::reader::VcfFile;
 use htsjdk_vcf::variant::VariantContext;
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, collection};
+use picard_analysis::metrics_cli::normalized_absolute;
 use picard_analysis::vcf_io::{
     add_other_meta_data_line, assert_same_dictionary, die, header_dictionary, is_compressed_vcf,
     java_compare, log_error, thrown, unroll_paths, Record, VcfReader, VcfWriter, WriteError,
@@ -49,21 +50,6 @@ fn scan(path: &str) -> Result<Scanned, String> {
     })
 }
 
-/// A collection argument: every occurrence appends, and the value `null` empties it (Barclay).
-fn collection(args: &[String], keys: &[&str]) -> Vec<String> {
-    let mut values = Vec::new();
-    for a in args {
-        if let Some(value) = keys.iter().find_map(|key| a.strip_prefix(key)) {
-            if value == "null" {
-                values.clear();
-            } else {
-                values.push(value.to_string());
-            }
-        }
-    }
-    values
-}
-
 const NPE_UNKNOWN_CONTIG: &str = "java.lang.NullPointerException: Cannot invoke \
      \"java.lang.Integer.intValue()\" because the return value of \"java.util.Map.get(Object)\" \
      is null";
@@ -74,12 +60,6 @@ enum Failure {
     Caught(String),
     /// An `AssertionError` from `assertSameDictionary`, after the two lines it logs.
     Escaped(String),
-}
-
-fn absolute(path: &str) -> String {
-    std::path::absolute(path)
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| path.to_string())
 }
 
 /// `TreeSet.toString()` of the names in `a` that are not in `b`.
@@ -169,7 +149,7 @@ fn assert_same_samples_and_valid_ordering(
                 "java.lang.IllegalArgumentException: VCFs do not have identical sample lists. \
                  Samples unique to first file: {}. Samples unique to {}: {}.",
                 unique_to(&samples, these),
-                absolute(path),
+                normalized_absolute(path),
                 unique_to(these, &samples)
             )));
         }
@@ -179,8 +159,8 @@ fn assert_same_samples_and_valid_ordering(
                     return Err(Failure::Caught(format!(
                         "java.lang.IllegalArgumentException: First record in file {} is not after \
                          first record in previous file {}",
-                        absolute(path),
-                        absolute(last_path)
+                        normalized_absolute(path),
+                        normalized_absolute(last_path)
                     )));
                 }
             }
@@ -242,10 +222,10 @@ fn write_conventionally(
                 return Err(Failure::Caught(format!(
                     "java.lang.IllegalArgumentException: First variant in file {} is at {}:{} but \
                      last variant in earlier file {} is at {}:{}",
-                    absolute(path),
+                    normalized_absolute(path),
                     vc.contig,
                     vc.start,
-                    absolute(last_file.map(String::as_str).unwrap_or_default()),
+                    normalized_absolute(last_file.map(String::as_str).unwrap_or_default()),
                     lc.contig,
                     lc.start
                 )));
@@ -292,7 +272,7 @@ fn gather_with_block_copying(paths: &[String]) -> Result<Vec<u8>, Failure> {
             return Err(Failure::Caught(format!(
                 "picard.PicardException: {} does not have a valid GZIP block at the end of the \
                  file.",
-                absolute(path)
+                normalized_absolute(path)
             )));
         }
         let mut position = 0;
@@ -355,12 +335,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if inputs.is_empty() {
         return Err("INPUT= is required".into());
     }
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let comments = collection(&args, &["COMMENT=", "CO="]);
     let reorder = arg(&args, "REORDER_INPUT_BY_FIRST_VARIANT=")
-        .or_else(|| arg(&args, "RI="))
         .map(|value| picard_analysis::args::is_true(&value))
         .unwrap_or(false);
     let create_index = arg(&args, "CREATE_INDEX=")

@@ -225,12 +225,6 @@ fn sorted_set(
     sorted
 }
 
-/// The duplicate sets themselves, as indices into `records`, in the order the iterator yields
-/// them and with each set's records in the order it returns them.
-///
-/// `mark_duplicate_sets` is the same walk with a verdict written at the end of each set; a tool
-/// that reads the SETS -- `CollectUmiPrevalenceMetrics` counts the distinct barcodes in one --
-/// needs the grouping and not the flags.
 /// `SAMRecordDuplicateComparator`'s library ids: numbered in the SORTED order of the library
 /// names (a `TreeSet`, with `Unknown Library` among them), not in the order records name them. A
 /// set is a run of equal keys, so the numbering cannot move a record between sets, but it is the
@@ -246,10 +240,27 @@ pub(crate) fn library_ids(records: &[Record]) -> Vec<i32> {
         .collect()
 }
 
+/// The duplicate sets themselves, as indices into `records`, in the order the iterator yields
+/// them and with each set's records in the order it returns them.
+///
+/// `mark_duplicate_sets` is the same walk with a verdict written at the end of each set; a tool
+/// that reads the SETS -- `CollectUmiPrevalenceMetrics` counts the distinct barcodes in one --
+/// needs the grouping and not the flags.
 pub fn duplicate_sets(records: &[Record], options: &Options) -> Vec<Vec<usize>> {
     let library_of = library_ids(records);
-    // The same whole-file re-sort `mark_duplicate_sets` does, by the FULL comparator: the
-    // iterator is built with `preSorted = false`.
+    walk(records, options, &library_of)
+        .into_iter()
+        .map(|(set, _)| set)
+        .collect()
+}
+
+/// The walk both readers of the sets share, `DuplicateSetIterator` with `preSorted = false`: the
+/// WHOLE file re-sorted by the full comparator before a single set is cut (that is not the file's
+/// own order -- the comparator keys on the UNCLIPPED coordinate, so a soft-clipped read moves --
+/// and cutting sets in file order marks a different file), then cut into runs of equal
+/// duplicate-set keys behind a mapped primary head. Each set comes back sorted, with its
+/// representative.
+fn walk(records: &[Record], options: &Options, library_of: &[i32]) -> Vec<(Vec<usize>, usize)> {
     let mut order: Vec<usize> = (0..records.len()).collect();
     order.sort_by(|a, b| {
         compare(
@@ -261,7 +272,7 @@ pub fn duplicate_sets(records: &[Record], options: &Options) -> Vec<Vec<usize>> 
         )
     });
 
-    let mut out: Vec<Vec<usize>> = Vec::new();
+    let mut out = Vec::new();
     let mut set: Vec<usize> = Vec::new();
     let mut representative: usize = 0;
     for index in order {
@@ -289,26 +300,16 @@ pub fn duplicate_sets(records: &[Record], options: &Options) -> Vec<Vec<usize>> 
             }
             set.push(index);
         } else {
-            out.push(sorted_set(
-                &set,
-                representative,
-                records,
-                &library_of,
-                options,
-            ));
+            let sorted = sorted_set(&set, representative, records, library_of, options);
+            out.push((sorted, representative));
             set.clear();
             set.push(index);
             representative = index;
         }
     }
     if !set.is_empty() {
-        out.push(sorted_set(
-            &set,
-            representative,
-            records,
-            &library_of,
-            options,
-        ));
+        let sorted = sorted_set(&set, representative, records, library_of, options);
+        out.push((sorted, representative));
     }
     out
 }
@@ -437,77 +438,24 @@ pub fn mark_duplicate_sets_tracked(records: &[Record], options: &Options) -> Set
         mates.entry(record.name.as_str()).or_default().push(index);
     }
 
-    // `new DuplicateSetIterator(..., preSorted = false, ...)`: the WHOLE file is re-sorted by the
-    // duplicate comparator before a single set is cut. That is not the file's own order -- the
-    // comparator keys on the UNCLIPPED coordinate, so a soft-clipped read moves -- and cutting
-    // sets in file order marks a different file.
-    let mut order: Vec<usize> = (0..records.len()).collect();
-    order.sort_by(|a, b| {
-        compare(
-            &records[*a],
-            &records[*b],
-            library_of[*a],
-            library_of[*b],
-            options.scoring,
-        )
-    });
-
-    let mut set: Vec<usize> = Vec::new();
-    let mut representative: usize = 0;
-
-    let close = |set: &mut Vec<usize>, representative: usize, marking: &mut SetMarking| {
-        if set.is_empty() {
-            return;
-        }
-        let sorted = sorted_set(set, representative, records, &library_of, options);
-        let name = records[representative].name.clone();
+    for (sorted, representative) in walk(records, options, &library_of) {
+        let name = &records[representative].name;
         for index in &sorted {
             let record = &records[*index];
-            if !record.unmapped() && !record.secondary_or_supplementary() && record.name != name {
+            if !record.unmapped() && !record.secondary_or_supplementary() && record.name != *name {
                 marking.duplicate[*index] = true;
             }
         }
         // `records.get(0).setDuplicateReadFlag(false)`, after the sort.
         marking.duplicate[sorted[0]] = false;
-        track_set(&sorted, representative, records, options, &mates, marking);
-        set.clear();
-    };
-
-    for index in order {
-        let record = &records[index];
-        if set.is_empty() {
-            set.push(index);
-            representative = index;
-            continue;
-        }
-        let head = &records[representative];
-        if head.unmapped() || head.secondary_or_supplementary() {
-            close(&mut set, representative, &mut marking);
-            set.push(index);
-            representative = index;
-            continue;
-        }
-        let cmp =
-            duplicate_set_compare(head, record, library_of[representative], library_of[index]);
-        if cmp == Ordering::Equal {
-            if compare(
-                head,
-                record,
-                library_of[representative],
-                library_of[index],
-                options.scoring,
-            ) == Ordering::Greater
-            {
-                representative = index;
-            }
-            set.push(index);
-        } else {
-            close(&mut set, representative, &mut marking);
-            set.push(index);
-            representative = index;
-        }
+        track_set(
+            &sorted,
+            representative,
+            records,
+            options,
+            &mates,
+            &mut marking,
+        );
     }
-    close(&mut set, representative, &mut marking);
-
     marking
 }

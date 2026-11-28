@@ -38,16 +38,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("LiftOverIntervalList");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
     let chain = arg(&args, "CHAIN=").ok_or("CHAIN= is required")?;
-    let dictionary = arg(&args, "SEQUENCE_DICTIONARY=")
-        .or_else(|| arg(&args, "SD="))
-        .ok_or("SEQUENCE_DICTIONARY= is required")?;
+    let dictionary =
+        arg(&args, "SEQUENCE_DICTIONARY=").ok_or("SEQUENCE_DICTIONARY= is required")?;
     let min_liftover_pct = arg(&args, "MIN_LIFTOVER_PCT=")
         .and_then(|value| value.parse().ok())
         .unwrap_or(0.95);

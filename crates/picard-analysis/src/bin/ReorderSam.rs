@@ -17,17 +17,11 @@
 
 use htsjdk_bam::record::BamRecord;
 use htsjdk_bam::text_parse::ValidationStringency;
-use picard_analysis::args::arg;
+use picard_analysis::args::{arg, flag};
 use picard_analysis::bam_stream::{Input, Records};
 use picard_analysis::reorder_sam::{reorder_header, reorder_record, Options};
 use picard_analysis::sort_sam::SortingCollection;
 use picard_analysis::stream_output::Output;
-
-fn flag(args: &[String], key: &str) -> bool {
-    arg(args, key)
-        .map(|v| picard_analysis::args::is_true(&v))
-        .unwrap_or(false)
-}
 
 /// The text of a SAM or BAM input's header, for a dictionary read from one. Its records are read
 /// through and checked as the whole text was, and none is kept.
@@ -58,19 +52,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("ReorderSam");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
-    let dictionary = arg(&args, "SEQUENCE_DICTIONARY=")
-        .or_else(|| arg(&args, "SD="))
-        .ok_or("SEQUENCE_DICTIONARY= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
+    let dictionary =
+        arg(&args, "SEQUENCE_DICTIONARY=").ok_or("SEQUENCE_DICTIONARY= is required")?;
 
     let options = Options {
-        allow_incomplete_dict_concordance: flag(&args, "ALLOW_INCOMPLETE_DICT_CONCORDANCE="),
-        allow_contig_length_discordance: flag(&args, "ALLOW_CONTIG_LENGTH_DISCORDANCE="),
+        allow_incomplete_dict_concordance: flag(&args, "ALLOW_INCOMPLETE_DICT_CONCORDANCE=", false),
+        allow_contig_length_discordance: flag(&args, "ALLOW_CONTIG_LENGTH_DISCORDANCE=", false),
     };
 
     let opened = Input::open_with(&input, ValidationStringency::Lenient)?;

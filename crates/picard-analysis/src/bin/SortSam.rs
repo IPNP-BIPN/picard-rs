@@ -13,7 +13,6 @@
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
 
-use htsjdk_bam::cigar::Cigar;
 use htsjdk_bam::header::SamHeader;
 use htsjdk_bam::reader::{BamReader, ReadError};
 use htsjdk_bam::record::BamRecord;
@@ -27,14 +26,12 @@ use picard_analysis::record_validation::Validator;
 use picard_analysis::sort_sam::encoded::{
     bin_zero, read_in_parallel, Encoded, EncodedBamWriter, SortingCollection,
 };
-use picard_analysis::sort_sam::{
-    mate_cigar_refusal, MateCigarCheck, RequestedOrder, DEFAULT_MAX_RECORDS_IN_RAM,
-};
+use picard_analysis::sort_sam::mate_cigar_check;
+use picard_analysis::sort_sam::{mate_cigar_refusal, RequestedOrder, DEFAULT_MAX_RECORDS_IN_RAM};
 
 const READ_PAIRED: u16 = 0x1;
 const READ_UNMAPPED: u16 = 0x4;
 const MATE_UNMAPPED: u16 = 0x8;
-const FIRST_OF_PAIR: u16 = 0x40;
 
 /// `BamWriter::write`'s bytes, and its error.
 fn write<W: Write>(
@@ -54,60 +51,13 @@ fn index_path(output: &str) -> String {
     }
 }
 
-/// The last reference position an alignment covers, which the refusal's message names.
-fn alignment_end(record: &BamRecord) -> i32 {
-    record.alignment_start + reference_span(&record.cigar) - 1
-}
-
-fn reference_span(cigar: &Cigar) -> i32 {
-    cigar
-        .elements
-        .iter()
-        .filter(|element| element.op.consumes_reference_bases())
-        .map(|element| element.length as i32)
-        .sum()
-}
-
-fn check_of(record: &BamRecord, header: &SamHeader) -> MateCigarCheck {
-    let reference = if record.reference_index >= 0 {
-        header
-            .sequences
-            .get(record.reference_index as usize)
-            .map(|sequence| sequence.name.clone())
-    } else {
-        None
-    };
-    MateCigarCheck {
-        read_name: record.read_name.clone(),
-        paired: record.flags & READ_PAIRED != 0,
-        first_of_pair: record.flags & FIRST_OF_PAIR != 0,
-        unmapped: record.flags & READ_UNMAPPED != 0,
-        mate_unmapped: record.flags & MATE_UNMAPPED != 0,
-        read_length: record.read_bases.len(),
-        reference,
-        start: record.alignment_start,
-        end: alignment_end(record),
-        mate_cigar: match record.tags.get(Tag::new(b"MC")) {
-            Some(TagValue::Str(text)) => Some(text.to_string()),
-            _ => None,
-        },
-        sam_string: picard_analysis::view_sam::sam_string(header, record),
-    }
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     picard_analysis::argument_check::check("SortSam");
     picard_analysis::output::install();
     let args: Vec<String> = picard_analysis::args::process().into_iter().collect();
-    let input = arg(&args, "INPUT=")
-        .or_else(|| arg(&args, "I="))
-        .ok_or("INPUT= is required")?;
-    let output = arg(&args, "OUTPUT=")
-        .or_else(|| arg(&args, "O="))
-        .ok_or("OUTPUT= is required")?;
-    let requested = arg(&args, "SORT_ORDER=")
-        .or_else(|| arg(&args, "SO="))
-        .ok_or("SORT_ORDER= is required")?;
+    let input = arg(&args, "INPUT=").ok_or("INPUT= is required")?;
+    let output = arg(&args, "OUTPUT=").ok_or("OUTPUT= is required")?;
+    let requested = arg(&args, "SORT_ORDER=").ok_or("SORT_ORDER= is required")?;
     let order = RequestedOrder::parse(&requested)
         .ok_or_else(|| format!("unknown SORT_ORDER: {requested}"))?;
     let create_index = arg(&args, "CREATE_INDEX=")
@@ -258,7 +208,7 @@ fn read_serially(
         // every record is read; so the first record is held until the second is seen, and only the
         // refused record is described.
         let refused = |record: &BamRecord| {
-            let check = check_of(record, &header);
+            let check = mate_cigar_check(record, &header);
             (check.needs_mate_cigar() && check.mate_cigar.is_none())
                 .then(|| mate_cigar_refusal(&[check]).expect("a record with no mate cigar"))
         };
