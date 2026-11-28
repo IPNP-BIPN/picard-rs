@@ -429,7 +429,11 @@ pub fn parse_input_file(
                     reference_path(path)
                 ))
             });
-            fields.get(i).map(|s| s.to_string())
+            // `AbstractInputParser.parseLine` (no grouped delimiters) leaves an empty field null.
+            fields
+                .get(i)
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
         };
         let mut seqs = Vec::new();
         for n in 0..lengths.len() {

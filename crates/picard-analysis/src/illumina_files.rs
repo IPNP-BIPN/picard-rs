@@ -1,113 +1,11 @@
-//! The binary files an Illumina run directory carries, and the read structure that cuts them.
+//! The tile metrics file of an Illumina run directory, and the read structure that cuts its cycles.
 //!
-//! Picard's Illumina tools read a DIRECTORY rather than a file, and four formats in it. None of
-//! them is self-describing, so each is a fixed layout the reader knows by heart:
+//! A `TileMetricsOut.bin` is a version byte, a record size, and then that many bytes per record: a
+//! lane, a tile and a metric code as unsigned shorts, and a float, all little-endian. The
+//! basecall, filter and locs files are read by `illumina_reader`.
 //!
-//!  * a `.bcl` is an unsigned count of clusters and then one byte per cluster, whose low two bits
-//!    are the base and whose high six are the quality. A byte of ZERO is a no-call whatever those
-//!    bits say, which is why the quality cannot be read on its own;
-//!  * a `.filter` is three unsigned ints (a zero, the version, which must be three, and the count)
-//!    and then one byte per cluster;
-//!  * a `.locs` is a little-endian one, a float version of 1.0, a count, and two floats per
-//!    cluster;
-//!  * a `TileMetricsOut.bin` is a version byte, a record size, and then that many bytes per
-//!    record: a lane, a tile and a metric code as unsigned shorts, and a float.
-//!
-//! Everything is little-endian.
-//!
-//! Ported from `picard.illumina.parser.readers.BclReader`, `FilterFileReader`, `LocsFileReader`
-//! and `TileMetricsOutReader` in Picard 3.4.0.
-
-/// What a cluster's basecall byte says.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BaseCall {
-    /// `A`, `C`, `G`, `T`, or `.` for a no-call.
-    pub base: u8,
-    /// The quality, which is zero for a no-call.
-    pub quality: u8,
-}
-
-/// `BclReader`: the base is the low two bits and the quality is the rest.
-///
-/// A byte of zero is a no-call, and the reference writes it as a dot rather than as an `N`.
-pub fn decode_basecall(byte: u8) -> BaseCall {
-    if byte == 0 {
-        return BaseCall {
-            base: b'.',
-            quality: 0,
-        };
-    }
-    BaseCall {
-        base: b"ACGT"[(byte & 0b11) as usize],
-        quality: byte >> 2,
-    }
-}
-
-/// What a `.bcl` carries: one call per cluster.
-pub fn parse_bcl(bytes: &[u8]) -> Option<Vec<BaseCall>> {
-    let count = read_u32(bytes, 0)? as usize;
-    if bytes.len() < 4 + count {
-        return None;
-    }
-    Some(
-        bytes[4..4 + count]
-            .iter()
-            .map(|b| decode_basecall(*b))
-            .collect(),
-    )
-}
-
-/// `FilterFileReader`: the version must be three, and a cluster passed when its byte's low bit is
-/// set.
-pub fn parse_filter(bytes: &[u8]) -> Result<Vec<bool>, FilterError> {
-    if bytes.len() < 12 {
-        return Err(FilterError::TooShort);
-    }
-    let version = read_u32(bytes, 4).ok_or(FilterError::TooShort)?;
-    if version != 3 {
-        return Err(FilterError::Version(version));
-    }
-    let count = read_u32(bytes, 8).ok_or(FilterError::TooShort)? as usize;
-    if bytes.len() < 12 + count {
-        return Err(FilterError::TooShort);
-    }
-    Ok(bytes[12..12 + count].iter().map(|b| b & 1 == 1).collect())
-}
-
-/// What a filter file can be wrong about.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilterError {
-    TooShort,
-    /// The reference refuses any version but three, by name.
-    Version(u32),
-}
-
-/// A cluster's position on the tile.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Position {
-    pub x: f32,
-    pub y: f32,
-}
-
-/// `LocsFileReader`: a one, a float version of 1.0, a count, and a pair of floats per cluster.
-pub fn parse_locs(bytes: &[u8]) -> Option<Vec<Position>> {
-    if bytes.len() < 12 || read_u32(bytes, 0)? != 1 {
-        return None;
-    }
-    if read_f32(bytes, 4)? != 1.0 {
-        return None;
-    }
-    let count = read_u32(bytes, 8)? as usize;
-    let mut positions = Vec::with_capacity(count);
-    for index in 0..count {
-        let at = 12 + index * 8;
-        positions.push(Position {
-            x: read_f32(bytes, at)?,
-            y: read_f32(bytes, at + 4)?,
-        });
-    }
-    Some(positions)
-}
+//! Ported from `picard.illumina.parser.readers.TileMetricsOutReader` and
+//! `picard.illumina.parser.ReadStructure` in Picard 3.4.0.
 
 /// One record of a tile metrics file.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -141,10 +39,6 @@ pub fn parse_tile_metrics(bytes: &[u8]) -> Option<Vec<TileMetric>> {
 
 fn read_u16(bytes: &[u8], at: usize) -> Option<u16> {
     Some(u16::from_le_bytes(bytes.get(at..at + 2)?.try_into().ok()?))
-}
-
-fn read_u32(bytes: &[u8], at: usize) -> Option<u32> {
-    Some(u32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?))
 }
 
 fn read_f32(bytes: &[u8], at: usize) -> Option<f32> {
